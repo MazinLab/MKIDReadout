@@ -50,6 +50,7 @@ inByteUARTReg = 'in_val'
 v7ReadyReg = 'v7_ready'
 lutBufferSizeReg = 'lut_dump_buffer_size'
 lutDumpBusyReg = 'lut_dump_sending_data'
+lutBramAddr = 'lut_dump_dac_lut_buffer'
 
 #UART Parameters
 baud_rate = 921600
