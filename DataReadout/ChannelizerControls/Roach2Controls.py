@@ -73,7 +73,7 @@ TODO:
     write code collecting data from ADC
 """
 
-import sys,os,time,struct
+import sys,os,time,struct,math
 import warnings, inspect
 import matplotlib.pyplot as plt
 import numpy as np
@@ -102,8 +102,8 @@ class Roach2Controls:
             self.params = paramFile
         
         if debug and not os.path.exists(self.params['debugDir']):
-            os.makedirs(self.params['debugDir'])
-        '''
+            os.makedirs(self.params['debugDir']) 
+        
         self.fpga = casperfpga.katcp_fpga.KatcpFpga(ip,timeout=50.)
         time.sleep(1)
         if not self.fpga.is_running():
@@ -113,13 +113,54 @@ class Roach2Controls:
         self.fpga.get_system_information()
 
         #set the delay between the dds lut and the end of the fft block (firmware dependent)
-        self.fpga.write_int(self.params['ddsShift_reg'],self.params['ddsShift'])
-        '''
+        #self.fpga.write_int(self.params['ddsShift_reg'],self.params['ddsShift'])
+        
         
         #Some more parameters
         self.freqPadValue = -1      # pad frequency lists so that we have a multiple of number of streams
         self.fftBinPadValue = 0     # pad fftBin selection with fftBin 0
         self.ddsFreqPadValue = -1
+    
+    def initializeV7UART(self, baud_rate = None, lut_dump_buffer_size = None):
+        '''
+        Initializes the UART connection to the Virtex 7.  Puts the V7 in Recieve mode, sets the 
+        baud rate
+        Defines global variables:
+            self.baud_rate - baud rate of UART connection
+            self.v7_ready - 1 when v7 is ready for a command
+            self.lut_dump_data_period - number of clock cycles between writes to the UART
+            self.lut_dump_buffer_size - size, in bytes, of each BRAM dump
+        '''
+        if(baud_rate == None):
+            self.baud_rate = self.params['baud_rate']
+        else:
+            self.baud_rate = baud_rate
+        
+        if(lut_dump_buffer_size == None):
+            self.lut_dump_buffer_size = self.params['lut_dump_buffer_size']
+        else:
+            self.lut_dump_buffer_size = lut_dump_buffer_size
+        
+        self.lut_dump_data_period = (10*self.params['fpgaClockRate'])//self.baud_rate + 1 #10 bits per data byte
+        self.v7_ready = 0
+        
+        self.fpga.write_int(self.params['enBRAMDumpReg'], 0)
+        self.fpga.write_int(self.params['txEnUARTReg'],0)
+        self.fpga.write_int('lut_dump_data_period', self.lut_dump_data_period)
+        
+        self.fpga.write_int(self.params['resetUARTReg'],1)
+        time.sleep(1)
+        self.fpga.write_int(self.params['resetUARTReg'],0)
+        
+        while(not(self.v7_ready)):
+            self.v7_ready = self.fpga.read_int(self.params['v7ReadyReg'])
+        
+        self.v7_ready = 0
+        self.fpga.write_int(self.params['inByteUARTReg'],0xc) # Acknowledge that ROACH2 knows MB is ready for commands
+        time.sleep(0.01)
+        self.fpga.write_int(self.params['txEnUARTReg'],1)
+        time.sleep(0.01)
+        self.fpga.write_int(self.params['txEnUARTReg'],0)
         
         
     def generateDdsTones(self, freqChannels=None, fftBinIndChannels=None, phaseList=None):
@@ -251,7 +292,7 @@ class Roach2Controls:
         toWriteStr = struct.pack('>{}{}'.format(nValues,formatChar),*memValues)
         self.fpga.blindwrite(memName,toWriteStr,start)
     
-    def formatWaveForMem(self, iVals, qVals, nBitsPerSamplePair=24, nSamplesPerCycle=8, nMems=3, nBitsPerMemRow=64, earlierSampleIsMsb=True):
+    def formatWaveForMem(self, iVals, qVals, nBitsPerSamplePair=32, nSamplesPerCycle=4096, nMems=3, nBitsPerMemRow=64, earlierSampleIsMsb=False):
         """
         put together IQ values from tones to be loaded to a firmware memory LUT
         
@@ -300,6 +341,7 @@ class Roach2Controls:
                 raise
 
         #Format comb for onboard memory
+        
         dacMemDict={
             'iVals':combDict['I'],
             'qVals':combDict['Q'],
@@ -308,29 +350,60 @@ class Roach2Controls:
             'nMems':len(self.params['dacMemNames_reg']),
             'nBitsPerMemRow':self.params['nBytesPerMemSample']*8,
             'earlierSampleIsMsb':True}
-        memVals = self.formatWaveForMem(**dacMemDict)
+        
+        #Interweave I and Q arrays
+        memVals = np.empty(combDict['I'].size + combDict['Q'].size)
+        memVals[0::2]=combDict['Q']
+        memVals[1::2]=combDict['I']
+        #memVals = self.formatWaveForMem(**dacMemDict)
         
         if self.debug:
             np.savetxt(self.params['debugDir']+'dacFreqs.txt', combDict['quantizedFreqList']/10**6., fmt='%3.11f', header="Array of DAC frequencies [MHz]")
         
         #Write data to LUTs
-        '''
-        self.fpga.write_int(self.params['start_reg'],0) #do not read from qdr while writing
-        time.sleep(.1)
-        self.fpga.write_int(self.params['nDacLutRows_reg'],self.params['nLutRowsToUse'])
-        memType = self.params['memType']
-        memNames = self.params['dacMemNames_reg']
-        for iMem in xrange(len(memNames)):
-            if memType == 'qdr':
-                print 'writeQDR: ',memNames[iMem]
-                #self.writeQdr(memName=memNames[iMem],valuesToWrite=memVals[:,iMem],bQdrFlip=True)
-            elif memType == 'bram':
-                print 'writeBram: ',memNames[iMem]
-                #self.writeBram(memName=memNames[iMem],valuesToWrite=memVals[:,iMem])
-        time.sleep(.5)
-        self.fpga.write_int(self.params['start_reg'],1)
-        time.sleep(.5)
-        '''
+            
+        while(not(self.v7_ready)):
+            self.v7_ready = self.fpga.read_int(self.params['v7ReadyReg'])
+
+        self.v7_ready = 0
+        self.fpga.write_int(self.params['inByteUARTReg'],self.params['mbRecvDACLUT'])
+        time.sleep(0.01)
+        self.fpga.write_int(self.params['txEnUARTReg'],1)
+        time.sleep(0.01)
+        self.fpga.write_int(self.params['txEnUARTReg'],0)
+        time.sleep(0.01)
+        self.fpga.write_int(self.params['enBRAMDumpReg'],1)
+        
+        num_lut_dumps = int(math.ceil(len(memVals)*2/self.lut_dump_buffer_size)) #Each value in memVals is 2 bytes
+        print 'num lut dumps ' + str(num_lut_dumps)
+        print 'len(memVals) ' + str(len(memVals))
+
+        sending_data = 1 #indicates that ROACH2 is still sending LUT
+                
+        for i in range(num_lut_dumps):
+            if(len(memVals)>self.lut_dump_buffer_size/2*(i+1)):
+                list = memVals[self.lut_dump_buffer_size/2*i:self.lut_dump_buffer_size/2*(i+1)]
+            else:
+                list = memVals[self.lut_dump_buffer_size/2*i:len(memVals)]
+            toWriteStr = struct.pack('<{}{}'.format(len(list), 'h'), *list)
+            print 'To Write Str Length: ', str(len(toWriteStr))
+            print 'bram dump # ' + str(i)
+            while(sending_data):
+                sending_data = self.fpga.read_int(self.params['lutDumpBusyReg'])
+            self.fpga.blindwrite(self.params['lutBramAddr'],toWriteStr,0)
+            self.fpga.write_int(self.params['lutBufferSizeReg'],len(toWriteStr))
+            while(not(self.v7_ready)):
+                self.v7_ready = self.fpga.read_int(self.params['v7ReadyReg'])
+            self.fpga.write_int(self.params['txEnUARTReg'],1)
+            print 'enable write'
+            time.sleep(0.05)
+            self.fpga.write_int(self.params['txEnUARTReg'],0)
+            sending_data = 1
+            self.v7_ready = 0
+            
+        self.fpga.write_int(self.params['enBRAMDumpReg'],0)
+        
+        
     
     def setLOFreq(self,LOFreq):
         self.LOFreq = LOFreq
@@ -342,7 +415,7 @@ class Roach2Controls:
         # load into IF board
         pass
     
-    def generateDacComb(self, freqList=None, resAttenList=None, globalDacAtten = 0, phaseList=None, dacScaleFactor=None):
+    def generateDacComb(self, freqList=None, resAttenList=None, globalDacAtten = 0, phaseList=None, dacScaleFactor=2**16):
         """
         Creates DAC frequency comb by adding many complex frequencies together with specified relative amplitudes and phases.
         
@@ -610,7 +683,7 @@ class Roach2Controls:
         
     def loadChanSelection(self,fftBinIndChannels=None):
         """
-        Loads fftBin indices to all channels (in each stream), to configure chan_sel block in firmware on FPGA
+        Loads fftBin indices to all channels (in each stream), to configure chan_sel block in firmware on self.fpga
         Call generateFftChanSelection() first
 
         
@@ -708,4 +781,3 @@ if __name__=='__main__':
     roach_0.generateDdsTones()
     if roach_0.debug: plt.show()
     
-

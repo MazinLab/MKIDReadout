@@ -23,7 +23,7 @@ dacSampleRate = 2.e9
 nDacSamplesPerCycle = 8
 nLutRowsToUse = 2**11
 nBytesPerMemSample = 8
-nBitsPerSamplePair = 24
+nBitsPerSamplePair = 32
 dynamicRange = .05              # A single sine wave can only use 5% of the full range before overloading FFT. The freq comb can use 100%?
 memType='bram'
 
@@ -43,8 +43,22 @@ chanSel_regs = ['chan_sel_ch_bin0','chan_sel_ch_bin1','chan_sel_ch_bin2','chan_s
 ddsMemNames_reg = ['qdr0_memory','qdr1_memory','qdr2_memory','qdr3_memory']    #for dds LUT. One per stream
 dacMemNames_reg = ['dac_lut_mem0','dac_lut_mem1','dac_lut_mem2']   # for DAC LUT
 nDacLutRows_reg = 'dac_lut_n_qdr_rows'
+enBRAMDumpReg = 'en_bram_dump'
+txEnUARTReg = 'tx_en'
+resetUARTReg = 'rst'
+inByteUARTReg = 'in_val'
+v7ReadyReg = 'v7_ready'
+lutBufferSizeReg = 'lut_dump_buffer_size'
+lutDumpBusyReg = 'lut_dump_sending_data'
+lutBramAddr = 'lut_dump_dac_lut_buffer'
 
+#UART Parameters
+baud_rate = 921600
+lut_dump_buffer_size = 4096
 
+#List of UART MicroBlaze Commands
+mbRecvDACLUT = 9
+mbInitUARTInterface = 0xc
 
 
 
