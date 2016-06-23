@@ -156,7 +156,7 @@ class Roach2Controls:
             self.v7_ready = self.fpga.read_int(self.params['v7ReadyReg'])
         
         self.v7_ready = 0
-        self.fpga.write_int(self.params['inByteUARTReg'],0xc) # Acknowledge that ROACH2 knows MB is ready for commands
+        self.fpga.write_int(self.params['inByteUARTReg'],1) # Acknowledge that ROACH2 knows MB is ready for commands
         time.sleep(0.01)
         self.fpga.write_int(self.params['txEnUARTReg'],1)
         time.sleep(0.01)
