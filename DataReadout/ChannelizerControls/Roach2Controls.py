@@ -418,7 +418,51 @@ class Roach2Controls:
             LOFreq = self.LOFreq
         
         # load into IF board
-        pass
+        # sends LO freq one byte at a time, LSB first
+        #   sends integer bytes first, then fractional
+        
+        loFreqInt = int(self.LOFreq)
+        loFreqFrac = self.LOFreq - loFreqInt
+        
+        # Put V7 into LO recv mode
+        while(not(self.v7_ready)):
+            self.v7_ready = self.fpga.read_int(self.params['v7ReadyReg'])
+
+        self.v7_ready = 0
+        self.fpga.write_int(self.params['inByteUARTReg'],self.params['mbRecvLO'])
+        time.sleep(0.01)
+        self.fpga.write_int(self.params['txEnUARTReg'],1)
+        time.sleep(0.01)
+        self.fpga.write_int(self.params['txEnUARTReg'],0)        
+        
+        for i in range(2):
+            transferByte = loFreqInt>>(i*8)|255 #takes an 8-bit "slice" of loFreqInt
+            
+            while(not(self.v7_ready)):
+                self.v7_ready = self.fpga.read_int(self.params['v7ReadyReg'])
+
+            self.v7_ready = 0
+            self.fpga.write_int(self.params['inByteUARTReg'],transferByte)
+            time.sleep(0.01)
+            self.fpga.write_int(self.params['txEnUARTReg'],1)
+            time.sleep(0.01)
+            self.fpga.write_int(self.params['txEnUARTReg'],0)
+        
+        loFreqFrac = int(loFreqFrac*(2**16))
+        
+        # same as transfer of int bytes
+        for i in range(2):
+            tranferByte = loFreqFrac>>(i*8)|255
+            
+            while(not(self.v7_ready)):
+                self.v7_ready = self.fpga.read_int(self.params['v7ReadyReg'])
+
+            self.v7_ready = 0
+            self.fpga.write_int(self.params['inByteUARTReg'],transferByte)
+            time.sleep(0.01)
+            self.fpga.write_int(self.params['txEnUARTReg'],1)
+            time.sleep(0.01)
+            self.fpga.write_int(self.params['txEnUARTReg'],0)
     
     def generateDacComb(self, freqList=None, resAttenList=None, globalDacAtten = 0, phaseList=None, dacScaleFactor=None):
         """
