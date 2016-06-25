@@ -120,6 +120,8 @@ class Roach2Controls:
         self.freqPadValue = -1      # pad frequency lists so that we have a multiple of number of streams
         self.fftBinPadValue = 0     # pad fftBin selection with fftBin 0
         self.ddsFreqPadValue = -1
+        self.v7_ready = 0
+        self.lut_dump_buffer_size = self.params['lut_dump_buffer_size']
     
     def initializeV7UART(self, baud_rate = None, lut_dump_buffer_size = None):
         '''
@@ -364,7 +366,7 @@ class Roach2Controls:
             
         while(not(self.v7_ready)):
             self.v7_ready = self.fpga.read_int(self.params['v7ReadyReg'])
-
+        
         self.v7_ready = 0
         self.fpga.write_int(self.params['inByteUARTReg'],self.params['mbRecvDACLUT'])
         time.sleep(0.01)
@@ -372,14 +374,17 @@ class Roach2Controls:
         time.sleep(0.01)
         self.fpga.write_int(self.params['txEnUARTReg'],0)
         time.sleep(0.01)
+        #time.sleep(10)
         self.fpga.write_int(self.params['enBRAMDumpReg'],1)
+        
+        print 'v7 ready before dump: ' + str(self.fpga.read_int(self.params['v7ReadyReg']))
         
         num_lut_dumps = int(math.ceil(len(memVals)*2/self.lut_dump_buffer_size)) #Each value in memVals is 2 bytes
         print 'num lut dumps ' + str(num_lut_dumps)
         print 'len(memVals) ' + str(len(memVals))
 
         sending_data = 1 #indicates that ROACH2 is still sending LUT
-                
+               
         for i in range(num_lut_dumps):
             if(len(memVals)>self.lut_dump_buffer_size/2*(i+1)):
                 list = memVals[self.lut_dump_buffer_size/2*i:self.lut_dump_buffer_size/2*(i+1)]
@@ -415,7 +420,7 @@ class Roach2Controls:
         # load into IF board
         pass
     
-    def generateDacComb(self, freqList=None, resAttenList=None, globalDacAtten = 0, phaseList=None, dacScaleFactor=2**16):
+    def generateDacComb(self, freqList=None, resAttenList=None, globalDacAtten = 0, phaseList=None, dacScaleFactor=None):
         """
         Creates DAC frequency comb by adding many complex frequencies together with specified relative amplitudes and phases.
         
