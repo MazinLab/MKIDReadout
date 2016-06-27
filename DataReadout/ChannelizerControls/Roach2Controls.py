@@ -786,7 +786,65 @@ class Roach2Controls:
         self.fpga.write_int(self.params['chanSelLoad_reg'],0) #stop loading
         '''
         if self.verbose: print '\t'+str(chanNum)+': '+str(selBinNums)
+    
+    def recvPhaseStream(pixel, ip='10.0.0.11'):
+        d = datetime.datetime.today()
+        filename = ('phase_dump_pixel_' + str(pixel) + '_' + str(d.day) + '_' + str(d.month) + '_' + 
+            str(d.year) + '_' + str(d.hour) + '_' + str(d.minute) + str('.bin'))
+        
+        host = '10.0.0.50'
+        port = 50000
+        # create dgram udp socket
+        try:
+            sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        except socket.error:
+            print 'Failed to create socket'
+            sys.exit()
 
+        # Bind socket to local host and port
+        try:
+            sock.bind((host, port))
+        except socket.error , msg:
+            print 'Bind failed. Error Code : ' + str(msg[0]) + ' Message ' + msg[1]
+            sys.exit()
+        print 'Socket bind complete'
+
+        keepGoing = True
+        bufferSize = int(800) #100 8-byte values
+        iFrame = 0
+        nFramesLost = 0
+        lastPack = -1
+        expectedPackDiff = -1
+        frameData = ''
+
+        dumpFile = open(filename, 'w')
+
+        try:
+            while keepGoing:
+                frame = sock.recvfrom(bufferSize)
+                frameData += frame[0]
+                #print len(frameData)
+                #packs = struct.unpack('>{}Q'.format(len(frameData)/8),frameData)
+                #if iFrame > 3:
+                #    packDiff = packs[1] - lastPack
+                #    if expectedPackDiff == -1:
+                #        expectedPackDiff = packDiff
+                #        print 'expected diff',expectedPackDiff
+                #    else:
+                #        if packDiff > expectedPackDiff:
+                #            nFramesLost += packDiff/expectedPackDiff
+                #            print 'lost {} frames total by frame {}'.format(nFramesLost,iFrame)
+                iFrame += 1
+                #lastPack = packs[1]
+
+        except KeyboardInterrupt:
+            print 'Exiting'
+            sock.close()
+            dumpFile.write(frameData)
+            dumpFile.close()
+
+        sock.close()
+        dumpFile.close()
 if __name__=='__main__':
     if len(sys.argv) > 1:
         ip = sys.argv[1]
