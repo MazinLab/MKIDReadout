@@ -352,7 +352,7 @@ class HighTemplar(QMainWindow):
                 #self.connect(button,QtCore.SIGNAL('customContextMenuRequested()'),self.openMenu)
                 #button.customContextMenuRequested.connect(self.openMenu)
                 #self.connect(button,QtCore.SIGNAL('released()'),self.commandButtonClicked)
-                button.clicked.connect(partial(self.commandButtonRightClicked, button.roach, button.command, button))
+                button.customContextMenuRequested.connect(partial(self.commandButtonRightClicked, button.roach, button.command, button))
                 #self.connect(button, QtCore.SIGNAL('customContextMenuRequested(const QPoint&)'), self.commandButtonRightClicked)
                 roach_i_commandButtons.append(button)
             self.commandButtons.append(roach_i_commandButtons)
