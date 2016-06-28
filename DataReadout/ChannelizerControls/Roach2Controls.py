@@ -1,7 +1,7 @@
 """
 Author:    Alex Walter
 Date:      April 25, 2016
-Firmware:  pgbe0_2016_Feb_19_2018.fpg
+Firmware:  darkS2*.fpg
 
 This class is for setting and reading LUTs, registers, and other memory components in the ROACH2 Virtex 6 FPGA using casperfpga tools.
 It's also the IO for the ADC/DAC board's Virtex 7 FPGA through the ROACH2
@@ -44,6 +44,7 @@ List of Functions:
     generateDacComb -               Returns a single I,Q time series representing the DAC freq comb
     loadDacLut -                    Loads the freq comb from generateDacComb() into the LUT
     generateDdsTones -              Defines interweaved tones for dds
+    loadDdsLUT -                    Loads dds tones into Roach2 memory
     
 
     
@@ -94,6 +95,8 @@ class Roach2Controls:
             verbose - show print statements
             debug - Save some things to disk for debugging
         '''
+        np.random.seed(1) #Make the random phase values always the same
+        
         self.verbose=verbose
         self.debug=debug
         
@@ -122,7 +125,7 @@ class Roach2Controls:
         #Some more parameters
         self.freqPadValue = -1      # pad frequency lists so that we have a multiple of number of streams
         self.fftBinPadValue = 0     # pad fftBin selection with fftBin 0
-        self.ddsFreqPadValue = -1
+        self.ddsFreqPadValue = -1   # 
         self.v7_ready = 0
         self.lut_dump_buffer_size = self.params['lut_dump_buffer_size']
     
@@ -201,25 +204,29 @@ class Roach2Controls:
         if phaseList is None:
             phaseList = np.zeros(np.asarray(freqChannels).shape)
     
-        # quantize resonator tones to dds resolution
         if not hasattr(self,'LOFreq'):
             raise ValueError("Need to set LO freq by calling setLOFreq()")
+        
+        if self.verbose:
+            print "Generating Dds Tones..."
+        # quantize resonator tones to dds resolution
+        # first figure out the actual frequencies being made by the DAC
         dacFreqList = freqChannels-self.LOFreq
         dacFreqList[np.where(dacFreqList<0.)] += self.params['dacSampleRate']  #For +/- freq
         dacFreqResolution = self.params['dacSampleRate']/(self.params['nDacSamplesPerCycle']*self.params['nLutRowsToUse'])
         dacQuantizedFreqList = np.round(dacFreqList/dacFreqResolution)*dacFreqResolution
+        # Figure out how the dac tones end up relative to their FFT bin centers
         fftBinSpacing = self.params['dacSampleRate']/self.params['nFftBins']
         fftBinCenterFreqList = fftBinIndChannels*fftBinSpacing
         ddsFreqList = dacQuantizedFreqList - fftBinCenterFreqList
+        # Quantize to DDS sample rate and make sure all freqs are positive by adding sample rate for aliasing
         ddsSampleRate = self.params['nDdsSamplesPerCycle'] * self.params['fpgaClockRate'] / self.params['nCyclesToLoopToSameChannel']
         ddsFreqList[np.where(ddsFreqList<0)]+=ddsSampleRate     # large positive frequencies are aliased back to negative freqs
         nDdsSamples = self.params['nDdsSamplesPerCycle']*self.params['nQdrRows']/self.params['nCyclesToLoopToSameChannel']
         ddsFreqResolution = 1.*ddsSampleRate/nDdsSamples
         ddsQuantizedFreqList = np.round(ddsFreqList/ddsFreqResolution)*ddsFreqResolution
-        print ddsQuantizedFreqList
-        ddsQuantizedFreqList[np.where(freqChannels<0)] = self.ddsFreqPadValue     # Pad excess frequencies with 0
-        print ddsQuantizedFreqList
-        self.ddsQuantizedFreqList = ddsQuantizedFreqList    # Some of these are negative frequencies
+        ddsQuantizedFreqList[np.where(freqChannels<0)] = self.ddsFreqPadValue     # Pad excess frequencies with -1
+        self.ddsQuantizedFreqList = ddsQuantizedFreqList
         
         # For each Stream, generate tones and interweave time streams for the dds time multiplexed multiplier
         nStreams = int(self.params['nChannels']/self.params['nChannelsPerStream'])        #number of processing streams. For Gen 2 readout this should be 4
@@ -241,10 +248,20 @@ class Roach2Controls:
             iValList = np.array(np.round(toneDict['I']*maxValue),dtype=np.int)
             qValList = np.array(np.round(toneDict['Q']*maxValue),dtype=np.int)
             
+            #print 'iVals: '+str(iValList)
+            #print 'qVals: '+str(qValList)
+            #print np.asarray(iValList).shape
+            
+            
             #interweave the values such that we have two samples from freq 0 (row 0), two samples from freq 1, ... to freq 256. Then have the next two samples from freq 1 ...
             freqPad = np.zeros((self.params['nChannelsPerStream'] - len(toneDict['quantizedFreqList']),nDdsSamples))
-            iValList = np.append(iValList,freqPad,0)    #First pad with missing resonators
-            qValList = np.append(qValList,freqPad,0)
+            #First pad with missing resonators
+            if len(iValList) >0:
+                iValList = np.append(iValList,freqPad,0)    
+                qValList = np.append(qValList,freqPad,0)
+            else: #if no resonators in stream then everything is 0's
+                iValList = freqPad
+                qValList = freqPad
             iValList = np.reshape(iValList,(self.params['nChannelsPerStream'],-1,self.params['nDdsSamplesPerCycle']))
             qValList = np.reshape(qValList,(self.params['nChannelsPerStream'],-1,self.params['nDdsSamplesPerCycle']))
             iValList = np.swapaxes(iValList,0,1)
@@ -258,61 +275,51 @@ class Roach2Controls:
             phaseList[:len(toneDict['phaseList']),i] = toneDict['phaseList']    # We need this if we let self.generateTones() choose random phases
         
         self.ddsPhaseList = phaseList
+        self.ddsIStreamsList = iStreamList
+        self.ddsQStreamsList = qStreamList
+        
+        if self.verbose:
+            print '\tDDS freqs: '+str(self.ddsQuantizedFreqList)
+            for i in range(nStreams):
+                print '\tStream '+str(i)+' I vals: '+str(self.ddsIStreamsList[i])
+                print '\tStream '+str(i)+' Q vals: '+str(self.ddsQStreamsList[i])
+            print '...Done!'
         
         return {'iStreamList':iStreamList, 'qStreamList':qStreamList, 'quantizedFreqList':ddsQuantizedFreqList, 'phaseList':phaseList}
     
     
-        def loadDds(ddsToneDict):
-            '''
-            Load dds tones to LUT
-            
-            INPUTS:
-                ddsToneDict - from generateDdsTones()
-            OUTPUTS:
-                allMemVals - memory values written to QDR
-            '''
-            memNames = self.params['ddsMemNames_reg']
-            allMemVals=[]
-            for iMem in range(len(memNames)):
-                iVals,qVals = ddsToneDict['iStreamList'][iMem],ddsToneDict['qStreamList'][iMem]
-                memVals = self.formatWaveForMem(iVals,qVals,self.params['nBitsPerDdsSamplePair'],self.params['nDdsSamplesPerCycle'],len(memNames),self.params['nBytesPerQdrSample']*8,earlierSampleIsMsb=True)
-                time.sleep(.1)
-                allMemVals.append(memVals)
-                
-                self.writeQdr(memNames[iMem], valuesToWrite=memVals[:,0], start=0, bQdrFlip=True, nQdrRows=self.params['nQdrRows'])
-                
-            return allMemVals
-        
+    def loadDdsLUT(self, ddsToneDict=None):
         '''
-        def loadDdsToMem(fpga,waveFreqs=np.zeros(1024),phases=None,sampleRate=1.953125e6,nSamplesPerCycle=2,nSamples=2**21,nBytesPerMemSample=8,nBitsPerSamplePair=32,memNames = ['qdr0_memory','qdr1_memory','qdr2_memory','qdr3_memory'],dynamicRange=1.,phasePulseDicts=None):
-    """Form a look-up table of interleaved frequencies and load it to memory"""
-        nBitsPerMemRow = nBytesPerMemSample*8 #64
-        nBitsPerSampleComponent = nBitsPerSamplePair/2
-        nMems = len(memNames)
-        nMemRowsToUse = nSamples/nSamplesPerCycle
-
-        #separate freq list by which qdr they'll go to.
-        freqsByMem = np.reshape(waveFreqs,(nMems,-1))
-
-        complexTones = []
-        allMemVals = []
-        quantFreqList = []
-        for iMem in xrange(nMems):
-            toneDict = generateInterleavedTones(freqsByMem[iMem],phases=phases,nSamples=nSamples,sampleRate=sampleRate,dynamicRange=dynamicRange,nSamplesPerCycle=nSamplesPerCycle,phasePulseDicts=phasePulseDicts)
-            complexTone = toneDict['I'] + 1j*toneDict['Q']
-            iVals,qVals = toneDict['I'],toneDict['Q']
-            memVals = formatWaveForMem(iVals,qVals,nMems=1,nBitsPerSamplePair=nBitsPerSamplePair,nSamplesPerCycle=nSamplesPerCycle,nBitsPerMemRow=nBitsPerMemRow,earlierSampleIsMsb=True)
-            time.sleep(.1)
+        Load dds tones to LUT in Roach2 memory
+        
+        INPUTS:
+            ddsToneDict - from generateDdsTones()
+                dictionary with following keywords
+                'iStreamList' - 2D array. Each row is an interweaved list of i values for a single stream. Columns are different streams.
+                'qStreamList' - q values
+        OUTPUTS:
+            allMemVals - memory values written to QDR
+        '''
+        if ddsToneDict is None:
+            try:
+                ddsToneDict={'iStreamList':self.ddsIStreamsList,'qStreamList':self.ddsQStreamsList}
+            except AttributeError:
+                print "Need to run generateDdsTones() first!"
+                raise
             
-            writeQdr(fpga,memName=memNames[iMem],valuesToWrite=memVals[:,0],bQdrFlip=True)
-            complexTones.append(complexTone)
-            allMemVals.append(memVals[:,0])
-            quantFreqList.append(toneDict['quantizedFreqs'])
-            np.savez('ddstone{}.npz'.format(iMem),complexTone=complexTone,toneDict=toneDict,sampleRate=sampleRate,memVals=memVals,waveFreqs=waveFreqs,quantFreqs=toneDict['quantizedFreqs'])
-        quantFreqList = np.array(quantFreqList)
-        time.sleep(.1)
-        return {'memVals':allMemVals,'complexTone':complexTones,'quantizedFreqs':quantFreqList}
-    '''
+        memNames = self.params['ddsMemNames_reg']
+        allMemVals=[]
+        for iMem in range(len(memNames)):
+            iVals,qVals = ddsToneDict['iStreamList'][iMem],ddsToneDict['qStreamList'][iMem]
+            memVals = self.formatWaveForMem(iVals,qVals,self.params['nBitsPerDdsSamplePair'],
+                                            self.params['nDdsSamplesPerCycle'],len(memNames),
+                                            self.params['nBytesPerQdrSample']*8,earlierSampleIsMsb=True)
+            time.sleep(.1)
+            allMemVals.append(memVals)
+            
+            self.writeQdr(memNames[iMem], valuesToWrite=memVals[:,0], start=0, bQdrFlip=True, nQdrRows=self.params['nQdrRows'])
+            
+        return allMemVals
     
     def writeBram(self, memName, valuesToWrite, start=0, nRows=2**10):
         """
@@ -397,27 +404,15 @@ class Roach2Controls:
                 raise
 
         #Format comb for onboard memory
-        
-        dacMemDict={
-            'iVals':combDict['I'],
-            'qVals':combDict['Q'],
-            'nBitsPerSamplePair':self.params['nBitsPerSamplePair'],
-            'nSamplesPerCycle':self.params['nDacSamplesPerCycle'],
-            'nMems':len(self.params['dacMemNames_reg']),
-            'nBitsPerMemRow':self.params['nBytesPerMemSample']*8,
-            'earlierSampleIsMsb':True}
-        
         #Interweave I and Q arrays
         memVals = np.empty(combDict['I'].size + combDict['Q'].size)
         memVals[0::2]=combDict['Q']
         memVals[1::2]=combDict['I']
-        #memVals = self.formatWaveForMem(**dacMemDict)
         
         if self.debug:
             np.savetxt(self.params['debugDir']+'dacFreqs.txt', combDict['quantizedFreqList']/10**6., fmt='%3.11f', header="Array of DAC frequencies [MHz]")
         
         #Write data to LUTs
-            
         while(not(self.v7_ready)):
             self.v7_ready = self.fpga.read_int(self.params['v7ReadyReg'])
         
@@ -619,6 +614,9 @@ class Roach2Controls:
             print '\tLargest val_I: '+str(1.0*np.abs(iValues).max()/np.std(iValues))+' sigma. Largest val_Q: '+str(1.0*np.abs(qValues).max()/np.std(qValues))+' sigma.'
             print '\tExpected val: '+str(expectedHighestVal_sig)+' sigmas'
             print '\tdacScaleFactor: '+str(self.dacScaleFactor)
+            print '\n\tDac freq list: '+str(self.dacQuantizedFreqList)
+            print '\tDac Q vals: '+str(qValues)
+            print '\tDac I vals: '+str(iValues)
             print '...Done!'
         
         if self.debug:
@@ -662,10 +660,10 @@ class Roach2Controls:
         #print self.freqList
         #print dacFreqList
         #print self.dacQuantizedFreqList
-        print 'Q vals'
-        print qValues[0:10]
-        print 'I vals'
-        print iValues[0:10]
+        #print 'Q vals'
+        #print qValues[0:10]
+        #print 'I vals'
+        #print iValues[0:10]
         
         return {'I':iValues,'Q':qValues,'quantizedFreqList':self.dacQuantizedFreqList}
         
@@ -691,7 +689,6 @@ class Roach2Controls:
         if amplitudeList is None:
             amplitudeList = np.asarray([1.]*len(freqList))
         if phaseList is None:
-            np.random.seed(0)
             phaseList = np.random.uniform(0,2.*np.pi,len(freqList))
         if len(freqList) != len(amplitudeList) or len(freqList) != len(phaseList):
             raise ValueError("Need exactly one phase and amplitude value for each resonant frequency!")
@@ -738,7 +735,7 @@ class Roach2Controls:
         """
         #Interpret inputs...
         if order not in ['F','C','A']:  #if invalid, grab default value
-            args,__,__,defaults = inspect.getargspec(roach.hashPixelStreamChannel)
+            args,__,__,defaults = inspect.getargspec(Roach2Controls.generateResonatorChannels)
             order = defaults[args.index('order')-len(args)]
             if self.verbose: print "Invalid 'order' parameter for generateResonatorChannels(). Changed to default: "+str(order)
         if len(freqList)>self.params['nChannels']:
@@ -926,7 +923,7 @@ if __name__=='__main__':
     if len(sys.argv) > 2:
         params = sys.argv[2]
     else:
-        params=os.getenv('HOME', default="/home/abwalter")+'/MkidDigitalReadout/DataReadout/ChannelizerControls/DarknessFpga_V2.param'
+        params='/mnt/data0/MkidDigitalReadout/DataReadout/ChannelizerControls/DarknessFpga_V2.param'
     print ip
     print params
 
@@ -940,8 +937,11 @@ if __name__=='__main__':
     freqList = np.sort(freqList)
     #attenList = np.random.randint(23,33,nFreqs)
     
-    freqList=np.asarray([5.2498416321e9, 5.125256256e9, 4.852323456e9, 4.69687416351e9,4.547846e9])
-    attenList=np.asarray([1,2,3,5,6])
+    freqList=np.asarray([5.2498416321e9, 5.125256256e9, 4.852323456e9, 4.69687416351e9])#,4.547846e9])
+    attenList=np.asarray([1,2,3,5])#,6])
+    
+    #freqList=np.asarray([5.12512345e9])
+    #attenList=np.asarray([0])
     
     #attenList = attenList[np.where(freqList > loFreq)]
     #freqList = freqList[np.where(freqList > loFreq)]
@@ -950,13 +950,13 @@ if __name__=='__main__':
     roach_0.setLOFreq(loFreq)
     roach_0.generateResonatorChannels(freqList)
     roach_0.generateFftChanSelection()
-    roach_0.generateDacComb(globalDacAtten=17)
-    #ddsToneDict = roach_0.generateDdsTones()
+    roach_0.generateDacComb(resAttenList=attenList,globalDacAtten=17)
+    roach_0.generateDdsTones()
     
-    #roach_0.loadDds(ddsToneDict)
+    #roach_0.loadDdsLUT()
     #roach_0.loadChanSelection()
-    roach_0.initializeV7UART()
-    roach_0.loadDacLUT()
+    #roach_0.initializeV7UART()
+    #roach_0.loadDacLUT()
     
     
     
