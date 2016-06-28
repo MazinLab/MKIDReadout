@@ -71,6 +71,9 @@ TODO:
     uncomment register writes in loadDacLut()
     add code for setting LO freq in loadLOFreq()
     write code collecting data from ADC
+    
+    calibrate dds qdr with SDR/Projects/FirmwareTests/darkDebug/calibrate.py
+    fix bug that doesn't work with less than 4 tones
 """
 
 import sys,os,time,struct,math
@@ -148,14 +151,14 @@ class Roach2Controls:
         
         self.fpga.write_int(self.params['enBRAMDumpReg'], 0)
         self.fpga.write_int(self.params['txEnUARTReg'],0)
-        self.fpga.write_int('lut_dump_data_period', self.lut_dump_data_period)
+        self.fpga.write_int('a2g_ctrl_lut_dump_data_period', self.lut_dump_data_period)
         
         self.fpga.write_int(self.params['resetUARTReg'],1)
         time.sleep(1)
         self.fpga.write_int(self.params['resetUARTReg'],0)
         
-        while(not(self.v7_ready)):
-            self.v7_ready = self.fpga.read_int(self.params['v7ReadyReg'])
+        #while(not(self.v7_ready)):
+        #    self.v7_ready = self.fpga.read_int(self.params['v7ReadyReg'])
         
         self.v7_ready = 0
         self.fpga.write_int(self.params['inByteUARTReg'],1) # Acknowledge that ROACH2 knows MB is ready for commands
@@ -259,6 +262,57 @@ class Roach2Controls:
         return {'iStreamList':iStreamList, 'qStreamList':qStreamList, 'quantizedFreqList':ddsQuantizedFreqList, 'phaseList':phaseList}
     
     
+        def loadDds(ddsToneDict):
+            '''
+            Load dds tones to LUT
+            
+            INPUTS:
+                ddsToneDict - from generateDdsTones()
+            OUTPUTS:
+                allMemVals - memory values written to QDR
+            '''
+            memNames = self.params['ddsMemNames_reg']
+            allMemVals=[]
+            for iMem in range(len(memNames)):
+                iVals,qVals = ddsToneDict['iStreamList'][iMem],ddsToneDict['qStreamList'][iMem]
+                memVals = self.formatWaveForMem(iVals,qVals,self.params['nBitsPerDdsSamplePair'],self.params['nDdsSamplesPerCycle'],len(memNames),self.params['nBytesPerQdrSample']*8,earlierSampleIsMsb=True)
+                time.sleep(.1)
+                allMemVals.append(memVals)
+                
+                self.writeQdr(memNames[iMem], valuesToWrite=memVals[:,0], start=0, bQdrFlip=True, nQdrRows=self.params['nQdrRows'])
+                
+            return allMemVals
+        
+        '''
+        def loadDdsToMem(fpga,waveFreqs=np.zeros(1024),phases=None,sampleRate=1.953125e6,nSamplesPerCycle=2,nSamples=2**21,nBytesPerMemSample=8,nBitsPerSamplePair=32,memNames = ['qdr0_memory','qdr1_memory','qdr2_memory','qdr3_memory'],dynamicRange=1.,phasePulseDicts=None):
+    """Form a look-up table of interleaved frequencies and load it to memory"""
+        nBitsPerMemRow = nBytesPerMemSample*8 #64
+        nBitsPerSampleComponent = nBitsPerSamplePair/2
+        nMems = len(memNames)
+        nMemRowsToUse = nSamples/nSamplesPerCycle
+
+        #separate freq list by which qdr they'll go to.
+        freqsByMem = np.reshape(waveFreqs,(nMems,-1))
+
+        complexTones = []
+        allMemVals = []
+        quantFreqList = []
+        for iMem in xrange(nMems):
+            toneDict = generateInterleavedTones(freqsByMem[iMem],phases=phases,nSamples=nSamples,sampleRate=sampleRate,dynamicRange=dynamicRange,nSamplesPerCycle=nSamplesPerCycle,phasePulseDicts=phasePulseDicts)
+            complexTone = toneDict['I'] + 1j*toneDict['Q']
+            iVals,qVals = toneDict['I'],toneDict['Q']
+            memVals = formatWaveForMem(iVals,qVals,nMems=1,nBitsPerSamplePair=nBitsPerSamplePair,nSamplesPerCycle=nSamplesPerCycle,nBitsPerMemRow=nBitsPerMemRow,earlierSampleIsMsb=True)
+            time.sleep(.1)
+            
+            writeQdr(fpga,memName=memNames[iMem],valuesToWrite=memVals[:,0],bQdrFlip=True)
+            complexTones.append(complexTone)
+            allMemVals.append(memVals[:,0])
+            quantFreqList.append(toneDict['quantizedFreqs'])
+            np.savez('ddstone{}.npz'.format(iMem),complexTone=complexTone,toneDict=toneDict,sampleRate=sampleRate,memVals=memVals,waveFreqs=waveFreqs,quantFreqs=toneDict['quantizedFreqs'])
+        quantFreqList = np.array(quantFreqList)
+        time.sleep(.1)
+        return {'memVals':allMemVals,'complexTone':complexTones,'quantizedFreqs':quantFreqList}
+    '''
     
     def writeBram(self, memName, valuesToWrite, start=0, nRows=2**10):
         """
@@ -376,6 +430,7 @@ class Roach2Controls:
         time.sleep(0.01)
         #time.sleep(10)
         self.fpga.write_int(self.params['enBRAMDumpReg'],1)
+
         
         print 'v7 ready before dump: ' + str(self.fpga.read_int(self.params['v7ReadyReg']))
         
@@ -387,16 +442,23 @@ class Roach2Controls:
                
         for i in range(num_lut_dumps):
             if(len(memVals)>self.lut_dump_buffer_size/2*(i+1)):
-                list = memVals[self.lut_dump_buffer_size/2*i:self.lut_dump_buffer_size/2*(i+1)]
+                iqList = memVals[self.lut_dump_buffer_size/2*i:self.lut_dump_buffer_size/2*(i+1)]
             else:
-                list = memVals[self.lut_dump_buffer_size/2*i:len(memVals)]
-            toWriteStr = struct.pack('<{}{}'.format(len(list), 'h'), *list)
+                iqList = memVals[self.lut_dump_buffer_size/2*i:len(memVals)]
+            
+            iqList = iqList.astype(np.int16)
+            toWriteStr = struct.pack('<{}{}'.format(len(iqList), 'h'), *iqList)
             print 'To Write Str Length: ', str(len(toWriteStr))
+            print iqList.dtype
+            print iqList
             print 'bram dump # ' + str(i)
             while(sending_data):
                 sending_data = self.fpga.read_int(self.params['lutDumpBusyReg'])
             self.fpga.blindwrite(self.params['lutBramAddr'],toWriteStr,0)
+            time.sleep(0.01)
             self.fpga.write_int(self.params['lutBufferSizeReg'],len(toWriteStr))
+            time.sleep(0.01)
+            
             while(not(self.v7_ready)):
                 self.v7_ready = self.fpga.read_int(self.params['v7ReadyReg'])
             self.fpga.write_int(self.params['txEnUARTReg'],1)
@@ -597,6 +659,14 @@ class Roach2Controls:
                 plt.axvline(x=x_f, ymin=np.amin(np.real(sig)), ymax = np.amax(np.real(sig)), color='r')
             #plt.show()
             
+        #print self.freqList
+        #print dacFreqList
+        #print self.dacQuantizedFreqList
+        print 'Q vals'
+        print qValues[0:10]
+        print 'I vals'
+        print iValues[0:10]
+        
         return {'I':iValues,'Q':qValues,'quantizedFreqList':self.dacQuantizedFreqList}
         
     
@@ -621,6 +691,7 @@ class Roach2Controls:
         if amplitudeList is None:
             amplitudeList = np.asarray([1.]*len(freqList))
         if phaseList is None:
+            np.random.seed(0)
             phaseList = np.random.uniform(0,2.*np.pi,len(freqList))
         if len(freqList) != len(amplitudeList) or len(freqList) != len(phaseList):
             raise ValueError("Need exactly one phase and amplitude value for each resonant frequency!")
@@ -769,7 +840,7 @@ class Roach2Controls:
         nStreams = int(self.params['nChannels']/self.params['nChannelsPerStream'])        #number of processing streams. For Gen 2 readout this should be 4
         if selBinNums is None or len(selBinNums) != nStreams:
             raise TypeError,'selBinNums must have number of elements matching number of streams in firmware'
-        '''
+        
         self.fpga.write_int(self.params['chanSelLoad_reg'],0) #set to zero so nothing loads while we set other registers.
 
         #assign the bin number to be loaded to each stream
@@ -784,8 +855,10 @@ class Roach2Controls:
         time.sleep(.1) #give it a chance to load
 
         self.fpga.write_int(self.params['chanSelLoad_reg'],0) #stop loading
-        '''
+        
         if self.verbose: print '\t'+str(chanNum)+': '+str(selBinNums)
+
+
     
     def recvPhaseStream(pixel, ip='10.0.0.11'):
         d = datetime.datetime.today()
@@ -853,7 +926,7 @@ if __name__=='__main__':
     if len(sys.argv) > 2:
         params = sys.argv[2]
     else:
-        params=os.getenv('HOME', default="/home/abwalter")+'/MkidDigitalReadout/DataReadout/ChannelizerControls/DarknessFpga.param'
+        params=os.getenv('HOME', default="/home/abwalter")+'/MkidDigitalReadout/DataReadout/ChannelizerControls/DarknessFpga_V2.param'
     print ip
     print params
 
@@ -865,16 +938,25 @@ if __name__=='__main__':
     freqList = np.arange(loFreq-nFreqs/2.*spacing,loFreq+nFreqs/2.*spacing,spacing)
     freqList+=np.random.uniform(-spacing,spacing,nFreqs)
     freqList = np.sort(freqList)
-    attenList = np.random.randint(23,33,nFreqs)
+    #attenList = np.random.randint(23,33,nFreqs)
+    
+    freqList=np.asarray([5.2498416321e9, 5.125256256e9, 4.852323456e9, 4.69687416351e9,4.547846e9])
+    attenList=np.asarray([1,2,3,5,6])
     
     #attenList = attenList[np.where(freqList > loFreq)]
     #freqList = freqList[np.where(freqList > loFreq)]
     
-    roach_0 = FpgaControls(ip, params, True, True)
+    roach_0 = Roach2Controls(ip, params, True, True)
     roach_0.setLOFreq(loFreq)
     roach_0.generateResonatorChannels(freqList)
     roach_0.generateFftChanSelection()
-    roach_0.loadChanSelection()
+    roach_0.generateDacComb(globalDacAtten=17)
+    #ddsToneDict = roach_0.generateDdsTones()
+    
+    #roach_0.loadDds(ddsToneDict)
+    #roach_0.loadChanSelection()
+    roach_0.initializeV7UART()
+    roach_0.loadDacLUT()
     
     
     
@@ -885,6 +967,6 @@ if __name__=='__main__':
     #roach_0.generateDacComb(freqList, attenList, 20, phaseList = roach_0.phaseList, dacScaleFactor=roach_0.dacScaleFactor)
     #roach_0.loadDacLUT()
     
-    roach_0.generateDdsTones()
-    if roach_0.debug: plt.show()
+    #roach_0.generateDdsTones()
+    #if roach_0.debug: plt.show()
     
