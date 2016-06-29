@@ -95,7 +95,7 @@ class Roach2Controls:
             verbose - show print statements
             debug - Save some things to disk for debugging
         '''
-        np.random.seed(1) #Make the random phase values always the same
+        #np.random.seed(1) #Make the random phase values always the same
         
         self.verbose=verbose
         self.debug=debug
@@ -563,21 +563,17 @@ class Roach2Controls:
         self.v7_ready = 0
         sendUARTCommand(self, attenVal)
     
-    def generateDacComb(self, freqList=None, resAttenList=None, globalDacAtten = 0, phaseList=None, dacScaleFactor=None):
+    def generateDacComb(self, freqList=None, resAttenList=None, globalDacAtten = 0, phaseList=None):
         """
-        Creates DAC frequency comb by adding many complex frequencies together with specified relative amplitudes and phases.
+        Creates DAC frequency comb by adding many complex frequencies together with specified amplitudes and phases.
         
-        Note: If dacScaleFactor=self.dacScaleFactor this should keep the power going through MKIDs the same regardless of changes to globalDacAtten.
-        ie. if the global attenuation is decreased by 1 dB (stronger), the amplitude of the signals in the DAC LUT is decreased by 1 dB (weaker)
-        
-        If dacScaleFactor is None then it scales the largest value to the largest allowed DAC value. There's a fudge factor of .25 dB hardcoded in so we aren't exactly at the limit
+        The resAttenList holds the absolute attenuation needed for each resonator. Zero attenuation means that the tone amplitude is set to the full dynamic range of the DAC and the DAC attenuator(s) are set to 0. Thus, all values in resAttenList must be larger than globalDacAtten. If you decrease the globalDacAtten, the amplitude in the DAC LUT decreases so that the total attenuation of the signal is the same. 
         
         INPUTS:
             freqList - list of all resonator frequencies. If None, use self.freqList
-            resAttenList - list of attenuation values (dB) for each resonator. If None, use 0's
-            globalDacAtten - (int) global attenuation for entire DAC
+            resAttenList - list of absolute attenuation values (dB) for each resonator. If None, use 20's
+            globalDacAtten - (int) global attenuation for entire DAC. Sum of the two DAC attenuaters on IF board
             dacPhaseList - list of phases for each complex signal. If None, generates random phases. Old phaseList is under self.dacPhaseList
-            dacScaleFactor - scale factor to fit signal amplitudes into DAC dynamic range. Use self.dacScaleFactor or None to automatically create one
             
         OUTPUTS:
             dictionary with keywords
@@ -593,8 +589,8 @@ class Roach2Controls:
             freqList = freqList[:self.params['nChannels']]
         self.freqList = np.ravel(freqList)
         if resAttenList is None:
-            warnings.warn("Individual resonator attenuations assumed to be 0")
-            resAttenList=np.zeros(len(freqList))
+            warnings.warn("Individual resonator attenuations assumed to be 20")
+            resAttenList=np.zeros(len(freqList))+20
         if len(resAttenList)>self.params['nChannels']:
             warnings.warn("Too many attenuations provided. Can only accommodate "+str(self.params['nChannels'])+" resonators")
             resAttenList = resAttenList[:self.params['nChannels']]
@@ -603,10 +599,17 @@ class Roach2Controls:
             raise ValueError("Need exactly one attenuation value for each resonant frequency!")
         if (phaseList is not None) and len(freqList) != len(phaseList):
             raise ValueError("Need exactly one phase value for each resonant frequency!")
+        if np.any(resAttenList < globalDacAtten):
+            raise ValueError("Impossible to attain desired resonator attenuations! Decrease the global DAC attenuation.")
+            
         
-        # Calculate relative amplitudes. 0 point is tied to globalDacAtten instead of the min attenuation
-        #amplitudeList = 10**(-(globalDacAtten + resAttenList)/20.)
-        amplitudeList = 10**((globalDacAtten-resAttenList)/20.)
+        if self.verbose:
+            print 'Generating DAC comb...'
+        
+        # Calculate relative amplitudes for DAC LUT
+        nBitsPerSampleComponent = self.params['nBitsPerSamplePair']/2
+        maxAmp = int(np.round(2**(nBitsPerSampleComponent - 1)-1))       # 1 bit for sign
+        amplitudeList = maxAmp*10**(-(resAttenList - globalDacAtten)/20.)
         
         # Calculate nSamples and sampleRate
         nSamples = self.params['nDacSamplesPerCycle']*self.params['nLutRowsToUse']
@@ -618,48 +621,37 @@ class Roach2Controls:
         dacFreqList = self.freqList-self.LOFreq
         dacFreqList[np.where(dacFreqList<0.)] += self.params['dacSampleRate']  #For +/- freq
         
-        # Generate and add up individual tone time series. Then scale to DAC dynamic range
-        if self.verbose:
-            print 'Generating DAC comb...'
+        # Generate and add up individual tone time series.
         toneDict = self.generateTones(dacFreqList, nSamples, sampleRate, amplitudeList, phaseList)
         self.dacQuantizedFreqList = toneDict['quantizedFreqList']
         self.dacPhaseList = toneDict['phaseList']
-        iValues = np.sum(toneDict['I'],axis=0)
-        qValues = np.sum(toneDict['Q'],axis=0)
-        nBitsPerSampleComponent = self.params['nBitsPerSamplePair']/2
-        maxValue = int(np.round(self.params['dynamicRange']*2**(nBitsPerSampleComponent - 1)-1))       # 1 bit for sign
-        if dacScaleFactor is None:
-            highestVal = np.max((np.abs(iValues).max(),np.abs(qValues).max()))
-            scaleFudgeFactor = 10**(-0.25/20.)    # don't scale exactly to maxValue, leave .25 dB of wiggle room. 
-            self.dacScaleFactor = maxValue/highestVal*scaleFudgeFactor
-        else:
-            self.dacScaleFactor=dacScaleFactor
-        iValues = np.array(np.round(self.dacScaleFactor * iValues),dtype=np.int)
-        qValues = np.array(np.round(self.dacScaleFactor * qValues),dtype=np.int)
-
+        iValues = np.array(np.round(np.sum(toneDict['I'],axis=0)),dtype=np.int)
+        qValues = np.array(np.round(np.sum(toneDict['Q'],axis=0)),dtype=np.int)
+        self.dacFreqComb = iValues + 1j*qValues
+        
+        # check that we are utilizing the dynamic range of the DAC correctly
         highestVal = np.max((np.abs(iValues).max(),np.abs(qValues).max()))
-        if 1.0*maxValue/highestVal > 10**((1)/20.):
-            # all amplitudes in DAC less than 1 dB below max allowed by dynamic range
-            warnings.warn("DAC Dynamic range not fully utilized. Increase global attenuation by: "+str(np.floor(20.*np.log10(1.0*maxValue/highestVal)))+' dB')
-        elif maxValue < highestVal:
-            raise ValueError("Not enough dynamic range in DAC! Try dacScaleFactor=None")
         expectedHighestVal_sig = scipy.special.erfinv((len(iValues)-0.1)/len(iValues))*np.sqrt(2.)   # 10% of the time there should be a point this many sigmas higher than average
         if highestVal > expectedHighestVal_sig*np.max((np.std(iValues),np.std(qValues))):
             warnings.warn("The freq comb's relative phases may have added up sub-optimally. You should calculate new random phases")
+        if highestVal > maxAmp:
+            dBexcess = int(np.ceil(20.*np.log10(1.0*highestVal/maxAmp)))
+            raise ValueError("Not enough dynamic range in DAC! Try decreasing the global DAC Attenuator by "+str(dBexcess)+' dB')
+        elif 1.0*maxAmp/highestVal > 10**((1)/20.):
+            # all amplitudes in DAC less than 1 dB below max allowed by dynamic range
+            warnings.warn("DAC Dynamic range not fully utilized. Increase global attenuation by: "+str(np.floor(20.*np.log10(1.0*maxAmp/highestVal)))+' dB')
         
-        self.dacFreqComb = iValues + 1j*qValues
-
         if self.verbose:
-            print '\tUsing '+str(1.0*highestVal/maxValue*100)+' percent of DAC dynamic range'
-            print '\thighest: '+str(highestVal)+' out of '+str(maxValue)
+            print '\tUsing '+str(1.0*highestVal/maxAmp*100)+' percent of DAC dynamic range'
+            print '\thighest: '+str(highestVal)+' out of '+str(maxAmp)
             print '\tsigma_I: '+str(np.std(iValues))+' sigma_Q: '+str(np.std(qValues))
             print '\tLargest val_I: '+str(1.0*np.abs(iValues).max()/np.std(iValues))+' sigma. Largest val_Q: '+str(1.0*np.abs(qValues).max()/np.std(qValues))+' sigma.'
             print '\tExpected val: '+str(expectedHighestVal_sig)+' sigmas'
-            print '\tdacScaleFactor: '+str(self.dacScaleFactor)
             print '\n\tDac freq list: '+str(self.dacQuantizedFreqList)
             print '\tDac Q vals: '+str(qValues)
             print '\tDac I vals: '+str(iValues)
             print '...Done!'
+
         
         if self.debug:
             plt.figure()
@@ -676,7 +668,7 @@ class Roach2Controls:
             plt.figure()
             plt.hist(iValues,1000)
             plt.hist(qValues,1000)
-            x_gauss = np.arange(-maxValue,maxValue,maxValue/2000.)
+            x_gauss = np.arange(-maxAmp,maxAmp,maxAmp/2000.)
             i_gauss = len(iValues)/(std_i*np.sqrt(2.*np.pi))*np.exp(-x_gauss**2/(2.*std_i**2.))
             q_gauss = len(qValues)/(std_q*np.sqrt(2.*np.pi))*np.exp(-x_gauss**2/(2.*std_q**2.))
             plt.plot(x_gauss,i_gauss)
@@ -699,13 +691,6 @@ class Roach2Controls:
                 plt.axvline(x=x_f, ymin=np.amin(np.real(sig)), ymax = np.amax(np.real(sig)), color='r')
             #plt.show()
             
-        #print self.freqList
-        #print dacFreqList
-        #print self.dacQuantizedFreqList
-        #print 'Q vals'
-        #print qValues[0:10]
-        #print 'I vals'
-        #print iValues[0:10]
         
         return {'I':iValues,'Q':qValues,'quantizedFreqList':self.dacQuantizedFreqList}
         
@@ -993,22 +978,22 @@ if __name__=='__main__':
     if len(sys.argv) > 2:
         params = sys.argv[2]
     else:
-        params='/mnt/data0/MkidDigitalReadout/DataReadout/ChannelizerControls/DarknessFpga_V2.param'
+        params='DarknessFpga_V2.param'
     print ip
     print params
 
     #warnings.filterwarnings('error')
     #freqList = [7.32421875e9, 8.e9, 9.e9, 10.e9,11.e9,12.e9,13.e9,14.e9,15e9,16e9,17.e9,18.e9,19.e9,20.e9,21.e9,22.e9,23.e9]
-    nFreqs=17
+    nFreqs=170
     loFreq = 5.e9
     spacing = 2.e6
     freqList = np.arange(loFreq-nFreqs/2.*spacing,loFreq+nFreqs/2.*spacing,spacing)
     freqList+=np.random.uniform(-spacing,spacing,nFreqs)
     freqList = np.sort(freqList)
-    attenList = np.random.randint(23,33,nFreqs)
+    attenList = np.random.randint(40,45,nFreqs)
     
-    freqList=np.asarray([5.2498416321e9, 5.125256256e9, 4.852323456e9, 4.69687416351e9])#,4.547846e9])
-    attenList=np.asarray([1,2,3,5])#,6])
+    #freqList=np.asarray([5.2498416321e9, 5.125256256e9, 4.852323456e9, 4.69687416351e9])#,4.547846e9])
+    #attenList=np.asarray([41,42,43,45])#,6])
     
     #freqList=np.asarray([5.12512345e9])
     #attenList=np.asarray([0])
@@ -1020,8 +1005,12 @@ if __name__=='__main__':
     roach_0.setLOFreq(loFreq)
     roach_0.generateResonatorChannels(freqList)
     roach_0.generateFftChanSelection()
-    roach_0.generateDacComb(resAttenList=attenList,globalDacAtten=17)
-    roach_0.generateDdsTones()
+    roach_0.generateDacComb(resAttenList=attenList,globalDacAtten=9)
+    #roach_0.generateDdsTones()
+    roach_0.debug=False
+    for i in range(10000):
+        
+        roach_0.generateDacComb(resAttenList=attenList,globalDacAtten=9)
     
     #roach_0.loadDdsLUT()
     #roach_0.loadChanSelection()
