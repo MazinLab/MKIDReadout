@@ -254,7 +254,7 @@ class Roach2Controls:
             
             
             #interweave the values such that we have two samples from freq 0 (row 0), two samples from freq 1, ... to freq 256. Then have the next two samples from freq 1 ...
-            freqPad = np.zeros((self.params['nChannelsPerStream'] - len(toneDict['quantizedFreqList']),nDdsSamples))
+            freqPad = np.zeros((self.params['nChannelsPerStream'] - len(toneDict['quantizedFreqList']),nDdsSamples),dtype=np.int)
             #First pad with missing resonators
             if len(iValList) >0:
                 iValList = np.append(iValList,freqPad,0)    
@@ -311,10 +311,10 @@ class Roach2Controls:
         allMemVals=[]
         for iMem in range(len(memNames)):
             iVals,qVals = ddsToneDict['iStreamList'][iMem],ddsToneDict['qStreamList'][iMem]
-            memVals = self.formatWaveForMem(iVals,qVals,self.params['nBitsPerDdsSamplePair'],
-                                            self.params['nDdsSamplesPerCycle'],len(memNames),
-                                            self.params['nBytesPerQdrSample']*8,earlierSampleIsMsb=True)
-            time.sleep(.1)
+            memVals = self.formatWaveForMem(iVals,qVals,nBitsPerSamplePair=self.params['nBitsPerDdsSamplePair'],
+                                            nSamplesPerCycle=self.params['nDdsSamplesPerCycle'],nMems=len(memNames),
+                                            nBitsPerMemRow=self.params['nBytesPerQdrSample']*8,earlierSampleIsMsb=True)
+            #time.sleep(.1)
             allMemVals.append(memVals)
             
             self.writeQdr(memNames[iMem], valuesToWrite=memVals[:,0], start=0, bQdrFlip=True, nQdrRows=self.params['nQdrRows'])
@@ -785,6 +785,8 @@ class Roach2Controls:
             freqList = freqList[:self.params['nChannels']]
         self.freqList = np.ravel(freqList)
         self.freqChannels = self.freqList
+        if self.verbose:
+            print 'Generating Resonator Channels...'
         
         #Pad with freq = -1 so that freqChannels's length is a multiple of nStreams
         nStreams = int(self.params['nChannels']/self.params['nChannelsPerStream'])        #number of processing streams. For Gen 2 readout this should be 4
@@ -799,6 +801,11 @@ class Roach2Controls:
         
         #Split up to assign channel numbers
         self.freqChannels = np.reshape(self.freqChannels,(-1,nStreams),order)
+        
+        if self.verbose:
+            print '\tFreq Channels: ',self.freqChannels
+            print '...Done!'
+
         return self.freqChannels
         
         
@@ -823,6 +830,8 @@ class Roach2Controls:
                 print "Run generateResonatorChannels() first!"
                 raise
         freqChannels = np.asarray(freqChannels)
+        if self.verbose:
+            print "Finding FFT Bins..."
         
         #The frequencies seen by the fft block are actually from the DAC, up/down converted by the IF board, and then digitized by the ADC
         dacFreqChannels = (freqChannels-self.LOFreq)
@@ -837,6 +846,11 @@ class Roach2Controls:
         self.fftBinIndChannels[np.where(freqChannels<0)]=self.fftBinPadValue      # empty channels have freq=-1. Assign this to fftBin=0
         
         self.fftBinIndChannels = self.fftBinIndChannels.astype(np.int)
+        
+        if self.verbose:
+            print '\tfft bin indices: ',self.fftBinIndChannels
+            print '...Done!'
+        
         return self.fftBinIndChannels
 
         
@@ -991,7 +1005,7 @@ if __name__=='__main__':
     freqList = np.arange(loFreq-nFreqs/2.*spacing,loFreq+nFreqs/2.*spacing,spacing)
     freqList+=np.random.uniform(-spacing,spacing,nFreqs)
     freqList = np.sort(freqList)
-    #attenList = np.random.randint(23,33,nFreqs)
+    attenList = np.random.randint(23,33,nFreqs)
     
     freqList=np.asarray([5.2498416321e9, 5.125256256e9, 4.852323456e9, 4.69687416351e9])#,4.547846e9])
     attenList=np.asarray([1,2,3,5])#,6])
