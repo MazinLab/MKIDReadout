@@ -58,8 +58,13 @@ baud_rate = 921600
 lut_dump_buffer_size = 4096
 
 #List of UART MicroBlaze Commands
-mbRecvDACLUT = 9
-mbInitUARTInterface = 0xc
+mbRecvDACLUT = 0x09
+mbInitUARTInterface = 0x01
+mbInitLO = 0x0c
+mbEnFracLO = 0x11
+mbRecvLo = 0x12
+mbChangeAtten = 0x20
+
 
 
 
