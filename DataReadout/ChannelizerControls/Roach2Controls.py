@@ -389,7 +389,8 @@ class Roach2Controls:
     
     def loadDacLUT(self, combDict=None):
         """
-        Load frequency comb in DAC look up tables
+        Sends frequency comb to V7 over UART, where it is loaded 
+        into a lookup table
         
         Call generateDacComb() first
         
@@ -471,15 +472,22 @@ class Roach2Controls:
         self.LOFreq = LOFreq
     
     def loadLOFreq(self,LOFreq=None):
+        """
+        Send LO frequency to V7 over UART.
+        Must initialize LO first.
+        
+        INPUTS:
+            LOFreq - LO frequency in MHz
+        
+        Sends LO freq one byte at a time, LSB first
+           sends integer bytes first, then fractional
+        """
         if LOFreq is None:
             LOFreq = self.LOFreq
+       
         
-        # load into IF board
-        # sends LO freq one byte at a time, LSB first
-        #   sends integer bytes first, then fractional
-        
-        loFreqInt = int(self.LOFreq)
-        loFreqFrac = self.LOFreq - loFreqInt
+        loFreqInt = int(LOFreq)
+        loFreqFrac = LOFreq - loFreqInt
         
         # Put V7 into LO recv mode
         while(not(self.v7_ready)):
@@ -493,7 +501,7 @@ class Roach2Controls:
         self.fpga.write_int(self.params['txEnUARTReg'],0)        
         
         for i in range(2):
-            transferByte = loFreqInt>>(i*8)|255 #takes an 8-bit "slice" of loFreqInt
+            transferByte = (loFreqInt>>(i*8))&255 #takes an 8-bit "slice" of loFreqInt
             
             while(not(self.v7_ready)):
                 self.v7_ready = self.fpga.read_int(self.params['v7ReadyReg'])
@@ -505,11 +513,13 @@ class Roach2Controls:
             time.sleep(0.01)
             self.fpga.write_int(self.params['txEnUARTReg'],0)
         
+        print 'loFreqFrac' + str(loFreqFrac)	
         loFreqFrac = int(loFreqFrac*(2**16))
+        print 'loFreqFrac' + str(loFreqFrac)
         
         # same as transfer of int bytes
         for i in range(2):
-            tranferByte = loFreqFrac>>(i*8)|255
+            transferByte = (loFreqFrac>>(i*8))&255
             
             while(not(self.v7_ready)):
                 self.v7_ready = self.fpga.read_int(self.params['v7ReadyReg'])
@@ -520,6 +530,38 @@ class Roach2Controls:
             self.fpga.write_int(self.params['txEnUARTReg'],1)
             time.sleep(0.01)
             self.fpga.write_int(self.params['txEnUARTReg'],0)
+    
+    def changeAtten(self, attenID, attenVal):
+        """
+        Change the attenuation on IF Board attenuators
+        Must initialize attenuator SPI connection first
+        INPUTS:
+            attenID 
+                1 - RF Upcoverter path
+                2 - RF Upconverter path
+                3 - RF Downconverter path
+                
+        Attenuation must be a multiple of 0.25 dB
+        """
+        attenVal = int(attenVal*4) #attenVal register holds value 4x(attenuation)
+        
+        while(not(self.v7_ready)):
+            self.v7_ready = self.fpga.read_int(self.params['v7ReadyReg'])
+            
+        self.v7_ready = 0
+        sendUARTCommand(self, self.params['mbChangeAtten'])
+        
+        while(not(self.v7_ready)):
+            self.v7_ready = self.fpga.read_int(self.params['v7ReadyReg'])
+            
+        self.v7_ready = 0
+        sendUARTCommand(self, attenID)
+        
+        while(not(self.v7_ready)):
+            self.v7_ready = self.fpga.read_int(self.params['v7ReadyReg'])
+            
+        self.v7_ready = 0
+        sendUARTCommand(self, attenVal)
     
     def generateDacComb(self, freqList=None, resAttenList=None, globalDacAtten = 0, phaseList=None, dacScaleFactor=None):
         """
@@ -915,6 +957,20 @@ class Roach2Controls:
 
         sock.close()
         dumpFile.close()
+        
+    def sendUARTCommand(self, inByte):
+        """
+        Sends a single byte to V7 over UART
+        Doesn't wait for a v7_ready signal
+        Inputs:
+            inByte - byte to send over UART
+        """
+        self.fpga.write_int(self.params['inByteUARTReg'],inByte)
+        time.sleep(0.01)
+        self.fpga.write_int(self.params['txEnUARTReg'],1)
+        time.sleep(0.01)
+        self.fpga.write_int(self.params['txEnUARTReg'],0)        
+        
 if __name__=='__main__':
     if len(sys.argv) > 1:
         ip = sys.argv[1]
