@@ -58,9 +58,12 @@ lut_dump_buffer_size = 4096
 #List of UART MicroBlaze Commands
 mbRecvDACLUT = 0x09
 mbInitUARTInterface = 0x01
+mbEnableDACs = 0x03
 mbInitLO = 0x0c
+mbInitAtten = 0x0d
+mbEnableIntLO = 0x10
 mbEnFracLO = 0x11
-mbRecvLo = 0x12
+mbRecvL0 = 0x12
 mbChangeAtten = 0x20
 
 
