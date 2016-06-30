@@ -71,8 +71,13 @@ class RoachSettingsTab(QMainWindow):
     def changedSetting(self,settingID,setting):
         """
         When a setting is changed, reflect the change in the config object which is shared across all GUI elements.
+        
+        INPUTS:
+            settingID - the key in the configparser
+            setting - the value
         """
-        self.config.set('Roach '+str(self.roachNum),settingID,setting)
+        self.config.set('Roach '+str(self.roachNum),settingID,str(setting))
+        #If we don't force the setting value to be a string then the configparser has trouble grabbing the value later on for some unknown reason
         
     def create_main_frame(self):
         """

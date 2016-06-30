@@ -7,12 +7,6 @@ Classes for the plot windows for HighTemplar.py. Sweep or phase timestream
 
 Classes:
     RoachSweepWindow - class for plotting IQ sweep
-    SweepWindowWorker - class for creating IQ Sweep plot in seperate thread
-
-Abstract Classes:
-    RoachPlotWindow - abstract QMainWindow widget for a pop up plot window
-    WindowWorker - abstract class for performing plotting functions in seperate thread
-
 
 
 Note: see http://bastibe.de/2013-05-30-speeding-up-matplotlib.html for making matplotlib faster
@@ -30,7 +24,7 @@ from matplotlib.figure import Figure
 from matplotlib.backends.backend_qt4agg import FigureCanvasQTAgg as FigureCanvas
 try:
 	from matplotlib.backends.backend_qt4agg import NavigationToolbar2QTAgg as NavigationToolbar
-except ImportError:
+except ImportError: #Named changed in some newer matplotlib versions
 	from matplotlib.backends.backend_qt4agg import NavigationToolbar2QT as NavigationToolbar
         
 class RoachSweepWindow(QMainWindow):
@@ -112,6 +106,18 @@ class RoachSweepWindow(QMainWindow):
         self.label_atten.setText('Atten: '+str(attens[ch])+' dB')
         self.label_lofreq.setText('LO Freq: '+str(lofreq/1.e9)+' GHz')
     
+    def changedSetting(self,settingID,setting):
+        """
+        When a setting is changed, reflect the change in the config object which is shared across all GUI elements.
+        
+        INPUTS:
+            settingID - the key in the configparser
+            setting - the value
+        """
+        self.config.set('Roach '+str(self.roachNum),settingID,str(setting))
+        #If we don't force the setting value to be a string then the configparser has trouble grabbing the value later on for some unknown reason
+        #print 'setting ',settingID,' to ',setting
+    
     def create_main_frame(self):
         """
         Makes GUI elements on the window
@@ -141,10 +147,52 @@ class RoachSweepWindow(QMainWindow):
         self.spinbox_channel.valueChanged.connect(lambda x: self.initFreqs())
         
         self.label_freq = QLabel('Freq: 0 GHz')
-        self.label_freq.setMinimumWidth(120)
-        self.label_freq.setMaximumWidth(120)
+        self.label_freq.setMinimumWidth(150)
+        self.label_freq.setMaximumWidth(150)
         self.label_atten = QLabel('Atten: 0 dB')
         self.label_lofreq = QLabel('LO Freq: 0 GHz')
+        
+        
+        
+        
+        dacAttenStart = self.config.getfloat('Roach '+str(self.roachNum),'dacatten_start')
+        label_dacAttenStart = QLabel('DAC atten:')
+        spinbox_dacAttenStart = QDoubleSpinBox()
+        spinbox_dacAttenStart.setValue(dacAttenStart)
+        spinbox_dacAttenStart.setSuffix(' dB')
+        spinbox_dacAttenStart.setRange(0,37.5)
+        spinbox_dacAttenStart.setSingleStep(1.)
+        spinbox_dacAttenStart.setWrapping(False)
+        
+        dacAttenStop = self.config.getfloat('Roach '+str(self.roachNum),'dacatten_stop')
+        label_dacAttenStop = QLabel(' to ')
+        spinbox_dacAttenStop = QDoubleSpinBox()
+        spinbox_dacAttenStop.setValue(dacAttenStop)
+        spinbox_dacAttenStop.setSuffix(' dB')
+        spinbox_dacAttenStop.setRange(0,37.5)
+        spinbox_dacAttenStop.setSingleStep(1.)
+        spinbox_dacAttenStop.setWrapping(False)
+        
+        spinbox_dacAttenStart.valueChanged.connect(partial(self.changedSetting,'dacatten_start'))
+        spinbox_dacAttenStart.valueChanged.connect(spinbox_dacAttenStop.setValue)                   #Automatically change value of dac atten stop when start value changes
+        spinbox_dacAttenStop.valueChanged.connect(partial(self.changedSetting,'dacatten_stop'))
+        spinbox_dacAttenStop.valueChanged.connect(lambda x: spinbox_dacAttenStop.setValue(max(spinbox_dacAttenStart.value(),x)))       #Force stop value to be larger than start value
+        
+        adcAtten = self.config.getfloat('Roach '+str(self.roachNum),'adcatten')
+        label_adcAtten = QLabel('ADC Atten:')
+        spinbox_adcAtten = QDoubleSpinBox()
+        spinbox_adcAtten.setValue(adcAtten)
+        spinbox_adcAtten.setSuffix(' dB')
+        spinbox_adcAtten.setRange(0,37.5)
+        spinbox_adcAtten.setSingleStep(1.)
+        spinbox_adcAtten.setWrapping(False)
+        spinbox_adcAtten.valueChanged.connect(partial(self.changedSetting,'adcatten'))
+        
+        
+        loSpan = self.config.get('Roach '+str(self.roachNum),'sweeplospan')
+        label_loSpan = QLabel('LO Span:')
+        textbox_loSpan = QLineEdit(loSpan)
+        textbox_loSpan.textChanged.connect(partial(self.changedSetting,'sweeplospan'))
         
 
         button_sweep = QPushButton("Sweep Freq")
@@ -173,9 +221,29 @@ class RoachSweepWindow(QMainWindow):
         hbox1.addLayout(vbox_plot)
         hbox1.addLayout(vbox_res)
         
+        hbox_atten = QHBoxLayout()
+        hbox_atten.addWidget(label_dacAttenStart)
+        hbox_atten.addWidget(spinbox_dacAttenStart)
+        hbox_atten.addWidget(label_dacAttenStop)
+        hbox_atten.addWidget(spinbox_dacAttenStop)
+        hbox_atten.addSpacing(50)
+        hbox_atten.addWidget(label_adcAtten)
+        hbox_atten.addWidget(spinbox_adcAtten)
+        hbox_atten.addStretch()
+        
+        hbox3 = QHBoxLayout()
+        hbox3.addWidget(label_loSpan)
+        hbox3.addWidget(textbox_loSpan)
+        hbox3.addWidget(button_sweep)
+        hbox3.addStretch()
+        
+        vbox_buttons = QVBoxLayout()
+        vbox_buttons.addLayout(hbox_atten)
+        vbox_buttons.addLayout(hbox3)
+        
         box = QVBoxLayout()
         box.addLayout(hbox1)
-        box.addWidget(button_sweep)
+        box.addLayout(vbox_buttons)
         
         self.main_frame.setLayout(box)
         self.setCentralWidget(self.main_frame)
