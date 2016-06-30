@@ -173,7 +173,7 @@ class Roach2Controls:
         self.fpga.write_int(self.params['txEnUART_reg'],1)
         time.sleep(0.01)
         self.fpga.write_int(self.params['txEnUART_reg'],0)
-        
+         
         
     def generateDdsTones(self, freqChannels=None, fftBinIndChannels=None, phaseList=None):
         """
@@ -969,7 +969,14 @@ class Roach2Controls:
 
         sock.close()
         dumpFile.close()
-        
+    
+    def performIQSweep(self):
+        iqData = np.array([])
+        self.fpga.snapshots['darksc2_acc_iq_avg0'].arm(man_valid = False, man_trig = True)
+        iqPt = self.fpga.snapshots['darksc2_acc_iq_avg0'].read(timeout = 10, arm = False)['data']
+        iqData = np.append(iqData, iqPt['in_iq'])
+
+    
     def sendUARTCommand(self, inByte):
         """
         Sends a single byte to V7 over UART
