@@ -54,6 +54,7 @@ List of useful class attributes:
     ip -                            ip address of roach2
     params -                        Dictionary of parameters
     freqList -                      List of resonator frequencies
+    attenList -                     List of resonator attenuations
     freqChannels -                  2D array of frequencies. Each column is the a stream and each row is a channel. 
                                     If uneven number of frequencies this array is padded with -1's
     fftBinIndChannels -             2D array of fftBin indices corresponding to the frequencies/streams/channels in freqChannels. freq=-1 maps to fftBin=0.
@@ -485,7 +486,7 @@ class Roach2Controls:
         Sends LO freq one byte at a time, LSB first
            sends integer bytes first, then fractional
         """
-       if LOFreq is None:
+        if LOFreq is None:
             try:
                 LOFreq = self.LOFreq
             except AttributeError:
@@ -598,21 +599,22 @@ class Roach2Controls:
         if len(freqList)>self.params['nChannels']:
             warnings.warn("Too many freqs provided. Can only accommodate "+str(self.params['nChannels'])+" resonators")
             freqList = freqList[:self.params['nChannels']]
-        self.freqList = np.ravel(freqList)
+        freqList = np.ravel(freqList).flatten()
         if resAttenList is None:
             warnings.warn("Individual resonator attenuations assumed to be 20")
             resAttenList=np.zeros(len(freqList))+20
         if len(resAttenList)>self.params['nChannels']:
             warnings.warn("Too many attenuations provided. Can only accommodate "+str(self.params['nChannels'])+" resonators")
             resAttenList = resAttenList[:self.params['nChannels']]
-        resAttenList = np.ravel(resAttenList)
+        resAttenList = np.ravel(resAttenList).flatten()
         if len(freqList) != len(resAttenList):
             raise ValueError("Need exactly one attenuation value for each resonant frequency!")
         if (phaseList is not None) and len(freqList) != len(phaseList):
             raise ValueError("Need exactly one phase value for each resonant frequency!")
         if np.any(resAttenList < globalDacAtten):
             raise ValueError("Impossible to attain desired resonator attenuations! Decrease the global DAC attenuation.")
-            
+        self.attenList = resAttenList
+        self.freqList = freqList
         
         if self.verbose:
             print 'Generating DAC comb...'

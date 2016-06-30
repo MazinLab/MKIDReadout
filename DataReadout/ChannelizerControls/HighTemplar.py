@@ -71,21 +71,13 @@ class HighTemplar(QMainWindow):
         self.setWindowTitle('High Templar Resonator Setup')
         #self.create_status_bar()
         
-        #Create sub windows
-        self.settingsWindow = RoachSettingsWindow(self.roachNums, self.config, parent=None) # keep parent None for now
-        self.sweepWindows=[]
-        for i in self.roachNums:
-            #window = RoachPlotWindow(i,SweepWindowWorker,'IQ Plot')
-            window = RoachSweepWindow(i)
-            window.sweepClicked.connect(partial(self.commandButtonClicked, [i] , RoachStateMachine.SWEEP))
-            self.sweepWindows.append(window)
-        self.create_menu()
+        
         
         #Setup RoachStateMachine and threads for each roach
         self.roaches = []
         self.roachThreads=[]
         for i in self.roachNums:
-            roach=RoachStateMachine(i)
+            roach=RoachStateMachine(i,self.config)
             thread = QtCore.QThread(parent=self)                                        # if parent isn't specified then need to be careful to destroy thread
             thread.setObjectName("Roach_"+str(i))                                       # process name
             roach.finishedCommand_Signal.connect(partial(self.catchRoachSignal,i))      # call catchRoachSignal when roach finishes a command
@@ -97,7 +89,17 @@ class HighTemplar(QMainWindow):
             self.roachThreads.append(thread)
             #self.destroyed.connect(self.thread.deleteLater)
             #self.destroyed.connect(self.roach.deleteLater)
+
+        
+        #Create sub windows
+        self.settingsWindow = RoachSettingsWindow(self.roachNums, self.config, parent=None) # keep parent None for now
+        self.sweepWindows=[]
+        for roach_i in self.roaches:
+            window = RoachSweepWindow(roach_i,self.config)
+            window.sweepClicked.connect(partial(self.commandButtonClicked, [roach_i.num] , RoachStateMachine.SWEEP))
+            self.sweepWindows.append(window)
             
+        self.create_menu()
         
         #Initialize by connecting to roaches over ethernet
         for i in range(self.numRoaches):
@@ -160,6 +162,10 @@ class HighTemplar(QMainWindow):
         colorStatus = [None]*RoachStateMachine.NUMCOMMANDS
         colorStatus[command]='green'
         self.colorCommandButtons(roachNum,colorStatus)
+        
+        if command == RoachStateMachine.LOADFREQ:
+            roachArg = np.where(np.asarray(self.roachNums) == roachNum)[0][0]
+            self.sweepWindows[roachArg].initFreqs()
         
         if command == RoachStateMachine.SWEEP:
             roachArg = np.where(np.asarray(self.roachNums) == roachNum)[0][0]
@@ -297,7 +303,7 @@ class HighTemplar(QMainWindow):
         
         #Command Labels:
         self.label_connect = QLabel('Connect:')
-        self.label_loadFreq = QLabel('Load Freq/Atten:')
+        self.label_loadFreq = QLabel('Read Freq/Atten:')
         self.label_defineLUT = QLabel("Define LUT's:")
         self.label_sweep = QLabel('Sweep:')
         self.label_rotate = QLabel('Rotate Loops:')
@@ -488,4 +494,16 @@ def main():
 
 
 if __name__ == "__main__":
+    for i in range(10):
+        nFreqs=np.random.randint(100,200)
+        loFreq = 5.e9
+        spacing = 2.e6
+        freqList = np.arange(loFreq-nFreqs/2.*spacing,loFreq+nFreqs/2.*spacing,spacing)
+        freqList+=np.random.uniform(-spacing,spacing,nFreqs)
+        freqList = np.sort(freqList)
+        attenList = np.random.randint(35,45,nFreqs)
+        
+        data = np.transpose([freqList,attenList])
+        np.savetxt('ps_freq'+str(i)+'.txt',data,['%15.8e', '%4i'])
+
     main()

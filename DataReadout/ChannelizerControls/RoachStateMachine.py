@@ -10,53 +10,15 @@ from PyQt4 import QtCore
 from Queue import Queue
 from Roach2Controls import Roach2Controls
 
-'''
-class RoachThread(QtCore.QThread):
-    """
-    This class implements a thread. Each readout board is controlled with its own thread.
-    The thread checks if a command has been set for its roach, tells the roach to exectue the command, then communicates with a signal when it's done.
-    
-    INPUTS:
-        roachNum - The identifying number of the roach
-    
-    SIGNALS:
-        finishedCommand(int,PyQt_PyObject) - QtCore.SIGNAL that is emitted when a command is done executing. Passes two arguments, the command and any data from the command. (ie. I Q data from sweep)
-        commandError(int,PyQt_PyObject) - QtCore.SIGNAL that is emitted when a command errors out. Passes two arguments, the command, and the information about the error. The last argument is actually a tuple but PyQt wraps all pythonic types into the PyQt_PyObject class when passing arguments. int is a c++ type
-    """
-    finishedCommandSignal = QtCore.SIGNAL("finishedCommand(int,PyQt_PyObject)")
-    commandErrorSignal = QtCore.SIGNAL("commandError(int,PyQt_PyObject)")
-    #commandSignal = QtCore.SIGNAL("command(int,int)")  # This is only used by the HighTemplar GUI to signal to this thread
-    
-    def __init__(self,roachNum):
-        QtCore.QThread.__init__(self)
-        self.roach = RoachStateMachine(roachNum)
-
-    def __del__(self):
-        print 'deleting Roach Thread'
-        self.wait()     # Waits until event loop is finished before deleting (on exit)
-
-    def run(self):
-        while self.roach.hasCommand():
-            command=self.roach.popCommand()
-            try:
-                commandData = self.roach.executeCommand(command)
-                self.emit(RoachThread.finishedCommandSignal,command,commandData)
-            except:
-                exc_info = sys.exc_info()
-                self.emit(RoachThread.commandErrorSignal,command,exc_info)
-                del exc_info    # if you don't delete this it may prevent garbage collection
-        return
-'''
-
 class RoachStateMachine(QtCore.QObject):        #Extends QObject for use with QThreads
     """
-    This class defines and executes commands on the readout boards
+    This class defines and executes commands on the readout boards using the Roach2Controls object
     
     command enums are class variables
-        0 - connect
-        1 - loadFreq
+        0 - CONNECT
+        1 - LOADFREQ
         2 - etc...
-    ie.. RoachStateMachine.connect = 0
+    ie.. RoachStateMachine.CONNECT = 0
          RoachStateMachine.parseCommand(0) = 'Connect'
     
     Commands are encoded as ints and loaded into a queue. The RoachThread pops the command and tells the RoachStateMachine to execute it.
@@ -64,14 +26,15 @@ class RoachStateMachine(QtCore.QObject):        #Extends QObject for use with QT
     The 'state' attribute contains information about the state of the roach for each command.
     For example. self.state=[2, 2, 1, 1, 0, 0, 0, 0] means that the roach succesfully completed connect, loadFreq commands, and is currently working on DefineLUT and sweep. 
     State enums are class variables
-        0 - undefined
-        1 - inProgress
-        2 - completed
-        3 - error
-    ie.. RoachStateMachine.completed=2
+        0 - UNDEFINED
+        1 - INPROGRESS
+        2 - COMPLETED
+        3 - ERROR
+    ie.. RoachStateMachine.COMPLETED=2
          RoachStateMachine.parseState(2)='Completed'
     
-    
+    TODO:
+        uncomment everything in executeCommand()
     """
     #FINISHED_SIGNAL = QtCore.SIGNAL("finishedCommand(int,PyQt_PyObject)")
     #ERROR_SIGNAL = QtCore.SIGNAL("commandError(int,PyQt_PyObject)")
@@ -93,20 +56,23 @@ class RoachStateMachine(QtCore.QObject):        #Extends QObject for use with QT
         statesString=['Undefined', 'In Progress', 'Completed', 'Error']
         return statesString[state]
     
-    def __init__(self, roachNumber):
+    def __init__(self, roachNumber, config):
+        """
+        INPUTS:
+            roachNumber - 
+            config - ConfigParser Object holding all the parameters needed
+        """
         super(RoachStateMachine, self).__init__()
-        #self.threadClose = 0                # thread continues to listen for commands until this is set to 1
         self.state=[RoachStateMachine.UNDEFINED]*RoachStateMachine.NUMCOMMANDS    # This holds the state for each command type
-        #self.nextState=RoachState.connect
-        #self.status = 1						#1 if okay to execute next command
-        #self.error = 0                      #error code: 0=okay, 1=error in connection, 2=error in loadFreq
         self.num=int(roachNumber)
         self.commandQueue=Queue()
-        #self.commandQueue.put(RoachState.connect)
+        self.config=config
         
-    def closeThread(self,setClosed=0):
-        self.threadClose = setClosed
-        return self.threadClose
+        
+        FPGAParamFile = self.config.get('Roach '+str(self.num),'FPGAParamFile')
+        ip = self.config.get('Roach '+str(self.num),'ipaddress')
+        
+        self.roachController = Roach2Controls(ip,FPGAParamFile,True,False)
     
     def addCommands(self,command):
         """
@@ -142,6 +108,9 @@ class RoachStateMachine(QtCore.QObject):        #Extends QObject for use with QT
         Outputs:
             nextState - list of states for the roach. See self.state attribute
         """
+        if _n > 100:
+            raise ValueError("Too many recursions!")
+        
         nextState = np.copy(self.state)
         
         if _n==0: # n==0 means this is the top level command
@@ -175,21 +144,15 @@ class RoachStateMachine(QtCore.QObject):        #Extends QObject for use with QT
         
         
     
-    def hasCommand(self):
-        return (not self.commandQueue.empty())
-    def popCommand(self):
-        if not self.commandQueue.empty():
-            return self.commandQueue.get()
-        else:
-            return None
-    def pushCommand(self,command):
-        self.commandQueue.put(command)
-    def emptyCommandQueue(self):
-        while not self.commandQueue.empty():
-            self.commandQueue.get()
+
     
     @QtCore.pyqtSlot()
     def executeCommands(self):
+        """
+        Executes sequentially every command in the command Queue
+        
+        This slot function is called by a seperate thread from HighTemplar
+        """
         while self.hasCommand():
             command=self.popCommand()
             try:
@@ -204,25 +167,94 @@ class RoachStateMachine(QtCore.QObject):        #Extends QObject for use with QT
         self.finished.emit()
     
     def executeCommand(self,command):
+        """
+        Executes individual commands
+        
+        INPUTS:
+            command
+        """
         print "Roach ",self.num," Recieved/executing command: ",RoachStateMachine.parseCommand(command)
         self.state[command] = RoachStateMachine.INPROGRESS
         returnData = None
         try:
-            time.sleep(random.randint(1,3))
-            if random.randint(1,50) == 1:
-                raise NotImplementedError('Error msg here!')
             
-            if command == RoachStateMachine.SWEEP:
+            if command == RoachStateMachine.CONNECT:
+                '''
+                This function connects to the roach2 board and executes any initialization scripts
+                '''
+                #self.roachController.connect()
+                ddsShift = self.config.getint('Roach '+str(self.num),'ddssynclag')
+                #self.roachController.loadDdsShift(ddsShift)
+                
+                returnData=True
+                
+            elif command == RoachStateMachine.LOADFREQ:
+                '''
+                Calculates the everything we need to load into the LUTs on the Roach and ADC/DAC board
+                '''
+                loFreq = int(self.config.getfloat('Roach '+str(self.num),'lo_freq'))
+                self.roachController.setLOFreq(loFreq)
+                
+                fn = self.config.get('Roach '+str(self.num),'freqfile')
+                freqs, attens = np.loadtxt(fn,unpack=True)
+                
+                print 'freqs: ',freqs
+                print 'attens: ',attens
+                
+                
+                self.roachController.generateResonatorChannels(freqs)
+                self.roachController.generateFftChanSelection()
+                
+                dacAtten = self.config.getfloat('Roach '+str(self.num),'dacatten_start')
+                self.roachController.generateDacComb(resAttenList=attens,globalDacAtten=dacAtten)
+                self.roachController.generateDdsTones()
+                
+                returnData=True
+            
+            elif command == RoachStateMachine.DEFINELUT:
+                '''
+                Loads values into ROACH2, ADC/DAC, and IF boards
+                    DAC atten 1, 2
+                    ADC atten
+                    lo freq
+                    DAC LUT
+                    DDS LUT
+                '''
+                adcAtten = self.config.getfloat('Roach '+str(self.num),'adcatten')
+                dacAtten = self.config.getfloat('Roach '+str(self.num),'dacatten_start')
+                dacAtten1 = np.floor(dacAtten*2)/4.
+                dacAtten2 = np.ceil(dacAtten*2)/4.
+                #self.roachController.changeAtten(1,dacAtten1)
+                #self.roachController.changeAtten(2,dacAtten2)
+                #self.roachController.changeAtten(3,adcAtten)
+
+                #self.roachController.loadLOFreq()
+                
+                #self.roachController.loadChanSelection()
+                #self.roachController.loadDdsLUT()
+                #self.roachController.loadDacLUT()
+                
+                returnData = True
+                
+                
+            
+            elif command == RoachStateMachine.SWEEP:
+                print self.config.get('Roach '+str(self.num),'ipAddress')
+                nfreqs = len(self.roachController.freqList)
                 self.I_data = []
                 self.Q_data = []
-                for i in range(10):
+                for i in range(nfreqs):
                     theta = np.arange(10)/10.*2*np.pi
                     I = np.cos(theta) + (np.random.rand(10)-0.5)/10.
                     Q = np.sin(theta) + (np.random.rand(10)-0.5)/10.
                     self.I_data.append(I)
                     self.Q_data.append(Q)
                 returnData = {'I':self.I_data,'Q':self.Q_data}
-            
+        
+            else:
+                time.sleep(random.randint(1,3))
+                if random.randint(1,50) == 1:
+                    raise NotImplementedError('Error msg here!')
             
             self.state[command] = RoachStateMachine.COMPLETED
         except:
@@ -231,13 +263,19 @@ class RoachStateMachine(QtCore.QObject):        #Extends QObject for use with QT
             raise
             
         return returnData
+        
             
-    def getIQdata(self):
-        try:
-            I = self.I_data
-            Q = self.Q_data
-        except:
-            I=[]
-            Q=[]
-        return I,Q
+
+    def hasCommand(self):
+        return (not self.commandQueue.empty())
+    def popCommand(self):
+        if not self.commandQueue.empty():
+            return self.commandQueue.get()
+        else:
+            return None
+    def pushCommand(self,command):
+        self.commandQueue.put(command)
+    def emptyCommandQueue(self):
+        while not self.commandQueue.empty():
+            self.commandQueue.get()
 

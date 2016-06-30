@@ -6,6 +6,7 @@ Date: May 18, 2016
 
 A class for the settings window for HighTemplar.py. 
 """
+from functools import partial
 from PyQt4.QtGui import *
 from PyQt4 import QtGui
 from PyQt4 import QtCore
@@ -38,7 +39,7 @@ class RoachSettingsWindow(QTabWidget):
         
         #self.setMovable(True)
         self.setTabsClosable(False)
-        self.resize(self.minimumSizeHint())
+        #self.resize(self.minimumSizeHint())
         #self.resize(300,1000)
         self.setTabPosition(QTabWidget.West)
         #self.setStyleSheet('QTabBar::tab {color: red;}')
@@ -66,6 +67,12 @@ class RoachSettingsTab(QMainWindow):
         self.config = config
         
         self.create_main_frame()
+    
+    def changedSetting(self,settingID,setting):
+        """
+        When a setting is changed, reflect the change in the config object which is shared across all GUI elements.
+        """
+        self.config.set('Roach '+str(self.roachNum),settingID,setting)
         
     def create_main_frame(self):
         """
@@ -90,14 +97,16 @@ class RoachSettingsTab(QMainWindow):
         self.label_ipAddress.setMinimumWidth(110)
         self.textbox_ipAddress = QLineEdit(ipAddress)
         self.textbox_ipAddress.setMinimumWidth(70)
+        self.textbox_ipAddress.textChanged.connect(partial(self.changedSetting,'ipAddress'))
         add2layout(vbox,self.label_ipAddress,self.textbox_ipAddress)
 
-        ddsSyncLag = int(self.config.get('Roach '+str(self.roachNum),'ddsSyncLag'))
+        ddsSyncLag = self.config.getint('Roach '+str(self.roachNum),'ddsSyncLag')
         self.label_ddsSyncLag = QLabel('DDS Sync Lag:')
         self.label_ddsSyncLag.setMinimumWidth(110)
         self.spinbox_ddsSyncLag = QSpinBox()
         self.spinbox_ddsSyncLag.setRange(0,2**10)
         self.spinbox_ddsSyncLag.setValue(ddsSyncLag)
+        self.spinbox_ddsSyncLag.valueChanged.connect(partial(self.changedSetting,'ddsSyncLag'))
         add2layout(vbox,self.label_ddsSyncLag,self.spinbox_ddsSyncLag)
         
         freqFile = self.config.get('Roach '+str(self.roachNum),'freqFile')
@@ -105,9 +114,23 @@ class RoachSettingsTab(QMainWindow):
         self.label_freqFile.setMinimumWidth(110)
         self.textbox_freqFile = QLineEdit(freqFile)
         self.textbox_freqFile.setMinimumWidth(70)
+        self.textbox_freqFile.textChanged.connect(partial(self.changedSetting,'freqFile'))
         add2layout(vbox,self.label_freqFile,self.textbox_freqFile)
         
+        lofreq = self.config.get('Roach '+str(self.roachNum),'lo_freq')
+        self.label_lofreq = QLabel('LO Freq: ')
+        self.label_lofreq.setMinimumWidth(110)
+        self.textbox_lofreq = QLineEdit(lofreq)
+        self.textbox_lofreq.setMinimumWidth(70)
+        self.textbox_lofreq.textChanged.connect(partial(self.changedSetting,'lo_freq'))
+        add2layout(vbox,self.label_lofreq,self.textbox_lofreq)
         
+        vbox.addStretch()
+        
+        label_note = QLabel("NOTE: Changing the ip address won't take effect until you re-connect. Likewise, changing the DDS Sync Lag, freq file, or LO Freq requires you to load the freqs/attens again")
+        label_note.setWordWrap(True)
+        
+        vbox.addWidget(label_note)
 
         self.main_frame.setLayout(vbox)
         self.setCentralWidget(self.main_frame)
