@@ -152,23 +152,23 @@ class Roach2Controls:
         self.lut_dump_data_period = (10*self.params['fpgaClockRate'])//self.baud_rate + 1 #10 bits per data byte
         self.v7_ready = 0
         
-        self.fpga.write_int(self.params['enBRAMDumpReg'], 0)
-        self.fpga.write_int(self.params['txEnUARTReg'],0)
+        self.fpga.write_int(self.params['enBRAMDump_reg'], 0)
+        self.fpga.write_int(self.params['txEnUART_reg'],0)
         self.fpga.write_int('a2g_ctrl_lut_dump_data_period', self.lut_dump_data_period)
         
-        self.fpga.write_int(self.params['resetUARTReg'],1)
+        self.fpga.write_int(self.params['resetUART_reg'],1)
         time.sleep(1)
-        self.fpga.write_int(self.params['resetUARTReg'],0)
+        self.fpga.write_int(self.params['resetUART_reg'],0)
         
         #while(not(self.v7_ready)):
-        #    self.v7_ready = self.fpga.read_int(self.params['v7ReadyReg'])
+        #    self.v7_ready = self.fpga.read_int(self.params['v7Ready_reg'])
         
         self.v7_ready = 0
-        self.fpga.write_int(self.params['inByteUARTReg'],1) # Acknowledge that ROACH2 knows MB is ready for commands
+        self.fpga.write_int(self.params['inByteUART_reg'],1) # Acknowledge that ROACH2 knows MB is ready for commands
         time.sleep(0.01)
-        self.fpga.write_int(self.params['txEnUARTReg'],1)
+        self.fpga.write_int(self.params['txEnUART_reg'],1)
         time.sleep(0.01)
-        self.fpga.write_int(self.params['txEnUARTReg'],0)
+        self.fpga.write_int(self.params['txEnUART_reg'],0)
         
         
     def generateDdsTones(self, freqChannels=None, fftBinIndChannels=None, phaseList=None):
@@ -307,7 +307,7 @@ class Roach2Controls:
                 print "Need to run generateDdsTones() first!"
                 raise
             
-        memNames = self.params['ddsMemNames_reg']
+        memNames = self.params['ddsMemName_regs']
         allMemVals=[]
         for iMem in range(len(memNames)):
             iVals,qVals = ddsToneDict['iStreamList'][iMem],ddsToneDict['qStreamList'][iMem]
@@ -415,20 +415,20 @@ class Roach2Controls:
         
         #Write data to LUTs
         while(not(self.v7_ready)):
-            self.v7_ready = self.fpga.read_int(self.params['v7ReadyReg'])
+            self.v7_ready = self.fpga.read_int(self.params['v7Ready_reg'])
         
         self.v7_ready = 0
-        self.fpga.write_int(self.params['inByteUARTReg'],self.params['mbRecvDACLUT'])
+        self.fpga.write_int(self.params['inByteUART_reg'],self.params['mbRecvDACLUT'])
         time.sleep(0.01)
-        self.fpga.write_int(self.params['txEnUARTReg'],1)
+        self.fpga.write_int(self.params['txEnUART_reg'],1)
         time.sleep(0.01)
-        self.fpga.write_int(self.params['txEnUARTReg'],0)
+        self.fpga.write_int(self.params['txEnUART_reg'],0)
         time.sleep(0.01)
         #time.sleep(10)
-        self.fpga.write_int(self.params['enBRAMDumpReg'],1)
+        self.fpga.write_int(self.params['enBRAMDump_reg'],1)
 
         
-        print 'v7 ready before dump: ' + str(self.fpga.read_int(self.params['v7ReadyReg']))
+        print 'v7 ready before dump: ' + str(self.fpga.read_int(self.params['v7Ready_reg']))
         
         num_lut_dumps = int(math.ceil(len(memVals)*2/self.lut_dump_buffer_size)) #Each value in memVals is 2 bytes
         print 'num lut dumps ' + str(num_lut_dumps)
@@ -449,22 +449,22 @@ class Roach2Controls:
             print iqList
             print 'bram dump # ' + str(i)
             while(sending_data):
-                sending_data = self.fpga.read_int(self.params['lutDumpBusyReg'])
-            self.fpga.blindwrite(self.params['lutBramAddr'],toWriteStr,0)
+                sending_data = self.fpga.read_int(self.params['lutDumpBusy_reg'])
+            self.fpga.blindwrite(self.params['lutBramAddr_reg'],toWriteStr,0)
             time.sleep(0.01)
-            self.fpga.write_int(self.params['lutBufferSizeReg'],len(toWriteStr))
+            self.fpga.write_int(self.params['lutBufferSize_reg'],len(toWriteStr))
             time.sleep(0.01)
             
             while(not(self.v7_ready)):
-                self.v7_ready = self.fpga.read_int(self.params['v7ReadyReg'])
-            self.fpga.write_int(self.params['txEnUARTReg'],1)
+                self.v7_ready = self.fpga.read_int(self.params['v7Ready_reg'])
+            self.fpga.write_int(self.params['txEnUART_reg'],1)
             print 'enable write'
             time.sleep(0.05)
-            self.fpga.write_int(self.params['txEnUARTReg'],0)
+            self.fpga.write_int(self.params['txEnUART_reg'],0)
             sending_data = 1
             self.v7_ready = 0
             
-        self.fpga.write_int(self.params['enBRAMDumpReg'],0)
+        self.fpga.write_int(self.params['enBRAMDump_reg'],0)
         
         
     
@@ -491,27 +491,27 @@ class Roach2Controls:
         
         # Put V7 into LO recv mode
         while(not(self.v7_ready)):
-            self.v7_ready = self.fpga.read_int(self.params['v7ReadyReg'])
+            self.v7_ready = self.fpga.read_int(self.params['v7Ready_reg'])
 
         self.v7_ready = 0
-        self.fpga.write_int(self.params['inByteUARTReg'],self.params['mbRecvLO'])
+        self.fpga.write_int(self.params['inByteUART_reg'],self.params['mbRecvLO'])
         time.sleep(0.01)
-        self.fpga.write_int(self.params['txEnUARTReg'],1)
+        self.fpga.write_int(self.params['txEnUART_reg'],1)
         time.sleep(0.01)
-        self.fpga.write_int(self.params['txEnUARTReg'],0)        
+        self.fpga.write_int(self.params['txEnUART_reg'],0)        
         
         for i in range(2):
             transferByte = (loFreqInt>>(i*8))&255 #takes an 8-bit "slice" of loFreqInt
             
             while(not(self.v7_ready)):
-                self.v7_ready = self.fpga.read_int(self.params['v7ReadyReg'])
+                self.v7_ready = self.fpga.read_int(self.params['v7Ready_reg'])
 
             self.v7_ready = 0
-            self.fpga.write_int(self.params['inByteUARTReg'],transferByte)
+            self.fpga.write_int(self.params['inByteUART_reg'],transferByte)
             time.sleep(0.01)
-            self.fpga.write_int(self.params['txEnUARTReg'],1)
+            self.fpga.write_int(self.params['txEnUART_reg'],1)
             time.sleep(0.01)
-            self.fpga.write_int(self.params['txEnUARTReg'],0)
+            self.fpga.write_int(self.params['txEnUART_reg'],0)
         
         print 'loFreqFrac' + str(loFreqFrac)	
         loFreqFrac = int(loFreqFrac*(2**16))
@@ -522,14 +522,14 @@ class Roach2Controls:
             transferByte = (loFreqFrac>>(i*8))&255
             
             while(not(self.v7_ready)):
-                self.v7_ready = self.fpga.read_int(self.params['v7ReadyReg'])
+                self.v7_ready = self.fpga.read_int(self.params['v7Ready_reg'])
 
             self.v7_ready = 0
-            self.fpga.write_int(self.params['inByteUARTReg'],transferByte)
+            self.fpga.write_int(self.params['inByteUART_reg'],transferByte)
             time.sleep(0.01)
-            self.fpga.write_int(self.params['txEnUARTReg'],1)
+            self.fpga.write_int(self.params['txEnUART_reg'],1)
             time.sleep(0.01)
-            self.fpga.write_int(self.params['txEnUARTReg'],0)
+            self.fpga.write_int(self.params['txEnUART_reg'],0)
     
     def changeAtten(self, attenID, attenVal):
         """
@@ -546,19 +546,19 @@ class Roach2Controls:
         attenVal = int(attenVal*4) #attenVal register holds value 4x(attenuation)
         
         while(not(self.v7_ready)):
-            self.v7_ready = self.fpga.read_int(self.params['v7ReadyReg'])
+            self.v7_ready = self.fpga.read_int(self.params['v7Ready_reg'])
             
         self.v7_ready = 0
         sendUARTCommand(self, self.params['mbChangeAtten'])
         
         while(not(self.v7_ready)):
-            self.v7_ready = self.fpga.read_int(self.params['v7ReadyReg'])
+            self.v7_ready = self.fpga.read_int(self.params['v7Ready_reg'])
             
         self.v7_ready = 0
         sendUARTCommand(self, attenID)
         
         while(not(self.v7_ready)):
-            self.v7_ready = self.fpga.read_int(self.params['v7ReadyReg'])
+            self.v7_ready = self.fpga.read_int(self.params['v7Ready_reg'])
             
         self.v7_ready = 0
         sendUARTCommand(self, attenVal)
@@ -567,12 +567,14 @@ class Roach2Controls:
         """
         Creates DAC frequency comb by adding many complex frequencies together with specified amplitudes and phases.
         
-        The resAttenList holds the absolute attenuation needed for each resonator. Zero attenuation means that the tone amplitude is set to the full dynamic range of the DAC and the DAC attenuator(s) are set to 0. Thus, all values in resAttenList must be larger than globalDacAtten. If you decrease the globalDacAtten, the amplitude in the DAC LUT decreases so that the total attenuation of the signal is the same. 
+        The resAttenList holds the absolute attenuation for each resonantor signal coming out of the DAC. Zero attenuation means that the tone amplitude is set to the full dynamic range of the DAC and the DAC attenuator(s) are set to 0. Thus, all values in resAttenList must be larger than globalDacAtten. If you decrease the globalDacAtten, the amplitude in the DAC LUT decreases so that the total attenuation of the signal is the same. 
+        
+        Note: Usually the attenuation values are integer dB values but technically the DAC attenuators can be set to every 1/4 dB and the amplitude in the DAC LUT can have arbitrary attenuation (quantized by number of bits).
         
         INPUTS:
             freqList - list of all resonator frequencies. If None, use self.freqList
             resAttenList - list of absolute attenuation values (dB) for each resonator. If None, use 20's
-            globalDacAtten - (int) global attenuation for entire DAC. Sum of the two DAC attenuaters on IF board
+            globalDacAtten - global attenuation for entire DAC. Sum of the two DAC attenuaters on IF board
             dacPhaseList - list of phases for each complex signal. If None, generates random phases. Old phaseList is under self.dacPhaseList
             
         OUTPUTS:
@@ -639,7 +641,7 @@ class Roach2Controls:
             raise ValueError("Not enough dynamic range in DAC! Try decreasing the global DAC Attenuator by "+str(dBexcess)+' dB')
         elif 1.0*maxAmp/highestVal > 10**((1)/20.):
             # all amplitudes in DAC less than 1 dB below max allowed by dynamic range
-            warnings.warn("DAC Dynamic range not fully utilized. Increase global attenuation by: "+str(np.floor(20.*np.log10(1.0*maxAmp/highestVal)))+' dB')
+            warnings.warn("DAC Dynamic range not fully utilized. Increase global attenuation by: "+str(int(np.floor(20.*np.log10(1.0*maxAmp/highestVal))))+' dB')
         
         if self.verbose:
             print '\tUsing '+str(1.0*highestVal/maxAmp*100)+' percent of DAC dynamic range'
@@ -964,11 +966,11 @@ class Roach2Controls:
         Inputs:
             inByte - byte to send over UART
         """
-        self.fpga.write_int(self.params['inByteUARTReg'],inByte)
+        self.fpga.write_int(self.params['inByteUART_reg'],inByte)
         time.sleep(0.01)
-        self.fpga.write_int(self.params['txEnUARTReg'],1)
+        self.fpga.write_int(self.params['txEnUART_reg'],1)
         time.sleep(0.01)
-        self.fpga.write_int(self.params['txEnUARTReg'],0)        
+        self.fpga.write_int(self.params['txEnUART_reg'],0)        
         
 if __name__=='__main__':
     if len(sys.argv) > 1:

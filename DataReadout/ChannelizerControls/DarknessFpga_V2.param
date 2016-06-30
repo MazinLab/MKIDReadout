@@ -8,6 +8,7 @@
 
 instrument = 'darkness'
 debugDir = 'log/'
+Firmware = 'darkSc2*.fpg'
 
 #The delay between the dds lut and the end of the fft block (firmware dependent)
 ddsShift = 76+256
@@ -40,18 +41,18 @@ start_reg = 'run'
 ddsShift_reg = 'dds_shift'
 chanSelLoad_reg = 'chan_sel_load'
 chanSel_regs = ['chan_sel_ch_bin0','chan_sel_ch_bin1','chan_sel_ch_bin2','chan_sel_ch_bin3']    #One per stream
-ddsMemNames_reg = ['qdr0_memory','qdr1_memory','qdr2_memory','qdr3_memory']    #for dds LUT. One per stream
-dacMemNames_reg = ['dac_lut_mem0','dac_lut_mem1','dac_lut_mem2']   # for DAC LUT
+ddsMemName_regs = ['qdr0_memory','qdr1_memory','qdr2_memory','qdr3_memory']    #for dds LUT. One per stream
+#dacMemName_regs = ['dac_lut_mem0','dac_lut_mem1','dac_lut_mem2']   # for DAC LUT
 nDacLutRows_reg = 'dac_lut_n_qdr_rows'
-enBRAMDumpReg = 'a2g_ctrl_en_bram_dump'
-txEnUARTReg = 'a2g_ctrl_tx_en'
-resetUARTReg = 'a2g_ctrl_rst'
-inByteUARTReg = 'a2g_ctrl_in_val'
-v7ReadyReg = 'a2g_ctrl_v7_ready'
-lutBufferSizeReg = 'a2g_ctrl_lut_dump_buffer_size'
-lutDumpBusyReg = 'a2g_ctrl_lut_dump_sending_data'
-lutBramAddr = 'a2g_ctrl_lut_dump_dac_lut_buffer'
-lutDumpDataPerReg = 'a2g_ctrl_lut_dump_data_period'
+enBRAMDump_reg = 'a2g_ctrl_en_bram_dump'
+txEnUART_reg = 'a2g_ctrl_tx_en'
+resetUART_reg = 'a2g_ctrl_rst'
+inByteUART_reg = 'a2g_ctrl_in_val'
+v7Ready_reg = 'a2g_ctrl_v7_ready'
+lutBufferSize_reg = 'a2g_ctrl_lut_dump_buffer_size'
+lutDumpBusy_reg = 'a2g_ctrl_lut_dump_sending_data'
+lutBramAddr_reg = 'a2g_ctrl_lut_dump_dac_lut_buffer'
+lutDumpDataPer_reg = 'a2g_ctrl_lut_dump_data_period'
 
 #UART Parameters
 baud_rate = 921600
