@@ -485,9 +485,13 @@ class Roach2Controls:
         Sends LO freq one byte at a time, LSB first
            sends integer bytes first, then fractional
         """
-        if LOFreq is None:
-            LOFreq = self.LOFreq
-       
+       if LOFreq is None:
+            try:
+                LOFreq = self.LOFreq
+            except AttributeError:
+                print "Run setLOFreq() first!"
+                raise
+        self.LOFreq=LOFreq
         
         loFreqInt = int(LOFreq)
         loFreqFrac = LOFreq - loFreqInt
