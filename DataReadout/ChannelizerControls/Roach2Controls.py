@@ -122,7 +122,7 @@ class Roach2Controls:
         self.lut_dump_buffer_size = self.params['lut_dump_buffer_size']
     
     def connect(self):
-        self.fpga = casperfpga.katcp_fpga.KatcpFpga(ip,timeout=50.)
+        self.fpga = casperfpga.katcp_fpga.KatcpFpga(self.ip,timeout=50.)
         time.sleep(1)
         if not self.fpga.is_running():
             print 'Firmware is not running. Start firmware, calibrate, and load wave into qdr first!'
