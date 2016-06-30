@@ -35,6 +35,8 @@ Example usage:
 
 List of Functions:
     __init__ -                      Connects to Roach2 FPGA, sets the delay between the dds lut and the end of the fft block
+    connect -                       Connect to V6 FPGA on Roach2
+    loadDdsShift -                  Set the delay between the dds lut and the end of the fft block
     generateResonatorChannels -     Figures out which stream:channel to assign to each resonator frequency
     generateFftChanSelection -      Assigns fftBins to each steam:channel
     loadSingleChanSelection -       Loads a channel for each stream into the channel selector LUT
@@ -109,18 +111,7 @@ class Roach2Controls:
         
         if debug and not os.path.exists(self.params['debugDir']):
             os.makedirs(self.params['debugDir']) 
-        
-        self.fpga = casperfpga.katcp_fpga.KatcpFpga(ip,timeout=50.)
-        time.sleep(1)
-        if not self.fpga.is_running():
-            print 'Firmware is not running. Start firmware, calibrate, and load wave into qdr first!'
-            #sys.exit(0)
-    
-        self.fpga.get_system_information()
 
-        #set the delay between the dds lut and the end of the fft block (firmware dependent)
-        #self.fpga.write_int(self.params['ddsShift_reg'],self.params['ddsShift'])
-        
         
         #Some more parameters
         self.freqPadValue = -1      # pad frequency lists so that we have a multiple of number of streams
@@ -128,6 +119,18 @@ class Roach2Controls:
         self.ddsFreqPadValue = -1   # 
         self.v7_ready = 0
         self.lut_dump_buffer_size = self.params['lut_dump_buffer_size']
+    
+    def connect(self):
+        self.fpga = casperfpga.katcp_fpga.KatcpFpga(ip,timeout=50.)
+        time.sleep(1)
+        if not self.fpga.is_running():
+            print 'Firmware is not running. Start firmware, calibrate, and load wave into qdr first!'
+    
+        self.fpga.get_system_information()
+    
+    def loadDdsShift(self,ddsShift=(75+256)):
+        #set the delay between the dds lut and the end of the fft block (firmware dependent)
+        self.fpga.write_int(self.params['ddsShift_reg'],ddsShift)
     
     def initializeV7UART(self, baud_rate = None, lut_dump_buffer_size = None):
         '''
@@ -1004,6 +1007,7 @@ if __name__=='__main__':
     #freqList = freqList[np.where(freqList > loFreq)]
     
     roach_0 = Roach2Controls(ip, params, True, True)
+    #roach_0.connect()
     roach_0.setLOFreq(loFreq)
     roach_0.generateResonatorChannels(freqList)
     roach_0.generateFftChanSelection()

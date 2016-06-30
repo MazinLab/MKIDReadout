@@ -10,9 +10,6 @@ instrument = 'darkness'
 debugDir = 'log/'
 Firmware = 'darkSc2*.fpg'
 
-#The delay between the dds lut and the end of the fft block (firmware dependent)
-ddsShift = 76+256
-
 #Firmware Parameters
 nFftBins = 2048
 nChannels = 1024
