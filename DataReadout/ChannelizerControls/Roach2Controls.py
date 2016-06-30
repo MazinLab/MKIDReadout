@@ -550,7 +550,7 @@ class Roach2Controls:
                 3 - RF Downconverter path
             attenVal - attenuation between 0 and 37.5 dB. Must be multiple of 0.25 dB
         """
-        if attenVal > 37.5 or attenVal<0:
+        if attenVal > 31.75 or attenVal<0:
             raise ValueError("Attenuation must be between 0 and 37.5")
         
         attenVal = int(np.round(attenVal*4)) #attenVal register holds value 4x(attenuation)
