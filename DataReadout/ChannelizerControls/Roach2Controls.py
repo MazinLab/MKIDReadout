@@ -547,10 +547,12 @@ class Roach2Controls:
                 1 - RF Upcoverter path
                 2 - RF Upconverter path
                 3 - RF Downconverter path
-                
-        Attenuation must be a multiple of 0.25 dB
+            attenVal - attenuation between 0 and 37.5 dB. Must be multiple of 0.25 dB
         """
-        attenVal = int(attenVal*4) #attenVal register holds value 4x(attenuation)
+        if attenVal > 37.5 or attenVal<0:
+            raise ValueError("Attenuation must be between 0 and 37.5")
+        
+        attenVal = int(np.round(attenVal*4)) #attenVal register holds value 4x(attenuation)
         
         while(not(self.v7_ready)):
             self.v7_ready = self.fpga.read_int(self.params['v7Ready_reg'])
