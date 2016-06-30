@@ -559,19 +559,19 @@ class Roach2Controls:
             self.v7_ready = self.fpga.read_int(self.params['v7Ready_reg'])
             
         self.v7_ready = 0
-        sendUARTCommand(self, self.params['mbChangeAtten'])
+        self.sendUARTCommand(self.params['mbChangeAtten'])
         
         while(not(self.v7_ready)):
             self.v7_ready = self.fpga.read_int(self.params['v7Ready_reg'])
             
         self.v7_ready = 0
-        sendUARTCommand(self, attenID)
+        self.sendUARTCommand(attenID)
         
         while(not(self.v7_ready)):
             self.v7_ready = self.fpga.read_int(self.params['v7Ready_reg'])
             
         self.v7_ready = 0
-        sendUARTCommand(self, attenVal)
+        self.sendUARTCommand(attenVal)
     
     def generateDacComb(self, freqList=None, resAttenList=None, globalDacAtten = 0, phaseList=None):
         """

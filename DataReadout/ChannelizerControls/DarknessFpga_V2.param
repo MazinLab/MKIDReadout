@@ -63,7 +63,7 @@ mbInitLO = 0x0c
 mbInitAtten = 0x0d
 mbEnableIntLO = 0x10
 mbEnFracLO = 0x11
-mbRecvL0 = 0x12
+mbRecvLO = 0x12
 mbChangeAtten = 0x20
 
 
