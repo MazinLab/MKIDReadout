@@ -41,6 +41,7 @@ chanSel_regs = ['chan_sel_ch_bin0','chan_sel_ch_bin1','chan_sel_ch_bin2','chan_s
 ddsMemName_regs = ['qdr0_memory','qdr1_memory','qdr2_memory','qdr3_memory']    #for dds LUT. One per stream
 #dacMemName_regs = ['dac_lut_mem0','dac_lut_mem1','dac_lut_mem2']   # for DAC LUT
 nDacLutRows_reg = 'dac_lut_n_qdr_rows'
+
 enBRAMDump_reg = 'a2g_ctrl_en_bram_dump'
 txEnUART_reg = 'a2g_ctrl_tx_en'
 resetUART_reg = 'a2g_ctrl_rst'
@@ -50,7 +51,15 @@ lutBufferSize_reg = 'a2g_ctrl_lut_dump_buffer_size'
 lutDumpBusy_reg = 'a2g_ctrl_lut_dump_sending_data'
 lutBramAddr_reg = 'a2g_ctrl_lut_dump_dac_lut_buffer'
 lutDumpDataPer_reg = 'a2g_ctrl_lut_dump_data_period'
+
 iqSnpStart_reg = 'acc_iq_start_acc'
+destIP_reg = 'gbe_64_dest_ip'
+fabricPort_reg = 'gbe_64_dest_port'
+wordsPerFrame_reg = 'gbe_64_words_per_frame'
+gbe64Rst_reg = 'gbe64_rst'
+phaseDumpChanSel_reg = 'phase_dmp_ch_we'
+photonCapStart_reg = 'start_cap'
+phaseDumpEn_reg = 'phase_dmp_on'
 
 #UART Parameters
 baud_rate = 921600

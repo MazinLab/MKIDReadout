@@ -938,11 +938,54 @@ class Roach2Controls:
         
         if self.verbose: print '\t'+str(chanNum)+': '+str(selBinNums)
 
+    def startPhaseStream(self,selChanIndex=0, pktsPerFrame=100, fabric_port=50000, destIPID=50):
+        """initiates streaming of phase timestream (after prog_fir) to the 1Gbit ethernet
 
+        INPUTS:
+            selChanIndex: which channel to stream
+            pktsPerFrame: number of 8 byte photon words per ethernet frame
+            fabric_port
+            destIPID: destination IP is 10.0.0.destIPID
+            
+        """
+        dest_ip = 0xa000000 + destIPID
+
+        #configure the gbe core, 
+        print 'restarting'
+        self.fpga.write_int(self.params['destIP_reg'],dest_ip)
+        self.fpga.write_int(self.params['fabricPort_reg'],fabric_port)
+        self.fpga.write_int(self.params['wordsPerFrame_reg'],pktsPerFrame)
+        #reset the core to make sure it's in a clean state
+        self.fpga.write_int(self.params['gbe64Rst_reg'],1)
+        time.sleep(.1)
+        self.fpga.write_int(self.params['gbe64Rst_reg'],0)
+
+        #choose what channel to stream
+        self.fpga.write_int(self.params['phaseDumpChanSel_reg'],selChanIndex)
+        #turn it on
+        self.fpga.write_int(self.params['photonCapStart_reg'],0)#make sure we're not streaming photons
+        self.fpga.write_int(self.params['phaseDumpEn_reg'],1)
     
-    def recvPhaseStream(pixel, ip='10.0.0.11'):
+    def stopStream(self):
+        """stops streaming of phase timestream (after prog_fir) to the 1Gbit ethernet
+
+        """
+        fpga.write_int(self.params['phaseDumpEn_reg'],0)
+    
+    def recvPhaseStream(self, channel=0, duration=60, host = '10.0.0.50', port = 50000):
+        """
+        Recieves phase timestream data over ethernet, writes it to a file
+        
+        INPUTS:
+            channel - channel number of incoming phase data
+            duration - duration (in seconds) of phase stream
+            host - IP address of computer receiving packets 
+                (represented as a string)
+            port
+        
+        """
         d = datetime.datetime.today()
-        filename = ('phase_dump_pixel_' + str(pixel) + '_' + str(d.day) + '_' + str(d.month) + '_' + 
+        filename = ('phase_dump_pixel_' + str(channel) + '_' + str(d.day) + '_' + str(d.month) + '_' + 
             str(d.year) + '_' + str(d.hour) + '_' + str(d.minute) + str('.bin'))
         
         host = '10.0.0.50'
@@ -962,7 +1005,6 @@ class Roach2Controls:
             sys.exit()
         print 'Socket bind complete'
 
-        keepGoing = True
         bufferSize = int(800) #100 8-byte values
         iFrame = 0
         nFramesLost = 0
@@ -971,34 +1013,38 @@ class Roach2Controls:
         frameData = ''
 
         dumpFile = open(filename, 'w')
+        
+        startTime = time.time()
+        while (time.time()-startTime) < duration:
+            frame = sock.recvfrom(bufferSize)
+            frameData += frame[0]
+            iFrame += 1
 
-        try:
-            while keepGoing:
-                frame = sock.recvfrom(bufferSize)
-                frameData += frame[0]
-                #print len(frameData)
-                #packs = struct.unpack('>{}Q'.format(len(frameData)/8),frameData)
-                #if iFrame > 3:
-                #    packDiff = packs[1] - lastPack
-                #    if expectedPackDiff == -1:
-                #        expectedPackDiff = packDiff
-                #        print 'expected diff',expectedPackDiff
-                #    else:
-                #        if packDiff > expectedPackDiff:
-                #            nFramesLost += packDiff/expectedPackDiff
-                #            print 'lost {} frames total by frame {}'.format(nFramesLost,iFrame)
-                iFrame += 1
-                #lastPack = packs[1]
-
-        except KeyboardInterrupt:
-            print 'Exiting'
-            sock.close()
-            dumpFile.write(frameData)
-            dumpFile.close()
+        print 'Exiting'
+        sock.close()
+        dumpFile.write(frameData)
+        dumpFile.close()
 
         sock.close()
         dumpFile.close()
     
+    def takePhaseStream(self, selChanIndex=0, duration=60, pktsPerFrame=100, fabric_port=50000, destIPID=50):
+        """
+        Takes phase timestream data from the specified channel for the specified amount of time
+        
+        INPUTS:
+            selChanIndex: which channel to stream
+            duration: duration (in seconds) of stream
+            pktsPerFrame: number of 8 byte photon words per ethernet frame
+            fabric_port
+            destIPID: destination IP is 10.0.0.destIPID
+                IP address of computer receiving stream
+            
+        """
+        self.startPhaseStream(selChanIndex, pktsPerFrame, fabric_port, destIPID)
+        self.recvPhaseStream(selChanIndex, duration, '10.0.0.'+str(destIPID), fabric_port)
+        self.stopStream()
+        
     def performIQSweep(self,startLOFreq,stopLOFreq,stepLOFreq):
         """
         Performs a sweep over the LO frequency.  Records 
