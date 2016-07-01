@@ -971,7 +971,7 @@ class Roach2Controls:
         self.fpga.write_int(self.params['capture0Basekq_reg'],binBaseKq)
 
         self.fpga.write_int(self.params['capture0Threshold_reg'],binThreshold)
-        self.fpga.write_int(self.params['capture0LoadThreshold_reg'],1+chanNum<<1)
+        self.fpga.write_int(self.params['capture0LoadThreshold_reg'],1+(chanNum<<1))
         time.sleep(.1)
         self.fpga.write_int(self.params['capture0LoadThreshold_reg'],0)
 
