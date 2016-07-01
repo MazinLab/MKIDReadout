@@ -89,15 +89,28 @@ class HighTemplar(QMainWindow):
             self.roachThreads.append(thread)
             #self.destroyed.connect(self.thread.deleteLater)
             #self.destroyed.connect(self.roach.deleteLater)
+            roach.reset.connect(partial(self.colorCommandButtons,i))
+            
 
         
         #Create sub windows
         self.settingsWindow = RoachSettingsWindow(self.roachNums, self.config, parent=None) # keep parent None for now
+        self.settingsWindow.resetRoach.connect(self.resetRoachState)
         self.sweepWindows=[]
         for roach_i in self.roaches:
             window = RoachSweepWindow(roach_i,self.config)
             window.sweepClicked.connect(partial(self.commandButtonClicked, [roach_i.num] , RoachStateMachine.SWEEP))
+            window.fitClicked.connect(partial(self.commandButtonClicked, [roach_i.num] , RoachStateMachine.FIT))
+            window.resetRoach.connect(partial(self.resetRoachState, roach_i.num))
             self.sweepWindows.append(window)
+        self.phaseWindows=[]
+        for roach_i in self.roaches:
+            window=RoachPhaseStreamWindow(roach_i,self.config)
+            window.thresholdClicked.connect(partial(self.commandButtonClicked, [roach_i.num] , RoachStateMachine.LOADTHRESHOLD))
+            window.phaseSnapClicked.connect(partial(self.commandButtonClicked, [roach_i.num] , RoachStateMachine.LOADTHRESHOLD+1))
+            window.phaseTimestreamClicked.connect(partial(self.commandButtonClicked, [roach_i.num] , RoachStateMachine.LOADTHRESHOLD+1))
+            window.resetRoach.connect(partial(self.resetRoachState, roach_i.num))
+            self.phaseWindows.append(window)
             
         self.create_menu()
         
@@ -128,6 +141,8 @@ class HighTemplar(QMainWindow):
             self.threadPool[i].start()                                                           # start the RoachThreads so the command can be completed
         '''
         
+    def test(self,roachNum,state):
+        print "Roach "+str(roachNum)+' - '+str(state)
 
     def catchRoachError(self,roachNum, command, exc_info=None):
         """
@@ -163,28 +178,35 @@ class HighTemplar(QMainWindow):
         colorStatus[command]='green'
         self.colorCommandButtons(roachNum,colorStatus)
         
+        roachArg = np.where(np.asarray(self.roachNums) == roachNum)[0][0]
         if command == RoachStateMachine.LOADFREQ:
-            roachArg = np.where(np.asarray(self.roachNums) == roachNum)[0][0]
             self.sweepWindows[roachArg].initFreqs()
+            self.phaseWindows[roachArg].initFreqs()
         
         if command == RoachStateMachine.SWEEP:
-            roachArg = np.where(np.asarray(self.roachNums) == roachNum)[0][0]
             self.sweepWindows[roachArg].plotData(commandData)
+        
+        if command == RoachStateMachine.LOADTHRESHOLD:
+            self.phaseWindows[roachArg].initThresh()
 
+    def resetRoachState(self,roachNum,command):
+        roachArg = np.where(np.asarray(self.roachNums) == roachNum)[0][0]
+        QtCore.QMetaObject.invokeMethod(self.roaches[roachArg], 'resetStateTo', Qt.QueuedConnection,
+                                        QtCore.Q_ARG(int, command))
+        self.roachThreads[roachArg].start()
     
-    def commandButtonClicked(self, roach, command):
+    def commandButtonClicked(self, roachNums, command):
         """
         This function is executed when a command button is clicked. 
         
-        Uses self.sender() to figure out which button was pushed. 
-        The buttons have attributes: 'roach', 'command'
-        
-        NOTE: A more correct way would be to overload the 'clicked()' signal in the QPushButton class to pass roach number and command as parameters.
+        INPUTS:
+            roachNums - a list of roach numbers
+            command - the command clicked
         """
 
         #source = self.sender()
         #print 'Roach: ',source.roach,'Command: ',RoachStateMachine.parseState(source.command)
-        for roach_i in roach:
+        for roach_i in roachNums:
             roachArg = np.where(np.asarray(self.roachNums) == roach_i)[0][0]
             #if self.threadPool[roachArg].isRunning():
             if self.roachThreads[roachArg].isRunning():
@@ -233,33 +255,33 @@ class HighTemplar(QMainWindow):
             elif color=='grey' or color=='gray':
                 self.commandButtons[roachArg][com].setPalette(self.grayButtonPalette)
 
-    def commandButtonRightClicked(self, roach, command, source, point):
+    def commandButtonRightClicked(self, roachNums, command, source, point):
         """
         This function is called when a button is right clicked
         
         INPUTS:
+            roachNums - list of roach numbers
+            command - 
+            source - the button object clicked
             point - the customContextMenuRequested() SIGNAL passes a QPoint argument specifying the location in the button that was clicked
         """
         print 'here: ',point
         #source = self.sender()
-        print 'openMenu for roach: ',roach,' Command: ',RoachStateMachine.parseCommand(command)
+        print 'openMenu for roach: ',roachNums,' Command: ',RoachStateMachine.parseCommand(command)
         
         self.contextMenu.clear()    # remove any actions added during previous right click
         
         if command == RoachStateMachine.SWEEP:
-            self.contextMenu.addAction('Plot Sweep',partial(self.onContextPlotSweepClick,roach))
+            self.contextMenu.addAction('Plot Sweep',partial(self.onContextPlotSweepClick,roachNums))
             self.contextMenu.addSeparator()
         
+        if command == RoachStateMachine.LOADTHRESHOLD:
+            self.contextMenu.addAction('Plot Phase Timestream',partial(self.onContextPlotThreshClick,roachNums))
+            self.contextMenu.addSeparator()
         
-        settingsAction = self.contextMenu.addAction('Settings',partial(self.onContextSettingsClick,roach))
-        
-        #commandAction = self.contextMenu.addAction(RoachStateMachine.parseCommand(source.command), self.onContextCommandClick)
-        #self.contextMenu.addSeparator()
-        #otherAction = self.contextMenu.addAction("Other")
+        settingsAction = self.contextMenu.addAction('Settings',partial(self.onContextSettingsClick,roachNums))
         self.contextMenu.exec_(source.mapToGlobal(point))   # point is referenced to local coordinates in the button. Need to reference to global coordinate system
-        
-    #def onContextCommandClick(self):
-    #    print 'here'
+
     
     def onContextSettingsClick(self, roachNum):
         index = np.where(np.asarray(self.settingsWindow.roachNums) == roachNum)[0][0]
@@ -270,6 +292,11 @@ class HighTemplar(QMainWindow):
         for roachNum in roachNums:
             roachArg = np.where(np.asarray(self.roachNums) == roachNum)[0][0]
             self.sweepWindows[roachArg].show()
+    
+    def onContextPlotThreshClick(self, roachNums):
+        for roachNum in roachNums:
+            roachArg = np.where(np.asarray(self.roachNums) == roachNum)[0][0]
+            self.phaseWindows[roachArg].show()
             
 
     def create_main_frame(self):
@@ -302,33 +329,27 @@ class HighTemplar(QMainWindow):
         label_height = 10
         
         #Command Labels:
-        self.label_connect = QLabel('Connect:')
-        self.label_loadFreq = QLabel('Read Freq/Atten:')
-        self.label_defineLUT = QLabel("Define LUT's:")
-        self.label_sweep = QLabel('Sweep:')
-        self.label_rotate = QLabel('Rotate Loops:')
-        self.label_center = QLabel('Center Loops:')
-        self.label_loadFIR = QLabel("Load FIR's:")
-        self.label_loadThreshold = QLabel('Load Thresholds:')
-        self.commandLabels=[self.label_connect,self.label_loadFreq,self.label_defineLUT,self.label_sweep,self.label_rotate,self.label_center,self.label_loadFIR,self.label_loadThreshold]
-        for label in self.commandLabels:
+        commandLabels = []
+        for com in range(RoachStateMachine.NUMCOMMANDS):
+            label = QLabel(RoachStateMachine.parseCommand(com))
             label.setMaximumWidth(label_length)
             label.setMinimumWidth(label_length)
             label.setMaximumHeight(button_size)
             label.setMinimumHeight(button_size)
+            commandLabels.append(label)
 
         #Roach Labels
-        self.label_roachNum = QLabel('Roach:')
-        self.label_roachNum.setMaximumWidth(label_length)
-        self.label_roachNum.setMinimumWidth(label_length)
-        self.label_roachNum.setMaximumHeight(label_height)
-        self.label_roachNum.setMinimumHeight(label_height)
-        self.roachLabels=[]
+        label_roachNum = QLabel('Roach:')
+        label_roachNum.setMaximumWidth(label_length)
+        label_roachNum.setMinimumWidth(label_length)
+        label_roachNum.setMaximumHeight(label_height)
+        label_roachNum.setMinimumHeight(label_height)
+        roachLabels=[]
         for i in self.roachNums:
-            self.roachLabels.append(QLabel(str(i)))
-        self.label_allRoaches = QLabel('All')
-        self.roachLabels.append(self.label_allRoaches)
-        for label in self.roachLabels:
+            roachLabels.append(QLabel(str(i)))
+        label_allRoaches = QLabel('All')
+        roachLabels.append(label_allRoaches)
+        for label in roachLabels:
             label.setMaximumWidth(button_size)
             label.setMinimumWidth(button_size)
             label.setMaximumHeight(label_height)
@@ -338,7 +359,7 @@ class HighTemplar(QMainWindow):
         self.commandButtons=[]
         for i in range(self.numRoaches+1):
             roach_i_commandButtons=[]
-            for j in range(len(self.commandLabels)):
+            for j in range(len(commandLabels)):
                 button = QPushButton()
                 button.setMaximumWidth(button_size)
                 button.setMinimumWidth(button_size)
@@ -368,32 +389,18 @@ class HighTemplar(QMainWindow):
         #command buttons/labels Layout
         hbox = QHBoxLayout()
         vbox0 = QVBoxLayout(spacing = 5)
-        vbox0.addWidget(self.label_roachNum)
-        for label in self.commandLabels:
+        vbox0.addWidget(label_roachNum)
+        for label in commandLabels:
             vbox0.addWidget(label)
         hbox.addLayout(vbox0)
         for i in range(self.numRoaches+1):
             vbox_i = QVBoxLayout(spacing = 5)
-            vbox_i.addWidget(self.roachLabels[i])
-            for j in range(len(self.commandLabels)):
+            vbox_i.addWidget(roachLabels[i])
+            for j in range(len(commandLabels)):
                 vbox_i.addWidget(self.commandButtons[i][j])
             hbox.addLayout(vbox_i)
 
-        #vbox0=QVBoxLayout(spacing = 10)    #change spacing until looks good
-        #hbox00=QHBoxLayout(spacing=10)
-        #hbox00.addWidget(self.label_roachNum)
-        #for label in self.roachLabels:
-        #    hbox00.addWidget(label)
-        #vbox0.addLayout(hbox00)
-        #for i in range(len(self.commandLabels)):
-        #    hbox_i = QHBoxLayout(spacing=35)
-        #    hbox_i.addWidget(self.commandLabels[i])
-        #    for j in range(len(self.commandButtons)):
-        #        hbox_i.addWidget(self.commandButtons[j][i])
-        #    vbox0.addLayout(hbox_i)
 
-        #hbox = QHBoxLayout()
-        #hbox.addLayout(vbox0)
         self.main_frame.setLayout(hbox)
         self.setCentralWidget(self.main_frame)
     
@@ -407,10 +414,10 @@ class HighTemplar(QMainWindow):
         settings_action = self.create_action("&Settings",shortcut="Ctrl+S",slot=self.settingsWindow.show, tip="Open Settings Window")
         self.add_actions(self.file_menu, (settings_action, None, quit_action))
         
-        self.otherCommands_menu = self.menuBar().addMenu("Other &Commands")
-        powerSweep_action = self.create_action("&Power Sweep", shortcut='Ctrl+P',slot=self.on_powerSweep, tip='Run Power Sweep')
-        snapShot_action = self.create_action("Collect Pulse &Template Data", shortcut='Ctrl+T',slot=self.on_snapShot, tip='Do a long snapshot to collect data for pulse templates')
-        self.add_actions(self.otherCommands_menu,(powerSweep_action,snapShot_action))
+        #self.otherCommands_menu = self.menuBar().addMenu("Other &Commands")
+        #powerSweep_action = self.create_action("&Power Sweep", shortcut='Ctrl+P',slot=self.on_powerSweep, tip='Run Power Sweep')
+        #snapShot_action = self.create_action("Collect Pulse &Template Data", shortcut='Ctrl+T',slot=self.on_snapShot, tip='Do a long snapshot to collect data for pulse templates')
+        #self.add_actions(self.otherCommands_menu,(powerSweep_action,snapShot_action))
 
         self.help_menu = self.menuBar().addMenu("&Help")
         about_action = self.create_action("&About", shortcut='F1',slot=self.on_about, tip='About the demo')
@@ -469,6 +476,9 @@ class HighTemplar(QMainWindow):
         self.settingsWindow._want_to_close=True
         self.settingsWindow.close()
         for window in self.sweepWindows:
+            window._want_to_close=True
+            window.close()
+        for window in self.phaseWindows:
             window._want_to_close=True
             window.close()
         #for thread in self.threadPool:

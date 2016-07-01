@@ -12,9 +12,13 @@ from PyQt4 import QtGui
 from PyQt4 import QtCore
 from PyQt4.QtCore import Qt
 import ConfigParser
+from RoachStateMachine import RoachStateMachine
 
 
 class RoachSettingsWindow(QTabWidget):
+    
+    resetRoach = QtCore.pyqtSignal(int,int)     #Signal emmited when we change a setting so we can reload it into the ROACH2
+    
     def __init__(self,roachNums,config,parent=None):
         """
         Creates settings window GUI
@@ -35,6 +39,7 @@ class RoachSettingsWindow(QTabWidget):
         
         for roachNum in self.roachNums:
             tab = RoachSettingsTab(roachNum, self.config)
+            tab.resetRoach.connect(partial(self.resetRoach.emit,roachNum))
             self.addTab(tab, ''+str(roachNum))
         
         #self.setMovable(True)
@@ -61,6 +66,8 @@ class RoachSettingsWindow(QTabWidget):
 
 
 class RoachSettingsTab(QMainWindow):
+    resetRoach = QtCore.pyqtSignal(int)     #Signal emmited when we change a setting so we can reload it into the ROACH2
+
     def __init__(self,roachNum,config):
         super(RoachSettingsTab, self).__init__() #parent=None. This is the correct way according to the QTabWidget documentation
         self.roachNum = roachNum
@@ -103,7 +110,9 @@ class RoachSettingsTab(QMainWindow):
         self.textbox_ipAddress = QLineEdit(ipAddress)
         self.textbox_ipAddress.setMinimumWidth(70)
         self.textbox_ipAddress.textChanged.connect(partial(self.changedSetting,'ipAddress'))
+        self.textbox_ipAddress.textChanged.connect(lambda x: self.resetRoach.emit(-1))      # reset roach state if ipAddress changes
         add2layout(vbox,self.label_ipAddress,self.textbox_ipAddress)
+        
 
         ddsSyncLag = self.config.getint('Roach '+str(self.roachNum),'ddsSyncLag')
         self.label_ddsSyncLag = QLabel('DDS Sync Lag:')
@@ -112,6 +121,7 @@ class RoachSettingsTab(QMainWindow):
         self.spinbox_ddsSyncLag.setRange(0,2**10)
         self.spinbox_ddsSyncLag.setValue(ddsSyncLag)
         self.spinbox_ddsSyncLag.valueChanged.connect(partial(self.changedSetting,'ddsSyncLag'))
+        self.spinbox_ddsSyncLag.valueChanged.connect(lambda x: self.resetRoach.emit(-1))      # reset roach state if ipAddress changes
         add2layout(vbox,self.label_ddsSyncLag,self.spinbox_ddsSyncLag)
         
         freqFile = self.config.get('Roach '+str(self.roachNum),'freqFile')
@@ -120,16 +130,20 @@ class RoachSettingsTab(QMainWindow):
         self.textbox_freqFile = QLineEdit(freqFile)
         self.textbox_freqFile.setMinimumWidth(70)
         self.textbox_freqFile.textChanged.connect(partial(self.changedSetting,'freqFile'))
+        self.textbox_freqFile.textChanged.connect(lambda x: self.resetRoach.emit(RoachStateMachine.LOADFREQ))
         add2layout(vbox,self.label_freqFile,self.textbox_freqFile)
         
-        lofreq = self.config.get('Roach '+str(self.roachNum),'lo_freq')
-        self.label_lofreq = QLabel('LO Freq: ')
+        lofreq = self.config.getfloat('Roach '+str(self.roachNum),'lo_freq')
+        lofreq_str = "%.9e" % lofreq
+        self.label_lofreq = QLabel('LO Freq [Hz]: ')
         self.label_lofreq.setMinimumWidth(110)
-        self.textbox_lofreq = QLineEdit(lofreq)
-        self.textbox_lofreq.setMinimumWidth(70)
-        self.textbox_lofreq.textChanged.connect(partial(self.changedSetting,'lo_freq'))
+        self.textbox_lofreq = QLineEdit(lofreq_str)
+        self.textbox_lofreq.setMinimumWidth(150)
+        #self.textbox_lofreq.textChanged.connect(partial(self.changedSetting,'lo_freq'))    # This just saves whatever string you type in
+        self.textbox_lofreq.textChanged.connect(lambda x: self.changedSetting('lo_freq',"%.9e" % float(x)))
+        self.textbox_lofreq.textChanged.connect(lambda x: self.resetRoach.emit(RoachStateMachine.LOADFREQ))
         add2layout(vbox,self.label_lofreq,self.textbox_lofreq)
-        
+
         vbox.addStretch()
         
         label_note = QLabel("NOTE: Changing the ip address won't take effect until you re-connect. Likewise, changing the DDS Sync Lag, freq file, or LO Freq requires you to load the freqs/attens again")

@@ -41,15 +41,25 @@ class RoachStateMachine(QtCore.QObject):        #Extends QObject for use with QT
     finishedCommand_Signal = QtCore.pyqtSignal(int,object)
     commandError_Signal = QtCore.pyqtSignal(int,tuple)
     finished = QtCore.pyqtSignal()
+    reset = QtCore.pyqtSignal(object)
     
-    NUMCOMMANDS = 8
-    CONNECT,LOADFREQ,DEFINELUT,SWEEP,ROTATE,CENTER,LOADFIR,LOADTHRESHOLD = range(NUMCOMMANDS)
+    snapPhase = QtCore.pyqtSignal(int,object)
+    timestreamPhase = QtCore.pyqtSignal(int,object)
+    
+    
+    #NUMCOMMANDS = 8
+    #CONNECT,LOADFREQ,DEFINELUT,SWEEP,ROTATE,CENTER,LOADFIR,LOADTHRESHOLD = range(NUMCOMMANDS)
+    NUMCOMMANDS = 7
+    CONNECT,LOADFREQ,DEFINELUT,SWEEP,FIT,LOADFIR,LOADTHRESHOLD = range(NUMCOMMANDS)
     NUMSTATES = 4
     UNDEFINED, INPROGRESS, COMPLETED, ERROR = range(NUMSTATES)
     
     @staticmethod
     def parseCommand(command):
-        commandsString=['Connect','Load Freqs','Define LUTs','Sweep','Rotate','Center','Load FIRs','Load Thresholds']
+        #commandsString=['Connect','Load Freqs','Define LUTs','Sweep','Rotate','Center','Load FIRs','Load Thresholds']
+        commandsString=['Connect','Read Freqs','Define LUTs','Sweep','Fit Loops','Load FIRs','Load Thresholds']
+        if command < 0:
+            return 'Reset'
         return commandsString[command]
     @staticmethod
     def parseState(state):
@@ -99,7 +109,10 @@ class RoachStateMachine(QtCore.QObject):        #Extends QObject for use with QT
     
     def getNextState(self,command,_n=0):
         """
-        Given the current state and a command, determine the next state. This function is recursive
+        Given the current state and a command, determine the next state. This function is recursive. Don't change default value of _n
+        
+        NOTE: if command < 0 then it resets everything (with _n=0)
+              if command >= RoachStateMachine.NUMCOMMANDS then it ensures every command is completed but doesn't redo any if they're already completed
         
         Inputs:
             command - the command we want to execute. ie. RoachStateMachine.loadThreshold
@@ -114,11 +127,19 @@ class RoachStateMachine(QtCore.QObject):        #Extends QObject for use with QT
         nextState = np.copy(self.state)
         
         if _n==0: # n==0 means this is the top level command
+            if command<RoachStateMachine.CONNECT:
+                return [RoachStateMachine.UNDEFINED]*RoachStateMachine.NUMCOMMANDS
+                
             # Any previously unfinished commands should be made undefined
             args_unfinished = np.where(nextState==RoachStateMachine.INPROGRESS)
             nextState[args_unfinished] = RoachStateMachine.UNDEFINED
-            # Always redo the command if explicitly asked
-            nextState[command] = RoachStateMachine.INPROGRESS
+            if command>=RoachStateMachine.NUMCOMMANDS:
+                #Make sure everything's completed but don't explicitly run anything if they already are
+                command = RoachStateMachine.NUMCOMMANDS-1
+                if nextState[command] != RoachStateMachine.COMPLETED: nextState[command] = RoachStateMachine.INPROGRESS
+            else:
+                #redo the command if explicitly asked
+                nextState[command] = RoachStateMachine.INPROGRESS
             #usually higher commands become undefined (except loadFIR)
             args_above = np.where((np.arange(RoachStateMachine.NUMCOMMANDS)>command) & (np.arange(RoachStateMachine.NUMCOMMANDS) != RoachStateMachine.LOADFIR))
             if command==RoachStateMachine.CONNECT:
@@ -130,7 +151,7 @@ class RoachStateMachine(QtCore.QObject):        #Extends QObject for use with QT
             # a lower command needs to be run only if it's not already completed
             nextState[command] = RoachStateMachine.INPROGRESS
         
-        if command == RoachStateMachine.CONNECT:
+        if command <= RoachStateMachine.CONNECT:
             #We've reached the bottom of the command list, so return
             return nextState
         
@@ -141,10 +162,23 @@ class RoachStateMachine(QtCore.QObject):        #Extends QObject for use with QT
             # Everything else requires all lower commands be completed
             nextState[:command] = self.getNextState(command-1,_n+1)[:command]
         return nextState
-        
-        
     
-
+    @QtCore.pyqtSlot()
+    @QtCore.pyqtSlot(int)
+    def resetStateTo(self,command=-1):
+        """
+        Reset the roach to the state given by command. ie. Pretend we just clicked command and so set higher commands as undefined. But leave the command in the current state
+        
+        command<0 resets everything
+        
+        INPUTS:
+            command - command to reset state to
+        """
+        print "Resetting r"+str(self.num)+' to '+RoachStateMachine.parseCommand(command)
+        self.state = self.getNextState(command)
+        self.state[command]=RoachStateMachine.UNDEFINED
+        self.reset.emit(self.state)
+        self.finished.emit()
     
     @QtCore.pyqtSlot()
     def executeCommands(self):
@@ -176,6 +210,7 @@ class RoachStateMachine(QtCore.QObject):        #Extends QObject for use with QT
         print "Roach ",self.num," Recieved/executing command: ",RoachStateMachine.parseCommand(command)
         self.state[command] = RoachStateMachine.INPROGRESS
         returnData = None
+        time.sleep(random.randint(1,3))
         try:
             
             if command == RoachStateMachine.CONNECT:
@@ -198,8 +233,8 @@ class RoachStateMachine(QtCore.QObject):        #Extends QObject for use with QT
                 fn = self.config.get('Roach '+str(self.num),'freqfile')
                 freqs, attens = np.loadtxt(fn,unpack=True)
                 
-                print 'freqs: ',freqs
-                print 'attens: ',attens
+                #print 'freqs: ',freqs
+                #print 'attens: ',attens
                 
                 
                 self.roachController.generateResonatorChannels(freqs)
@@ -239,7 +274,6 @@ class RoachStateMachine(QtCore.QObject):        #Extends QObject for use with QT
                 
             
             elif command == RoachStateMachine.SWEEP:
-                print self.config.get('Roach '+str(self.num),'ipAddress')
                 nfreqs = len(self.roachController.freqList)
                 self.I_data = []
                 self.Q_data = []
@@ -250,6 +284,23 @@ class RoachStateMachine(QtCore.QObject):        #Extends QObject for use with QT
                     self.I_data.append(I)
                     self.Q_data.append(Q)
                 returnData = {'I':self.I_data,'Q':self.Q_data}
+            
+            
+            elif command == RoachStateMachine.LOADTHRESHOLD:
+                nfreqs = len(self.roachController.freqList)
+                threshSig = self.config.getfloat('Roach '+str(self.num),'numsigs_thresh')
+                nSnap = self.config.getint('Roach '+str(self.num),'numsnaps_thresh')
+                thresh=[]
+                for i in range(nfreqs):
+                    data=[]
+                    for k in range(nSnap):
+                        sys.stdout.write("\rCollecting Phase on Ch: "+str(i)+" Snap "+str(k+1)+'/'+str(nSnap))
+                        sys.stdout.flush()
+                        data.append(self.getPhaseFromSnap(i))
+                    thresh.append(np.std(data)*threshSig)
+                #self.roachController.loadThresholds(thresh)
+                sys.stdout.write("\n")
+                self.roachController.thresholds=thresh
         
             else:
                 time.sleep(random.randint(1,3))
@@ -263,8 +314,32 @@ class RoachStateMachine(QtCore.QObject):        #Extends QObject for use with QT
             raise
             
         return returnData
+    
+    @QtCore.pyqtSlot(int)
+    def getPhaseFromSnap(self, channel):
+        """
+        This function grabs the phase timestream from the snapblock
         
-            
+        INPUTS:
+            channel - the i'th frequency in the frequency list
+        """
+        data=np.random.uniform(-.1,.1,200)+channel
+        self.snapPhase.emit(channel,data)
+        return data
+    
+    @QtCore.pyqtSlot(int,float)
+    def getPhaseStream(self, channel, timelen=2):
+        """
+        This function continuously observes the phase stream for a given amount of time
+        
+        INPUTS:
+            channel - the i'th frequency in the frequency list
+            time - [seconds] the amount of time to observe for
+        """
+        time.sleep(timelen)
+        data=np.random.uniform(-.1,.1,timelen*10.**6)+channel
+        self.timestreamPhase.emit(channel,data)
+        return data
 
     def hasCommand(self):
         return (not self.commandQueue.empty())
