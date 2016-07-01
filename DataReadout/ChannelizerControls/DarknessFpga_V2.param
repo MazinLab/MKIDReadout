@@ -50,6 +50,7 @@ lutBufferSize_reg = 'a2g_ctrl_lut_dump_buffer_size'
 lutDumpBusy_reg = 'a2g_ctrl_lut_dump_sending_data'
 lutBramAddr_reg = 'a2g_ctrl_lut_dump_dac_lut_buffer'
 lutDumpDataPer_reg = 'a2g_ctrl_lut_dump_data_period'
+iqSnpStart_reg = 'acc_iq_start_acc'
 
 #UART Parameters
 baud_rate = 921600
@@ -58,7 +59,9 @@ lut_dump_buffer_size = 4096
 #List of UART MicroBlaze Commands
 mbRecvDACLUT = 0x09
 mbInitUARTInterface = 0x01
+mbCheckADCDACStatus = 0x02
 mbEnableDACs = 0x03
+mbSendLUTToDAC = 0x06
 mbInitLO = 0x0c
 mbInitAtten = 0x0d
 mbEnableIntLO = 0x10

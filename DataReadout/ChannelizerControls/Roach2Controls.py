@@ -173,7 +173,36 @@ class Roach2Controls:
         self.fpga.write_int(self.params['txEnUART_reg'],1)
         time.sleep(0.01)
         self.fpga.write_int(self.params['txEnUART_reg'],0)
-         
+    
+    def initV7MB(self):
+        """
+        Send commands over UART to initialize V7.
+        Call initializeV7UART first
+        """
+        while(not(self.v7_ready)):
+            self.v7_ready = self.fpga.read_int(self.params['v7Ready_reg'])
+        self.v7_ready = 0
+        sendUARTCommand(self.params['mbEnableDACs'])
+        
+        while(not(self.v7_ready)):
+            self.v7_ready = self.fpga.read_int(self.params['v7Ready_reg'])
+        self.v7_ready = 0
+        sendUARTCommand(self.params['mbSendLUTToDAC'])
+        
+        while(not(self.v7_ready)):
+            self.v7_ready = self.fpga.read_int(self.params['v7Ready_reg'])
+        self.v7_ready = 0
+        sendUARTCommand(self.params['mbInitLO'])
+        
+        while(not(self.v7_ready)):
+            self.v7_ready = self.fpga.read_int(self.params['v7Ready_reg'])
+        self.v7_ready = 0
+        sendUARTCommand(self.params['mbInitAtten'])
+
+        while(not(self.v7_ready)):
+            self.v7_ready = self.fpga.read_int(self.params['v7Ready_reg'])
+        self.v7_ready = 0
+        sendUARTCommand(self.params['mbEnFracLO'])
         
     def generateDdsTones(self, freqChannels=None, fftBinIndChannels=None, phaseList=None):
         """
@@ -970,11 +999,32 @@ class Roach2Controls:
         sock.close()
         dumpFile.close()
     
-    def performIQSweep(self):
+    def performIQSweep(self,startLOFreq,stopLOFreq,stepLOFreq):
+        """
+        Performs a sweep over the LO frequency.  Records 
+        one IQ point per channel per freqeuency; stores in
+        self.iqSweepData
+
+        INPUTS:
+            startLOFreq - starting sweep frequency
+            stopLOFreq - final sweep frequency
+            stepLOFreq - frequency sweep step size
+        """
+        
+        LOFreqs = range(startLOFreq, stopLOFreq, stepLOFreq)
         iqData = np.array([])
-        self.fpga.snapshots['darksc2_acc_iq_avg0'].arm(man_valid = False, man_trig = True)
-        iqPt = self.fpga.snapshots['darksc2_acc_iq_avg0'].read(timeout = 10, arm = False)['data']
-        iqData = np.append(iqData, iqPt['in_iq'])
+        self.fpga.write_int(self.params['iqSnpStart_reg'],0)
+        
+        for freq in LOFreqs:
+            self.loadLOFreq(freq)
+            time.sleep(0.1)
+            self.fpga.write_int(self.params['iqSnpStart_reg'],1)
+            self.fpga.snapshots['darksc2_acc_iq_avg0'].arm(man_valid = False, man_trig = False)
+            iqPt = self.fpga.snapshots['darksc2_acc_iq_avg0'].read(timeout = 10, arm = False)['data']
+            iqData = np.append(iqData, iqPt['in_iq'])
+            self.fpga.write_int(self.params['iqSnpStart_reg'],0)
+
+        self.iqSweepData = iqData
 
     
     def sendUARTCommand(self, inByte):
