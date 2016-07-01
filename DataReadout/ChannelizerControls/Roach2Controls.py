@@ -967,13 +967,13 @@ class Roach2Controls:
         print 'Kf:',baseKf,binBaseKf
         print 'Kq:',baseKq,binBaseKq
         #load the values in
-        self.fpga.write_int('capture0_base_kf',binBaseKf)
-        self.fpga.write_int('capture0_base_kq',binBaseKq)
+        self.fpga.write_int(self.params['capture0Basekf_reg'],binBaseKf)
+        self.fpga.write_int(self.params['capture0Basekq_reg'],binBaseKq)
 
-        self.fpga.write_int('capture0_threshold',binThreshold)
-        self.fpga.write_int('capture0_load_thresh',1+chanNum<<1)
+        self.fpga.write_int(self.params['capture0Threshold_reg'],binThreshold)
+        self.fpga.write_int(self.params['capture0LoadThreshold_reg'],1+chanNum<<1)
         time.sleep(.1)
-        self.fpga.write_int('capture0_load_thresh',0)
+        self.fpga.write_int(self.params['capture0LoadThreshold_reg'],0)
 
     def startPhaseStream(self,selChanIndex=0, pktsPerFrame=100, fabric_port=50000, destIPID=50):
         """initiates streaming of phase timestream (after prog_fir) to the 1Gbit ethernet
@@ -1064,7 +1064,7 @@ class Roach2Controls:
         sock.close()
         dumpFile.close()
     
-    def takePhaseStream(self, selChanIndex=0, duration=60, pktsPerFrame=100, fabric_port=50000, destIPID=50):
+    def takePhaseStreamData(self, selChanIndex=0, duration=60, pktsPerFrame=100, fabric_port=50000, destIPID=50):
         """
         Takes phase timestream data from the specified channel for the specified amount of time
         

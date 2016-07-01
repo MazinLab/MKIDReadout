@@ -41,6 +41,10 @@ chanSel_regs = ['chan_sel_ch_bin0','chan_sel_ch_bin1','chan_sel_ch_bin2','chan_s
 ddsMemName_regs = ['qdr0_memory','qdr1_memory','qdr2_memory','qdr3_memory']    #for dds LUT. One per stream
 #dacMemName_regs = ['dac_lut_mem0','dac_lut_mem1','dac_lut_mem2']   # for DAC LUT
 nDacLutRows_reg = 'dac_lut_n_qdr_rows'
+capture0Basekf_reg = 'capture0_base_kf'
+capture0Basekq_reg = 'capture0_base_kq'
+capture0Threshold_reg = 'capture0_threshold'
+capture0LoadThreshold_reg = 'capture0_load_thresh'
 
 enBRAMDump_reg = 'a2g_ctrl_en_bram_dump'
 txEnUART_reg = 'a2g_ctrl_tx_en'
