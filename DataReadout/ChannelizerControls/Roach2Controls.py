@@ -577,7 +577,7 @@ class Roach2Controls:
                 1 - RF Upcoverter path
                 2 - RF Upconverter path
                 3 - RF Downconverter path
-            attenVal - attenuation between 0 and 37.5 dB. Must be multiple of 0.25 dB
+            attenVal - attenuation between 0 and 31.75 dB. Must be multiple of 0.25 dB
         """
         if attenVal > 31.75 or attenVal<0:
             raise ValueError("Attenuation must be between 0 and 31.75")
@@ -937,6 +937,43 @@ class Roach2Controls:
         self.fpga.write_int(self.params['chanSelLoad_reg'],0) #stop loading
         
         if self.verbose: print '\t'+str(chanNum)+': '+str(selBinNums)
+    
+    def setThresh(self,thresholdDeg = -15.,chanNum=0):
+        """Sets the phase threshold and baseline filter for photon pulse detection triggers in each channel
+
+        INPUTS:
+            thresholdDeg: The threshold in degrees.  The phase must drop below this value to trigger a photon
+                event
+        """
+        #convert deg to radians
+        thresholdRad = thresholdDeg * np.pi/180.
+
+        #format it as a fix16_13 to be placed in a register
+        binThreshold = castBin(thresholdRad,quantization='Round',nBits=16,binaryPoint=13,format='uint')
+        sampleRate = 1.e6
+
+        #for the baseline, we apply a second order state variable low pass filter to the phase
+        #See http://www.earlevel.com/main/2003/03/02/the-digital-state-variable-filter/
+        #The filter takes two parameters based on the desired Q factor and cutoff frequency
+        criticalFreq = 200 #Hz
+        Q=.7
+        baseKf=2*np.sin(np.pi*criticalFreq/sampleRate)
+        baseKq=1./Q
+
+        #format these paramters as fix18_16 values to be loaded to registers
+        binBaseKf=castBin(baseKf,quantization='Round',nBits=18,binaryPoint=16,format='uint')
+        binBaseKq=castBin(baseKq,quantization='Round',nBits=18,binaryPoint=16,format='uint')
+        print 'threshold',thresholdDeg,binThreshold
+        print 'Kf:',baseKf,binBaseKf
+        print 'Kq:',baseKq,binBaseKq
+        #load the values in
+        self.fpga.write_int('capture0_base_kf',binBaseKf)
+        self.fpga.write_int('capture0_base_kq',binBaseKq)
+
+        self.fpga.write_int('capture0_threshold',binThreshold)
+        self.fpga.write_int('capture0_load_thresh',1+chanNum<<1)
+        time.sleep(.1)
+        self.fpga.write_int('capture0_load_thresh',0)
 
     def startPhaseStream(self,selChanIndex=0, pktsPerFrame=100, fabric_port=50000, destIPID=50):
         """initiates streaming of phase timestream (after prog_fir) to the 1Gbit ethernet
@@ -972,9 +1009,10 @@ class Roach2Controls:
         """
         fpga.write_int(self.params['phaseDumpEn_reg'],0)
     
-    def recvPhaseStream(self, channel=0, duration=60, host = '10.0.0.50', port = 50000):
+    def recvPhaseStream(self, channel=0, duration=60, pktsPerFrame=100, host = '10.0.0.50', port = 50000):
         """
-        Recieves phase timestream data over ethernet, writes it to a file
+        Recieves phase timestream data over ethernet, writes it to a file.  Must call
+        startPhaseStream first to initiate phase stream.
         
         INPUTS:
             channel - channel number of incoming phase data
@@ -988,8 +1026,6 @@ class Roach2Controls:
         filename = ('phase_dump_pixel_' + str(channel) + '_' + str(d.day) + '_' + str(d.month) + '_' + 
             str(d.year) + '_' + str(d.hour) + '_' + str(d.minute) + str('.bin'))
         
-        host = '10.0.0.50'
-        port = 50000
         # create dgram udp socket
         try:
             sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -1005,7 +1041,7 @@ class Roach2Controls:
             sys.exit()
         print 'Socket bind complete'
 
-        bufferSize = int(800) #100 8-byte values
+        bufferSize = int(8*pktsPerFrame) #Each photon word is 8 bytes
         iFrame = 0
         nFramesLost = 0
         lastPack = -1
