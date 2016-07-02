@@ -90,6 +90,7 @@ class RoachPhaseStreamWindow(QMainWindow):
             pass
     
     def plotPhaseNoise(self,ch=None, data=None,**kwargs):
+        #self.spinbox_channel.setEnabled(False)
         currentCh = self.spinbox_channel.value()
         if ch is None: ch=currentCh
         if data is not None:
@@ -97,22 +98,36 @@ class RoachPhaseStreamWindow(QMainWindow):
         if self.isVisible() and ch==currentCh:
             self.makePhaseNoisePlot(**kwargs)
             self.draw()
+        #self.spinbox_channel.setEnabled(True)
     
     def appendPhaseNoiseData(self, ch, data):
-        noiseData = np.abs(np.fft.fft(data))
+        fftlen = self.config.getint('Roach '+str(self.roachNum),'nLongsnapFftSamples')
+        nFftAvg = int(np.floor(len(data)/fftlen))
+        noiseData = np.zeros(fftlen)
+        
+        data = np.reshape(data[:nFftAvg*fftlen],(nFftAvg,fftlen))
+        noiseData=np.fft.rfft(data)
+        noiseData=np.abs(noiseData)**2  #power spectrum
+        noiseData = np.average(noiseData,axis=0)
+        
         self.phaseNoiseDataList[ch]=noiseData
     
     def makePhaseNoisePlot(self, **kwargs):
         ch = self.spinbox_channel.value()
-        self.ax1.clear()
+        #self.ax1.clear()
         if self.phaseNoiseDataList[ch] is not None:
-            data = np.copy(self.phaseNoiseDataList[ch])
-            x = np.fft.fftfreq(len(data),10.**-6.)
-            fmt='b.-'
-            self.ax1.plot(x,data)
-            self.ax1.set_xscale("log")
-        self.ax1.set_ylabel('Noise')
-        self.ax1.set_xlabel('f [Hz]')
+            ydata = np.copy(self.phaseNoiseDataList[ch])
+            x = np.fft.fftfreq(len(ydata),10.**-6.)
+            #fmt='b.-'
+            #self.ax1.loglog(x,data)
+            self.line1.set_data(x,ydata)
+            self.ax1.relim()
+            self.ax1.autoscale_view(True,True,True)
+            #self.ax1.set_xscale("log")
+        else:
+            self.line1.set_data([],[])
+        #self.ax1.set_ylabel('Noise Power Spectrum')
+        #self.ax1.set_xlabel('f [Hz]')
     
     def phaseTimeStream(self):
         """
@@ -128,6 +143,7 @@ class RoachPhaseStreamWindow(QMainWindow):
         self.phaseTimestreamClicked.emit()
         
     def plotSnap(self,ch=None, data=None,**kwargs):
+        self.spinbox_channel.setEnabled(False)
         currentCh = self.spinbox_channel.value()
         if ch is None: ch=currentCh
         if data is not None:
@@ -135,6 +151,7 @@ class RoachPhaseStreamWindow(QMainWindow):
         if self.isVisible() and ch==currentCh:
             self.makeSnapPlot(**kwargs)
             self.draw()
+        self.spinbox_channel.setEnabled(True)
     
     def appendSnapData(self,ch,data):
         self.snapDataList[ch]=data
@@ -196,12 +213,14 @@ class RoachPhaseStreamWindow(QMainWindow):
         self.fig = Figure((9.0, 5.0), dpi=self.dpi)
         self.canvas = FigureCanvas(self.fig)
         self.canvas.setParent(self.main_frame)
-        self.ax1 = self.fig.add_subplot(121)
-        self.ax1.set_ylabel('Noise')
+        self.ax1 = self.fig.add_subplot(211)
+        self.ax1.set_ylabel('Noise Power Spectrum')
         self.ax1.set_xlabel('f [Hz]')
-        self.ax2 = self.fig.add_subplot(122)
+        self.line1, = self.ax1.loglog([],[])
+        self.ax2 = self.fig.add_subplot(212)
         self.ax2.set_xlabel('Time [us]')
         self.ax2.set_ylabel('Phase [Deg]')
+        
         
         # Create the navigation toolbar, tied to the canvas
         self.mpl_toolbar = NavigationToolbar(self.canvas, self.main_frame)

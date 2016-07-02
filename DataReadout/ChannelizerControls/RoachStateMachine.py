@@ -323,6 +323,7 @@ class RoachStateMachine(QtCore.QObject):        #Extends QObject for use with QT
         INPUTS:
             channel - the i'th frequency in the frequency list
         """
+        print "r"+str(self.num)+" Getting phase snap"
         data=np.random.uniform(-.1,.1,200)+channel
         self.snapPhase.emit(channel,data)
         return data
@@ -336,8 +337,9 @@ class RoachStateMachine(QtCore.QObject):        #Extends QObject for use with QT
             channel - the i'th frequency in the frequency list
             time - [seconds] the amount of time to observe for
         """
+        print "r"+str(self.num)+" Collecting phase timestream"
         time.sleep(timelen)
-        data=np.random.uniform(-.1,.1,timelen*10.**6)+channel
+        data=np.random.uniform(-.1,.1,timelen*10.**6)
         self.timestreamPhase.emit(channel,data)
         return data
 
