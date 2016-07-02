@@ -1117,20 +1117,29 @@ class Roach2Controls:
             startLOFreq - starting sweep frequency
             stopLOFreq - final sweep frequency
             stepLOFreq - frequency sweep step size
+            
+            All frequencies are in MHz
         """
         
         LOFreqs = range(startLOFreq, stopLOFreq, stepLOFreq)
         iqData = np.array([])
-        self.fpga.write_int(self.params['iqSnpStart_reg'],0)
+        self.fpga.write_int(self.params['iqSnpStart_reg'],0)        
+        #self.fpga.snapshots['acc_iq_avg0_ss'].arm(man_valid = False, man_trig = True)
         
+        sweepCnt = 0
         for freq in LOFreqs:
+            if self.verbose:
+                print 'Sweeping ' + str(freq) + ' MHz'
             self.loadLOFreq(freq)
             time.sleep(0.1)
             self.fpga.write_int(self.params['iqSnpStart_reg'],1)
-            self.fpga.snapshots['darksc2_acc_iq_avg0'].arm(man_valid = False, man_trig = False)
-            iqPt = self.fpga.snapshots['darksc2_acc_iq_avg0'].read(timeout = 10, arm = False)['data']
-            iqData = np.append(iqData, iqPt['in_iq'])
+            if(sweepCnt%4==0):
+                self.fpga.snapshots['acc_iq_avg0_ss'].arm(man_valid = False, man_trig = True)
+            if(sweepCnt%4==3):
+                iqPt = self.fpga.snapshots['acc_iq_avg0_ss'].read(timeout = 10, arm = False)['data']
+                iqData = np.append(iqData, iqPt['iq'])
             self.fpga.write_int(self.params['iqSnpStart_reg'],0)
+            sweepCnt += 1
 
         self.iqSweepData = iqData
 
@@ -1162,13 +1171,13 @@ if __name__=='__main__':
 
     #warnings.filterwarnings('error')
     #freqList = [7.32421875e9, 8.e9, 9.e9, 10.e9,11.e9,12.e9,13.e9,14.e9,15e9,16e9,17.e9,18.e9,19.e9,20.e9,21.e9,22.e9,23.e9]
-    nFreqs=170
+    nFreqs=17
     loFreq = 5.e9
     spacing = 2.e6
     freqList = np.arange(loFreq-nFreqs/2.*spacing,loFreq+nFreqs/2.*spacing,spacing)
     freqList+=np.random.uniform(-spacing,spacing,nFreqs)
     freqList = np.sort(freqList)
-    attenList = np.random.randint(40,45,nFreqs)
+    #attenList = np.random.randint(40,45,nFreqs)
     
     #freqList=np.asarray([5.2498416321e9, 5.125256256e9, 4.852323456e9, 4.69687416351e9])#,4.547846e9])
     #attenList=np.asarray([41,42,43,45])#,6])
@@ -1185,7 +1194,7 @@ if __name__=='__main__':
     roach_0.generateResonatorChannels(freqList)
     roach_0.generateFftChanSelection()
     #roach_0.generateDacComb(resAttenList=attenList,globalDacAtten=9)
-    roach_0.generateDacComb(resAttenList=attenList)
+    roach_0.generateDacComb(freqList=freqList)
     print 'Generating DDS Tones...'
     roach_0.generateDdsTones()
     roach_0.debug=False
@@ -1196,7 +1205,7 @@ if __name__=='__main__':
     print 'Loading DDS LUT...'
     roach_0.loadDdsLUT()
     print 'Loading ChanSel...'
-    #roach_0.loadChanSelection()
+    roach_0.loadChanSelection()
     print 'Init V7'
     #roach_0.initializeV7UART()
     #roach_0.initV7MB()
