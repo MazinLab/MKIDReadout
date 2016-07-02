@@ -182,27 +182,27 @@ class Roach2Controls:
         while(not(self.v7_ready)):
             self.v7_ready = self.fpga.read_int(self.params['v7Ready_reg'])
         self.v7_ready = 0
-        sendUARTCommand(self.params['mbEnableDACs'])
+        self.sendUARTCommand(self.params['mbEnableDACs'])
         
         while(not(self.v7_ready)):
             self.v7_ready = self.fpga.read_int(self.params['v7Ready_reg'])
         self.v7_ready = 0
-        sendUARTCommand(self.params['mbSendLUTToDAC'])
+        self.sendUARTCommand(self.params['mbSendLUTToDAC'])
         
         while(not(self.v7_ready)):
             self.v7_ready = self.fpga.read_int(self.params['v7Ready_reg'])
         self.v7_ready = 0
-        sendUARTCommand(self.params['mbInitLO'])
+        self.sendUARTCommand(self.params['mbInitLO'])
         
         while(not(self.v7_ready)):
             self.v7_ready = self.fpga.read_int(self.params['v7Ready_reg'])
         self.v7_ready = 0
-        sendUARTCommand(self.params['mbInitAtten'])
+        self.sendUARTCommand(self.params['mbInitAtten'])
 
         while(not(self.v7_ready)):
             self.v7_ready = self.fpga.read_int(self.params['v7Ready_reg'])
         self.v7_ready = 0
-        sendUARTCommand(self.params['mbEnFracLO'])
+        self.sendUARTCommand(self.params['mbEnFracLO'])
         
     def generateDdsTones(self, freqChannels=None, fftBinIndChannels=None, phaseList=None):
         """
@@ -339,19 +339,38 @@ class Roach2Controls:
             except AttributeError:
                 print "Need to run generateDdsTones() first!"
                 raise
-            
+        
+        if self.verbose:
+            print "Loading DDS LUT..."
+        
+        self.fpga.write_int(self.params['start_reg'],0) #do not read from qdr while writing
         memNames = self.params['ddsMemName_regs']
         allMemVals=[]
         for iMem in range(len(memNames)):
             iVals,qVals = ddsToneDict['iStreamList'][iMem],ddsToneDict['qStreamList'][iMem]
-            memVals = self.formatWaveForMem(iVals,qVals,nBitsPerSamplePair=self.params['nBitsPerDdsSamplePair'],
-                                            nSamplesPerCycle=self.params['nDdsSamplesPerCycle'],nMems=len(memNames),
-                                            nBitsPerMemRow=self.params['nBytesPerQdrSample']*8,earlierSampleIsMsb=True)
+            formatWaveparams={'iVals':iVals,
+                              'qVals':qVals,
+                              'nBitsPerSamplePair':self.params['nBitsPerDdsSamplePair'],
+                              'nSamplesPerCycle':self.params['nDdsSamplesPerCycle'],
+                              'nMems':1,
+                              'nBitsPerMemRow':self.params['nBytesPerQdrSample']*8,
+                              'earlierSampleIsMsb':True}
+            memVals = self.formatWaveForMem(**formatWaveparams)
             #time.sleep(.1)
             allMemVals.append(memVals)
+            time.sleep(5)
+            if self.verbose: print "\twriting QDR for Stream",iMem
+            writeQDRparams={'memName':memNames[iMem],
+                            'valuesToWrite':memVals[:,0],
+                            'start':0,
+                            'bQdrFlip':True,
+                            'nQdrRows':self.params['nQdrRows']}
+            self.writeQdr(**writeQDRparams)
             
-            self.writeQdr(memNames[iMem], valuesToWrite=memVals[:,0], start=0, bQdrFlip=True, nQdrRows=self.params['nQdrRows'])
-            
+        self.fpga.write_int(self.params['start_reg'],1)
+        
+        if self.verbose: print "...Done!"
+        
         return allMemVals
     
     def writeBram(self, memName, valuesToWrite, start=0, nRows=2**10):
@@ -370,6 +389,13 @@ class Roach2Controls:
     def writeQdr(self, memName, valuesToWrite, start=0, bQdrFlip=True, nQdrRows=2**20):
         """
         format and write 64 bit values to qdr
+        
+        NOTE: If you see an error that looks like: WARNING:casperfpga.katcp_fpga:Could not send message '?write qdr0_memory 0 \\0\\0\\0\\0\\0 .....
+              This may be because the string you are writing is larger than the socket's write buffer size.
+              You can fix this by adding a monkey patch in casperfpga/casperfpga/katcp_fpga.py 
+                if hasattr(katcp.CallbackClient, 'MAX_WRITE_BUFFER_SIZE'):
+                    setattr(katcp.CallbackClient, 'MAX_WRITE_BUFFER_SIZE', katcp.CallbackClient.MAX_WRITE_BUFFER_SIZE * 10)
+              Then reinstalling the casperfpga code: python casperfpga/setup.py install
         
         INPUTS:
         """
@@ -517,7 +543,7 @@ class Roach2Controls:
         """
         if LOFreq is None:
             try:
-                LOFreq = self.LOFreq
+                LOFreq = self.LOFreq/1e6 #IF board uses MHz
             except AttributeError:
                 print "Run setLOFreq() first!"
                 raise
@@ -1147,28 +1173,36 @@ if __name__=='__main__':
     #freqList=np.asarray([5.2498416321e9, 5.125256256e9, 4.852323456e9, 4.69687416351e9])#,4.547846e9])
     #attenList=np.asarray([41,42,43,45])#,6])
     
-    #freqList=np.asarray([5.12512345e9])
-    #attenList=np.asarray([0])
+    freqList=np.asarray([5.12512345e9])
+    attenList=np.asarray([0])
     
     #attenList = attenList[np.where(freqList > loFreq)]
     #freqList = freqList[np.where(freqList > loFreq)]
     
-    roach_0 = Roach2Controls(ip, params, True, True)
-    #roach_0.connect()
+    roach_0 = Roach2Controls(ip, params, True, False)
+    roach_0.connect()
     roach_0.setLOFreq(loFreq)
     roach_0.generateResonatorChannels(freqList)
     roach_0.generateFftChanSelection()
-    roach_0.generateDacComb(resAttenList=attenList,globalDacAtten=9)
-    #roach_0.generateDdsTones()
+    #roach_0.generateDacComb(resAttenList=attenList,globalDacAtten=9)
+    roach_0.generateDacComb(resAttenList=attenList)
+    print 'Generating DDS Tones...'
+    roach_0.generateDdsTones()
     roach_0.debug=False
-    for i in range(10000):
+    #for i in range(10000):
         
-        roach_0.generateDacComb(resAttenList=attenList,globalDacAtten=9)
+    #    roach_0.generateDacComb(resAttenList=attenList,globalDacAtten=9)
     
-    #roach_0.loadDdsLUT()
+    print 'Loading DDS LUT...'
+    roach_0.loadDdsLUT()
+    print 'Loading ChanSel...'
     #roach_0.loadChanSelection()
+    print 'Init V7'
     #roach_0.initializeV7UART()
+    #roach_0.initV7MB()
+    #roach_0.loadLOFreq()
     #roach_0.loadDacLUT()
+
     
     
     
