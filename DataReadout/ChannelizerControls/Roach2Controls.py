@@ -1132,10 +1132,11 @@ class Roach2Controls:
                 print 'Sweeping ' + str(freq) + ' MHz'
             self.loadLOFreq(freq)
             time.sleep(0.1)
+            if(sweepCnt%2==0):
+                self.fpga.snapshots['acc_iq_avg0_ss'].arm(man_valid = False, man_trig = False) 
             self.fpga.write_int(self.params['iqSnpStart_reg'],1)
-            if(sweepCnt%4==0):
-                self.fpga.snapshots['acc_iq_avg0_ss'].arm(man_valid = False, man_trig = True)
-            if(sweepCnt%4==3):
+            time.sleep(0.1)
+            if(sweepCnt%2==1):
                 iqPt = self.fpga.snapshots['acc_iq_avg0_ss'].read(timeout = 10, arm = False)['data']
                 iqData = np.append(iqData, iqPt['iq'])
             self.fpga.write_int(self.params['iqSnpStart_reg'],0)
