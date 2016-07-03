@@ -1004,11 +1004,11 @@ class Roach2Controls:
     def loadFIRCoeffs(self):
     #if bLoadFir:
         print 'loading programmable FIR filter coefficients'
-        for iChan in xrange(nChannelsPerStream):
+        for iChan in xrange(self.params['nChannelsPerStream']):
             print iChan
-            fpga.write_int('prog_fir0_load_chan',0)
+            fpga.write_int(self.params['firLoadChan'],0)
             time.sleep(.1)
-            fir = np.loadtxt('/home/kids/SDR/Projects/Filters/matched30_50.0us.txt')
+            fir = np.loadtxt(self.params['firCoeffsFile'])
             #fir = np.arange(nTaps,dtype=np.uint32)
             #firInts = np.left_shift(fir,5)
             #fir = np.zeros(nTaps)
@@ -1019,12 +1019,14 @@ class Roach2Controls:
             #fir[-nSmooth:] = 1./nSmooth
 
             firInts = np.array(fir*(2**firBinPt),dtype=np.int32)
-            writeBram(fpga,'prog_fir0_single_chan_coeffs',firInts,nRows=nTaps,nBytesPerSample=4)
+            toWriteStr = struct.pack('>{}{}'.format(len(firInts),'L'), *firInts)
+            self.fpga.blindwrite(self.params['firTapsMem'], toWriteStr,0)
+            #writeBram(fpga,'prog_fir0_single_chan_coeffs',firInts,nRows=nTaps,nBytesPerSample=4)
             time.sleep(.1)
             loadVal = (1<<8) + iChan #first bit indicates we will write, next 8 bits is the chan number
-            fpga.write_int('prog_fir0_load_chan',loadVal)
+            fpga.write_int(self.params['firLoadChan'],loadVal)
             time.sleep(.1)
-            fpga.write_int('prog_fir0_load_chan',selChanIndex)
+            fpga.write_int(self.params['firLoadChan'],selChanIndex)
 
     def startPhaseStream(self,selChanIndex=0, pktsPerFrame=100, fabric_port=50000, destIPID=50):
         """initiates streaming of phase timestream (after prog_fir) to the 1Gbit ethernet
