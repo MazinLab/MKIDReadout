@@ -15,7 +15,7 @@ nFftBins = 2048
 nChannels = 1024
 nChannelsPerStream = 256        #4 streams for Gen 2 readout
 #nStreams = 4                   # nChannels/nChannelsPerStream
-firCoeffsFile = '/home/kids/SDR/Projects/Filters/matched30_50.0us.txt'
+firCoeffsFile = 'matched30_50.0us.txt'
 firTapsMem = 'prog_fir0_single_chan_coeffs'
 firLoadChan = 'prog_fir0_load_chan'
 
@@ -60,9 +60,9 @@ lutBramAddr_reg = 'a2g_ctrl_lut_dump_dac_lut_buffer'
 lutDumpDataPer_reg = 'a2g_ctrl_lut_dump_data_period'
 
 iqSnpStart_reg = 'acc_iq_start_acc'
-destIP_reg = 'gbe_64_dest_ip'
-fabricPort_reg = 'gbe_64_dest_port'
-wordsPerFrame_reg = 'gbe_64_words_per_frame'
+destIP_reg = 'gbe64_dest_ip'
+fabricPort_reg = 'gbe64_dest_port'
+wordsPerFrame_reg = 'gbe64_words_per_frame'
 gbe64Rst_reg = 'gbe64_rst'
 phaseDumpChanSel_reg = 'phase_dmp_ch_we'
 photonCapStart_reg = 'start_cap'

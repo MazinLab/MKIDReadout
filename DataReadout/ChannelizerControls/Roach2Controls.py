@@ -80,12 +80,13 @@ TODO:
     fix bug that doesn't work with less than 4 tones
 """
 
-import sys,os,time,struct,math
+import sys,os,time,datetime,struct,math
 import warnings, inspect
 import matplotlib.pyplot as plt
 import numpy as np
 import scipy.special
 import casperfpga
+import socket
 from readDict import readDict       #Part of the ARCONS-pipeline/util
 
 class Roach2Controls:
@@ -1002,11 +1003,12 @@ class Roach2Controls:
         self.fpga.write_int(self.params['capture0LoadThreshold_reg'],0)
 
     def loadFIRCoeffs(self):
-    #if bLoadFir:
+        firBinPt = 9
+        selChanIndex = 0
         print 'loading programmable FIR filter coefficients'
         for iChan in xrange(self.params['nChannelsPerStream']):
             print iChan
-            fpga.write_int(self.params['firLoadChan'],0)
+            self.fpga.write_int(self.params['firLoadChan'],0)
             time.sleep(.1)
             fir = np.loadtxt(self.params['firCoeffsFile'])
             #fir = np.arange(nTaps,dtype=np.uint32)
@@ -1024,9 +1026,9 @@ class Roach2Controls:
             #writeBram(fpga,'prog_fir0_single_chan_coeffs',firInts,nRows=nTaps,nBytesPerSample=4)
             time.sleep(.1)
             loadVal = (1<<8) + iChan #first bit indicates we will write, next 8 bits is the chan number
-            fpga.write_int(self.params['firLoadChan'],loadVal)
+            self.fpga.write_int(self.params['firLoadChan'],loadVal)
             time.sleep(.1)
-            fpga.write_int(self.params['firLoadChan'],selChanIndex)
+            self.fpga.write_int(self.params['firLoadChan'],selChanIndex)
 
     def startPhaseStream(self,selChanIndex=0, pktsPerFrame=100, fabric_port=50000, destIPID=50):
         """initiates streaming of phase timestream (after prog_fir) to the 1Gbit ethernet
@@ -1079,6 +1081,11 @@ class Roach2Controls:
         filename = ('phase_dump_pixel_' + str(channel) + '_' + str(d.day) + '_' + str(d.month) + '_' + 
             str(d.year) + '_' + str(d.hour) + '_' + str(d.minute) + str('.bin'))
         
+        if self.verbose:
+            print 'host ' + host
+            print 'port ' + str(port)
+            print 'duration ' + str(duration)
+
         # create dgram udp socket
         try:
             sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -1108,6 +1115,8 @@ class Roach2Controls:
             frame = sock.recvfrom(bufferSize)
             frameData += frame[0]
             iFrame += 1
+            if self.verbose and iFrame%1000==0:
+                print iFrame
 
         print 'Exiting'
         sock.close()
@@ -1131,7 +1140,7 @@ class Roach2Controls:
             
         """
         self.startPhaseStream(selChanIndex, pktsPerFrame, fabric_port, destIPID)
-        self.recvPhaseStream(selChanIndex, duration, '10.0.0.'+str(destIPID), fabric_port)
+        self.recvPhaseStream(selChanIndex, duration, pktsPerFrame, '10.0.0.'+str(destIPID), fabric_port)
         self.stopStream()
         
     def performIQSweep(self,startLOFreq,stopLOFreq,stepLOFreq):
@@ -1219,26 +1228,26 @@ if __name__=='__main__':
     roach_0 = Roach2Controls(ip, params, True, False)
     roach_0.connect()
     roach_0.setLOFreq(loFreq)
-    roach_0.generateResonatorChannels(freqList)
-    roach_0.generateFftChanSelection()
+    #roach_0.generateResonatorChannels(freqList)
+    #roach_0.generateFftChanSelection()
     #roach_0.generateDacComb(resAttenList=attenList,globalDacAtten=9)
     roach_0.generateDacComb(freqList=freqList)
     print 'Generating DDS Tones...'
-    roach_0.generateDdsTones()
+    #roach_0.generateDdsTones()
     roach_0.debug=False
     #for i in range(10000):
         
     #    roach_0.generateDacComb(resAttenList=attenList,globalDacAtten=9)
     
     print 'Loading DDS LUT...'
-    roach_0.loadDdsLUT()
+    #roach_0.loadDdsLUT()
     print 'Loading ChanSel...'
-    roach_0.loadChanSelection()
+    #roach_0.loadChanSelection()
     print 'Init V7'
-    #roach_0.initializeV7UART()
-    #roach_0.initV7MB()
-    #roach_0.loadLOFreq()
-    #roach_0.loadDacLUT()
+    roach_0.initializeV7UART()
+    roach_0.initV7MB()
+    roach_0.loadLOFreq()
+    roach_0.loadDacLUT()
 
     
     
