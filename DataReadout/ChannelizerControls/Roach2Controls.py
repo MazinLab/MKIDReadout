@@ -1111,20 +1111,26 @@ class Roach2Controls:
         dumpFile = open(filename, 'w')
         
         startTime = time.time()
-        while (time.time()-startTime) < duration:
-            frame = sock.recvfrom(bufferSize)
-            frameData += frame[0]
-            iFrame += 1
-            if self.verbose and iFrame%1000==0:
-                print iFrame
+        try:
+            while (time.time()-startTime) < duration:
+                frame = sock.recvfrom(bufferSize)
+                frameData += frame[0]
+                iFrame += 1
+                if self.verbose and iFrame%1000==0:
+                    print iFrame
+
+        except KeyboardInterrupt:       
+            print 'Exiting'
+            sock.close()
+            dumpFile.write(frameData)
+            dumpFile.close()
+            return
 
         print 'Exiting'
         sock.close()
         dumpFile.write(frameData)
-        dumpFile.close()
-
-        sock.close()
-        dumpFile.close()
+        dumpFile.close()    
+        
     
     def takePhaseStreamData(self, selChanIndex=0, duration=60, pktsPerFrame=100, fabric_port=50000, destIPID=50):
         """
