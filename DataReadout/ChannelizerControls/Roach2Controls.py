@@ -600,7 +600,7 @@ class Roach2Controls:
         Must initialize attenuator SPI connection first
         INPUTS:
             attenID 
-                1 - RF Upcoverter path
+                1 - RF Upconverter path
                 2 - RF Upconverter path
                 3 - RF Downconverter path
             attenVal - attenuation between 0 and 31.75 dB. Must be multiple of 0.25 dB
@@ -1148,7 +1148,7 @@ class Roach2Controls:
             All frequencies are in MHz
         """
         
-        LOFreqs = range(startLOFreq, stopLOFreq, stepLOFreq)
+        LOFreqs = np.arange(startLOFreq, stopLOFreq, stepLOFreq)
         iqData = np.array([])
         self.fpga.write_int(self.params['iqSnpStart_reg'],0)        
         #self.fpga.snapshots['acc_iq_avg0_ss'].arm(man_valid = False, man_trig = True)
