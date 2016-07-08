@@ -1002,7 +1002,7 @@ class Roach2Controls:
         time.sleep(.1)
         self.fpga.write_int(self.params['capture0LoadThreshold_reg'],0)
 
-    def loadFIRCoeffs(self):
+    def loadFIRCoeffs(self,coeffFile):
         firBinPt = 9
         selChanIndex = 0
         print 'loading programmable FIR filter coefficients'
@@ -1010,7 +1010,7 @@ class Roach2Controls:
             print iChan
             self.fpga.write_int(self.params['firLoadChan'],0)
             time.sleep(.1)
-            fir = np.loadtxt(self.params['firCoeffsFile'])
+            fir = np.loadtxt(coeffFile)
             #fir = np.arange(nTaps,dtype=np.uint32)
             #firInts = np.left_shift(fir,5)
             #fir = np.zeros(nTaps)
@@ -1162,14 +1162,16 @@ class Roach2Controls:
             
             All frequencies are in MHz
         OUTPUTS:
-            iqData - 1D array of I and Q for each resonator and freq step in a stream
+            iqData - 4xn array - each row has I and Q values for a single stream.  For each row:
                      256 I points + 256 Q points for LO step 0, then 256 I points + 256 Q points for LO step 1, etc..
-                     Shape = [(nChannelsPerStream+nChannelsPerStream) * nLOsteps]
+                     Shape = [4, (nChannelsPerStream+nChannelsPerStream) * nLOsteps]
                      Get one per stream (4 streams for all thousand resonators)
+                     Formatted using formatIQSweepData then stored in self.iqSweepData
         """
         
         LOFreqs = np.arange(startLOFreq, stopLOFreq, stepLOFreq)
-        iqData = np.array([])
+        iqData = np.empty([4,0])
+        iqPt = np.empty([4,1])
         self.fpga.write_int(self.params['iqSnpStart_reg'],0)        
         #self.fpga.snapshots['acc_iq_avg0_ss'].arm(man_valid = False, man_trig = True)
         
@@ -1181,16 +1183,23 @@ class Roach2Controls:
             time.sleep(0.1)
             if(sweepCnt%2==0):
                 self.fpga.snapshots['acc_iq_avg0_ss'].arm(man_valid = False, man_trig = False) 
+                self.fpga.snapshots['acc_iq_avg1_ss'].arm(man_valid = False, man_trig = False) 
+                self.fpga.snapshots['acc_iq_avg2_ss'].arm(man_valid = False, man_trig = False) 
+                self.fpga.snapshots['acc_iq_avg3_ss'].arm(man_valid = False, man_trig = False) 
             self.fpga.write_int(self.params['iqSnpStart_reg'],1)
             time.sleep(0.1)
             if(sweepCnt%2==1):
-                iqPt = self.fpga.snapshots['acc_iq_avg0_ss'].read(timeout = 10, arm = False)['data']
-                iqData = np.append(iqData, iqPt['iq'])
+                iqPt[0] = self.fpga.snapshots['acc_iq_avg0_ss'].read(timeout = 10, arm = False)['data']['iq']
+                iqPt[1] = self.fpga.snapshots['acc_iq_avg1_ss'].read(timeout = 10, arm = False)['data']['iq']
+                iqPt[2] = self.fpga.snapshots['acc_iq_avg2_ss'].read(timeout = 10, arm = False)['data']['iq']
+                iqPt[3] = self.fpga.snapshots['acc_iq_avg3_ss'].read(timeout = 10, arm = False)['data']['iq']
+                iqData = np.append(iqData, iqPt,1)
             self.fpga.write_int(self.params['iqSnpStart_reg'],0)
             sweepCnt += 1
-
-        self.iqSweepData = iqData
-        return self.formatIQSweepData([iqData])
+        
+        self.loadLOFreq(self.LOFreq)
+        self.iqSweepData = self.formatIQSweepData([iqData])
+        return self.iqSweepData
     
     def formatIQSweepData(self, iqDataStreams):
         """
@@ -1217,18 +1226,15 @@ class Roach2Controls:
         
         
 
-    def perfomIQ2(self,numPts):
+    def takeAvgIQData(self,numPts=100):
         """
-        Performs a sweep over the LO frequency.  Records 
-        one IQ point per channel per freqeuency; stores in
-        self.iqSweepData
+        Take IQ data with the LO fixed (at self.LOFreq)
 
         INPUTS:
-            startLOFreq - starting sweep frequency
-            stopLOFreq - final sweep frequency
-            stepLOFreq - frequency sweep step size
+            numPts - Number of IQ points to take 
+        
+        OUTPUTS
             
-            All frequencies are in MHz
         """
         
         counter = np.arange(numPts)
@@ -1239,20 +1245,26 @@ class Roach2Controls:
         sweepCnt = 0
         for i in counter:
             if self.verbose:
-                print 'Sweeping ' + str(freq) + ' MHz'
-            #self.loadLOFreq(freq)
+                print 'Sweep # ' + str(i)
             time.sleep(0.1)
             if(sweepCnt%2==0):
                 self.fpga.snapshots['acc_iq_avg0_ss'].arm(man_valid = False, man_trig = False) 
+                self.fpga.snapshots['acc_iq_avg1_ss'].arm(man_valid = False, man_trig = False) 
+                self.fpga.snapshots['acc_iq_avg2_ss'].arm(man_valid = False, man_trig = False) 
+                self.fpga.snapshots['acc_iq_avg3_ss'].arm(man_valid = False, man_trig = False) 
             self.fpga.write_int(self.params['iqSnpStart_reg'],1)
             time.sleep(0.1)
             if(sweepCnt%2==1):
-                iqPt = self.fpga.snapshots['acc_iq_avg0_ss'].read(timeout = 10, arm = False)['data']
-                iqData = np.append(iqData, iqPt['iq'])
+                iqPt[0] = self.fpga.snapshots['acc_iq_avg0_ss'].read(timeout = 10, arm = False)['data']['iq']
+                iqPt[1] = self.fpga.snapshots['acc_iq_avg1_ss'].read(timeout = 10, arm = False)['data']['iq']
+                iqPt[2] = self.fpga.snapshots['acc_iq_avg2_ss'].read(timeout = 10, arm = False)['data']['iq']
+                iqPt[3] = self.fpga.snapshots['acc_iq_avg3_ss'].read(timeout = 10, arm = False)['data']['iq']
+                iqData = np.append(iqData, iqPt,1)
             self.fpga.write_int(self.params['iqSnpStart_reg'],0)
             sweepCnt += 1
 
-        self.iqToneAvg = iqData
+        self.iqToneData = self.formatIQSweepData(iqData)
+        return self.iqToneData
     
     def sendUARTCommand(self, inByte):
         """
