@@ -1171,7 +1171,7 @@ class Roach2Controls:
         
         LOFreqs = np.arange(startLOFreq, stopLOFreq, stepLOFreq)
         iqData = np.empty([4,0])
-        iqPt = np.empty([4,1])
+        iqPt = np.empty([4,self.params['nChannelsPerStream']*4])
         self.fpga.write_int(self.params['iqSnpStart_reg'],0)        
         #self.fpga.snapshots['acc_iq_avg0_ss'].arm(man_valid = False, man_trig = True)
         
@@ -1238,8 +1238,9 @@ class Roach2Controls:
         """
         
         counter = np.arange(numPts)
-        iqData = np.array([])
+        iqData = np.empty([4,0])
         self.fpga.write_int(self.params['iqSnpStart_reg'],0)        
+        iqPt = np.empty([4,self.params['nChannelsPerStream']*4])
         #self.fpga.snapshots['acc_iq_avg0_ss'].arm(man_valid = False, man_trig = True)
         self.loadLOFreq(self.LOFreq)
         sweepCnt = 0
@@ -1264,6 +1265,7 @@ class Roach2Controls:
             sweepCnt += 1
 
         self.iqToneData = self.formatIQSweepData(iqData)
+        #self.iqToneData = iqData
         return self.iqToneData
     
     def sendUARTCommand(self, inByte):
@@ -1304,7 +1306,7 @@ if __name__=='__main__':
     #freqList=np.asarray([5.2498416321e9, 5.125256256e9, 4.852323456e9, 4.69687416351e9])#,4.547846e9])
     #attenList=np.asarray([41,42,43,45])#,6])
     
-    freqList=np.asarray([5.58260e9])
+    freqList=np.asarray([5.28260e9])
     attenList=np.asarray([0])
     
     #attenList = attenList[np.where(freqList > loFreq)]
@@ -1325,9 +1327,10 @@ if __name__=='__main__':
     #    roach_0.generateDacComb(resAttenList=attenList,globalDacAtten=9)
     
     print 'Loading DDS LUT...'
-    #roach_0.loadDdsLUT()
+    roach_0.loadDdsLUT()
+    roach_0.loadDdsShift(68)
     print 'Loading ChanSel...'
-    #roach_0.loadChanSelection()
+    roach_0.loadChanSelection()
     print 'Init V7'
     roach_0.initializeV7UART()
     #roach_0.initV7MB()
