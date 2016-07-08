@@ -4,15 +4,17 @@ DATE: May 15, 2016
 
 The RoachStateMachine class runs the commands on the readout boards. Uses Roach2Controls Class
 """
-import sys, time, random
+import os, sys, time, random
 import numpy as np
 from PyQt4 import QtCore
 from Queue import Queue
 from Roach2Controls import Roach2Controls
+from lib import iqsweep  # From old SDR code for saving powersweep files
 
 class RoachStateMachine(QtCore.QObject):        #Extends QObject for use with QThreads
     """
-    This class defines and executes commands on the readout boards using the Roach2Controls object
+    This class defines and executes commands on the readout boards using the Roach2Controls object.
+    All the important stuff happens in the executeCommand() function
     
     command enums are class variables
         0 - CONNECT
@@ -200,6 +202,191 @@ class RoachStateMachine(QtCore.QObject):        #Extends QObject for use with QT
                 del exc_info    # if you don't delete this it may prevent garbage collection
         self.finished.emit()
     
+    def connect(self):
+        '''
+        This function connects to the roach2 board and executes any initialization scripts
+        '''
+        #self.roachController.connect()
+        ddsShift = self.config.getint('Roach '+str(self.num),'ddssynclag')
+        #self.roachController.loadDdsShift(ddsShift)
+        
+        return True
+    
+    def loadFreq(self):
+        '''
+        Calculates everything we need to load into the LUTs on the Roach and ADC/DAC board
+        '''
+        loFreq = int(self.config.getfloat('Roach '+str(self.num),'lo_freq'))
+        self.roachController.setLOFreq(loFreq)
+        
+        fn = self.config.get('Roach '+str(self.num),'freqfile')
+        fn2=fn.rsplit('.',1)[0]+'_NEW.'+ fn.rsplit('.',1)[1]         # Check if ps_freq#_NEW.txt exists
+        if os.path.isfile(fn2): fn=fn2
+        freqs, attens = np.loadtxt(fn,unpack=True)
+        
+        self.roachController.generateResonatorChannels(freqs)
+        self.roachController.generateFftChanSelection()
+        
+        dacAtten = self.config.getfloat('Roach '+str(self.num),'dacatten_start')
+        self.roachController.generateDacComb(resAttenList=attens,globalDacAtten=dacAtten)
+        self.roachController.generateDdsTones()
+        
+        return True
+        
+    def defineLUTs(self):
+        '''
+        Loads values into ROACH2, ADC/DAC, and IF boards
+            DAC atten 1, 2
+            ADC atten
+            lo freq
+            DAC LUT
+            DDS LUT
+        '''
+        adcAtten = self.config.getfloat('Roach '+str(self.num),'adcatten')
+        dacAtten = self.config.getfloat('Roach '+str(self.num),'dacatten_start')
+        dacAtten1 = np.floor(dacAtten*2)/4.
+        dacAtten2 = np.ceil(dacAtten*2)/4.
+        #self.roachController.changeAtten(1,dacAtten1)
+        #self.roachController.changeAtten(2,dacAtten2)
+        #self.roachController.changeAtten(3,adcAtten)
+
+        #self.roachController.loadLOFreq()
+        
+        #self.roachController.loadChanSelection()
+        #self.roachController.loadDdsLUT()
+        #self.roachController.loadDacLUT()
+        
+        return True
+    
+    def sweep(self):
+        '''
+        Run power sweep
+        If multiple dac attenuation values are specified then we loop over them and save a power sweep file
+        See SDR repository for power sweep info. It's uncommented so your guess is as good as mine.
+        '''
+        
+        LO_freq = self.roachController.LOFreq
+        LO_span = self.config.getfloat('Roach '+str(self.num),'sweeplospan')
+        LO_start = LO_freq - LO_span/2.
+        LO_end = LO_freq + LO_span/2.
+        LO_step = self.config.getfloat('Roach '+str(self.num),'sweeplostep')
+        start_DACAtten = self.config.getfloat('Roach '+str(self.num),'dacatten_start')
+        stop_DACAtten = self.config.getfloat('Roach '+str(self.num),'dacatten_stop')
+        '''
+        powerSweepFile = self.config.get('Roach '+str(self.num),'powersweepfile')
+        powerSweepFile = powerSweepFile.rsplit['.',1][0]+'_'+time.strftime("%Y%m%d-%H%M%S",time.localtime())+'.'+powerSweepFile.rsplit['.',1][1]
+        for dacAtten in range(start_DACAtten, stop_DACAtten+1):
+            iqData = self.roachController.performIQSweep(LO_start/1.e6, LO_end/1.e6, LO_step/1.e6)
+            self.I_data = iqData['I']
+            self.Q_data = iqData['Q']
+            if stop_DACAtten > start_DACAtten:
+                # Save the power sweep
+                nSteps = len(iqData['I'][0])
+                for n in range(len(self.roachController.freqList)):
+                    w = iqsweep.IQsweep()
+                    w.f0 = self.roachController.freqList[n]
+                    w.span = LO_span/1e6
+                    w.fsteps = nSteps
+                    w.atten1 = self.roachController.attenList[n]
+                    w.atten2 = 0
+                    w.scale = 1.
+                    w.PreadoutdB = -w.atten1 - 20*numpy.log10(w.scale)
+                    w.Tstart = 0.100
+                    w.Tend = 0.100
+                    w.I0 = 0.0
+                    w.Q0 = 0.0
+                    w.resnum = n
+                    w.freq = np.arange(LO_start, LO_end, LO_step, dtype='float32')/1.e9
+                    w.I = iqData['I'][n]
+                    w.Q = iqData['Q'][n]
+                    w.Isd = np.zeros(nSteps)
+                    w.Qsd = np.zeros(nSteps)
+                    w.time = time.time()
+                    w.savenoise = 0
+                    w.Save(powerSweepFile,'r'+str(self.num), 'a')
+        
+        '''
+        nfreqs = len(self.roachController.freqList)
+        self.I_data = []
+        self.Q_data = []
+        nSteps = int(LO_span/LO_step)
+        for i in range(nfreqs):
+            theta = np.linspace(0.,1,nSteps)*2*np.pi
+            I = np.cos(theta) + (np.random.rand(nSteps)-0.5)/10.
+            Q = np.sin(theta) + (np.random.rand(nSteps)-0.5)/10.
+            self.I_data.append(I)
+            self.Q_data.append(Q)
+        return {'I':self.I_data,'Q':self.Q_data}
+    
+    def fitLoops(self):
+        '''
+        Find the center
+            - If centerbool is false then use the old center if it exists
+        Upload center to ROACH2
+        
+        Find rotation phase
+            - Get average I and Q at resonant frequency
+        Rewrite the DDS LUT with new phases
+        
+        Sets self.centers
+        '''
+        recenter = self.config.getboolean('Roach '+str(self.num),'centerbool')
+        if not hasattr(self, 'centers'): recenter = True
+        if recenter: self.fitLoopCenters()
+        
+        #self.roachController TRANSLATE LOOPS
+        
+        nIQPoints = 100
+        averageIQ = self.roachController.perfomIQ2(nIQPoints)
+        avg_I = np.average(averageIQ['I'],1) - self.centers[:,0]
+        avg_Q = np.average(averageIQ['Q'],1) - self.centers[:,1]
+        rotation_phases = np.arctan2(avg_Q,avg_I)
+        
+        phaseList = np.copy(self.roachController.ddsPhaseList)
+        for i in range(len(self.roachController.freqList)):
+            arg = np.where(self.roachController.freqChannels == self.roachController.freqList[i])
+            phaseList[arg]-=rotation_phases[i]
+        
+        self.roachController.generateDdsTones(phaseList=phaseList)
+        #self.roachController.loadDdsLUT()
+        
+        return True
+    
+    def fitLoopCenters(self):
+        '''
+        Finds the (I,Q) center of the loops
+        sets self.centers - [nFreqs, 2]
+        '''
+        I_centers = (np.amax(self.I_data,1) + np.amin(self.I_data,1))/2.
+        Q_centers = (np.amax(self.Q_data,1) + np.amin(self.Q_data,1))/2.
+        
+        self.centers = np.transpose(I_centers.flatten(), Q_centers.flatten())
+        
+    def loadFIRs(self):
+        firCoeffFile = self.config.get('Roach '+str(self.num),'fircoefffile')
+        #self.roachController.loadFIRCoeffs(firCoeffFile)
+        return True
+    
+    def loadThreshold(self):
+        '''
+        
+        '''
+        nfreqs = len(self.roachController.freqList)
+        threshSig = self.config.getfloat('Roach '+str(self.num),'numsigs_thresh')
+        nSnap = self.config.getint('Roach '+str(self.num),'numsnaps_thresh')
+        thresh=[]
+        for i in range(nfreqs):
+            data=[]
+            for k in range(nSnap):
+                sys.stdout.write("\rCollecting Phase on Ch: "+str(i)+" Snap "+str(k+1)+'/'+str(nSnap))
+                sys.stdout.flush()
+                data.append(self.getPhaseFromSnap(i))
+            thresh.append(np.std(data)*threshSig)
+        #self.roachController.loadThresholds(thresh)
+        sys.stdout.write("\n")
+        self.roachController.thresholds=thresh
+        return True
+    
     def executeCommand(self,command):
         """
         Executes individual commands
@@ -214,99 +401,21 @@ class RoachStateMachine(QtCore.QObject):        #Extends QObject for use with QT
         try:
             
             if command == RoachStateMachine.CONNECT:
-                '''
-                This function connects to the roach2 board and executes any initialization scripts
-                '''
-                #self.roachController.connect()
-                ddsShift = self.config.getint('Roach '+str(self.num),'ddssynclag')
-                #self.roachController.loadDdsShift(ddsShift)
-                
-                returnData=True
-                
+                returnData = self.connect()
             elif command == RoachStateMachine.LOADFREQ:
-                '''
-                Calculates the everything we need to load into the LUTs on the Roach and ADC/DAC board
-                '''
-                loFreq = int(self.config.getfloat('Roach '+str(self.num),'lo_freq'))
-                self.roachController.setLOFreq(loFreq)
-                
-                fn = self.config.get('Roach '+str(self.num),'freqfile')
-                freqs, attens = np.loadtxt(fn,unpack=True)
-                
-                #print 'freqs: ',freqs
-                #print 'attens: ',attens
-                
-                
-                self.roachController.generateResonatorChannels(freqs)
-                self.roachController.generateFftChanSelection()
-                
-                dacAtten = self.config.getfloat('Roach '+str(self.num),'dacatten_start')
-                self.roachController.generateDacComb(resAttenList=attens,globalDacAtten=dacAtten)
-                self.roachController.generateDdsTones()
-                
-                returnData=True
-            
+                returnData = self.loadFreq()
             elif command == RoachStateMachine.DEFINELUT:
-                '''
-                Loads values into ROACH2, ADC/DAC, and IF boards
-                    DAC atten 1, 2
-                    ADC atten
-                    lo freq
-                    DAC LUT
-                    DDS LUT
-                '''
-                adcAtten = self.config.getfloat('Roach '+str(self.num),'adcatten')
-                dacAtten = self.config.getfloat('Roach '+str(self.num),'dacatten_start')
-                dacAtten1 = np.floor(dacAtten*2)/4.
-                dacAtten2 = np.ceil(dacAtten*2)/4.
-                #self.roachController.changeAtten(1,dacAtten1)
-                #self.roachController.changeAtten(2,dacAtten2)
-                #self.roachController.changeAtten(3,adcAtten)
-
-                #self.roachController.loadLOFreq()
-                
-                #self.roachController.loadChanSelection()
-                #self.roachController.loadDdsLUT()
-                #self.roachController.loadDacLUT()
-                
-                returnData = True
-                
-                
-            
+                returnData = self.defineLUTs()
             elif command == RoachStateMachine.SWEEP:
-                nfreqs = len(self.roachController.freqList)
-                self.I_data = []
-                self.Q_data = []
-                for i in range(nfreqs):
-                    theta = np.arange(10)/10.*2*np.pi
-                    I = np.cos(theta) + (np.random.rand(10)-0.5)/10.
-                    Q = np.sin(theta) + (np.random.rand(10)-0.5)/10.
-                    self.I_data.append(I)
-                    self.Q_data.append(Q)
-                returnData = {'I':self.I_data,'Q':self.Q_data}
-            
-            
+                returnData = self.sweep()
+            elif command == RoachStateMachine.FIT:
+                returnData = self.fitLoops()
+            elif command == RoachStateMachine.LOADFIR:
+                returnData = self.loadFIRs()
             elif command == RoachStateMachine.LOADTHRESHOLD:
-                nfreqs = len(self.roachController.freqList)
-                threshSig = self.config.getfloat('Roach '+str(self.num),'numsigs_thresh')
-                nSnap = self.config.getint('Roach '+str(self.num),'numsnaps_thresh')
-                thresh=[]
-                for i in range(nfreqs):
-                    data=[]
-                    for k in range(nSnap):
-                        sys.stdout.write("\rCollecting Phase on Ch: "+str(i)+" Snap "+str(k+1)+'/'+str(nSnap))
-                        sys.stdout.flush()
-                        data.append(self.getPhaseFromSnap(i))
-                    thresh.append(np.std(data)*threshSig)
-                #self.roachController.loadThresholds(thresh)
-                sys.stdout.write("\n")
-                self.roachController.thresholds=thresh
-        
+                returnData = self.loadThreshold()
             else:
-                time.sleep(random.randint(1,3))
-                if random.randint(1,50) == 1:
-                    raise NotImplementedError('Error msg here!')
-            
+                raise ValueError('No command: '+str(command))
             self.state[command] = RoachStateMachine.COMPLETED
         except:
             self.emptyCommandQueue()
