@@ -56,38 +56,42 @@ class ImageSearcher(QtCore.QObject):     #Extends QObject for use with QThreads
         self.nRows= nRows
         self.search=True
         
-    def checkDir(self):
+    def checkDir(self, removeOldFiles=False):
         """
         Infinite loop that keeps checking directory for an image file
         When it finds an image, it parses it and emits imageFound signal
-        It cleans up the ramdisk after reading the images
+        It only returns files that have timestamps > than the last file's timestamp
         
         Loop will continue until you set self.search to False. Then it will emit finished signal
+        
+        INPUTS:
+            removeOldFiles - remove .img and .png files after we read them
         """
         self.search=True
+        latestTime = time.time()
         while self.search:
             flist = []
             for f in os.listdir(self.path):
                 if f.endswith(".img"):
-                    flist.append(f)
-                elif f.endswith(".png"):
+                    if float(f.split('.')[0]) > latestTime:
+                        flist.append(f)
+                    elif removeOldFiles:
+                        os.remove(self.path+f)
+                elif removeOldFiles and f.endswith(".png"):
                     os.remove(self.path+f)
             if len(flist)>0:
                 flist.sort()
-                for f in flist[:-1]:
-                    print 'deleting ',f
-                    os.remove(self.path+f)
-                
-                f=flist[-1] #Only look at the most recent one
-                #print 'found ',f
-                try:
-                    image = self.readBinToList(self.path+f)
-                    self.imageFound.emit(image)
-                except:
-                    print self.path+f
-                    traceback.print_exc()
-                os.remove(self.path+f)
-                time.sleep(.01) #Give image time to process before sending next one (not really needed)
+                for f in flist:
+                    latestTime = float(f.split('.')[0])+.1
+                    try:
+                        image = self.readBinToList(self.path+f)
+                        self.imageFound.emit(image)
+                        time.sleep(.01) #Give image time to process before sending next one (not really needed)
+                    except:
+                        print self.path+f
+                        traceback.print_exc()
+                    if removeOldFiles:
+                        os.remove(self.path+f)
         self.finished.emit()
     
     def readBinToList(self,fn):
@@ -172,8 +176,6 @@ class ConvertPhotonsToRGB(QtCore.QObject):
         
         image2 = np.interp(self.image.flatten(),imbins[:-1],cdf)
         image2=image2.reshape(self.image.shape)
-        image2[2:4,2:4]=255
-        image2[5:10,2]=0
         self.makeQPixMap(image2)
     
     def makeQPixMap(self, image):
