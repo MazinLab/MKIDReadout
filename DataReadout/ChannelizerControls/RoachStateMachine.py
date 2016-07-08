@@ -206,9 +206,12 @@ class RoachStateMachine(QtCore.QObject):        #Extends QObject for use with QT
         '''
         This function connects to the roach2 board and executes any initialization scripts
         '''
-        #self.roachController.connect()
+        ipaddress = self.config.get('Roach '+str(self.num),'ipaddress')
+        self.roachController.ip = ipaddress
+        self.roachController.connect()
         ddsShift = self.config.getint('Roach '+str(self.num),'ddssynclag')
-        #self.roachController.loadDdsShift(ddsShift)
+        #self.roachController.loadDdsShift(ddsShift)    # We already do this before templar starts
+        #self.roachController.initV7MB()
         
         return True
     
@@ -246,16 +249,21 @@ class RoachStateMachine(QtCore.QObject):        #Extends QObject for use with QT
         dacAtten = self.config.getfloat('Roach '+str(self.num),'dacatten_start')
         dacAtten1 = np.floor(dacAtten*2)/4.
         dacAtten2 = np.ceil(dacAtten*2)/4.
-        #self.roachController.changeAtten(1,dacAtten1)
-        #self.roachController.changeAtten(2,dacAtten2)
-        #self.roachController.changeAtten(3,adcAtten)
+        
 
-        #self.roachController.loadLOFreq()
+        self.roachController.loadChanSelection()
+        self.roachController.loadDdsLUT()
         
-        #self.roachController.loadChanSelection()
-        #self.roachController.loadDdsLUT()
-        #self.roachController.loadDacLUT()
-        
+        print "Initializing ADC/DAC board communication"
+        self.roachController.initializeV7UART()
+        print "Setting Attenuators"
+        self.roachController.changeAtten(1,dacAtten1)
+        self.roachController.changeAtten(2,dacAtten2)
+        self.roachController.changeAtten(3,adcAtten)
+        print "Setting LO Freq"
+        self.roachController.loadLOFreq()
+        print "Loading DAC LUT"
+        self.roachController.loadDacLUT()
         return True
     
     def sweep(self):
@@ -272,14 +280,20 @@ class RoachStateMachine(QtCore.QObject):        #Extends QObject for use with QT
         LO_step = self.config.getfloat('Roach '+str(self.num),'sweeplostep')
         start_DACAtten = self.config.getfloat('Roach '+str(self.num),'dacatten_start')
         stop_DACAtten = self.config.getfloat('Roach '+str(self.num),'dacatten_stop')
-        '''
+        
         powerSweepFile = self.config.get('Roach '+str(self.num),'powersweepfile')
         powerSweepFile = powerSweepFile.rsplit['.',1][0]+'_'+time.strftime("%Y%m%d-%H%M%S",time.localtime())+'.'+powerSweepFile.rsplit['.',1][1]
         for dacAtten in range(start_DACAtten, stop_DACAtten+1):
+            if stop_DACAtten > start_DACAtten:
+                dacAtten1 = np.floor(dacAtten*2)/4.
+                dacAtten2 = np.ceil(dacAtten*2)/4.
+                self.roachController.changeAtten(1,dacAtten1)
+                self.roachController.changeAtten(2,dacAtten2)
             iqData = self.roachController.performIQSweep(LO_start/1.e6, LO_end/1.e6, LO_step/1.e6)
             self.I_data = iqData['I']
             self.Q_data = iqData['Q']
             if stop_DACAtten > start_DACAtten:
+                
                 # Save the power sweep
                 nSteps = len(iqData['I'][0])
                 for n in range(len(self.roachController.freqList)):
@@ -305,6 +319,7 @@ class RoachStateMachine(QtCore.QObject):        #Extends QObject for use with QT
                     w.savenoise = 0
                     w.Save(powerSweepFile,'r'+str(self.num), 'a')
         
+        return {'I':self.I_data,'Q':self.Q_data}
         '''
         nfreqs = len(self.roachController.freqList)
         self.I_data = []
@@ -317,6 +332,7 @@ class RoachStateMachine(QtCore.QObject):        #Extends QObject for use with QT
             self.I_data.append(I)
             self.Q_data.append(Q)
         return {'I':self.I_data,'Q':self.Q_data}
+        '''
     
     def fitLoops(self):
         '''
@@ -348,7 +364,7 @@ class RoachStateMachine(QtCore.QObject):        #Extends QObject for use with QT
             phaseList[arg]-=rotation_phases[i]
         
         self.roachController.generateDdsTones(phaseList=phaseList)
-        #self.roachController.loadDdsLUT()
+        self.roachController.loadDdsLUT()
         
         return True
     
