@@ -6,7 +6,8 @@ Firmware:  darkS2*.fpg
 This class is for setting and reading LUTs, registers, and other memory components in the ROACH2 Virtex 6 FPGA using casperfpga tools.
 It's also the IO for the ADC/DAC board's Virtex 7 FPGA through the ROACH2
 
-NOTE: All freqencies are considered positive. A negative frequency can be asserted by the aliased signal of large positive frequency (by adding sample rate). This makes things easier for coding since I can check valid frequencies > 0 and also for calculating which fftBin a frequency resides in (see generateFftChanSelection()). 
+NOTE: All freqencies are considered positive. A negative frequency can be asserted by the aliased signal of large positive frequency (by adding sample rate).
+      This makes things easier for coding since I can check valid frequencies > 0 and also for calculating which fftBin a frequency resides in (see generateFftChanSelection()). 
 
 
 Example usage:
@@ -36,12 +37,14 @@ Example usage:
 List of Functions:
     __init__ -                      Connects to Roach2 FPGA, sets the delay between the dds lut and the end of the fft block
     connect -                       Connect to V6 FPGA on Roach2
+    initializeV7UART -              Initializes the UART connection to the Virtex 7
     loadDdsShift -                  Set the delay between the dds lut and the end of the fft block
     generateResonatorChannels -     Figures out which stream:channel to assign to each resonator frequency
     generateFftChanSelection -      Assigns fftBins to each steam:channel
     loadSingleChanSelection -       Loads a channel for each stream into the channel selector LUT
     loadChanSelection -             Loops through loadSingleChanSelection()
     setLOFreq -                     Defines LO frequency as an attribute, self.LOFreq
+    loadLOFreq -                    Loads the LO frequency to the IF board
     generateTones -                 Returns a list of I,Q time series for each frequency provided
     generateDacComb -               Returns a single I,Q time series representing the DAC freq comb
     loadDacLut -                    Loads the freq comb from generateDacComb() into the LUT
@@ -70,14 +73,10 @@ List of useful class attributes:
 
 
 TODO:
-    uncomment self.fpgs, DDS Shift in __init__
     uncomment register writes in loadSingleChanSelection()
     uncomment register writes in loadDacLut()
-    add code for setting LO freq in loadLOFreq()
-    write code collecting data from ADC
     
     calibrate dds qdr with SDR/Projects/FirmwareTests/darkDebug/calibrate.py
-    fix bug that doesn't work with less than 4 tones
 """
 
 import sys,os,time,datetime,struct,math
@@ -134,7 +133,7 @@ class Roach2Controls:
         #set the delay between the dds lut and the end of the fft block (firmware dependent)
         self.fpga.write_int(self.params['ddsShift_reg'],ddsShift)
     
-    def initializeV7UART(self, baud_rate = None, lut_dump_buffer_size = None):
+    def initializeV7UART(self, waitForV7Ready = True, baud_rate = None, lut_dump_buffer_size = None):
         '''
         Initializes the UART connection to the Virtex 7.  Puts the V7 in Recieve mode, sets the 
         baud rate
@@ -165,8 +164,9 @@ class Roach2Controls:
         time.sleep(1)
         self.fpga.write_int(self.params['resetUART_reg'],0)
         
-        #while(not(self.v7_ready)):
-        #    self.v7_ready = self.fpga.read_int(self.params['v7Ready_reg'])
+        if waitForV7Ready:
+            while(not(self.v7_ready)):
+                self.v7_ready = self.fpga.read_int(self.params['v7Ready_reg'])
         
         self.v7_ready = 0
         self.fpga.write_int(self.params['inByteUART_reg'],1) # Acknowledge that ROACH2 knows MB is ready for commands
@@ -823,7 +823,7 @@ class Roach2Controls:
         Try to evenly distribute the given frequencies into each stream
         
         INPUTS:
-            freqList - list of resonator frequencies (Assumed sequential but doesn't really matter)
+            freqList - list of resonator frequencies (Assumed sorted but doesn't really matter)
             order - 'F' places sequential frequencies into a single stream
                     'C' places sequential frequencies into the same channel number
         OUTPUTS:
@@ -1062,7 +1062,7 @@ class Roach2Controls:
         """stops streaming of phase timestream (after prog_fir) to the 1Gbit ethernet
 
         """
-        fpga.write_int(self.params['phaseDumpEn_reg'],0)
+        self.fpga.write_int(self.params['phaseDumpEn_reg'],0)
     
     def recvPhaseStream(self, channel=0, duration=60, pktsPerFrame=100, host = '10.0.0.50', port = 50000):
         """
@@ -1161,6 +1161,11 @@ class Roach2Controls:
             stepLOFreq - frequency sweep step size
             
             All frequencies are in MHz
+        OUTPUTS:
+            iqData - 1D array of I and Q for each resonator and freq step in a stream
+                     256 I points + 256 Q points for LO step 0, then 256 I points + 256 Q points for LO step 1, etc..
+                     Shape = [(nChannelsPerStream+nChannelsPerStream) * nLOsteps]
+                     Get one per stream (4 streams for all thousand resonators)
         """
         
         LOFreqs = np.arange(startLOFreq, stopLOFreq, stepLOFreq)
@@ -1185,7 +1190,69 @@ class Roach2Controls:
             sweepCnt += 1
 
         self.iqSweepData = iqData
+        return self.formatIQSweepData([iqData])
+    
+    def formatIQSweepData(self, iqDataStreams):
+        """
+        Reshapes the iqdata into a usable format
+        Need to put the data in the same order as the freqList that was loaded in
+        
+        INPUTS:
+            iqDataStreams - 2D array with following shape:
+                            [nStreams, (nChannelsPerStream+nChannelsPerStream) * nLOsteps]
+        OUTPUTS:
+            iqSweepData - Dictionary with following keywords
+                          I - 2D array with shape = [nFreqs, nLOsteps]
+                          Q - 2D array with shape = [nFreqs, nLOsteps]
+        """
+        I_list = []
+        Q_list = []
+        for freq in self.freqList:
+            ch, stream = np.where(self.freqChannels == freq)
+            I = iqDataStreams[stream, ch :: self.params['nChannelsPerStream']]
+            Q = iqDataStreams[stream, ch+self.params['nChannelsPerStream'] :: self.params['nChannelsPerStream']]
+            I_list.append(I)
+            Q_list.append(Q)
+        return {'I':I_list, 'Q':Q_list}
+        
+        
 
+    def perfomIQ2(self,numPts):
+        """
+        Performs a sweep over the LO frequency.  Records 
+        one IQ point per channel per freqeuency; stores in
+        self.iqSweepData
+
+        INPUTS:
+            startLOFreq - starting sweep frequency
+            stopLOFreq - final sweep frequency
+            stepLOFreq - frequency sweep step size
+            
+            All frequencies are in MHz
+        """
+        
+        counter = np.arange(numPts)
+        iqData = np.array([])
+        self.fpga.write_int(self.params['iqSnpStart_reg'],0)        
+        #self.fpga.snapshots['acc_iq_avg0_ss'].arm(man_valid = False, man_trig = True)
+        self.loadLOFreq(self.LOFreq)
+        sweepCnt = 0
+        for i in counter:
+            if self.verbose:
+                print 'Sweeping ' + str(freq) + ' MHz'
+            #self.loadLOFreq(freq)
+            time.sleep(0.1)
+            if(sweepCnt%2==0):
+                self.fpga.snapshots['acc_iq_avg0_ss'].arm(man_valid = False, man_trig = False) 
+            self.fpga.write_int(self.params['iqSnpStart_reg'],1)
+            time.sleep(0.1)
+            if(sweepCnt%2==1):
+                iqPt = self.fpga.snapshots['acc_iq_avg0_ss'].read(timeout = 10, arm = False)['data']
+                iqData = np.append(iqData, iqPt['iq'])
+            self.fpga.write_int(self.params['iqSnpStart_reg'],0)
+            sweepCnt += 1
+
+        self.iqToneAvg = iqData
     
     def sendUARTCommand(self, inByte):
         """
@@ -1204,7 +1271,7 @@ if __name__=='__main__':
     if len(sys.argv) > 1:
         ip = sys.argv[1]
     else:
-        ip='10.0.0.112'
+        ip='10.0.0.113'
     if len(sys.argv) > 2:
         params = sys.argv[2]
     else:
@@ -1225,7 +1292,7 @@ if __name__=='__main__':
     #freqList=np.asarray([5.2498416321e9, 5.125256256e9, 4.852323456e9, 4.69687416351e9])#,4.547846e9])
     #attenList=np.asarray([41,42,43,45])#,6])
     
-    freqList=np.asarray([5.12512345e9])
+    freqList=np.asarray([5.58260e9])
     attenList=np.asarray([0])
     
     #attenList = attenList[np.where(freqList > loFreq)]
@@ -1234,12 +1301,12 @@ if __name__=='__main__':
     roach_0 = Roach2Controls(ip, params, True, False)
     roach_0.connect()
     roach_0.setLOFreq(loFreq)
-    #roach_0.generateResonatorChannels(freqList)
-    #roach_0.generateFftChanSelection()
+    roach_0.generateResonatorChannels(freqList)
+    roach_0.generateFftChanSelection()
     #roach_0.generateDacComb(resAttenList=attenList,globalDacAtten=9)
     roach_0.generateDacComb(freqList=freqList)
     print 'Generating DDS Tones...'
-    #roach_0.generateDdsTones()
+    roach_0.generateDdsTones()
     roach_0.debug=False
     #for i in range(10000):
         
@@ -1251,7 +1318,7 @@ if __name__=='__main__':
     #roach_0.loadChanSelection()
     print 'Init V7'
     roach_0.initializeV7UART()
-    roach_0.initV7MB()
+    #roach_0.initV7MB()
     roach_0.loadLOFreq()
     roach_0.loadDacLUT()
 
