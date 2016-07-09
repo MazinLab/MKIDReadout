@@ -529,6 +529,9 @@ class Roach2Controls:
         
     
     def setLOFreq(self,LOFreq):
+        """ 
+        Sets the attribute LOFreq (in Hz)
+        """
         self.LOFreq = LOFreq
     
     def loadLOFreq(self,LOFreq=None):
@@ -547,9 +550,8 @@ class Roach2Controls:
                 LOFreq = self.LOFreq/1e6 #IF board uses MHz
             except AttributeError:
                 print "Run setLOFreq() first!"
-                raise
-        self.LOFreq=LOFreq
-        
+                raise        
+       
         loFreqInt = int(LOFreq)
         loFreqFrac = LOFreq - loFreqInt
         
@@ -659,6 +661,8 @@ class Roach2Controls:
         if resAttenList is None:
             warnings.warn("Individual resonator attenuations assumed to be 20")
             resAttenList=np.zeros(len(freqList))+20
+        try: len(resAttenList)
+        except: resAttenList=[resAttenList]
         if len(resAttenList)>self.params['nChannels']:
             warnings.warn("Too many attenuations provided. Can only accommodate "+str(self.params['nChannels'])+" resonators")
             resAttenList = resAttenList[:self.params['nChannels']]
@@ -834,7 +838,9 @@ class Roach2Controls:
             args,__,__,defaults = inspect.getargspec(Roach2Controls.generateResonatorChannels)
             order = defaults[args.index('order')-len(args)]
             if self.verbose: print "Invalid 'order' parameter for generateResonatorChannels(). Changed to default: "+str(order)
-        if len(freqList)>self.params['nChannels']:
+        try: len(freqList)
+        except: freqList=[freqList]
+        if len(np.array(freqList))>self.params['nChannels']:
             warnings.warn("Too many freqs provided. Can only accommodate "+str(self.params['nChannels'])+" resonators")
             freqList = freqList[:self.params['nChannels']]
         self.freqList = np.ravel(freqList)
@@ -1197,8 +1203,9 @@ class Roach2Controls:
             self.fpga.write_int(self.params['iqSnpStart_reg'],0)
             sweepCnt += 1
         
-        self.loadLOFreq(self.LOFreq)
-        self.iqSweepData = self.formatIQSweepData([iqData])
+        self.loadLOFreq()
+        self.iqSweepData = self.formatIQSweepData(iqData)
+        #self.iqSweepData = iqData
         return self.iqSweepData
     
     def formatIQSweepData(self, iqDataStreams):
@@ -1242,7 +1249,7 @@ class Roach2Controls:
         self.fpga.write_int(self.params['iqSnpStart_reg'],0)        
         iqPt = np.empty([4,self.params['nChannelsPerStream']*4])
         #self.fpga.snapshots['acc_iq_avg0_ss'].arm(man_valid = False, man_trig = True)
-        self.loadLOFreq(self.LOFreq)
+        self.loadLOFreq()
         sweepCnt = 0
         for i in counter:
             if self.verbose:
@@ -1306,7 +1313,7 @@ if __name__=='__main__':
     #freqList=np.asarray([5.2498416321e9, 5.125256256e9, 4.852323456e9, 4.69687416351e9])#,4.547846e9])
     #attenList=np.asarray([41,42,43,45])#,6])
     
-    freqList=np.asarray([5.28260e9])
+    freqList=np.asarray([4.596533e9])
     attenList=np.asarray([0])
     
     #attenList = attenList[np.where(freqList > loFreq)]
@@ -1328,7 +1335,7 @@ if __name__=='__main__':
     
     print 'Loading DDS LUT...'
     roach_0.loadDdsLUT()
-    roach_0.loadDdsShift(68)
+    roach_0.loadDdsShift(69)
     print 'Loading ChanSel...'
     roach_0.loadChanSelection()
     print 'Init V7'
