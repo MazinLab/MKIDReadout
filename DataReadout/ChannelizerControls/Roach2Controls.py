@@ -1157,7 +1157,7 @@ class Roach2Controls:
         self.recvPhaseStream(selChanIndex, duration, pktsPerFrame, '10.0.0.'+str(destIPID), fabric_port)
         self.stopStream()
     
-    def parsePhaseStream(self, phaseDumpFile=None, pktsPerFrame=100)
+    def parsePhaseStream(self, phaseDumpFile=None, pktsPerFrame=100):
         if(phaseDumpFile == None):
             try:
                 phaseDumpFile = self.lastPhaseDumpFile
@@ -1171,8 +1171,13 @@ class Roach2Controls:
         nWords = nBytes/8 #64 bit words
         #break into 64 bit words
         words = np.array(struct.unpack('>{:d}Q'.format(nWords), data),dtype=object)
+        
         #remove headers
-        words = np.delete(words,np.arange(0,len(words),pktsPerFrame))
+        headerFirstByte = 0xff
+        firstBytes = words >> (64-8)
+        headerIdx = np.where(firstBytes == headerFirstByte)[0]
+        words = np.delete(words,headerIdx)
+        
         nBitsPerPhase = 12
         binPtPhase = 9
         nPhasesPerWord = 5
