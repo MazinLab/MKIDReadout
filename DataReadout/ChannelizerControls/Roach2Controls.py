@@ -1033,6 +1033,42 @@ class Roach2Controls:
             self.fpga.write_int(self.params['firLoadChan'],loadVal)
             time.sleep(.1)
             self.fpga.write_int(self.params['firLoadChan'],selChanIndex)
+    
+    def takePhaseSnapshot(self, channel=0, filtered=True):
+        """
+        Takes phase data using snapshot block
+
+        INPUTS:
+            channel: channel to take data from
+            filtered: if True, take phase after FIR filter
+                      if False, take raw phase
+
+        OUTPUTS:
+            phaseSnapData
+        """
+        self.fpga.write_int('sel_bch',channel)
+        
+
+        if filtered:
+            self.fpga.snapshots['snp3_cap_ss'].arm(man_valid=False)
+            time.sleep(.1)
+            self.fpga.write_int('trig_buf',1)#trigger snapshots
+            time.sleep(.1) #wait for other trigger conditions to be met
+            self.fpga.write_int('trig_buf',0)#release trigger       
+            phaseData = self.fpga.snapshots['snp3_cap_ss'].read(timeout=5,arm=False,man_valid=False)['data'] 
+            phaseSnapData = np.array(phaseData['phase'])  
+            #trig = np.array(phaseData['trig'],dtype=np.bool) 
+
+        else:
+            self.fpga.snapshots['snp3_cap_ss'].arm(man_valid=False)
+            time.sleep(.1)
+            self.fpga.write_int('trig_buf',1)#trigger snapshots
+            time.sleep(.1) #wait for other trigger conditions to be met
+            self.fpga.write_int('trig_buf',0)#release trigger       
+            ddcData = self.fpga.snapshots['snp3_ddc_ss'].read(timeout=5,arm=False, man_valid=False)['data']
+            phaseSnapData = np.array(ddcData['raw_phase'])
+        
+        return phaseSnapData
 
     def startPhaseStream(self,selChanIndex=0, pktsPerFrame=100, fabric_port=50000, destIPID=50):
         """initiates streaming of phase timestream (after prog_fir) to the 1Gbit ethernet
@@ -1155,14 +1191,14 @@ class Roach2Controls:
         self.recvPhaseStream(selChanIndex, duration, pktsPerFrame, '10.0.0.'+str(destIPID), fabric_port)
         self.stopStream()
     
-    def parsePhaseStream(self, phaseDumpFile=None, pktsPerFrame=100)
+    def parsePhaseStream(self, phaseDumpFile=None, pktsPerFrame=100):
         if(phaseDumpFile == None):
             try:
                 phaseDumpFile = self.lastPhaseDumpFile
             except AttributeError:
                 print 'Specify a file or run takePhaseStreamData()'
         
-        with open(path,'r') as dumpFile:
+        with open(phaseDumpFile,'r') as dumpFile:
             data = dumpFile.read()
 
         nBytes = len(data)
@@ -1290,10 +1326,10 @@ class Roach2Controls:
         Q_list = []
         for freq in self.freqList:
             ch, stream = np.where(self.freqChannels == freq)
-            I = iqDataStreams[stream, ch :: self.params['nChannelsPerStream']]
-            Q = iqDataStreams[stream, ch+self.params['nChannelsPerStream'] :: self.params['nChannelsPerStream']]
-            I_list.append(I)
-            Q_list.append(Q)
+            I = iqDataStreams[stream, ch :: self.params['nChannelsPerStream']*2]
+            Q = iqDataStreams[stream, ch+self.params['nChannelsPerStream'] :: self.params['nChannelsPerStream']*2]
+            I_list.append(I.flatten())
+            Q_list.append(Q.flatten())
         return {'I':I_list, 'Q':Q_list}
         
         
@@ -1339,6 +1375,26 @@ class Roach2Controls:
         self.iqToneData = self.formatIQSweepData(iqData)
         #self.iqToneData = iqData
         return self.iqToneData
+    
+    def loadIQcenters(self, centers):
+        """
+        Load IQ centers in firmware registers
+        
+        INPUTS:
+            centers - 2d array of centers.
+                      First column is I centers, second is Q centers. 
+                      Rows correspond to resonators in the same order as the freqlist
+                      shape: [nFreqs, 2]
+        """
+        for i in range(len(centers)):
+            ch, stream = np.where(self.freqChannels == self.freqList[i])
+            I_c = int(centers[i][0]/2**3)
+            Q_c = int(centers[i][1]/2**3)
+            
+            center = (I_c<<16) + (Q_c<<0)   # 32 bit number - 16bit I + 16bit Q
+            self.fpga.write_int(self.params['iqCenter_regs'][stream], center)
+            self.fpga.write_int(self.params['iqLoadCenter_regs'][stream], (ch<<1)+(1<<0))
+            self.fpga.write_int(self.params['iqLoadCenter_regs'][stream], 0)
     
     def sendUARTCommand(self, inByte):
         """
