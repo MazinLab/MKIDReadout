@@ -12,7 +12,7 @@ from PyQt4 import QtCore
 
 
 
-class laserControl():
+class LaserControl():
 
     def __init__(self, ipaddress='10.10.10.12', port=8888,receivePort = 4096,verbose=False):
         """
@@ -33,6 +33,9 @@ class laserControl():
                      "10101" means turn lasers 1,3,5 on and 2,4 off. 
             timeLimit - Turn the laser off after this many seconds. if <= 0 then leave on
         """
+        print toggle, timeLimit
+        return
+        
         assert len(toggle)==self.numLasers
         self.client_socket.sendto(toggle, address) #send command to arduino
         if timeLimit>0:
@@ -44,8 +47,8 @@ class laserControl():
         except:
             pass
         
-     def laserOff(self)
-        self.client_socket.sendto("00000", address)
+    def laserOff(self):
+        self.client_socket.sendto("0"*self.numLasers, address)
         try:
             rec_data, addr = self.client_socket.recvfrom(self.receivePort) #Read response from arduino
             if verbose:

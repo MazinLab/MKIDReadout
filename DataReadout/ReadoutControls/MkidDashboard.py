@@ -27,6 +27,8 @@ from PyQt4.QtCore import Qt
 from PyQt4 import QtGui
 from PyQt4.QtGui import *
 from PixelTimestreamWindow import PixelTimestreamWindow
+from LaserControl import LaserControl
+from Telescope import Telescope
 
 class ImageSearcher(QtCore.QObject):     #Extends QObject for use with QThreads
     """
@@ -207,10 +209,11 @@ class MkidDashboard(QMainWindow):
     
     newImageProcessed = QtCore.pyqtSignal()
     
-    def __init__(self, configPath=None, parent=None):
+    def __init__(self, configPath=None, observing=False, parent=None):
         """
         INPUTS:
             configPath - path to configuration file. See ConfigParser doc for making configuration file
+            observing - indicates if packetmaster is currently writing data to disk
             parent -
         """
         self.config = ConfigParser.ConfigParser()
@@ -223,16 +226,29 @@ class MkidDashboard(QMainWindow):
         self.imageList=[]                           # Holds photon count image data
         self.timeStreamWindows = []                 # Holds PixelTimestreamWindow objects
         self.selectedPixels=set()                   # Holds the pixels currently selected
+        self.observing = observing                  # Indicates if packetmaster is currently writing data to disk
         # Often overwritten variables
         self.clicking=False                         # Flag to indicate we've pressed the left mouse button and haven't released it yet
         self.pixelClicked = None                    # Holds the pixel clicked when mouse is pressed
         self.pixelCurrent = None                    # Holds the pixel the mouse is currently hovering on
         
+        #Laser Controller
+        laserIP=self.config.get('properties','laserIPaddress')
+        laserPort=self.config.get('properties','laserPort')
+        laserReceivePort = self.config.get('properties','laserReceivePort')
+        self.laserController = LaserControl(laserIP,laserPort,laserReceivePort)
+        
+        #telscope TCS connection
+        telescopeIP=self.config.get('properties','telescopeIPaddress')
+        telescopePort=self.config.get('properties','telescopePort')
+        telescopeReceivePort = self.config.get('properties','telescopeReceivePort')
+        self.telescopeController = Telescope(telescopeIP,telescopePort,telescopeReceivePort)
+        
         #Setup GUI
         super(QMainWindow, self).__init__(parent)
         self.setWindowTitle(self.config.get('properties','instrument')+' Dashboard')
         self.create_image_widget()
-        self.obsTime = QtCore.QTime()
+        #self.obsTime = QtCore.QTime()
         self.create_dock_widget()
         self.contextMenu = QtGui.QMenu(self)    # pops up on right click
         self.create_menu()  # file menu
@@ -240,7 +256,7 @@ class MkidDashboard(QMainWindow):
         #Connect to ROACHES and initialize network port in firmware
         
         # Setup search for image files from cuber
-        darkImageSearcher = ImageSearcher(self.config.get('properties','cuber_dir'), self.config.getint('properties','ncols'),self.config.getint('properties','nrows'),parent=None)
+        darkImageSearcher = ImageSearcher(self.config.get('properties','cuber_ramdisk'), self.config.getint('properties','ncols'),self.config.getint('properties','nrows'),parent=None)
         self.workers.append(darkImageSearcher)
         thread = QtCore.QThread(parent=self)
         self.threadPool.append(thread)
@@ -574,9 +590,13 @@ class MkidDashboard(QMainWindow):
             - switch Firmware into photon collect mode
             - write START file to RAM disk for PacketMaster2
         """
-        print "Starting Obs"
-        #Need switch Firmware into photon collect mode
-        #wait 1 ms, then write START file to RAM disk
+        if not self.observing:
+            self.observing=True
+            self.button_obs.setEnabled(False)
+            self.button_stop.setEnabled(True)
+            print "Starting Obs"
+            #Need switch Firmware into photon collect mode
+            #wait 1 ms, then write START file to RAM disk
 
     
     def stopObs(self):
@@ -584,11 +604,58 @@ class MkidDashboard(QMainWindow):
         When we stop observing we need to:
             - switch Firmware out of photon collect mode
             - Write QUIT file to RAM disk for PacketMaster2
+            - Move any log files in the ram disk to the hard disk
         """
-        print "Stop Obs"
-        #Need to switch Firmware out of photon collect mode
-        #wait 1 ms
+        if self.observing:
+            self.observing=False
+            print "Stop Obs"
+            #Need to switch Firmware out of photon collect mode
+            #wait 1 ms
+            self.button_obs.setEnabled(True)
+            self.button_stop.setEnabled(False)
 
+    def laserCalClicked(self):
+        laserStr = ''
+        for checkbox_laser in self.checkbox_laser_list:
+            if checkbox_laser.isChecked(): laserStr+='1'
+            else: laserStr+='0'
+        laserTime=self.spinbox_laserTime.value()
+        self.laserController.toggleLaser(laserStr, laserTime)
+        self.writeLog('laserCal', utc=time.time(), time=laserTime, lasers=laserStr)
+        if not self.observing:
+            self.startObs()
+            QtCore.QTimer.singleShot(laserTime*1000+1, self.stopObs)
+            
+    def writeTelescopeLog(self):
+        telescopeDict = self.telescopeController.getAllTelescopeInfo(self.textbox_target.text())
+        self.writeLog('telescope',**telescopeDict)
+    
+    def writeLog(self, target=None, *args, **kwargs):
+        """
+        Writes a log file
+        The file is named 'UNIXTIME_target.log'
+        
+        If we're observing, write the file to the ramdisk
+        Otherwise, write to harddrive
+        
+        INPUTS:
+            target - name of the target star
+            args - list of things to write to file
+            kwargs - list of 'keyword: values' to write to file
+        """
+        if self.observing: path = self.config.get('properties','log_ramdisk')
+        else: path = self.config.get('properties','log_dir')
+        currentTime=int(time.time())
+        if target is None or len(target)<1: fn = str(currentTime)+'.log'
+        else: fn = str(currentTime)+'_'+str(target)+'.log'
+        f=open(path+fn,'a')
+        for arg in args:
+            f.write(str(arg))
+            f.write('\n')
+        for key in kwargs:
+            f.write("%s: %s" % (key, str(kwargs[key])))
+            f.write('\n')
+        f.close()
     
     def create_dock_widget(self):
         """
@@ -602,30 +669,52 @@ class MkidDashboard(QMainWindow):
         label_currentTime = QLabel("UTC: ")
         getCurrentTime = QtCore.QTimer(self)
         getCurrentTime.setInterval(997) # prime number :)
-        def updateCurrentTime():
-            label_currentTime.setText("UTC: "+str(time.time()))
+        def updateCurrentTime(): label_currentTime.setText("UTC: "+str(time.time()))
         getCurrentTime.timeout.connect(updateCurrentTime)
         getCurrentTime.start()
         # Start observing button
-        button_obs = QPushButton("Start Observing")
-        font = button_obs.font()
+        self.button_obs = QPushButton("Start Observing")
+        font = self.button_obs.font()
         font.setPointSize(24)
-        button_obs.setFont(font)
-        button_obs.setEnabled(True)
-        button_obs.clicked.connect(self.startObs)
+        self.button_obs.setFont(font)
+        self.button_obs.setEnabled(not self.observing)
+        self.button_obs.clicked.connect(self.startObs)
         # Stop observing button
-        button_stop = QPushButton("Stop Observing")
-        button_stop.setEnabled(False)
-        button_stop.clicked.connect(self.stopObs)
-        # Toggle start/stop buttons
-        button_obs.clicked.connect(lambda x: button_obs.setEnabled(False))
-        button_obs.clicked.connect(lambda x: button_stop.setEnabled(True))
-        button_stop.clicked.connect(lambda x: button_stop.setEnabled(False))
-        button_stop.clicked.connect(lambda x: button_obs.setEnabled(True))
+        self.button_stop = QPushButton("Stop Observing")
+        self.button_stop.setEnabled(self.observing)
+        self.button_stop.clicked.connect(self.stopObs)
         
-        # Add log file textedit
-        # Add log file button
+        # log file
+        label_target = QLabel("Target: ")
+        self.textbox_target = QLineEdit()
+        textbox_log = QTextEdit()
+        button_log = QPushButton("Add Log File")
         
+        label_autolog = QLabel("Auto log:")
+        spinbox_autolog = QSpinBox()
+        spinbox_autolog.setRange(0,999)
+        spinbox_autolog.setValue(5)
+        spinbox_autolog.setWrapping(False)
+        spinbox_autolog.setCorrectionMode(QAbstractSpinBox.CorrectToNearestValue)
+        spinbox_autolog.setSuffix(' minutes')
+        spinbox_autolog.setToolTip("Set to 0 to stop autologging")
+        
+        button_log.clicked.connect(lambda x: self.writeLog(self.textbox_target.text(), textbox_log.toPlainText()))
+        button_log.clicked.connect(lambda x: self.writeTelescopeLog)
+        
+        autoLogTimer = QtCore.QTimer(self)
+        autoLogTimer.setInterval(spinbox_autolog.value()*1000*60)
+        def writeLog(): self.writeLog(self.textbox_target.text(), textbox_log.toPlainText())
+        autoLogTimer.timeout.connect(writeLog)
+        autoLogTimer.timeout.connect(self.writeTelescopeLog)
+        def changeAutoLogInterval(val):
+            if val<1: autoLogTimer.stop()
+            else: 
+                autoLogTimer.setInterval(val*1000*60)
+                autoLogTimer.start()
+        spinbox_autolog.valueChanged.connect(changeAutoLogInterval)
+        autoLogTimer.start()
+                
         
         #==================================
         # Image settings!
@@ -676,12 +765,53 @@ class MkidDashboard(QMainWindow):
         self.label_pixelInfo.setMaximumWidth(250)
         self.label_selectedPixValue = QLabel('Selected Pix : 0 #/s')
         self.label_selectedPixValue.setMaximumWidth(250)
+
         
+        #=============================================
+        # Laser control!
+        self.spinbox_laserTime = QDoubleSpinBox()
+        self.spinbox_laserTime.setRange(1,1800)
+        self.spinbox_laserTime.setValue(300)
+        self.spinbox_laserTime.setSuffix(' s')
+        self.spinbox_laserTime.setSingleStep(1.)
+        self.spinbox_laserTime.setWrapping(False)
+        self.spinbox_laserTime.setCorrectionMode(QAbstractSpinBox.CorrectToNearestValue)
+        self.spinbox_laserTime.setButtonSymbols(QAbstractSpinBox.NoButtons)
+        button_laserCal = QPushButton("Start Laser Cal")
+        
+        numLasers = self.config.getint('properties','numLasers')
+        self.checkbox_laser_list = []
+        for i in range(numLasers):
+            laserName = self.config.get('properties','laser'+str(i))
+            checkbox_laser = QCheckBox(laserName)
+            checkbox_laser.setChecked(False)
+            self.checkbox_laser_list.append(checkbox_laser)
+        
+        button_laserCal.clicked.connect(self.laserCalClicked)
+        
+        #================================================
+        # Layout on GUI
         
         vbox = QVBoxLayout()
         vbox.addWidget(label_currentTime)
-        vbox.addWidget(button_obs)
-        vbox.addWidget(button_stop)
+        vbox.addWidget(self.button_obs)
+        vbox.addWidget(self.button_stop)
+        
+        hbox_target = QHBoxLayout()
+        hbox_target.addWidget(label_target)
+        hbox_target.addWidget(self.textbox_target)
+        #hbox_target.addStretch()
+        vbox.addLayout(hbox_target)
+        
+        vbox.addWidget(textbox_log)
+        
+        hbox_log = QHBoxLayout()
+        hbox_log.addWidget(label_autolog)
+        hbox_log.addWidget(spinbox_autolog)
+        hbox_log.addStretch()
+        hbox_log.addWidget(button_log)
+        vbox.addLayout(hbox_log)
+
         vbox.addStretch()
         
         hbox_intTime = QHBoxLayout()
@@ -703,6 +833,13 @@ class MkidDashboard(QMainWindow):
         vbox.addWidget(self.label_selectedPixValue)
         
         vbox.addStretch()
+        
+        hbox_laser = QHBoxLayout()
+        hbox_laser.addWidget(self.spinbox_laserTime)
+        hbox_laser.addWidget(button_laserCal)
+        vbox.addLayout(hbox_laser)
+        for checkbox_laser in self.checkbox_laser_list:
+            vbox.addWidget(checkbox_laser)
         
         obs_widget.setLayout(vbox)
         obs_dock_widget.setWidget(obs_widget)
