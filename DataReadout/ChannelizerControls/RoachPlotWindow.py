@@ -421,7 +421,7 @@ class RoachSweepWindow(QMainWindow):
             nSteps = len(I[ch])
             loStep = self.config.getfloat('Roach '+str(self.roachNum),'sweeplostep')
             freqs = np.linspace(resFreq-loSpan/2., resFreq+loSpan/2., nSteps)
-            self.ax2.semilogy(freqs, np.sqrt(I[ch]**2 + Q[ch]**2),fmt,**kwargs)
+            #self.ax2.semilogy(freqs, np.sqrt(I[ch]**2 + Q[ch]**2),fmt,**kwargs)
             self.ax2.axvline(x=resFreq,color='r')
             
         self.ax.set_xlabel('I')
@@ -456,7 +456,8 @@ class RoachSweepWindow(QMainWindow):
         
         freqs = self.roach.roachController.freqList
         attens = self.roach.roachController.attenList
-        lofreq = self.roach.roachController.LOFreq
+        try: lofreq = self.roach.roachController.LOFreq
+        except: lofreq=0
         
         self.spinbox_channel.setRange(0,len(freqs)-1)
         self.label_freq.setText('Freq: '+str(freqs[ch]/1.e9)+' GHz')
@@ -470,9 +471,12 @@ class RoachSweepWindow(QMainWindow):
         freqs = self.roach.roachController.freqList
         attens = self.roach.roachController.attenList
         ch=self.spinbox_channel.value()
-        
+
         newFreq = float(self.textbox_modifyFreq.text())
         newAtten = self.spinbox_modifyAtten.value()
+        if newFreq!=freqs[ch]: self.resetRoach.emit(RoachStateMachine.LOADFREQ)
+        elif newAtten!= attens[ch]: self.resetRoach.emit(RoachStateMachine.DEFINEDACLUT)
+        
         freqs[ch] = newFreq     # This changes it in the Roach2Control object as well. That's what we want
         attens[ch] = newAtten
         self.channelsModified = self.channelsModified | set([ch])
@@ -580,7 +584,7 @@ class RoachSweepWindow(QMainWindow):
         self.button_modifyRes = QPushButton('Save Resonators')
         self.button_modifyRes.setEnabled(True)
         self.button_modifyRes.clicked.connect(self.saveResonator)
-        self.button_modifyRes.clicked.connect(lambda x: self.resetRoach.emit(RoachStateMachine.LOADFREQ))
+        #self.button_modifyRes.clicked.connect(lambda x: self.resetRoach.emit(RoachStateMachine.LOADFREQ))
 
         self.label_modifyFlag = QLabel('MODIFIED')
         self.label_modifyFlag.setStyleSheet('color: red')
@@ -591,7 +595,7 @@ class RoachSweepWindow(QMainWindow):
         spinbox_dacAttenStart = QDoubleSpinBox()
         spinbox_dacAttenStart.setValue(dacAttenStart)
         spinbox_dacAttenStart.setSuffix(' dB')
-        spinbox_dacAttenStart.setRange(0,31.75)
+        spinbox_dacAttenStart.setRange(0,31.75*2)   # There are 2 DAC attenuators
         spinbox_dacAttenStart.setToolTip("Rounded to the nearest 1/4 dB")
         spinbox_dacAttenStart.setSingleStep(1.)
         spinbox_dacAttenStart.setWrapping(False)
@@ -602,7 +606,7 @@ class RoachSweepWindow(QMainWindow):
         spinbox_dacAttenStop = QDoubleSpinBox()
         spinbox_dacAttenStop.setValue(dacAttenStop)
         spinbox_dacAttenStop.setSuffix(' dB')
-        spinbox_dacAttenStop.setRange(0,31.75)
+        spinbox_dacAttenStop.setRange(0,31.75*2)
         spinbox_dacAttenStop.setToolTip("Rounded to the nearest 1/4 dB")
         spinbox_dacAttenStop.setSingleStep(1.)
         spinbox_dacAttenStop.setWrapping(False)
@@ -613,7 +617,7 @@ class RoachSweepWindow(QMainWindow):
         spinbox_dacAttenStop.valueChanged.connect(partial(self.changedSetting,'dacatten_stop'))
         spinbox_dacAttenStop.valueChanged.connect(lambda x: spinbox_dacAttenStop.setValue(max(spinbox_dacAttenStart.value(),x)))       #Force stop value to be larger than start value
         
-        spinbox_dacAttenStart.valueChanged.connect(lambda x: self.resetRoach.emit(RoachStateMachine.LOADFREQ))      # reset roach to so that the new dac atten is loaded in next time we sweep
+        spinbox_dacAttenStart.valueChanged.connect(lambda x: self.resetRoach.emit(RoachStateMachine.DEFINEDACLUT))      # reset roach to so that the new dac atten is loaded in next time we sweep
         
         
         
@@ -628,7 +632,7 @@ class RoachSweepWindow(QMainWindow):
         spinbox_adcAtten.setWrapping(False)
         spinbox_adcAtten.setCorrectionMode(QAbstractSpinBox.CorrectToNearestValue)
         spinbox_adcAtten.valueChanged.connect(partial(self.changedSetting,'adcatten'))
-        spinbox_adcAtten.valueChanged.connect(lambda x: self.resetRoach.emit(RoachStateMachine.LOADFREQ))       # reset state of roach
+        spinbox_adcAtten.valueChanged.connect(lambda x: self.resetRoach.emit(RoachStateMachine.DEFINEDACLUT))       # reset state of roach
         
         loSpan = self.config.getfloat('Roach '+str(self.roachNum),'sweeplospan')
         label_loSpan = QLabel('LO Span [Hz]:')

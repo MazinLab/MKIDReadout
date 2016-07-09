@@ -114,31 +114,13 @@ class HighTemplar(QMainWindow):
             
         self.create_menu()
         
+        '''
         #Initialize by connecting to roaches over ethernet
         for i in range(self.numRoaches):
             colorStatus = self.roaches[i].addCommands(RoachStateMachine.CONNECT)        # add command to roach queue
             self.colorCommandButtons(self.roachNums[i],colorStatus)                              # color the command buttons appropriately
             #QtCore.QMetaObject.invokeMethod(roach, 'executeCommands', Qt.QueuedConnection)
             self.roachThreads[i].start()                                                # starting the thread automatically invokes the roach's executeCommand function
-        
-        '''
-        #Setup thread for each roach
-        self.roachThreads = []
-        for i in self.roachNums:
-
-        self.threadPool=[]
-        for i in self.roachNums:
-            thread=RoachThread(i)
-            self.connect(thread,thread.finishedCommandSignal,partial(self.catchRoachSignal,i))
-            self.connect(thread,thread.commandErrorSignal,partial(self.catchRoachError,i))
-            thread.setTerminationEnabled(False)
-            self.threadPool.append(thread)
-
-        #Initialize by connecting to roaches over ethernet
-        for i in range(len(self.threadPool)):
-            colorStatus = self.threadPool[i].roach.addCommands(RoachStateMachine.connect)        # add command to roach queue
-            self.colorCommandButtons(self.roachNums[i],colorStatus)                              # color the command buttons appropriately
-            self.threadPool[i].start()                                                           # start the RoachThreads so the command can be completed
         '''
         
     def test(self,roachNum,state):
@@ -182,6 +164,9 @@ class HighTemplar(QMainWindow):
         if command == RoachStateMachine.LOADFREQ:
             self.sweepWindows[roachArg].initFreqs()
             self.phaseWindows[roachArg].initFreqs()
+            
+        if command == RoachStateMachine.DEFINEROACHLUT:
+            self.sweepWindows[roachArg].initFreqs() # initialize LO freq
         
         if command == RoachStateMachine.SWEEP:
             self.sweepWindows[roachArg].plotData(commandData)
