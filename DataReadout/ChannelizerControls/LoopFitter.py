@@ -10,8 +10,15 @@ import numpy as np
 import scipy.linalg
 import matplotlib.pyplot as plt
 
-def LoopFitter(IData, QData, frequencyData):
-    print 'Skipping cable delay term, for now'
+def RemoveDelay(IData, QData, frequencyData, tau):
+    delayAngle = 2.0*np.pi*frequencyData*tau
+
+    IRemoved = IData*np.cos(delayAngle) - QData*np.sin(delayAngle)
+    QRemoved = IData*np.sin(delayAngle) + QData*np.cos(delayAngle)
+    
+    return IRemoved, QRemoved
+
+def LoopFitter(IData, QData):
 
     # Using the circle parameterization A(x^2 + y^2) + Bx + Cy + D = 0
     # Let w = x^2 + y^2
@@ -109,7 +116,7 @@ testFile = 'iqdata_jul_8_veruna_4.620303GHz.npz'
 testData = np.load(testFile)
 testI = testData['i']
 testQ = testData['q']
-testFrequencies = testData['freqs']
+testFrequencies = testData['freqs']*10.0**6
 
 
 # Synthetic circle test case, no cable delay
@@ -127,9 +134,21 @@ syntheticQData = syntheticQCenter + (np.sin(syntheticTheta) + syntheticError)
 #print 'Expected Q Center: ' + str(syntheticQCenter)
 
 #LoopFitter(syntheticIData, syntheticQData, syntheticFrequencyData)
-ICenter, QCenter, circleRadius = LoopFitter(testI, testQ, testFrequencies)
 
-plt.plot(testI, testQ, 'b.', ICenter, QCenter, 'ro')
+testTau = 40.0*10.0**-9
+
+print testFrequencies
+
+IRemoved, QRemoved = RemoveDelay(testI, testQ, testFrequencies, testTau)
+
+
+ICenter, QCenter, circleRadius = LoopFitter(testI, testQ)
+ICenterRemoved, QCenterRemoved, circleRadiusRemoved = LoopFitter(IRemoved, QRemoved)
+
+plt.plot(testI, testQ, 'b.', ICenter, QCenter, 'bo', IRemoved, QRemoved, 'r.', ICenterRemoved, QCenterRemoved, 'r.')
 plt.show()
+
+#plt.plot(testI, testQ, 'b.', ICenter, QCenter, 'ro')
+#plt.show()
 
 
