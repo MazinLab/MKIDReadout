@@ -114,14 +114,13 @@ class HighTemplar(QMainWindow):
             
         self.create_menu()
         
-        '''
+        
         #Initialize by connecting to roaches over ethernet
         for i in range(self.numRoaches):
             colorStatus = self.roaches[i].addCommands(RoachStateMachine.CONNECT)        # add command to roach queue
             self.colorCommandButtons(self.roachNums[i],colorStatus)                              # color the command buttons appropriately
             #QtCore.QMetaObject.invokeMethod(roach, 'executeCommands', Qt.QueuedConnection)
             self.roachThreads[i].start()                                                # starting the thread automatically invokes the roach's executeCommand function
-        '''
         
     def test(self,roachNum,state):
         print "Roach "+str(roachNum)+' - '+str(state)
@@ -170,6 +169,9 @@ class HighTemplar(QMainWindow):
         
         if command == RoachStateMachine.SWEEP:
             self.sweepWindows[roachArg].plotData(commandData)
+        
+        if command == RoachStateMachine.FIT:
+            self.sweepWindows[roachArg].plotData(commandData,fit=True)
         
         if command == RoachStateMachine.LOADTHRESHOLD:
             self.phaseWindows[roachArg].initThresh()

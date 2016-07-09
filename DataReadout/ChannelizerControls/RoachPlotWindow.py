@@ -379,10 +379,11 @@ class RoachSweepWindow(QMainWindow):
         
         self.create_main_frame()
 
-        self.channelsModified=set() #Remember which channels we've already modified but haven't reloaded into roach
-        self.dataList = []      #Save data from sweeps in memory
-        self.numData2Show = 4  #number of previous sweeps to show
-        self.maxDataListLength = 10 #maximum number of sweeps to save in memory
+        self.channelsModified=set()     # Remember which channels we've already modified but haven't reloaded into roach
+        self.dataList = []              # Save data from sweeps in memory
+        self.fitList = []               # Save fit data
+        self.numData2Show = 4           # number of previous sweeps to show
+        self.maxDataListLength = 10     # maximum number of sweeps to save in memory
 
         #self.counter = 0
 
@@ -392,15 +393,20 @@ class RoachSweepWindow(QMainWindow):
         if data is not None and not fit:
             self.appendData(data)
         if fit:
-            pass # plot center and angle from fit!
+            self.appendFit(data)
         if self.isVisible():
             self.makePlot(**kwargs)
             self.draw()
     
     def appendData(self,data):
         self.dataList.append(data)
+        self.fitList.append(None)
         if len(self.dataList) > self.maxDataListLength:
             self.dataList = self.dataList[-1*self.maxDataListLength:]
+            self.fitList = self.fitList[-1*self.maxDataListLength:]
+    
+    def appendFit(self,data):
+        self.fitList[-1] = data
 
     def makePlot(self, **kwargs):
         self.ax.clear()
@@ -414,15 +420,20 @@ class RoachSweepWindow(QMainWindow):
             kwargs['alpha']=1. if i==0 else .6 - 0.5*(i-1)/(numData2Show-1)
             fmt = 'b.-' if i==0 else 'c.-'
             self.ax.plot(I[ch], Q[ch], fmt,**kwargs)
-            
-            
+
             resFreq = self.roach.roachController.freqList[ch]
             loSpan = self.config.getfloat('Roach '+str(self.roachNum),'sweeplospan')
             nSteps = len(I[ch])
             loStep = self.config.getfloat('Roach '+str(self.roachNum),'sweeplostep')
             freqs = np.linspace(resFreq-loSpan/2., resFreq+loSpan/2., nSteps)
-            #self.ax2.semilogy(freqs, np.sqrt(I[ch]**2 + Q[ch]**2),fmt,**kwargs)
+            self.ax2.semilogy(freqs, np.sqrt(I[ch]**2 + Q[ch]**2),fmt,**kwargs)
             self.ax2.axvline(x=resFreq,color='r')
+            
+            if self.fitList[i] is not None:
+                centers = self.fitList[i]['centers']
+                iqOnRes = self.fitList[i]['iqOnRes']
+                self.ax.plot(centers[ch][0],centers[ch][1],'rx',**kwargs)
+                self.ax.plot(iqOnRes[ch][0]+centers[ch][0],iqOnRes[ch][1]+centers[ch][1],'ro',**kwargs)
             
         self.ax.set_xlabel('I')
         self.ax.set_ylabel('Q')
@@ -457,7 +468,7 @@ class RoachSweepWindow(QMainWindow):
         freqs = self.roach.roachController.freqList
         attens = self.roach.roachController.attenList
         try: lofreq = self.roach.roachController.LOFreq
-        except: lofreq=0
+        except AttributeError: lofreq=0
         
         self.spinbox_channel.setRange(0,len(freqs)-1)
         self.label_freq.setText('Freq: '+str(freqs[ch]/1.e9)+' GHz')
