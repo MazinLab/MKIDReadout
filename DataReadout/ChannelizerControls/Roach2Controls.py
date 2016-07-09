@@ -1086,7 +1086,7 @@ class Roach2Controls:
         d = datetime.datetime.today()
         filename = ('phase_dump_pixel_' + str(channel) + '_' + str(d.day) + '_' + str(d.month) + '_' + 
             str(d.year) + '_' + str(d.hour) + '_' + str(d.minute) + str('.bin'))
-        
+                
         if self.verbose:
             print 'host ' + host
             print 'port ' + str(port)
@@ -1115,6 +1115,8 @@ class Roach2Controls:
         frameData = ''
 
         dumpFile = open(filename, 'w')
+        
+        self.lastPhaseDumpFile = filename
         
         startTime = time.time()
         try:
@@ -1154,7 +1156,73 @@ class Roach2Controls:
         self.startPhaseStream(selChanIndex, pktsPerFrame, fabric_port, destIPID)
         self.recvPhaseStream(selChanIndex, duration, pktsPerFrame, '10.0.0.'+str(destIPID), fabric_port)
         self.stopStream()
+    
+    def parsePhaseStream(self, phaseDumpFile=None, pktsPerFrame=100)
+        if(phaseDumpFile == None):
+            try:
+                phaseDumpFile = self.lastPhaseDumpFile
+            except AttributeError:
+                print 'Specify a file or run takePhaseStreamData()'
         
+        with open(path,'r') as dumpFile:
+            data = dumpFile.read()
+
+        nBytes = len(data)
+        nWords = nBytes/8 #64 bit words
+        #break into 64 bit words
+        words = np.array(struct.unpack('>{:d}Q'.format(nWords), data),dtype=object)
+        #remove headers
+        words = np.delete(words,np.arange(0,len(words),pktsPerFrame))
+        nBitsPerPhase = 12
+        binPtPhase = 9
+        nPhasesPerWord = 5
+        #to parse out the 5 12-bit values, we'll shift down the bits we don't want for each value, then apply a bitmask to take out
+        #bits higher than the 12 we want
+        #The least significant bits in the word should be the earliest phase, so the first column should have zero bitshift
+        bitmask = int('1'*nBitsPerPhase,2)
+        bitshifts = nBitsPerPhase*np.arange(nPhasesPerWord)
+
+        #add an axis so we can broadcast
+        #and shift away the bits we don't keep for each row
+        print np.shape(words[:,np.newaxis]),words.dtype
+        print bitshifts
+        print words[0:10]
+        phases = (words[:,np.newaxis]) >> bitshifts
+        phases = phases & bitmask
+
+        #now we have a nWords x nPhasesPerWord array
+
+        #flatten so that the phases are in order
+        phases = phases.flatten(order='C')
+        phases = np.array(phases,dtype=np.uint64)
+        signBits = np.array(phases / (2**(nBitsPerPhase-1)),dtype=np.bool)
+        print signBits[0:10]
+
+        #check the sign bits to see what values should be negative
+        #for the ones that should be negative undo the 2's complement, and flip the sign
+        phases[signBits] = ((~phases[signBits]) & bitmask)+1
+        phases = np.array(phases,dtype=np.double)
+        phases[signBits] = -phases[signBits]
+        #now shift down to the binary point
+        phases = phases / 2**binPtPhase
+
+        #convert from radians to degrees
+        phases = 180./np.pi * phases
+        plt.plot(phases[-2**15:],'.-')
+
+        # photonPeriod = 4096 #timesteps (us)
+
+        # #fold it and make sure we have the same phases every time
+        # nPhotons = len(phases)//photonPeriod
+        # phases = phases[0:(nPhotons*photonPeriod)].reshape((-1,photonPeriod))
+        # disagreement = (phases[1:] - phases[0])
+        # print 'discrepancies:',np.sum(disagreement)
+
+        # np.save
+
+        plt.show()
+
+    
     def performIQSweep(self,startLOFreq,stopLOFreq,stepLOFreq):
         """
         Performs a sweep over the LO frequency.  Records 
