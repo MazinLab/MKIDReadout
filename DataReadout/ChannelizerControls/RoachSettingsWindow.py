@@ -121,7 +121,7 @@ class RoachSettingsTab(QMainWindow):
         self.spinbox_ddsSyncLag.setRange(0,2**10)
         self.spinbox_ddsSyncLag.setValue(ddsSyncLag)
         self.spinbox_ddsSyncLag.valueChanged.connect(partial(self.changedSetting,'ddsSyncLag'))
-        self.spinbox_ddsSyncLag.valueChanged.connect(lambda x: self.resetRoach.emit(-1))      # reset roach state if ipAddress changes
+        #self.spinbox_ddsSyncLag.valueChanged.connect(lambda x: self.resetRoach.emit(-1))      # reset roach state if ipAddress changes
         add2layout(vbox,self.label_ddsSyncLag,self.spinbox_ddsSyncLag)
         
         freqFile = self.config.get('Roach '+str(self.roachNum),'freqFile')
@@ -141,7 +141,7 @@ class RoachSettingsTab(QMainWindow):
         self.textbox_lofreq.setMinimumWidth(150)
         #self.textbox_lofreq.textChanged.connect(partial(self.changedSetting,'lo_freq'))    # This just saves whatever string you type in
         self.textbox_lofreq.textChanged.connect(lambda x: self.changedSetting('lo_freq',"%.9e" % float(x)))
-        self.textbox_lofreq.textChanged.connect(lambda x: self.resetRoach.emit(RoachStateMachine.LOADFREQ))
+        self.textbox_lofreq.textChanged.connect(lambda x: self.resetRoach.emit(RoachStateMachine.DEFINEROACHLUT))
         add2layout(vbox,self.label_lofreq,self.textbox_lofreq)
 
         vbox.addStretch()

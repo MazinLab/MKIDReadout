@@ -26,7 +26,7 @@ class RoachStateMachine(QtCore.QObject):        #Extends QObject for use with QT
     Commands are encoded as ints and loaded into a queue. The RoachThread pops the command and tells the RoachStateMachine to execute it.
     
     The 'state' attribute contains information about the state of the roach for each command.
-    For example. self.state=[2, 2, 1, 1, 0, 0, 0, 0] means that the roach succesfully completed connect, loadFreq commands, and is currently working on DefineLUT and sweep. 
+    For example. self.state=[2, 2, 1, 1, 0, 0, 0, 0] means that the roach succesfully completed connect, loadFreq commands, and is currently working on DefineRoachLUT and DefineDacLUT. 
     State enums are class variables
         0 - UNDEFINED
         1 - INPROGRESS
@@ -51,17 +51,16 @@ class RoachStateMachine(QtCore.QObject):        #Extends QObject for use with QT
     
     #NUMCOMMANDS = 8
     #CONNECT,LOADFREQ,DEFINELUT,SWEEP,ROTATE,CENTER,LOADFIR,LOADTHRESHOLD = range(NUMCOMMANDS)
-    NUMCOMMANDS = 7
-    CONNECT,LOADFREQ,DEFINELUT,SWEEP,FIT,LOADFIR,LOADTHRESHOLD = range(NUMCOMMANDS)
+    NUMCOMMANDS = 8
+    CONNECT,LOADFREQ,DEFINEROACHLUT,DEFINEDACLUT,SWEEP,FIT,LOADFIR,LOADTHRESHOLD = range(NUMCOMMANDS)
     NUMSTATES = 4
     UNDEFINED, INPROGRESS, COMPLETED, ERROR = range(NUMSTATES)
     
     @staticmethod
     def parseCommand(command):
         #commandsString=['Connect','Load Freqs','Define LUTs','Sweep','Rotate','Center','Load FIRs','Load Thresholds']
-        commandsString=['Connect','Read Freqs','Define LUTs','Sweep','Fit Loops','Load FIRs','Load Thresholds']
-        if command < 0:
-            return 'Reset'
+        commandsString=['Connect','Read Freqs','Define Roach LUTs','Define DAC LUTs','Sweep','Fit Loops','Load FIRs','Load Thresholds']
+        if command < 0: return 'Reset'
         return commandsString[command]
     @staticmethod
     def parseState(state):
@@ -158,8 +157,8 @@ class RoachStateMachine(QtCore.QObject):        #Extends QObject for use with QT
             return nextState
         
         if _n==0 and command == RoachStateMachine.LOADFIR:  #Special case
-            # loading FIRs only requires connect, loadFreqs, and defineLUTs
-            nextState[:RoachStateMachine.DEFINELUT+1] = self.getNextState(RoachStateMachine.DEFINELUT,_n+1)[:RoachStateMachine.DEFINELUT+1]
+            # loading FIRs only requires connect and loadFreqs
+            nextState[:RoachStateMachine.LOADFREQ+1] = self.getNextState(RoachStateMachine.LOADFREQ,_n+1)[:RoachStateMachine.LOADFREQ+1]
         else:
             # Everything else requires all lower commands be completed
             nextState[:command] = self.getNextState(command-1,_n+1)[:command]
@@ -178,6 +177,7 @@ class RoachStateMachine(QtCore.QObject):        #Extends QObject for use with QT
         """
         print "Resetting r"+str(self.num)+' to '+RoachStateMachine.parseCommand(command)
         self.state = self.getNextState(command)
+        self.state[np.where(self.state==RoachStateMachine.INPROGRESS)]=RoachStateMachine.UNDEFINED
         self.state[command]=RoachStateMachine.UNDEFINED
         self.reset.emit(self.state)
         self.finished.emit()
@@ -217,42 +217,50 @@ class RoachStateMachine(QtCore.QObject):        #Extends QObject for use with QT
     
     def loadFreq(self):
         '''
-        Calculates everything we need to load into the LUTs on the Roach and ADC/DAC board
+        Loads the resonator freq files (and attenuations)
+        divides the resonators into streams
         '''
-        loFreq = int(self.config.getfloat('Roach '+str(self.num),'lo_freq'))
-        self.roachController.setLOFreq(loFreq)
-        
         fn = self.config.get('Roach '+str(self.num),'freqfile')
         fn2=fn.rsplit('.',1)[0]+'_NEW.'+ fn.rsplit('.',1)[1]         # Check if ps_freq#_NEW.txt exists
         if os.path.isfile(fn2): fn=fn2
         freqs, attens = np.loadtxt(fn,unpack=True)
+        freqs = np.atleast_1d(freqs)       # If there's only 1 resonator numpy loads it in as a float.
+        attens = np.atleast_1d(attens)     # We need an array of floats
         
         self.roachController.generateResonatorChannels(freqs)
-        self.roachController.generateFftChanSelection()
-        
-        dacAtten = self.config.getfloat('Roach '+str(self.num),'dacatten_start')
-        self.roachController.generateDacComb(resAttenList=attens,globalDacAtten=dacAtten)
-        self.roachController.generateDdsTones()
-        
+        self.roachController.attenList = attens
+
         return True
+    
+    def defineRoachLUTs(self):
+        '''
+        Defines LO Freq but doesn't load it yet
+        Defines and loads channel selection blocks
+        Defines and loads DDS LUTs
         
-    def defineLUTs(self):
+        writing the QDR takes a long time! :-(
         '''
-        Loads values into ROACH2, ADC/DAC, and IF boards
-            DAC atten 1, 2
-            ADC atten
-            lo freq
-            DAC LUT
-            DDS LUT
+        loFreq = int(self.config.getfloat('Roach '+str(self.num),'lo_freq'))
+        self.roachController.setLOFreq(loFreq)
+        self.roachController.generateFftChanSelection()
+        self.roachController.generateDdsTones()
+        self.roachController.loadChanSelection()
+        self.roachController.loadDdsLUT()
+    
+    def defineDacLUTs(self):
         '''
+        Defines and loads DAC comb
+        Loads LO Freq
+        Loads DAC attens 1, 2
+        Loads ADC attens 1, 2
+        '''
+
         adcAtten = self.config.getfloat('Roach '+str(self.num),'adcatten')
         dacAtten = self.config.getfloat('Roach '+str(self.num),'dacatten_start')
         dacAtten1 = np.floor(dacAtten*2)/4.
         dacAtten2 = np.ceil(dacAtten*2)/4.
-        
 
-        self.roachController.loadChanSelection()
-        self.roachController.loadDdsLUT()
+        self.roachController.generateDacComb(globalDacAtten=dacAtten)
         
         print "Initializing ADC/DAC board communication"
         self.roachController.initializeV7UART()
@@ -282,8 +290,8 @@ class RoachStateMachine(QtCore.QObject):        #Extends QObject for use with QT
         stop_DACAtten = self.config.getfloat('Roach '+str(self.num),'dacatten_stop')
         
         powerSweepFile = self.config.get('Roach '+str(self.num),'powersweepfile')
-        powerSweepFile = powerSweepFile.rsplit['.',1][0]+'_'+time.strftime("%Y%m%d-%H%M%S",time.localtime())+'.'+powerSweepFile.rsplit['.',1][1]
-        for dacAtten in range(start_DACAtten, stop_DACAtten+1):
+        powerSweepFile = powerSweepFile.rsplit('.',1)[0]+'_'+time.strftime("%Y%m%d-%H%M%S",time.localtime())+'.'+powerSweepFile.rsplit('.',1)[1]
+        for dacAtten in np.arange(start_DACAtten, stop_DACAtten+1):
             if stop_DACAtten > start_DACAtten:
                 dacAtten1 = np.floor(dacAtten*2)/4.
                 dacAtten2 = np.ceil(dacAtten*2)/4.
@@ -376,11 +384,11 @@ class RoachStateMachine(QtCore.QObject):        #Extends QObject for use with QT
         I_centers = (np.amax(self.I_data,1) + np.amin(self.I_data,1))/2.
         Q_centers = (np.amax(self.Q_data,1) + np.amin(self.Q_data,1))/2.
         
-        self.centers = np.transpose(I_centers.flatten(), Q_centers.flatten())
+        self.centers = np.transpose([I_centers.flatten(), Q_centers.flatten()])
         
     def loadFIRs(self):
         firCoeffFile = self.config.get('Roach '+str(self.num),'fircoefffile')
-        #self.roachController.loadFIRCoeffs(firCoeffFile)
+        self.roachController.loadFIRCoeffs(firCoeffFile)
         return True
     
     def loadThreshold(self):
@@ -420,8 +428,10 @@ class RoachStateMachine(QtCore.QObject):        #Extends QObject for use with QT
                 returnData = self.connect()
             elif command == RoachStateMachine.LOADFREQ:
                 returnData = self.loadFreq()
-            elif command == RoachStateMachine.DEFINELUT:
-                returnData = self.defineLUTs()
+            elif command == RoachStateMachine.DEFINEROACHLUT:
+                returnData = self.defineRoachLUTs()
+            elif command == RoachStateMachine.DEFINEDACLUT:
+                returnData = self.defineDacLUTs()
             elif command == RoachStateMachine.SWEEP:
                 returnData = self.sweep()
             elif command == RoachStateMachine.FIT:

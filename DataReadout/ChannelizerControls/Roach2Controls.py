@@ -659,10 +659,10 @@ class Roach2Controls:
             freqList = freqList[:self.params['nChannels']]
         freqList = np.ravel(freqList).flatten()
         if resAttenList is None:
-            warnings.warn("Individual resonator attenuations assumed to be 20")
-            resAttenList=np.zeros(len(freqList))+20
-        try: len(resAttenList)
-        except: resAttenList=[resAttenList]
+            try: resAttenList = self.attenList
+            except AttributeError: 
+                warnings.warn("Individual resonator attenuations assumed to be 20")
+                resAttenList=np.zeros(len(freqList))+20
         if len(resAttenList)>self.params['nChannels']:
             warnings.warn("Too many attenuations provided. Can only accommodate "+str(self.params['nChannels'])+" resonators")
             resAttenList = resAttenList[:self.params['nChannels']]
@@ -838,8 +838,6 @@ class Roach2Controls:
             args,__,__,defaults = inspect.getargspec(Roach2Controls.generateResonatorChannels)
             order = defaults[args.index('order')-len(args)]
             if self.verbose: print "Invalid 'order' parameter for generateResonatorChannels(). Changed to default: "+str(order)
-        try: len(freqList)
-        except: freqList=[freqList]
         if len(np.array(freqList))>self.params['nChannels']:
             warnings.warn("Too many freqs provided. Can only accommodate "+str(self.params['nChannels'])+" resonators")
             freqList = freqList[:self.params['nChannels']]
@@ -1247,7 +1245,6 @@ class Roach2Controls:
                      Get one per stream (4 streams for all thousand resonators)
                      Formatted using formatIQSweepData then stored in self.iqSweepData
         """
-        
         LOFreqs = np.arange(startLOFreq, stopLOFreq, stepLOFreq)
         iqData = np.empty([4,0])
         iqPt = np.empty([4,self.params['nChannelsPerStream']*4])
@@ -1276,7 +1273,7 @@ class Roach2Controls:
             self.fpga.write_int(self.params['iqSnpStart_reg'],0)
             sweepCnt += 1
         
-        self.loadLOFreq()
+        self.loadLOFreq()   # reloads initial lo freq
         self.iqSweepData = self.formatIQSweepData(iqData)
         #self.iqSweepData = iqData
         return self.iqSweepData
