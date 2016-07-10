@@ -7,9 +7,83 @@ This class grabs info from the Palomar telescope
 from socket import *
 import time
 import datetime
+from PyQt4 import QtGui
+from PyQt4.QtGui import *
+from PyQt4 import QtCore
 import ephem
 #from lib.getSeeing import getPalomarSeeing  # From old SDR code
 from getSeeing import getPalomarSeeing  # From old SDR code
+
+class TelescopeWindow(QMainWindow):
+    
+    def __init__(self, telescope, parent=None):
+        """
+        INPUTES:
+            telescope - Telescope object
+        """
+        super(QMainWindow, self).__init__(parent)
+        self.setWindowTitle("Palomar Telescope")
+        self._want_to_close = False
+        self.telescope = telescope
+        self.create_main_frame()
+        updater = QtCore.QTimer(self)
+        updater.setInterval(1003)
+        updater.timeout.connect(self.updateTelescopeInfo)
+        updater.start()
+    
+    def updateTelescopeInfo(self, target='sky'):
+        if not self.isVisible():
+            return
+        tel_dict = self.telescope.get_telescope_position()
+        for key in tel_dict.keys():
+            try:
+                self.label_dict[key].setText(str(tel_dict[key]))
+            except:
+                layout = self.main_frame.layout()
+                label = QLabel(key)
+                label_val = QLabel(str(tel_dict[key]))
+                hbox = QHBoxLayout()
+                hbox.addWidget(label)
+                hbox.addWidget(label_val)
+                layout.addLayout(hbox)
+                self.main_frame.setLayout(layout)
+                self.label_dict[key] = label_val
+    
+    def create_main_frame(self):
+        self.main_frame = QWidget()
+        vbox = QVBoxLayout()
+        
+        def add2layout(vbox, *args):
+            hbox = QHBoxLayout()
+            for arg in args:
+                hbox.addWidget(arg)
+            vbox.addLayout(hbox)
+        
+        label_telescopeStatus = QLabel('Telescope Status')
+        font = label_telescopeStatus.font()
+        font.setPointSize(24)
+        label_telescopeStatus.setFont(font)
+        vbox.addWidget(label_telescopeStatus)
+        
+        tel_dict = self.telescope.get_telescope_position()
+        self.label_dict={}
+        for key in tel_dict.keys():
+            label = QLabel(key)
+            label.setMaximumWidth(150)
+            label_val = QLabel(str(tel_dict[key]))
+            label_val.setMaximumWidth(150)
+            add2layout(vbox,label,label_val)
+            self.label_dict[key] = label_val
+        
+        self.main_frame.setLayout(vbox)
+        self.setCentralWidget(self.main_frame)
+    
+    def closeEvent(self, event):
+        if self._want_to_close:
+            self.close()
+        else:
+            self.hide()
+        
 
 class Telescope():
 
@@ -19,7 +93,7 @@ class Telescope():
         self.client_socket = socket(AF_INET, SOCK_STREAM) #Set Up the Socket
         
         #Palomar's position
-        observatory = "Palomar"
+        self.observatory = 'Palomar 200" Hale Telescope'
         self.lat = 33.0 + 21.0/60.0 + 21.6/3600.0
         self.lon = 116.0 + 51.0/60.0 + 46.8/3600.0
         self.latStr = '33.0:21.0:21.6'
@@ -31,6 +105,7 @@ class Telescope():
         telescopeDict.update(self.get_telescope_status())
         telescopeDict.update(self.get_parallactic())
         telescopeDict.update(self.get_seeing())
+        telescopeDict.update({'telescope':self.observatory, 'obslat':self.lat, 'obslon':self.lon, 'obsalt':self.elevation})
         return telescopeDict
 
     def sendTelescopeCommand(self, command):

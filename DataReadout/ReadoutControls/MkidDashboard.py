@@ -20,6 +20,7 @@ This is a GUI class for real time control of the DARKNESS instrument.
  
 import os, sys, time, struct, traceback
 from functools import partial
+import subprocess
 import numpy as np
 import ConfigParser
 from PyQt4 import QtCore
@@ -28,7 +29,7 @@ from PyQt4 import QtGui
 from PyQt4.QtGui import *
 from PixelTimestreamWindow import PixelTimestreamWindow
 from LaserControl import LaserControl
-from Telescope import Telescope
+from Telescope import *
 
 class ImageSearcher(QtCore.QObject):     #Extends QObject for use with QThreads
     """
@@ -243,6 +244,7 @@ class MkidDashboard(QMainWindow):
         telescopePort=self.config.get('properties','telescopePort')
         telescopeReceivePort = self.config.get('properties','telescopeReceivePort')
         self.telescopeController = Telescope(telescopeIP,telescopePort,telescopeReceivePort)
+        self.telescopeWindow = TelescopeWindow(self.telescopeController)
         
         #Setup GUI
         super(QMainWindow, self).__init__(parent)
@@ -265,8 +267,16 @@ class MkidDashboard(QMainWindow):
         thread.started.connect(darkImageSearcher.checkDir)
         darkImageSearcher.imageFound.connect(self.convertImage)
         darkImageSearcher.finished.connect(thread.quit)
-        QtCore.QTimer.singleShot(1000,self.threadPool[0].start) #start the thread after a second
+        QtCore.QTimer.singleShot(10,self.threadPool[0].start) #start the thread after a second
         
+        # Start PacketMaster2
+        packetMaster_path=self.config.get('properties','packetMaster_path')
+        packetMasterLog_path = self.config.get('properties','packetMasterLog_path')
+        #command = "sudo nice -n -10 %s >> %s"%(packetMaster_path, packetMasterLog_path)
+        command = "%s >> %s"%(packetMaster_path, packetMasterLog_path)
+        print command
+        QtCore.QTimer.singleShot(50,partial(subprocess.Popen,command,shell=True))
+
         
     def appendImage(self,image):
         """
@@ -595,6 +605,13 @@ class MkidDashboard(QMainWindow):
             self.button_obs.setEnabled(False)
             self.button_stop.setEnabled(True)
             print "Starting Obs"
+            
+            data_path = self.config.get('properties','data_dir')
+            start_file_loc = self.config.get('properties','cuber_ramdisk')
+            f=open(start_file_loc+'/START','w')
+            f.write(data_path)
+            f.close()
+            
             #Need switch Firmware into photon collect mode
             #wait 1 ms, then write START file to RAM disk
 
@@ -609,6 +626,10 @@ class MkidDashboard(QMainWindow):
         if self.observing:
             self.observing=False
             print "Stop Obs"
+            
+            stop_file_loc = self.config.get('properties','cuber_ramdisk')
+            f=open(stop_file_loc+'/STOP','w')
+            f.close()
             #Need to switch Firmware out of photon collect mode
             #wait 1 ms
             self.button_obs.setEnabled(True)
@@ -657,6 +678,19 @@ class MkidDashboard(QMainWindow):
             f.write('\n')
         f.close()
     
+    def moveLogFiles(self):
+        '''
+        When we're done, move any log files in the ramdisk over to the data directory
+        We write log files to ram disk when we're collecting data so we don't slow down the hard disk writes
+        '''
+        ramdiskLog_path = self.config.get('properties','log_ramdisk')
+        log_path = self.config.get('properties','log_dir')
+        
+        command = 'mv %s*.log %s'%(ramdiskLog_path, log_path)
+        print command
+        proc = subprocess.Popen(command,shell=True)
+        proc.wait()
+    
     def create_dock_widget(self):
         """
         Add buttons and controls
@@ -672,6 +706,13 @@ class MkidDashboard(QMainWindow):
         def updateCurrentTime(): label_currentTime.setText("UTC: "+str(time.time()))
         getCurrentTime.timeout.connect(updateCurrentTime)
         getCurrentTime.start()
+        # Mkid data directory
+        label_dataDir = QLabel('Data Dir:')
+        dataDir = self.config.get('properties','data_dir')
+        textbox_dataDir = QLineEdit()
+        textbox_dataDir.setText(dataDir)
+        textbox_dataDir.textChanged.connect(partial(self.changedSetting,'data_dir'))
+        textbox_dataDir.setEnabled(False)
         # Start observing button
         self.button_obs = QPushButton("Start Observing")
         font = self.button_obs.font()
@@ -794,6 +835,10 @@ class MkidDashboard(QMainWindow):
         
         vbox = QVBoxLayout()
         vbox.addWidget(label_currentTime)
+        hbox_dataDir = QHBoxLayout()
+        hbox_dataDir.addWidget(label_dataDir)
+        hbox_dataDir.addWidget(textbox_dataDir)
+        vbox.addLayout(hbox_dataDir)
         vbox.addWidget(self.button_obs)
         vbox.addWidget(self.button_stop)
         
@@ -897,7 +942,8 @@ class MkidDashboard(QMainWindow):
     def create_menu(self):        
         self.file_menu = self.menuBar().addMenu("&File")
         quit_action = self.create_action("&Quit", slot=self.close,shortcut="Ctrl+Q", tip="Close the application")
-        self.add_actions(self.file_menu, (None, quit_action))
+        telescope_action = self.create_action("&Telescope Info", slot=self.telescopeWindow.show,shortcut="Ctrl+T", tip="Show Telescope Info")
+        self.add_actions(self.file_menu, (telescope_action,None, quit_action))
 
         self.help_menu = self.menuBar().addMenu("&Help")
         about_action = self.create_action("&About", shortcut='F1',slot=self.on_about, tip='About the demo')
@@ -950,13 +996,22 @@ class MkidDashboard(QMainWindow):
         print 'setting ',settingID,' to ',newSetting
         
     def closeEvent(self, event):
-        self.stopObs()                  # Make sure we send packetmaster the quit signal!
+        self.stopObs()                  # send packetmaster the stop signal just in case
+        quit_file_loc = self.config.get('properties','cuber_ramdisk')
+        f=open(quit_file_loc+'/QUIT','w')
+        f.close()
         self.workers[0].search=False    # stop searching for new images
         del self.grPixMap               # Get segfault if we don't delete this. Something about signals in the queue trying to access deleted objects...
         for thread in self.threadPool:  # They should all be done at this point, but just in case
             thread.quit()
         for window in self.timeStreamWindows:
             window.close()
+        self.telescopeWindow._want_to_close=True
+        self.telescopeWindow.close()
+        
+        self.moveLogFiles()             # Move any log files in the ramdisk to the hard drive
+        
+        
         QtCore.QCoreApplication.instance().quit()
 
 def main():
