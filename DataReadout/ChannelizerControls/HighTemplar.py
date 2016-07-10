@@ -71,7 +71,11 @@ class HighTemplar(QMainWindow):
         self.setWindowTitle('High Templar Resonator Setup')
         #self.create_status_bar()
         
-        
+        #Setup Settings window
+        self.settingsWindow = RoachSettingsWindow(self.roachNums, self.config, parent=None) # keep parent None for now
+        self.settingsWindow.resetRoach.connect(self.resetRoachState)
+        self.settingsWindow.setDdsShift.connect(self.setDdsShift)
+        self.settingsWindow.initTemplar.connect(self.initTemplar)
         
         #Setup RoachStateMachine and threads for each roach
         self.roaches = []
@@ -91,11 +95,11 @@ class HighTemplar(QMainWindow):
             #self.destroyed.connect(self.roach.deleteLater)
             roach.reset.connect(partial(self.colorCommandButtons,i))
             
+            roach.ddsShift.connect(partial(self.settingsWindow.ddsShiftLoaded,i))
+            
 
         
-        #Create sub windows
-        self.settingsWindow = RoachSettingsWindow(self.roachNums, self.config, parent=None) # keep parent None for now
-        self.settingsWindow.resetRoach.connect(self.resetRoachState)
+        #Create plot windows
         self.sweepWindows=[]
         for roach_i in self.roaches:
             window = RoachSweepWindow(roach_i,self.config)
@@ -107,8 +111,10 @@ class HighTemplar(QMainWindow):
         for roach_i in self.roaches:
             window=RoachPhaseStreamWindow(roach_i,self.config)
             window.thresholdClicked.connect(partial(self.commandButtonClicked, [roach_i.num] , RoachStateMachine.LOADTHRESHOLD))
-            window.phaseSnapClicked.connect(partial(self.commandButtonClicked, [roach_i.num] , RoachStateMachine.LOADTHRESHOLD+1))
-            window.phaseTimestreamClicked.connect(partial(self.commandButtonClicked, [roach_i.num] , RoachStateMachine.LOADTHRESHOLD+1))
+            #window.phaseSnapClicked.connect(partial(self.commandButtonClicked, [roach_i.num] , RoachStateMachine.LOADTHRESHOLD+1))
+            #window.phaseTimestreamClicked.connect(partial(self.commandButtonClicked, [roach_i.num] , RoachStateMachine.LOADTHRESHOLD+1))
+            window.phaseSnapClicked.connect(partial(self.commandButtonClicked, [roach_i.num]))          # we don't need to loadthresholds before taking a snapshot
+            window.phaseTimestreamClicked.connect(partial(self.commandButtonClicked, [roach_i.num]))
             window.resetRoach.connect(partial(self.resetRoachState, roach_i.num))
             self.phaseWindows.append(window)
             
@@ -174,7 +180,7 @@ class HighTemplar(QMainWindow):
             self.sweepWindows[roachArg].plotData(commandData,fit=True)
         
         if command == RoachStateMachine.LOADTHRESHOLD:
-            self.phaseWindows[roachArg].initThresh()
+            self.phaseWindows[roachArg].appendThresh(commandData)
 
     def resetRoachState(self,roachNum,command):
         roachArg = np.where(np.asarray(self.roachNums) == roachNum)[0][0]
@@ -182,7 +188,19 @@ class HighTemplar(QMainWindow):
                                         QtCore.Q_ARG(int, command))
         self.roachThreads[roachArg].start()
     
-    def commandButtonClicked(self, roachNums, command):
+    def setDdsShift(self, roachNum, ddsShift=None):
+        roachArg = np.where(np.asarray(self.roachNums) == roachNum)[0][0]
+        QtCore.QMetaObject.invokeMethod(self.roaches[roachArg], 'loadDdsShift', Qt.QueuedConnection,
+                                        QtCore.Q_ARG(int, ddsShift))
+        self.roachThreads[roachArg].start()
+    
+    def initTemplar(self, roachNum, state):
+        roachArg = np.where(np.asarray(self.roachNums) == roachNum)[0][0]
+        QtCore.QMetaObject.invokeMethod(self.roaches[roachArg], 'initializeToState', Qt.QueuedConnection,
+                                        QtCore.Q_ARG(object, state))
+        self.roachThreads[roachArg].start()
+    
+    def commandButtonClicked(self, roachNums, command=None):
         """
         This function is executed when a command button is clicked. 
         
@@ -198,6 +216,8 @@ class HighTemplar(QMainWindow):
             #if self.threadPool[roachArg].isRunning():
             if self.roachThreads[roachArg].isRunning():
                 print 'Roach '+str(roach_i)+' is busy'
+            elif command is None:
+                self.roachThreads[roachArg].start()
             else: 
                 #colorStatus = self.threadPool[roachArg].roach.addCommands(source.command)        # add command to roach queue
                 colorStatus = self.roaches[roachArg].addCommands(command)        # add command to roach queue
@@ -252,7 +272,7 @@ class HighTemplar(QMainWindow):
             source - the button object clicked
             point - the customContextMenuRequested() SIGNAL passes a QPoint argument specifying the location in the button that was clicked
         """
-        print 'here: ',point
+        #print 'here: ',point
         #source = self.sender()
         print 'openMenu for roach: ',roachNums,' Command: ',RoachStateMachine.parseCommand(command)
         

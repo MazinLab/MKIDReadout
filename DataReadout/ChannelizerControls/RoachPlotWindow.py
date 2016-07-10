@@ -57,6 +57,7 @@ class RoachPhaseStreamWindow(QMainWindow):
         
         self.snapDataList = []
         self.phaseNoiseDataList = []
+        self.thresholdDataList = []
 
         
         self.roach.snapPhase.connect(self.plotSnap)
@@ -80,14 +81,26 @@ class RoachPhaseStreamWindow(QMainWindow):
     def initThresh(self):
         """
         After we've loaded the thresholds we can show them
+        Also everytime we change the channel we need to replot
         """
         try:
             ch=self.spinbox_channel.value()
-            thresh = self.roach.roachController.thresholds[ch]
+            #thresh = self.roach.roachController.thresholds[ch]
+            thresh = self.thresholdDataList[ch]
             self.label_thresh.setText('Threshold: '+str(thresh)+' deg')
             self.plotSnap()
-        except AttributeError:
+        except:
             pass
+    
+    def appendThresh(self, thresholds):
+        '''
+        This function is called whenever the roach finishes a load threshold command
+        
+        INPUTS:
+            thresholds - [nFreqs, 1] list of thresholds for each channel in radians
+        '''
+        self.thresholdDataList = thresholds
+        self.initThresh()
     
     def plotPhaseNoise(self,ch=None, data=None,**kwargs):
         #self.spinbox_channel.setEnabled(False)
@@ -169,10 +182,12 @@ class RoachPhaseStreamWindow(QMainWindow):
             self.label_median.setText('Median: '+str(median)+' deg')
             self.ax2.axhline(y=median,color='k')
             try:
-                thresh = self.roach.roachController.thresholds[ch]*180./np.pi
-                self.ax2.axhline(y=median-thresh,color='r')
-                #self.ax2.axhline(y=median+thresh,color='r')
-            except AttributeError:
+                #thresh = self.roach.roachController.thresholds[ch]*180./np.pi
+                thresh = self.thresholdDataList[ch]
+                thresh*=180./np.pi
+                #self.ax2.axhline(y=median-thresh,color='r')
+                self.ax2.axhline(y=median+thresh,color='r')
+            except:
                 pass
         self.ax2.set_xlabel('Time [us]')
         self.ax2.set_ylabel('Phase [deg]')
@@ -294,15 +309,11 @@ class RoachPhaseStreamWindow(QMainWindow):
         hbox_ch = QHBoxLayout()
         hbox_ch.addWidget(label_channel)
         hbox_ch.addWidget(self.spinbox_channel)
-        
-        vbox_res = QVBoxLayout()
-        vbox_res.addStretch()
-        vbox_res.addLayout(hbox_ch)
-        vbox_res.addWidget(self.label_freq)
-        vbox_res.addWidget(self.label_thresh)
-        vbox_res.addWidget(self.label_median)
-        vbox_res.addWidget(button_snapPhase)
-        vbox_res.addStretch()
+        hbox_ch.addWidget(self.label_freq)
+        hbox_ch.addWidget(self.label_thresh)
+        hbox_ch.addWidget(self.label_median)
+        hbox_ch.addWidget(button_snapPhase)
+        hbox_ch.addStretch()
         
         hbox_thresh = QHBoxLayout()
         hbox_thresh.addWidget(spinbox_numSnapsThresh)
@@ -315,12 +326,9 @@ class RoachPhaseStreamWindow(QMainWindow):
         hbox_phaseTimestream.addWidget(button_longSnap)
         hbox_phaseTimestream.addStretch()
         
-        hbox1 = QHBoxLayout()
-        hbox1.addLayout(vbox_plot)
-        hbox1.addLayout(vbox_res)
-        
         vbox1 = QVBoxLayout()
-        vbox1.addLayout(hbox1)
+        vbox1.addLayout(vbox_plot)
+        vbox1.addLayout(hbox_ch)
         vbox1.addLayout(hbox_thresh)
         vbox1.addLayout(hbox_phaseTimestream)
         
@@ -426,7 +434,10 @@ class RoachSweepWindow(QMainWindow):
             nSteps = len(I[ch])
             loStep = self.config.getfloat('Roach '+str(self.roachNum),'sweeplostep')
             freqs = np.linspace(resFreq-loSpan/2., resFreq+loSpan/2., nSteps)
-            self.ax2.semilogy(freqs, np.sqrt(I[ch]**2 + Q[ch]**2),fmt,**kwargs)
+            try:
+                self.ax2.semilogy(freqs, np.sqrt(I[ch]**2 + Q[ch]**2),fmt,**kwargs)
+            except:
+                print 'Couldn\'t make transmission log plot'
             self.ax2.axvline(x=resFreq,color='r')
             
             if self.fitList[i] is not None:
@@ -434,6 +445,7 @@ class RoachSweepWindow(QMainWindow):
                 iqOnRes = self.fitList[i]['iqOnRes']
                 self.ax.plot(centers[ch][0],centers[ch][1],'rx',**kwargs)
                 self.ax.plot(iqOnRes[ch][0]+centers[ch][0],iqOnRes[ch][1]+centers[ch][1],'ro',**kwargs)
+                print 'channel center plot',ch,centers[ch][0],centers[ch][1]
             
         self.ax.set_xlabel('I')
         self.ax.set_ylabel('Q')
@@ -647,12 +659,21 @@ class RoachSweepWindow(QMainWindow):
         
         loSpan = self.config.getfloat('Roach '+str(self.roachNum),'sweeplospan')
         label_loSpan = QLabel('LO Span [Hz]:')
-        loSpan_str = "%.9e" % loSpan
+        loSpan_str = "%.3e" % loSpan
         textbox_loSpan = QLineEdit(loSpan_str)
-        textbox_loSpan.setMaximumWidth(150)
-        textbox_loSpan.setMinimumWidth(150)
+        textbox_loSpan.setMaximumWidth(90)
+        textbox_loSpan.setMinimumWidth(90)
         #textbox_loSpan.textChanged.connect(partial(self.changedSetting,'sweeplospan'))     # This just saves whatever string you type in
         textbox_loSpan.textChanged.connect(lambda x: self.changedSetting('sweeplospan',"%.9e" % float(x)))
+        
+        loStep = self.config.getfloat('Roach '+str(self.roachNum),'sweeplostep')
+        label_loStep = QLabel('LO Step [Hz]:')
+        loStep_str = "%.3e" % loStep
+        textbox_loStep = QLineEdit(loStep_str)
+        textbox_loStep.setMaximumWidth(90)
+        textbox_loStep.setMinimumWidth(90)
+        textbox_loStep.textChanged.connect(lambda x: self.changedSetting('sweeplostep',"%.9e" % float(x)))
+        
         
 
         button_sweep = QPushButton("Sweep Freqs")
@@ -706,6 +727,8 @@ class RoachSweepWindow(QMainWindow):
         hbox_sweep = QHBoxLayout()
         hbox_sweep.addWidget(label_loSpan)
         hbox_sweep.addWidget(textbox_loSpan)
+        hbox_sweep.addWidget(label_loStep)
+        hbox_sweep.addWidget(textbox_loStep)
         hbox_sweep.addWidget(button_sweep)
         hbox_sweep.addSpacing(50)
         hbox_sweep.addWidget(button_fit)

@@ -6,6 +6,7 @@ Date: May 18, 2016
 
 A class for the settings window for HighTemplar.py. 
 """
+import numpy as np
 from functools import partial
 from PyQt4.QtGui import *
 from PyQt4 import QtGui
@@ -16,8 +17,20 @@ from RoachStateMachine import RoachStateMachine
 
 
 class RoachSettingsWindow(QTabWidget):
+    """
     
-    resetRoach = QtCore.pyqtSignal(int,int)     #Signal emmited when we change a setting so we can reload it into the ROACH2
+    SIGNALS
+        resetRoach - Signal emmited when we change a setting so we can reload it into the ROACH2
+        setDdsShift - Signal emmited when we change the ddsshift so we can reload it into the ROACH2
+        initTemplar - Signal emmited when we want to trick templar into initializing into a specific state
+        
+        The first parameter is the roach number
+        The second parameter is data
+    """
+    
+    resetRoach = QtCore.pyqtSignal(int,int)     
+    setDdsShift = QtCore.pyqtSignal(int,int)    
+    initTemplar = QtCore.pyqtSignal(int,object)
     
     def __init__(self,roachNums,config,parent=None):
         """
@@ -40,6 +53,8 @@ class RoachSettingsWindow(QTabWidget):
         for roachNum in self.roachNums:
             tab = RoachSettingsTab(roachNum, self.config)
             tab.resetRoach.connect(partial(self.resetRoach.emit,roachNum))
+            tab.setDdsShift.connect(partial(self.setDdsShift.emit,roachNum))
+            tab.initTemplar.connect(partial(self.initTemplar.emit,roachNum))
             self.addTab(tab, ''+str(roachNum))
         
         #self.setMovable(True)
@@ -51,11 +66,11 @@ class RoachSettingsWindow(QTabWidget):
         #self.setStyleSheet('QTabBar::tab {selection-color: red;}')
         
         #self.printColors()
+
     
-    def printColors(self):
-        pass
-        #for i in range(len(self.roachNums)):
-        #    print self.tabBar().tabTextColor(i).name()
+    def ddsShiftLoaded(self, roachNum, ddsShift):
+        tabArg = np.where(np.asarray(self.roachNums) == roachNum)[0][0]
+        self.widget(tabArg).spinbox_ddsSyncLag.setValue(ddsShift)
     
     def closeEvent(self, event):
         if self._want_to_close:
@@ -67,6 +82,8 @@ class RoachSettingsWindow(QTabWidget):
 
 class RoachSettingsTab(QMainWindow):
     resetRoach = QtCore.pyqtSignal(int)     #Signal emmited when we change a setting so we can reload it into the ROACH2
+    setDdsShift = QtCore.pyqtSignal(int)    # signal emmited when we change the ddsshift so we can reload it into the ROACH2
+    initTemplar = QtCore.pyqtSignal(object)
 
     def __init__(self,roachNum,config):
         super(RoachSettingsTab, self).__init__() #parent=None. This is the correct way according to the QTabWidget documentation
@@ -122,7 +139,15 @@ class RoachSettingsTab(QMainWindow):
         self.spinbox_ddsSyncLag.setValue(ddsSyncLag)
         self.spinbox_ddsSyncLag.valueChanged.connect(partial(self.changedSetting,'ddsSyncLag'))
         #self.spinbox_ddsSyncLag.valueChanged.connect(lambda x: self.resetRoach.emit(-1))      # reset roach state if ipAddress changes
-        add2layout(vbox,self.label_ddsSyncLag,self.spinbox_ddsSyncLag)
+        #add2layout(vbox,self.label_ddsSyncLag,self.spinbox_ddsSyncLag)
+        
+        button_loadDdsShift = QPushButton("Load")
+        button_autoDdsShift = QPushButton("Auto")
+        button_loadDdsShift.setEnabled(True)
+        button_autoDdsShift.setEnabled(True)
+        button_loadDdsShift.clicked.connect(lambda x: self.setDdsShift.emit(self.spinbox_ddsSyncLag.value()))
+        button_autoDdsShift.clicked.connect(lambda x: self.setDdsShift.emit(-1))
+        add2layout(vbox,self.label_ddsSyncLag,self.spinbox_ddsSyncLag,button_loadDdsShift,button_autoDdsShift)
         
         freqFile = self.config.get('Roach '+str(self.roachNum),'freqFile')
         self.label_freqFile = QLabel('Freq file: ')
@@ -145,6 +170,39 @@ class RoachSettingsTab(QMainWindow):
         add2layout(vbox,self.label_lofreq,self.textbox_lofreq)
 
         vbox.addStretch()
+        
+        
+        label_partition = QLabel('============================')
+        label_initWarning=QLabel("Warning: only mess with these if you know what you're doing!")
+        label_initWarning.setWordWrap(True)
+        label_init=QLabel('Initialize Templar Without Board Communication:')
+        label_init.setWordWrap(True)
+        checkbox_commands = []
+        for com in range(RoachStateMachine.NUMCOMMANDS):
+            checkbox_com = QCheckBox(RoachStateMachine.parseCommand(com))
+            checkbox_com.setChecked(False)
+            checkbox_commands.append(checkbox_com)
+        button_init = QPushButton('Initialize State')
+        button_init.setEnabled(True)
+        def getInitState():
+            state = []
+            for checkbox in checkbox_commands:
+                if checkbox.isChecked(): state.append(RoachStateMachine.COMPLETED)
+                else: state.append(RoachStateMachine.UNDEFINED)
+            return state
+        button_init.clicked.connect(lambda x: self.initTemplar.emit(getInitState()))
+        
+        vbox.addSpacing(50)
+        vbox.addWidget(label_partition)
+        vbox.addSpacing(10)
+        vbox.addWidget(label_initWarning)
+        vbox.addWidget(label_init)
+        for checkbox in checkbox_commands:
+            vbox.addWidget(checkbox)
+        vbox.addWidget(button_init)
+        vbox.addSpacing(20)
+        
+        
         
         label_note = QLabel("NOTE: Changing the ip address won't take effect until you re-connect. Likewise, changing the DDS Sync Lag, freq file, or LO Freq requires you to load the freqs/attens again")
         label_note.setWordWrap(True)
