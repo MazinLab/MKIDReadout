@@ -38,17 +38,18 @@ class StartQt4(QMainWindow):
 
 
         self.ui.configBtn.clicked.connect(self.loadConfigFile)
+
+        # Initialize arrays
+
+        
+
         '''
 
         # Initialize arrays that will contain h5 data
-        self.crx_median = np.zeros((maximum_pixels,xtime))
-        self.cry_median = np.zeros((maximum_pixels,ytime))
-        self.crx = np.zeros(((xfilelength,maximum_pixels,xtime)))
-        self.cry = np.zeros(((yfilelength,maximum_pixels,ytime)))
-        self.peakpos = np.zeros((2,maximum_pixels))
-        self.mypeakpos = np.zeros((2,maximum_pixels))
-        self.doublepos = np.zeros((2,maximum_pixels))
-        self.holder = [0,1,2,3,4]
+        
+        
+        
+        
         self.flagarray = np.zeros(maximum_pixels)
         self.currentroach = 0
         self.xfit = np.zeros((maximum_pixels,xtime))
@@ -193,17 +194,76 @@ class StartQt4(QMainWindow):
         self.xTimeAxis = np.linspace(0,self.xSweepLength-1,self.xSweepLength)
         self.yTimeAxis = np.linspace(0,self.ySweepLength-1,self.ySweepLength)
 
+        # Define number of pixels to look at
+        self.numberOfPixelsInRange = self.pixelStopIndex + 1 - self.pixelStartIndex
+        self.maximumNumberOfPixels = self.numRows*self.numCols
+
+        # Initialize arrays
+        self.crx_median = np.zeros((self.maximumNumberOfPixels,self.xSweepLength))
+        self.cry_median = np.zeros((self.maximumNumberOfPixels,self.ySweepLength))
+
+        self.peakpos = np.zeros((2,self.maximumNumberOfPixels))
+        self.mypeakpos = np.zeros((2,self.maximumNumberOfPixels))
+        self.doublepos = np.zeros((2,self.maximumNumberOfPixels))
+
+        self.xfit = np.zeros((self.maximumNumberOfPixels,self.xSweepLength))
+        self.yfit = np.zeros((self.maximumNumberOfPixels,self.ySweepLength))
+
+        self.holder = np.array([0,1,2,3,4]) + self.pixelStartIndex
+        print self.holder
+
         # Load x and y sweep data using information in config file
         self.loadXYData()
+
+        # Calculate remaining data for plots (just median values here)
+        self.calculate_plot_data()
         
-        # Create timestreams for selected pixel range
-        self.createTimestreams()
+        # Perform fits on median data
+        self.perform_fits()
+
+        # Plot initial data
+        self.make_plots()
+
+
+        # Add some label data?
+        self.ui.pp0x.setText(str(self.peakpos[0][self.holder[0]]))
+        self.ui.pp0y.setText(str(self.peakpos[1][self.holder[0]]))
+        self.ui.pp1x.setText(str(self.peakpos[0][self.holder[1]]))
+        self.ui.pp1y.setText(str(self.peakpos[1][self.holder[1]]))
+        self.ui.pp2x.setText(str(self.peakpos[0][self.holder[2]]))
+        self.ui.pp2y.setText(str(self.peakpos[1][self.holder[2]]))
+        self.ui.pp3x.setText(str(self.peakpos[0][self.holder[3]]))
+        self.ui.pp3y.setText(str(self.peakpos[1][self.holder[3]]))
+        self.ui.pp4x.setText(str(self.peakpos[0][self.holder[4]]))
+        self.ui.pp4y.setText(str(self.peakpos[1][self.holder[4]]))
+
+        self.ui.le0x.setText(str(self.mypeakpos[0][self.holder[0]]))
+        self.ui.le0y.setText(str(self.mypeakpos[1][self.holder[0]]))
+        self.ui.le1x.setText(str(self.mypeakpos[0][self.holder[1]]))
+        self.ui.le1y.setText(str(self.mypeakpos[1][self.holder[1]]))
+        self.ui.le2x.setText(str(self.mypeakpos[0][self.holder[2]]))
+        self.ui.le2y.setText(str(self.mypeakpos[1][self.holder[2]]))
+        self.ui.le3x.setText(str(self.mypeakpos[0][self.holder[3]]))
+        self.ui.le3y.setText(str(self.mypeakpos[1][self.holder[3]]))
+        self.ui.le4x.setText(str(self.mypeakpos[0][self.holder[4]]))
+        self.ui.le4y.setText(str(self.mypeakpos[1][self.holder[4]]))
+
+        self.ui.dle0x.setText(str(self.doublepos[0][self.holder[0]]))
+        self.ui.dle0y.setText(str(self.doublepos[1][self.holder[0]]))
+        self.ui.dle1x.setText(str(self.doublepos[0][self.holder[1]]))
+        self.ui.dle1y.setText(str(self.doublepos[1][self.holder[1]]))
+        self.ui.dle2x.setText(str(self.doublepos[0][self.holder[2]]))
+        self.ui.dle2y.setText(str(self.doublepos[1][self.holder[2]]))
+        self.ui.dle3x.setText(str(self.doublepos[0][self.holder[3]]))
+        self.ui.dle3y.setText(str(self.doublepos[1][self.holder[3]]))
+        self.ui.dle4x.setText(str(self.doublepos[0][self.holder[4]]))
+        self.ui.dle4y.setText(str(self.doublepos[1][self.holder[4]]))
 
 
     def loadXYData(self):
         
         # Make list of files to load for x and y sweeps
-        self.xCube = np.zeros(((self.numXSweeps, self.xSweepLength, self.numRows*self.numCols)))
+        self.xCube = np.zeros(((self.numXSweeps, self.xSweepLength, self.maximumNumberOfPixels)))
         for iXSweep in range(self.numXSweeps):
             for iXFile in range(self.xSweepLength):
                 xFileName = self.imgFileDirectory + str(self.xSweepStartingTimes[iXSweep]+iXFile) + '.img'
@@ -214,7 +274,7 @@ class StartQt4(QMainWindow):
                 xImage = np.asarray(struct.unpack(fmt,xFileData), dtype=np.int)
                 #xImage = xImage.reshape((self.numRows,self.numCols))
                 self.xCube[iXSweep][iXFile] = xImage
-        self.xCube = np.swapaxes(self.xCube,1,2)
+        self.crx = np.swapaxes(self.xCube,1,2)
                 
         self.yCube = np.zeros(((self.numYSweeps, self.ySweepLength, self.numRows*self.numCols)))
         for iYSweep in range(self.numYSweeps):
@@ -227,12 +287,7 @@ class StartQt4(QMainWindow):
                 yImage = np.asarray(struct.unpack(fmt,yFileData), dtype=np.int)
                 #yImage = yImage.reshape((self.numRows,self.numCols))
                 self.yCube[iYSweep][iYFile] = yImage
-        self.yCube = np.swapaxes(self.yCube,1,2)
-
-    def createTimestreams(self):
-        self.xTimestreams = np.zeros(((self.numXSweeps,self.pixelStopIndex+1-self.pixelStartIndex,self.xSweepLength)))
-        for iPixel in xrange(self.pixelStartIndex,self.pixelStopIndex+1):
-            self.xTimestreams
+        self.cry = np.swapaxes(self.yCube,1,2)
 
     # Functions to set the fixed peak position when return is pressed
     def le0x_pressed(self):
@@ -401,64 +456,49 @@ class StartQt4(QMainWindow):
         self.ui.y4.setChecked(True)
 
     def calculate_plot_data(self):
-        for roachno in range(number_of_roaches):
-            for pixelno in range(int(roach_pixel_count[roachno])):
-
-                pn = []
-                data = np.empty(((len(xsweep),exptime_x[0])), dtype = object)
-                for i in range(len(xsweep)):
-                    pn.append('/r%d/p%d/t%d' % ( roachno ,pixelno, ts_x[i]))       
-                try:
-                    for i in range(len(xsweep)):
-                        data[i][:] = h5file_x[i].root._f_getChild(pn[i]).read()
-                    for j in xrange(0,exptime_x[0]):
-                        median_array = []
-                        for i in range(len(xsweep)):
-                            median_array.append(len(data[i][j]))
-                        self.crx_median[roachno*ppr + pixelno][j] = np.median(median_array)
-                        for i in range(len(xsweep)):
-                            self.crx[i][roachno*ppr + pixelno][j] = len(data[i][j])
-                except:
-                    pass
-
-                pn = []
-                data = np.empty(((len(ysweep),exptime_y[0])), dtype = object)
-                for i in range(len(ysweep)):
-                    pn.append('/r%d/p%d/t%d' % ( roachno ,pixelno, ts_y[i]))       
-                try:
-                    for i in range(len(ysweep)):
-                        data[i][:] = h5file_y[i].root._f_getChild(pn[i]).read()
-                    for j in xrange(0,exptime_y[0]):
-                        median_array = []
-                        for i in range(len(ysweep)):
-                            median_array.append(len(data[i][j]))
-                        self.cry_median[roachno*ppr + pixelno][j] = np.median(median_array)
-                        for i in range(len(ysweep)):
-                            self.cry[i][roachno*ppr + pixelno][j] = len(data[i][j])
-                except:
-                    pass
-
+        # Iterating over all pixels
+        for pixelno in range(self.maximumNumberOfPixels):
             
-            print 'roach', str(roachno), 'done'
+            # Initialize median array for particular pixel and spatial dimension
+            median_array = []
+            # Iterating over all x sweeps
+            for i in range(self.numXSweeps):
+                median_array.append(self.crx[i][pixelno])
+            # Save medians of all sweeps for each individual pixel timestream.  Use for fitting.
+            self.crx_median[pixelno] = np.median(np.array(median_array),axis=0)
+       
+            # Initialize median array for particular pixel and spatial dimension
+            median_array = []
+            # Iterating over all y sweeps
+            for i in range(self.numYSweeps):
+                median_array.append(self.cry[i][pixelno])
+            # Save medians of all sweeps for each individual pixel timestream.  Use for fitting
+            self.cry_median[pixelno] = np.median(np.array(median_array),axis=0)
+
+
 
     def perform_fits(self):
-        for roachno in range(number_of_roaches):
-            for pixelno in range(int(roach_pixel_count[roachno])):
-                self.xpeakguess=np.where(self.crx_median[roachno*ppr + pixelno][:] == self.crx_median[roachno*ppr + pixelno][:].max())[0][0]
-                self.xfitstart=max([self.xpeakguess-20,0])
-                self.xfitend=min([self.xpeakguess+20,len(self.xvals)])
-                params_x = fitgaussian(self.crx_median[roachno*ppr + pixelno][self.xfitstart:self.xfitend],self.xvals[self.xfitstart:self.xfitend])
-                self.xfit[roachno*ppr + pixelno][:] = gaussian(params_x,self.xvals)
-                self.peakpos[0][roachno*ppr + pixelno] = params_x[0]
-                self.mypeakpos[0][roachno*ppr + pixelno] = params_x[0]
+        for pixelno in xrange(self.pixelStartIndex, self.pixelStopIndex+1):
 
-                self.ypeakguess=np.where(self.cry_median[roachno*ppr + pixelno][:] == self.cry_median[roachno*ppr + pixelno][:].max())[0][0]
-                self.yfitstart=max([self.ypeakguess-20,0])
-                self.yfitend=min([self.ypeakguess+20,len(self.yvals)])
-                params_y = fitgaussian(self.cry_median[roachno*ppr + pixelno][self.yfitstart:self.yfitend],self.yvals[self.yfitstart:self.yfitend])
-                self.yfit[roachno*ppr + pixelno][:] = gaussian(params_y,self.yvals)
-                self.peakpos[1][roachno*ppr + pixelno] = params_y[0]
-                self.mypeakpos[1][roachno*ppr + pixelno] = params_y[0]
+            print 'Fitting pixel number ' + str(pixelno) + '...'
+            
+            self.xpeakguess=np.where(self.crx_median[pixelno][:] == self.crx_median[pixelno][:].max())[0][0]
+            self.xfitstart=max([self.xpeakguess-20,0])
+            self.xfitend=min([self.xpeakguess+20,self.xSweepLength-1])
+            params_x = fitgaussian(self.crx_median[pixelno][self.xfitstart:self.xfitend],self.xTimeAxis[self.xfitstart:self.xfitend])
+            self.xfit[pixelno][:] = gaussian(params_x,self.xTimeAxis)
+            print params_x
+            self.peakpos[0][pixelno] = params_x[0]
+            self.mypeakpos[0][pixelno] = params_x[0]
+
+
+            self.ypeakguess=np.where(self.cry_median[pixelno][:] == self.cry_median[pixelno][:].max())[0][0]
+            self.yfitstart=max([self.ypeakguess-20,0])
+            self.yfitend=min([self.ypeakguess+20,self.ySweepLength-1])
+            params_y = fitgaussian(self.cry_median[pixelno][self.yfitstart:self.yfitend],self.yTimeAxis[self.yfitstart:self.yfitend])
+            self.yfit[pixelno][:] = gaussian(params_y,self.yTimeAxis)
+            self.peakpos[1][pixelno] = params_y[0]
+            self.mypeakpos[1][pixelno] = params_y[0]
 
     def enlarge0x(self):
         plt.clf()
@@ -543,41 +583,41 @@ class StartQt4(QMainWindow):
         self.ui.mapplot_4x.canvas.ax.clear()
         self.ui.mapplot_4y.canvas.ax.clear()
         
-        self.ui.mapplot_0x.canvas.ax.plot(self.xvals,self.crx_median[self.holder[0]][:])       
-        self.ui.mapplot_0y.canvas.ax.plot(self.yvals,self.cry_median[self.holder[0]][:])        
-        self.ui.mapplot_1x.canvas.ax.plot(self.xvals,self.crx_median[self.holder[1]][:])        
-        self.ui.mapplot_1y.canvas.ax.plot(self.yvals,self.cry_median[self.holder[1]][:])       
-        self.ui.mapplot_2x.canvas.ax.plot(self.xvals,self.crx_median[self.holder[2]][:])        
-        self.ui.mapplot_2y.canvas.ax.plot(self.yvals,self.cry_median[self.holder[2]][:])        
-        self.ui.mapplot_3x.canvas.ax.plot(self.xvals,self.crx_median[self.holder[3]][:])       
-        self.ui.mapplot_3y.canvas.ax.plot(self.yvals,self.cry_median[self.holder[3]][:])        
-        self.ui.mapplot_4x.canvas.ax.plot(self.xvals,self.crx_median[self.holder[4]][:])        
-        self.ui.mapplot_4y.canvas.ax.plot(self.yvals,self.cry_median[self.holder[4]][:])
+        self.ui.mapplot_0x.canvas.ax.plot(self.xTimeAxis,self.crx_median[self.holder[0]][:])       
+        self.ui.mapplot_0y.canvas.ax.plot(self.yTimeAxis,self.cry_median[self.holder[0]][:])        
+        self.ui.mapplot_1x.canvas.ax.plot(self.xTimeAxis,self.crx_median[self.holder[1]][:])        
+        self.ui.mapplot_1y.canvas.ax.plot(self.yTimeAxis,self.cry_median[self.holder[1]][:])       
+        self.ui.mapplot_2x.canvas.ax.plot(self.xTimeAxis,self.crx_median[self.holder[2]][:])        
+        self.ui.mapplot_2y.canvas.ax.plot(self.yTimeAxis,self.cry_median[self.holder[2]][:])        
+        self.ui.mapplot_3x.canvas.ax.plot(self.xTimeAxis,self.crx_median[self.holder[3]][:])       
+        self.ui.mapplot_3y.canvas.ax.plot(self.yTimeAxis,self.cry_median[self.holder[3]][:])        
+        self.ui.mapplot_4x.canvas.ax.plot(self.xTimeAxis,self.crx_median[self.holder[4]][:])        
+        self.ui.mapplot_4y.canvas.ax.plot(self.yTimeAxis,self.cry_median[self.holder[4]][:])
 
-        self.ui.mapplot_0x.canvas.ax.plot(self.xvals,self.xfit[self.holder[0]][:])       
-        self.ui.mapplot_0y.canvas.ax.plot(self.yvals,self.yfit[self.holder[0]][:])        
-        self.ui.mapplot_1x.canvas.ax.plot(self.xvals,self.xfit[self.holder[1]][:])        
-        self.ui.mapplot_1y.canvas.ax.plot(self.yvals,self.yfit[self.holder[1]][:])       
-        self.ui.mapplot_2x.canvas.ax.plot(self.xvals,self.xfit[self.holder[2]][:])        
-        self.ui.mapplot_2y.canvas.ax.plot(self.yvals,self.yfit[self.holder[2]][:])        
-        self.ui.mapplot_3x.canvas.ax.plot(self.xvals,self.xfit[self.holder[3]][:])       
-        self.ui.mapplot_3y.canvas.ax.plot(self.yvals,self.yfit[self.holder[3]][:])        
-        self.ui.mapplot_4x.canvas.ax.plot(self.xvals,self.xfit[self.holder[4]][:])        
-        self.ui.mapplot_4y.canvas.ax.plot(self.yvals,self.yfit[self.holder[4]][:])
+        self.ui.mapplot_0x.canvas.ax.plot(self.xTimeAxis,self.xfit[self.holder[0]][:])       
+        self.ui.mapplot_0y.canvas.ax.plot(self.yTimeAxis,self.yfit[self.holder[0]][:])        
+        self.ui.mapplot_1x.canvas.ax.plot(self.xTimeAxis,self.xfit[self.holder[1]][:])        
+        self.ui.mapplot_1y.canvas.ax.plot(self.yTimeAxis,self.yfit[self.holder[1]][:])       
+        self.ui.mapplot_2x.canvas.ax.plot(self.xTimeAxis,self.xfit[self.holder[2]][:])        
+        self.ui.mapplot_2y.canvas.ax.plot(self.yTimeAxis,self.yfit[self.holder[2]][:])        
+        self.ui.mapplot_3x.canvas.ax.plot(self.xTimeAxis,self.xfit[self.holder[3]][:])       
+        self.ui.mapplot_3y.canvas.ax.plot(self.yTimeAxis,self.yfit[self.holder[3]][:])        
+        self.ui.mapplot_4x.canvas.ax.plot(self.xTimeAxis,self.xfit[self.holder[4]][:])        
+        self.ui.mapplot_4y.canvas.ax.plot(self.yTimeAxis,self.yfit[self.holder[4]][:])
 
-        for i in range(len(xsweep)):
-            self.ui.mapplot_0x.canvas.ax.plot(self.xvals,self.crx[i][self.holder[0]][:],alpha = .2)                          
-            self.ui.mapplot_1x.canvas.ax.plot(self.xvals,self.crx[i][self.holder[1]][:],alpha = .2)                         
-            self.ui.mapplot_2x.canvas.ax.plot(self.xvals,self.crx[i][self.holder[2]][:],alpha = .2)                           
-            self.ui.mapplot_3x.canvas.ax.plot(self.xvals,self.crx[i][self.holder[3]][:],alpha = .2)                          
-            self.ui.mapplot_4x.canvas.ax.plot(self.xvals,self.crx[i][self.holder[4]][:],alpha = .2)                  
+        for i in range(self.numXSweeps):
+            self.ui.mapplot_0x.canvas.ax.plot(self.xTimeAxis,self.crx[i][self.holder[0]][:],alpha = .2)
+            self.ui.mapplot_1x.canvas.ax.plot(self.xTimeAxis,self.crx[i][self.holder[1]][:],alpha = .2)
+            self.ui.mapplot_2x.canvas.ax.plot(self.xTimeAxis,self.crx[i][self.holder[2]][:],alpha = .2)
+            self.ui.mapplot_3x.canvas.ax.plot(self.xTimeAxis,self.crx[i][self.holder[3]][:],alpha = .2)
+            self.ui.mapplot_4x.canvas.ax.plot(self.xTimeAxis,self.crx[i][self.holder[4]][:],alpha = .2)                  
 
-        for i in range(len(ysweep)):
-            self.ui.mapplot_0y.canvas.ax.plot(self.yvals,self.cry[i][self.holder[0]][:],alpha = .2)
-            self.ui.mapplot_1y.canvas.ax.plot(self.yvals,self.cry[i][self.holder[1]][:],alpha = .2)
-            self.ui.mapplot_2y.canvas.ax.plot(self.yvals,self.cry[i][self.holder[2]][:],alpha = .2)
-            self.ui.mapplot_3y.canvas.ax.plot(self.yvals,self.cry[i][self.holder[3]][:],alpha = .2)
-            self.ui.mapplot_4y.canvas.ax.plot(self.yvals,self.cry[i][self.holder[4]][:],alpha = .2)
+        for i in range(self.numYSweeps):
+            self.ui.mapplot_0y.canvas.ax.plot(self.yTimeAxis,self.cry[i][self.holder[0]][:],alpha = .2)
+            self.ui.mapplot_1y.canvas.ax.plot(self.yTimeAxis,self.cry[i][self.holder[1]][:],alpha = .2)
+            self.ui.mapplot_2y.canvas.ax.plot(self.yTimeAxis,self.cry[i][self.holder[2]][:],alpha = .2)
+            self.ui.mapplot_3y.canvas.ax.plot(self.yTimeAxis,self.cry[i][self.holder[3]][:],alpha = .2)
+            self.ui.mapplot_4y.canvas.ax.plot(self.yTimeAxis,self.cry[i][self.holder[4]][:],alpha = .2)
 
         self.ui.mapplot_0x.canvas.draw()
         self.ui.mapplot_0y.canvas.draw()

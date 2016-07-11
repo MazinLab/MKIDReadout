@@ -865,7 +865,7 @@
      </font>
     </property>
     <property name="text">
-     <string>X Fit Position:</string>
+     <string>X Fit Pos</string>
     </property>
    </widget>
    <widget class="QLabel" name="label_4">
@@ -883,15 +883,15 @@
      </font>
     </property>
     <property name="text">
-     <string>Y Fit Position:</string>
+     <string>Y Fit Pos</string>
     </property>
    </widget>
    <widget class="QLabel" name="pp0x">
     <property name="geometry">
      <rect>
-      <x>150</x>
+      <x>120</x>
       <y>340</y>
-      <width>151</width>
+      <width>181</width>
       <height>21</height>
      </rect>
     </property>
@@ -910,9 +910,9 @@
    <widget class="QLabel" name="pp0y">
     <property name="geometry">
      <rect>
-      <x>150</x>
+      <x>120</x>
       <y>770</y>
-      <width>151</width>
+      <width>181</width>
       <height>21</height>
      </rect>
     </property>
@@ -931,9 +931,9 @@
    <widget class="QLabel" name="pp1x">
     <property name="geometry">
      <rect>
-      <x>450</x>
+      <x>420</x>
       <y>340</y>
-      <width>151</width>
+      <width>181</width>
       <height>21</height>
      </rect>
     </property>
@@ -952,9 +952,9 @@
    <widget class="QLabel" name="pp1y">
     <property name="geometry">
      <rect>
-      <x>450</x>
+      <x>420</x>
       <y>770</y>
-      <width>151</width>
+      <width>181</width>
       <height>21</height>
      </rect>
     </property>
@@ -973,9 +973,9 @@
    <widget class="QLabel" name="pp2x">
     <property name="geometry">
      <rect>
-      <x>750</x>
+      <x>720</x>
       <y>340</y>
-      <width>151</width>
+      <width>181</width>
       <height>21</height>
      </rect>
     </property>
@@ -994,9 +994,9 @@
    <widget class="QLabel" name="pp2y">
     <property name="geometry">
      <rect>
-      <x>750</x>
+      <x>720</x>
       <y>770</y>
-      <width>151</width>
+      <width>181</width>
       <height>21</height>
      </rect>
     </property>
@@ -1015,9 +1015,9 @@
    <widget class="QLabel" name="pp3x">
     <property name="geometry">
      <rect>
-      <x>1050</x>
+      <x>1020</x>
       <y>340</y>
-      <width>151</width>
+      <width>181</width>
       <height>21</height>
      </rect>
     </property>
@@ -1036,9 +1036,9 @@
    <widget class="QLabel" name="pp3y">
     <property name="geometry">
      <rect>
-      <x>1050</x>
+      <x>1020</x>
       <y>770</y>
-      <width>151</width>
+      <width>181</width>
       <height>21</height>
      </rect>
     </property>
@@ -1057,9 +1057,9 @@
    <widget class="QLabel" name="pp4x">
     <property name="geometry">
      <rect>
-      <x>1350</x>
+      <x>1320</x>
       <y>340</y>
-      <width>151</width>
+      <width>181</width>
       <height>21</height>
      </rect>
     </property>
@@ -1078,9 +1078,9 @@
    <widget class="QLabel" name="pp4y">
     <property name="geometry">
      <rect>
-      <x>1350</x>
+      <x>1320</x>
       <y>770</y>
-      <width>151</width>
+      <width>181</width>
       <height>21</height>
      </rect>
     </property>
@@ -1176,7 +1176,7 @@
      </font>
     </property>
     <property name="text">
-     <string>X Self Position:</string>
+     <string>X Self Pos</string>
     </property>
    </widget>
    <widget class="QLabel" name="label_6">
@@ -1194,15 +1194,15 @@
      </font>
     </property>
     <property name="text">
-     <string>Y Self Position:</string>
+     <string>Y Self Pos</string>
     </property>
    </widget>
    <widget class="QLineEdit" name="le0x">
     <property name="geometry">
      <rect>
-      <x>150</x>
+      <x>120</x>
       <y>370</y>
-      <width>151</width>
+      <width>181</width>
       <height>20</height>
      </rect>
     </property>
@@ -1218,9 +1218,9 @@
    <widget class="QLineEdit" name="le0y">
     <property name="geometry">
      <rect>
-      <x>150</x>
+      <x>120</x>
       <y>800</y>
-      <width>151</width>
+      <width>181</width>
       <height>20</height>
      </rect>
     </property>
@@ -1236,9 +1236,9 @@
    <widget class="QLineEdit" name="le1x">
     <property name="geometry">
      <rect>
-      <x>450</x>
+      <x>420</x>
       <y>370</y>
-      <width>151</width>
+      <width>181</width>
       <height>20</height>
      </rect>
     </property>
@@ -1254,9 +1254,9 @@
    <widget class="QLineEdit" name="le1y">
     <property name="geometry">
      <rect>
-      <x>450</x>
+      <x>420</x>
       <y>800</y>
-      <width>151</width>
+      <width>181</width>
       <height>20</height>
      </rect>
     </property>
@@ -1272,9 +1272,9 @@
    <widget class="QLineEdit" name="le2x">
     <property name="geometry">
      <rect>
-      <x>750</x>
+      <x>720</x>
       <y>370</y>
-      <width>151</width>
+      <width>181</width>
       <height>20</height>
      </rect>
     </property>
@@ -1290,9 +1290,9 @@
    <widget class="QLineEdit" name="le2y">
     <property name="geometry">
      <rect>
-      <x>750</x>
+      <x>720</x>
       <y>800</y>
-      <width>151</width>
+      <width>181</width>
       <height>20</height>
      </rect>
     </property>
@@ -1308,9 +1308,9 @@
    <widget class="QLineEdit" name="le3x">
     <property name="geometry">
      <rect>
-      <x>1050</x>
+      <x>1020</x>
       <y>370</y>
-      <width>151</width>
+      <width>181</width>
       <height>20</height>
      </rect>
     </property>
@@ -1326,9 +1326,9 @@
    <widget class="QLineEdit" name="le3y">
     <property name="geometry">
      <rect>
-      <x>1050</x>
+      <x>1020</x>
       <y>800</y>
-      <width>151</width>
+      <width>181</width>
       <height>20</height>
      </rect>
     </property>
@@ -1344,9 +1344,9 @@
    <widget class="QLineEdit" name="le4x">
     <property name="geometry">
      <rect>
-      <x>1350</x>
+      <x>1320</x>
       <y>370</y>
-      <width>151</width>
+      <width>181</width>
       <height>20</height>
      </rect>
     </property>
@@ -1362,9 +1362,9 @@
    <widget class="QLineEdit" name="le4y">
     <property name="geometry">
      <rect>
-      <x>1350</x>
+      <x>1320</x>
       <y>800</y>
-      <width>151</width>
+      <width>181</width>
       <height>20</height>
      </rect>
     </property>
@@ -1930,7 +1930,7 @@
      </font>
     </property>
     <property name="text">
-     <string>X Double Position:</string>
+     <string>X Double Pos</string>
     </property>
    </widget>
    <widget class="QLabel" name="label_8">
@@ -1948,15 +1948,15 @@
      </font>
     </property>
     <property name="text">
-     <string>Y Double Position:</string>
+     <string>Y Double Pos</string>
     </property>
    </widget>
    <widget class="QLineEdit" name="dle0x">
     <property name="geometry">
      <rect>
-      <x>150</x>
+      <x>120</x>
       <y>400</y>
-      <width>151</width>
+      <width>181</width>
       <height>20</height>
      </rect>
     </property>
@@ -1972,9 +1972,9 @@
    <widget class="QLineEdit" name="dle0y">
     <property name="geometry">
      <rect>
-      <x>150</x>
+      <x>120</x>
       <y>830</y>
-      <width>151</width>
+      <width>181</width>
       <height>20</height>
      </rect>
     </property>
@@ -1990,9 +1990,9 @@
    <widget class="QLineEdit" name="dle1x">
     <property name="geometry">
      <rect>
-      <x>450</x>
+      <x>420</x>
       <y>400</y>
-      <width>151</width>
+      <width>181</width>
       <height>20</height>
      </rect>
     </property>
@@ -2008,9 +2008,9 @@
    <widget class="QLineEdit" name="dle1y">
     <property name="geometry">
      <rect>
-      <x>450</x>
+      <x>420</x>
       <y>830</y>
-      <width>151</width>
+      <width>181</width>
       <height>20</height>
      </rect>
     </property>
@@ -2026,9 +2026,9 @@
    <widget class="QLineEdit" name="dle2x">
     <property name="geometry">
      <rect>
-      <x>750</x>
+      <x>720</x>
       <y>400</y>
-      <width>151</width>
+      <width>181</width>
       <height>20</height>
      </rect>
     </property>
@@ -2044,9 +2044,9 @@
    <widget class="QLineEdit" name="dle2y">
     <property name="geometry">
      <rect>
-      <x>750</x>
+      <x>720</x>
       <y>830</y>
-      <width>151</width>
+      <width>181</width>
       <height>20</height>
      </rect>
     </property>
@@ -2062,9 +2062,9 @@
    <widget class="QLineEdit" name="dle3x">
     <property name="geometry">
      <rect>
-      <x>1050</x>
+      <x>1020</x>
       <y>400</y>
-      <width>151</width>
+      <width>181</width>
       <height>20</height>
      </rect>
     </property>
@@ -2080,9 +2080,9 @@
    <widget class="QLineEdit" name="dle3y">
     <property name="geometry">
      <rect>
-      <x>1050</x>
+      <x>1020</x>
       <y>830</y>
-      <width>151</width>
+      <width>181</width>
       <height>20</height>
      </rect>
     </property>
@@ -2098,9 +2098,9 @@
    <widget class="QLineEdit" name="dle4x">
     <property name="geometry">
      <rect>
-      <x>1350</x>
+      <x>1320</x>
       <y>400</y>
-      <width>151</width>
+      <width>181</width>
       <height>20</height>
      </rect>
     </property>
@@ -2116,9 +2116,9 @@
    <widget class="QLineEdit" name="dle4y">
     <property name="geometry">
      <rect>
-      <x>1350</x>
+      <x>1320</x>
       <y>830</y>
-      <width>151</width>
+      <width>181</width>
       <height>20</height>
      </rect>
     </property>

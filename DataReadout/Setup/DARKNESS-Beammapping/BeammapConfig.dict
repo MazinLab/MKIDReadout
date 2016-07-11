@@ -1,13 +1,13 @@
 imgFileDirectory = '/home/pszypryt/TestImages/'
 
-xSweepStartingTimes = ['1468185010', '1468185030']
-ySweepStartingTimes = ['1468185050', '1468185070']
+xSweepStartingTimes = ['1468185000', '1468185020']
+ySweepStartingTimes = ['1468185010', '1468185030']
 
-xSweepLength = '10'
-ySweepLength = '10'
+xSweepLength = '50'
+ySweepLength = '60'
 
-pixelStartIndex = '0'
-pixelStopIndex = '4'
+pixelStartIndex = '10'
+pixelStopIndex = '14'
 
 outputDirectory = 'TestImages/'
 outputFilename = 'Beamlist_FL1.txt'
