@@ -86,6 +86,7 @@ import numpy as np
 import scipy.special
 import casperfpga
 import socket
+import binascii
 from readDict import readDict       #Part of the ARCONS-pipeline/util
 
 class Roach2Controls:
@@ -122,16 +123,55 @@ class Roach2Controls:
         self.lut_dump_buffer_size = self.params['lut_dump_buffer_size']
     
     def connect(self):
-        self.fpga = casperfpga.katcp_fpga.KatcpFpga(self.ip,timeout=50.)
-        time.sleep(1)
+        self.fpga = casperfpga.katcp_fpga.KatcpFpga(self.ip,timeout=3.)
+        time.sleep(.1)
+        self.fpga._timeout = 50.
         if not self.fpga.is_running():
             print 'Firmware is not running. Start firmware, calibrate, and load wave into qdr first!'
     
         self.fpga.get_system_information()
     
-    def loadDdsShift(self,ddsShift=(75+256)):
-        #set the delay between the dds lut and the end of the fft block (firmware dependent)
+    def checkDdsShift(self):
+        '''
+        This function checks the delay between the dds channels and the fft.
+        It returns the difference.
+        Call loadDdsShift with the difference
+        
+        OUTPUTS:
+            ddsShift - # clock cycles delay between dds and fft channels
+        '''
+        self.fpga.write_int(self.params['start_reg'],1)     # Make sure fft is running
+        self.fpga.write_int(self.params['read_dds_reg'],1)  # Make sure dds is running
+        ddsShift_initial = self.fpga.read_int(self.params['ddsShift_reg'])
+        #self.fpga.write_int(self.params['ddsShift_reg'],0)
+        self.fpga.write_int(self.params['checkLag_reg'],0)    # make sure this starts as off
+        self.fpga.write_int(self.params['checkLag_reg'],1)    # Tell firmware to grab dds ch and fft ch at same exact time. Stores them in ladDds_reg and lagData_reg
+        self.fpga.write_int(self.params['checkLag_reg'],0)    # turn this off for next time
+        data_ch = self.fpga.read_int(self.params['lagData_reg'])
+        dds_ch = self.fpga.read_int(self.params['lagDds_reg'])
+        #self.fpga.write_int(self.params['ddsShift_reg'],ddsShift_initial)   # load what we had in there before
+        
+        #ddsShift = dds_ch - data_ch +1              # have to add 1 here for some reason
+        ddsShift = (ddsShift_initial + dds_ch - data_ch +1) % self.params['nChannelsPerStream']
+        
+        if self.verbose:
+            print 'current dds lag', ddsShift_initial
+            print 'dds ch',dds_ch
+            print 'fft ch',data_ch
+        
+        return ddsShift
+    
+    def loadDdsShift(self,ddsShift=76):
+        '''
+        Set the delay between the dds lut and the end of the fft block (firmware dependent)
+        
+        INPUTS:
+            ddsShift - # clock cycles
+        '''
         self.fpga.write_int(self.params['ddsShift_reg'],ddsShift)
+        if self.verbose:
+            print 'dds lag: ',ddsShift
+        return ddsShift
     
     def initializeV7UART(self, waitForV7Ready = True, baud_rate = None, lut_dump_buffer_size = None):
         '''
@@ -182,26 +222,31 @@ class Roach2Controls:
         """
         while(not(self.v7_ready)):
             self.v7_ready = self.fpga.read_int(self.params['v7Ready_reg'])
+            time.sleep(.2)
         self.v7_ready = 0
         self.sendUARTCommand(self.params['mbEnableDACs'])
         
         while(not(self.v7_ready)):
             self.v7_ready = self.fpga.read_int(self.params['v7Ready_reg'])
+            time.sleep(.2)
         self.v7_ready = 0
         self.sendUARTCommand(self.params['mbSendLUTToDAC'])
         
         while(not(self.v7_ready)):
             self.v7_ready = self.fpga.read_int(self.params['v7Ready_reg'])
+            time.sleep(.2)
         self.v7_ready = 0
         self.sendUARTCommand(self.params['mbInitLO'])
         
         while(not(self.v7_ready)):
             self.v7_ready = self.fpga.read_int(self.params['v7Ready_reg'])
+            time.sleep(.2)
         self.v7_ready = 0
         self.sendUARTCommand(self.params['mbInitAtten'])
 
         while(not(self.v7_ready)):
             self.v7_ready = self.fpga.read_int(self.params['v7Ready_reg'])
+            time.sleep(.2)
         self.v7_ready = 0
         self.sendUARTCommand(self.params['mbEnFracLO'])
         
@@ -344,7 +389,7 @@ class Roach2Controls:
         if self.verbose:
             print "Loading DDS LUT..."
         
-        self.fpga.write_int(self.params['start_reg'],0) #do not read from qdr while writing
+        self.fpga.write_int(self.params['read_dds_reg'],0) #do not read from qdr while writing
         memNames = self.params['ddsMemName_regs']
         allMemVals=[]
         for iMem in range(len(memNames)):
@@ -357,9 +402,9 @@ class Roach2Controls:
                               'nBitsPerMemRow':self.params['nBytesPerQdrSample']*8,
                               'earlierSampleIsMsb':True}
             memVals = self.formatWaveForMem(**formatWaveparams)
-            #time.sleep(.1)
+            time.sleep(.1)
             allMemVals.append(memVals)
-            time.sleep(5)
+            #time.sleep(5)
             if self.verbose: print "\twriting QDR for Stream",iMem
             writeQDRparams={'memName':memNames[iMem],
                             'valuesToWrite':memVals[:,0],
@@ -368,7 +413,7 @@ class Roach2Controls:
                             'nQdrRows':self.params['nQdrRows']}
             self.writeQdr(**writeQDRparams)
             
-        self.fpga.write_int(self.params['start_reg'],1)
+        self.fpga.write_int(self.params['read_dds_reg'],1)
         
         if self.verbose: print "...Done!"
         
@@ -579,9 +624,9 @@ class Roach2Controls:
             time.sleep(0.01)
             self.fpga.write_int(self.params['txEnUART_reg'],0)
         
-        print 'loFreqFrac' + str(loFreqFrac)	
+        #print 'loFreqFrac' + str(loFreqFrac)	
         loFreqFrac = int(loFreqFrac*(2**16))
-        print 'loFreqFrac' + str(loFreqFrac)
+        #print 'loFreqFrac' + str(loFreqFrac)
         
         # same as transfer of int bytes
         for i in range(2):
@@ -828,13 +873,16 @@ class Roach2Controls:
         
         INPUTS:
             freqList - list of resonator frequencies (Assumed sorted but doesn't really matter)
-            order - 'F' places sequential frequencies into a single stream
-                    'C' places sequential frequencies into the same channel number
+            order - 'F' places sequential frequencies into a single stream but forces an even distribution among streams
+                    'C' places sequential frequencies into the same channel number but forces an even distribution among streams
+                    'stream' fills stream 0 first, then stream 1, etc...
         OUTPUTS:
-            self.freqChannels - Each column contains the resonantor frequencies in a single stream. The row index is the channel number. It's padded with -1's. 
+            self.freqChannels - Each column contains the resonantor frequencies in a single stream. 
+                                The row index is the channel number.
+                                It's padded with -1's. 
         """
         #Interpret inputs...
-        if order not in ['F','C','A']:  #if invalid, grab default value
+        if order not in ['F','C','A','stream']:  #if invalid, grab default value
             args,__,__,defaults = inspect.getargspec(Roach2Controls.generateResonatorChannels)
             order = defaults[args.index('order')-len(args)]
             if self.verbose: print "Invalid 'order' parameter for generateResonatorChannels(). Changed to default: "+str(order)
@@ -848,15 +896,24 @@ class Roach2Controls:
         
         #Pad with freq = -1 so that freqChannels's length is a multiple of nStreams
         nStreams = int(self.params['nChannels']/self.params['nChannelsPerStream'])        #number of processing streams. For Gen 2 readout this should be 4
-        padNum = (nStreams - (len(self.freqChannels) % nStreams))%nStreams  # number of empty elements to pad
         padValue = self.freqPadValue   #pad with freq=-1
         if order == 'F':
+            padNum = (nStreams - (len(self.freqChannels) % nStreams))%nStreams  # number of empty elements to pad
             for i in range(padNum):
                 ind = len(self.freqChannels)-i*np.ceil(len(self.freqChannels)*1.0/nStreams)
                 self.freqChannels=np.insert(self.freqChannels,int(ind),padValue)
-        else:
+        elif order == 'C' or order == 'A':
+            padNum = (nStreams - (len(self.freqChannels) % nStreams))%nStreams  # number of empty elements to pad
             self.freqChannels = np.append(self.freqChannels, [padValue]*(padNum))
-        
+        elif order == 'stream':
+            nFreqs = len(self.freqList)
+            if nFreqs < self.params['nChannelsPerStream']:
+                padNum = nFreqs * (nStreams-1)
+            else:
+                padNum = self.params['nChannels'] - nFreqs
+            self.freqChannels=np.append(self.freqChannels,[padValue]*padNum)
+            order = 'F'
+            
         #Split up to assign channel numbers
         self.freqChannels = np.reshape(self.freqChannels,(-1,nStreams),order)
         
@@ -969,15 +1026,15 @@ class Roach2Controls:
         
         if self.verbose: print '\t'+str(chanNum)+': '+str(selBinNums)
     
-    def setThresh(self,thresholdDeg = -15.,chanNum=0):
+    def setThresh(self,thresholdDeg = -.1,chanNum=0):
         """Sets the phase threshold and baseline filter for photon pulse detection triggers in each channel
 
         INPUTS:
-            thresholdDeg: The threshold in degrees.  The phase must drop below this value to trigger a photon
-                event
+            thresholdDeg: The threshold in radians.  The phase must drop below this value to trigger a photon event
+            chanNum - 
         """
         #convert deg to radians
-        thresholdRad = thresholdDeg * np.pi/180.
+        #thresholdRad = thresholdDeg * np.pi/180.
 
         #format it as a fix16_13 to be placed in a register
         binThreshold = castBin(thresholdRad,quantization='Round',nBits=16,binaryPoint=13,format='uint')
@@ -994,9 +1051,10 @@ class Roach2Controls:
         #format these paramters as fix18_16 values to be loaded to registers
         binBaseKf=castBin(baseKf,quantization='Round',nBits=18,binaryPoint=16,format='uint')
         binBaseKq=castBin(baseKq,quantization='Round',nBits=18,binaryPoint=16,format='uint')
-        print 'threshold',thresholdDeg,binThreshold
-        print 'Kf:',baseKf,binBaseKf
-        print 'Kq:',baseKq,binBaseKq
+        if self.verbose:
+            print 'threshold',thresholdDeg,binThreshold
+            print 'Kf:',baseKf,binBaseKf
+            print 'Kq:',baseKq,binBaseKq
         #load the values in
         self.fpga.write_int(self.params['capture0Basekf_reg'],binBaseKf)
         self.fpga.write_int(self.params['capture0Basekq_reg'],binBaseKq)
@@ -1034,43 +1092,30 @@ class Roach2Controls:
             time.sleep(.1)
             self.fpga.write_int(self.params['firLoadChan'],selChanIndex)
     
-    def takePhaseSnapshot(self, channel=0, filtered=True):
+    def takePhaseSnapshot(self, channel=0):
         """
         Takes phase data using snapshot block
 
         INPUTS:
             channel: channel to take data from
-            filtered: if True, take phase after FIR filter
-                      if False, take raw phase
 
         OUTPUTS:
             phaseSnapData
         """
-        self.fpga.write_int('sel_bch',channel)
-        
-
-        if filtered:
-            self.fpga.snapshots['snp3_cap_ss'].arm(man_valid=False)
-            time.sleep(.1)
-            self.fpga.write_int('trig_buf',1)#trigger snapshots
-            time.sleep(.1) #wait for other trigger conditions to be met
-            self.fpga.write_int('trig_buf',0)#release trigger       
-            phaseData = self.fpga.snapshots['snp3_cap_ss'].read(timeout=5,arm=False,man_valid=False)['data'] 
-            phaseSnapData = np.array(phaseData['phase'])  
-            #trig = np.array(phaseData['trig'],dtype=np.bool) 
-
-        else:
-            self.fpga.snapshots['snp3_cap_ss'].arm(man_valid=False)
-            time.sleep(.1)
-            self.fpga.write_int('trig_buf',1)#trigger snapshots
-            time.sleep(.1) #wait for other trigger conditions to be met
-            self.fpga.write_int('trig_buf',0)#release trigger       
-            ddcData = self.fpga.snapshots['snp3_ddc_ss'].read(timeout=5,arm=False, man_valid=False)['data']
-            phaseSnapData = np.array(ddcData['raw_phase'])
+        self.fpga.write_int('sel_ch',channel)
+        self.fpga.snapshots['snp_phs_ss'].arm(man_valid=False)
+        time.sleep(.1)
+        self.fpga.write_int('trig_snp',1)#trigger snapshots
+        time.sleep(.1) #wait for other trigger conditions to be met
+        self.fpga.write_int('trig_snp',0)#release trigger    
+                       
+        phaseData = self.fpga.snapshots['snp_phs_ss'].read(timeout=5,arm=False,man_valid=False)['data'] 
+        phaseSnapData = np.array(phaseData['phase'])  
         
         return phaseSnapData
 
-    def startPhaseStream(self,selChanIndex=0, pktsPerFrame=100, fabric_port=50000, destIPID=50):
+    #def startPhaseStream(self,selChanIndex=0, pktsPerFrame=100, fabric_port=50000, destIPID=50):
+    def startPhaseStream(self,selChanIndex=0, pktsPerFrame=100, fabric_port=50000, hostIP='10.0.0.50'):
         """initiates streaming of phase timestream (after prog_fir) to the 1Gbit ethernet
 
         INPUTS:
@@ -1080,12 +1125,15 @@ class Roach2Controls:
             destIPID: destination IP is 10.0.0.destIPID
             
         """
-        dest_ip = 0xa000000 + destIPID
-
+        
+        dest_ip = binascii.hexlify(socket.inet_aton(hostIP))
+        dest_ip = int(dest_ip,16)
+        #dest_ip = 0xa000000 + destIPID
+        print dest_ip
         #configure the gbe core, 
-        print 'restarting'
+        #print 'restarting'
         self.fpga.write_int(self.params['destIP_reg'],dest_ip)
-        self.fpga.write_int(self.params['fabricPort_reg'],fabric_port)
+        self.fpga.write_int(self.params['phasePort_reg'],fabric_port)
         self.fpga.write_int(self.params['wordsPerFrame_reg'],pktsPerFrame)
         #reset the core to make sure it's in a clean state
         self.fpga.write_int(self.params['gbe64Rst_reg'],1)
@@ -1111,6 +1159,7 @@ class Roach2Controls:
         
         INPUTS:
             channel - channel number of incoming phase data
+                      channel = 0 means ch 0 on stream 0. channel = 256 means ch 0 on stream 1, etc...
             duration - duration (in seconds) of phase stream
             host - IP address of computer receiving packets 
                 (represented as a string)
@@ -1118,8 +1167,8 @@ class Roach2Controls:
         
         """
         d = datetime.datetime.today()
-        filename = ('phase_dump_pixel_' + str(channel) + '_' + str(d.day) + '_' + str(d.month) + '_' + 
-            str(d.year) + '_' + str(d.hour) + '_' + str(d.minute) + str('.bin'))
+        #filename = ('phase_dump_pixel_' + str(channel) + '_' + str(d.day) + '_' + str(d.month) + '_' + 
+        #    str(d.year) + '_' + str(d.hour) + '_' + str(d.minute) + str('.bin'))
                 
         if self.verbose:
             print 'host ' + host
@@ -1148,9 +1197,9 @@ class Roach2Controls:
         expectedPackDiff = -1
         frameData = ''
 
-        dumpFile = open(filename, 'w')
+        #dumpFile = open(filename, 'w')
         
-        self.lastPhaseDumpFile = filename
+        #self.lastPhaseDumpFile = filename
         
         startTime = time.time()
         try:
@@ -1164,17 +1213,19 @@ class Roach2Controls:
         except KeyboardInterrupt:       
             print 'Exiting'
             sock.close()
-            dumpFile.write(frameData)
-            dumpFile.close()
+            self.phaseTimeStreamData = frameData
+            #dumpFile.write(frameData)
+            #dumpFile.close()
             return
 
         print 'Exiting'
         sock.close()
-        dumpFile.write(frameData)
-        dumpFile.close()    
+        self.phaseTimeStreamData = frameData
+        #dumpFile.write(frameData)
+        #dumpFile.close()    
         
     
-    def takePhaseStreamData(self, selChanIndex=0, duration=60, pktsPerFrame=100, fabric_port=50000, destIPID=50):
+    def takePhaseStreamData(self, selChanIndex=0, duration=2, pktsPerFrame=100, fabric_port=50000, hostIP='10.0.0.50'):
         """
         Takes phase timestream data from the specified channel for the specified amount of time
         
@@ -1187,20 +1238,30 @@ class Roach2Controls:
                 IP address of computer receiving stream
             
         """
-        self.startPhaseStream(selChanIndex, pktsPerFrame, fabric_port, destIPID)
-        self.recvPhaseStream(selChanIndex, duration, pktsPerFrame, '10.0.0.'+str(destIPID), fabric_port)
+        self.startPhaseStream(selChanIndex, pktsPerFrame, fabric_port, hostIP )
+        if self.verbose:
+            "Collecting phase time stream..."
+        #self.recvPhaseStream(selChanIndex, duration, pktsPerFrame, '10.0.0.'+str(destIPID), fabric_port)
+        self.recvPhaseStream(selChanIndex, duration, pktsPerFrame, hostIP, fabric_port)
         self.stopStream()
-    
-    def parsePhaseStream(self, phaseDumpFile=None, pktsPerFrame=100):
-        if(phaseDumpFile == None):
-            try:
-                phaseDumpFile = self.lastPhaseDumpFile
-            except AttributeError:
-                print 'Specify a file or run takePhaseStreamData()'
+        if self.verbose:
+            "...Done!"
         
-        with open(phaseDumpFile,'r') as dumpFile:
-            data = dumpFile.read()
-
+        return self.parsePhaseStream(pktsPerFrame)
+        
+    
+    #def parsePhaseStream(self, phaseDumpFile=None, pktsPerFrame=100):
+    def parsePhaseStream(self, pktsPerFrame=100):
+        #if(phaseDumpFile == None):
+        #    try:
+        #        phaseDumpFile = self.lastPhaseDumpFile
+        #    except AttributeError:
+        #        print 'Specify a file or run takePhaseStreamData()'
+        #
+        #with open(phaseDumpFile,'r') as dumpFile:
+        #    data = dumpFile.read()
+        data = self.phaseTimeStreamData
+        
         nBytes = len(data)
         nWords = nBytes/8 #64 bit words
         #break into 64 bit words
@@ -1223,9 +1284,9 @@ class Roach2Controls:
 
         #add an axis so we can broadcast
         #and shift away the bits we don't keep for each row
-        print np.shape(words[:,np.newaxis]),words.dtype
-        print bitshifts
-        print words[0:10]
+        #print np.shape(words[:,np.newaxis]),words.dtype
+        #print bitshifts
+        #print words[0:10]
         phases = (words[:,np.newaxis]) >> bitshifts
         phases = phases & bitmask
 
@@ -1235,7 +1296,7 @@ class Roach2Controls:
         phases = phases.flatten(order='C')
         phases = np.array(phases,dtype=np.uint64)
         signBits = np.array(phases / (2**(nBitsPerPhase-1)),dtype=np.bool)
-        print signBits[0:10]
+        #print signBits[0:10]
 
         #check the sign bits to see what values should be negative
         #for the ones that should be negative undo the 2's complement, and flip the sign
@@ -1245,9 +1306,10 @@ class Roach2Controls:
         #now shift down to the binary point
         phases = phases / 2**binPtPhase
 
+        return phases
         #convert from radians to degrees
-        phases = 180./np.pi * phases
-        plt.plot(phases[-2**15:],'.-')
+        #phases = 180./np.pi * phases
+        #plt.plot(phases[-2**15:],'.-')
 
         # photonPeriod = 4096 #timesteps (us)
 
@@ -1259,7 +1321,7 @@ class Roach2Controls:
 
         # np.save
 
-        plt.show()
+        #plt.show()
 
     
     def performIQSweep(self,startLOFreq,stopLOFreq,stepLOFreq):
@@ -1378,7 +1440,7 @@ class Roach2Controls:
             sweepCnt += 1
 
         self.iqToneData = self.formatIQSweepData(iqData)
-        #self.iqToneData = iqData
+        #self.iqToneDataRaw = iqData
         return self.iqToneData
     
     def loadIQcenters(self, centers):
@@ -1439,7 +1501,7 @@ if __name__=='__main__':
     #freqList=np.asarray([5.2498416321e9, 5.125256256e9, 4.852323456e9, 4.69687416351e9])#,4.547846e9])
     #attenList=np.asarray([41,42,43,45])#,6])
     
-    freqList=np.asarray([4.596533e9])
+    freqList=np.asarray([4.620303e9])
     attenList=np.asarray([0])
     
     #attenList = attenList[np.where(freqList > loFreq)]
@@ -1460,12 +1522,15 @@ if __name__=='__main__':
     #    roach_0.generateDacComb(resAttenList=attenList,globalDacAtten=9)
     
     print 'Loading DDS LUT...'
-    roach_0.loadDdsLUT()
-    roach_0.loadDdsShift(69)
+    #roach_0.loadDdsLUT()
+    print 'Checking DDS Shift...'
+    #DdsShift = roach_0.checkDdsShift()
+    #print DdsShift
+    #roach_0.loadDdsShift(DdsShift)
     print 'Loading ChanSel...'
-    roach_0.loadChanSelection()
+    #roach_0.loadChanSelection()
     print 'Init V7'
-    roach_0.initializeV7UART()
+    roach_0.initializeV7UART(waitForV7Ready=False)
     #roach_0.initV7MB()
     roach_0.loadLOFreq()
     roach_0.loadDacLUT()

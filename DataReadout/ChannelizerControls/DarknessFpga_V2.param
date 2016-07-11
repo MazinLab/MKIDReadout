@@ -22,7 +22,7 @@ firLoadChan = 'prog_fir0_load_chan'
 #parameters for dac look-up table (lut)
 dacSampleRate = 2.e9
 nDacSamplesPerCycle = 8
-nLutRowsToUse = 2**11
+nLutRowsToUse = 2**15
 nBytesPerMemSample = 8
 nBitsPerSamplePair = 32
 dynamicRange = 1.0              # A single sine wave can only use 5% of the full range before overloading FFT. The freq comb can use 100%?
@@ -38,7 +38,7 @@ nBitsPerDdsSamplePair = 32
 
 #List of firmware register names
 start_reg = 'run'
-ddsShift_reg = 'dds_shift'
+read_dds_reg = 'dds_lut_run'
 chanSelLoad_reg = 'chan_sel_load'
 chanSel_regs = ['chan_sel_ch_bin0','chan_sel_ch_bin1','chan_sel_ch_bin2','chan_sel_ch_bin3']    #One per stream
 iqCenter_regs = ['conv_phase0_centers', 'conv_phase1_centers', 'conv_phase2_centers', 'conv_phase3_centers']
@@ -50,6 +50,10 @@ capture0Basekf_reg = 'capture0_base_kf'
 capture0Basekq_reg = 'capture0_base_kq'
 capture0Threshold_reg = 'capture0_threshold'
 capture0LoadThreshold_reg = 'capture0_load_thresh'
+ddsShift_reg = 'dds_shift'
+checkLag_reg = 'check_lag_latch'
+lagData_reg = 'check_lag_data_ch'
+lagDds_reg = 'check_lag_dds_ch'
 
 enBRAMDump_reg = 'a2g_ctrl_en_bram_dump'
 txEnUART_reg = 'a2g_ctrl_tx_en'
@@ -63,7 +67,8 @@ lutDumpDataPer_reg = 'a2g_ctrl_lut_dump_data_period'
 
 iqSnpStart_reg = 'acc_iq_start_acc'
 destIP_reg = 'gbe64_dest_ip'
-fabricPort_reg = 'gbe64_dest_port'
+phasePort_reg = 'phase_port'
+photonPort_reg = 'photon_port'
 wordsPerFrame_reg = 'gbe64_words_per_frame'
 gbe64Rst_reg = 'gbe64_rst'
 phaseDumpChanSel_reg = 'phase_dmp_ch_we'

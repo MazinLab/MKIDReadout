@@ -47,6 +47,7 @@ class RoachStateMachine(QtCore.QObject):        #Extends QObject for use with QT
     
     snapPhase = QtCore.pyqtSignal(int,object)
     timestreamPhase = QtCore.pyqtSignal(int,object)
+    ddsShift = QtCore.pyqtSignal(int)
     
     
     #NUMCOMMANDS = 8
@@ -209,8 +210,6 @@ class RoachStateMachine(QtCore.QObject):        #Extends QObject for use with QT
         ipaddress = self.config.get('Roach '+str(self.num),'ipaddress')
         self.roachController.ip = ipaddress
         self.roachController.connect()
-        ddsShift = self.config.getint('Roach '+str(self.num),'ddssynclag')
-        #self.roachController.loadDdsShift(ddsShift)    # We already do this before templar starts
         #self.roachController.initV7MB()
         
         return True
@@ -244,8 +243,9 @@ class RoachStateMachine(QtCore.QObject):        #Extends QObject for use with QT
         self.roachController.setLOFreq(loFreq)
         self.roachController.generateFftChanSelection()
         self.roachController.generateDdsTones()
-        #self.roachController.loadChanSelection()
-        #self.roachController.loadDdsLUT()
+        self.roachController.loadChanSelection()
+        self.roachController.loadDdsLUT()
+        return True
     
     def defineDacLUTs(self):
         '''
@@ -263,15 +263,15 @@ class RoachStateMachine(QtCore.QObject):        #Extends QObject for use with QT
         self.roachController.generateDacComb(globalDacAtten=dacAtten)
         
         print "Initializing ADC/DAC board communication"
-        #self.roachController.initializeV7UART()
+        self.roachController.initializeV7UART()
         print "Setting Attenuators"
-        #self.roachController.changeAtten(1,dacAtten1)
-        #self.roachController.changeAtten(2,dacAtten2)
-        #self.roachController.changeAtten(3,adcAtten)
+        self.roachController.changeAtten(1,dacAtten1)
+        self.roachController.changeAtten(2,dacAtten2)
+        self.roachController.changeAtten(3,adcAtten)
         print "Setting LO Freq"
-        #self.roachController.loadLOFreq()
+        self.roachController.loadLOFreq()
         print "Loading DAC LUT"
-        #self.roachController.loadDacLUT()
+        self.roachController.loadDacLUT()
         return True
     
     def sweep(self):
@@ -279,6 +279,10 @@ class RoachStateMachine(QtCore.QObject):        #Extends QObject for use with QT
         Run power sweep
         If multiple dac attenuation values are specified then we loop over them and save a power sweep file
         See SDR repository for power sweep info. It's uncommented so your guess is as good as mine.
+        
+        sets the following attributes:
+            self.I_data - [nFreqs, nLOsteps] array of I points
+            self.Q_data - 
         '''
         
         LO_freq = self.roachController.LOFreq
@@ -383,21 +387,25 @@ class RoachStateMachine(QtCore.QObject):        #Extends QObject for use with QT
         Finds the (I,Q) center of the loops
         sets self.centers - [nFreqs, 2]
         '''
-        I_centers = (np.amax(self.I_data,1) + np.amin(self.I_data,1))/2.
-        Q_centers = (np.amax(self.Q_data,1) + np.amin(self.Q_data,1))/2.
+        I_centers = (np.percentile(self.I_data,95,axis=1) + np.percentile(self.I_data,5,axis=1))/2.
+        Q_centers = (np.percentile(self.Q_data,95,axis=1) + np.percentile(self.Q_data,5,axis=1))/2.
         
         self.centers = np.transpose([I_centers.flatten(), Q_centers.flatten()])
         
         
         
     def loadFIRs(self):
+        """
+        Loads FIR coefficients from file into firmware
+        """
         firCoeffFile = self.config.get('Roach '+str(self.num),'fircoefffile')
         self.roachController.loadFIRCoeffs(firCoeffFile)
         return True
     
     def loadThreshold(self):
         '''
-        
+        Grab phase snapshot a bunch of times and take std for each channel
+        set threshold for each channel
         '''
         nfreqs = len(self.roachController.freqList)
         threshSig = self.config.getfloat('Roach '+str(self.num),'numsigs_thresh')
@@ -409,11 +417,16 @@ class RoachStateMachine(QtCore.QObject):        #Extends QObject for use with QT
                 sys.stdout.write("\rCollecting Phase on Ch: "+str(i)+" Snap "+str(k+1)+'/'+str(nSnap))
                 sys.stdout.flush()
                 data.append(self.getPhaseFromSnap(i))
-            thresh.append(np.std(data)*threshSig)
+            thresh.append(-1*np.std(data)*threshSig)
         #self.roachController.loadThresholds(thresh)
         sys.stdout.write("\n")
-        self.roachController.thresholds=thresh
-        return True
+        for i in range(nfreqs):
+            ch, stream = np.where(self.roachController.freqChannels == self.roachController.freqList[i])
+            ch = ch+stream*self.roachController.params['nChannelsPerStream']
+            self.roachController.setThresh(thresh[i],ch)
+            
+        #self.roachController.thresholds=thresh
+        return thresh
     
     def executeCommand(self,command):
         """
@@ -461,26 +474,120 @@ class RoachStateMachine(QtCore.QObject):        #Extends QObject for use with QT
         
         INPUTS:
             channel - the i'th frequency in the frequency list
+        OUTPUTS:
+            data - list of phase in radians
         """
-        print "r"+str(self.num)+" Getting phase snap"
-        data=np.random.uniform(-.1,.1,200)+channel
+        
+        print "r"+str(self.num)+": ch"+str(channel)+" Getting phase snap"
+        try:
+            ch, stream = np.where(self.roachController.freqChannels == self.roachController.freqList[channel])
+        except AttributeError:
+            print "Need to load freqs first!"
+            self.finished.emit()
+            return
+            
+        ch = ch+stream*self.roachController.params['nChannelsPerStream']
+        data = self.roachController.takePhaseSnapshot(channel=ch)
+        
+        #data=np.random.uniform(-.1,.1,200)+channel
         self.snapPhase.emit(channel,data)
+        self.finished.emit()
         return data
     
     @QtCore.pyqtSlot(int,float)
-    def getPhaseStream(self, channel, timelen=2):
+    def getPhaseStream(self, channel, duration=2):
         """
         This function continuously observes the phase stream for a given amount of time
         
         INPUTS:
             channel - the i'th frequency in the frequency list
             time - [seconds] the amount of time to observe for
+        OutPUTS:
+            data - list of phase in radians
         """
         print "r"+str(self.num)+" Collecting phase timestream"
-        time.sleep(timelen)
-        data=np.random.uniform(-.1,.1,timelen*10.**6)
+        try:
+            ch, stream = np.where(self.roachController.freqChannels == self.roachController.freqList[channel])
+        except AttributeError:
+            print "Need to load freqs first!"
+            self.finished.emit()
+            return
+        ch = ch+stream*self.roachController.params['nChannelsPerStream']
+        data=self.roachController.takePhaseStreamData(selChanIndex=ch, duration=duration, pktsPerFrame=100, fabric_port=50000, hostIP='10.0.0.50')
+        #time.sleep(timelen)
+        #data=np.random.uniform(-.1,.1,timelen*10.**6)
         self.timestreamPhase.emit(channel,data)
+        self.finished.emit()
         return data
+    
+    @QtCore.pyqtSlot()
+    @QtCore.pyqtSlot(int)
+    def loadDdsShift(self, ddsShift=-1):
+        """
+        This function loads the dds sync lag into the firmware
+        
+        INPUTS:
+            ddsShit - Number of clock cycles for the shift
+                      if -1, then automatically find out the number needed
+        """
+        if ddsShift is None or ddsShift<0:
+            ddsShift = self.roachController.checkDdsShift()
+        newDdsShift = self.roachController.loadDdsShift(ddsShift)
+        self.ddsShift.emit(newDdsShift)
+        self.finished.emit()
+    
+    @QtCore.pyqtSlot(object)
+    def initializeToState(self, state):
+        '''
+        This function is convenient for debugging.
+        If we restart templar, we don't need to reload everything into the boards again
+        This function can be used to force templar to initialize everything without actually communicating to the boards
+        
+        INPUTS:
+            state - Array of length numCommands with each value the state of that command
+                    We will force templar to think it is in this state
+        '''
+        for com in range(len(state)):
+            if state[com] == RoachStateMachine.COMPLETED and self.state[com] != RoachStateMachine.COMPLETED:
+                if com == RoachStateMachine.CONNECT:
+                    returnData = self.connect()
+                    self.finishedCommand_Signal.emit(com,returnData)
+                if com == RoachStateMachine.LOADFREQ:
+                    returnData = self.loadFreq()
+                    self.finishedCommand_Signal.emit(com,returnData)
+                if com ==RoachStateMachine.DEFINEROACHLUT:
+                    loFreq = int(self.config.getfloat('Roach '+str(self.num),'lo_freq'))
+                    self.roachController.setLOFreq(loFreq)
+                    self.roachController.generateFftChanSelection()
+                    self.roachController.generateDdsTones()
+                    self.finishedCommand_Signal.emit(com,True)
+                if com ==RoachStateMachine.DEFINEDACLUT:
+                    dacAtten = self.config.getfloat('Roach '+str(self.num),'dacatten_start')
+                    self.roachController.generateDacComb(globalDacAtten=dacAtten)
+                    self.finishedCommand_Signal.emit(com,True)
+                if com ==RoachStateMachine.SWEEP:
+                    self.I_data=np.zeros((len(self.roachController.freqList),1))
+                    self.Q_data=np.zeros((len(self.roachController.freqList),1))
+                    returnData = {'I':self.I_data,'Q':self.Q_data}
+                    self.finishedCommand_Signal.emit(com,returnData)
+                if com ==RoachStateMachine.FIT:
+                    self.centers=np.zeros((len(self.roachController.freqList),2))
+                    returnData={'centers':self.centers, 'iqOnRes':self.centers}
+                    self.finishedCommand_Signal.emit(com,returnData)
+                if com ==RoachStateMachine.LOADFIR:
+                    self.finishedCommand_Signal.emit(com,True)
+                if com ==RoachStateMachine.LOADTHRESHOLD:
+                    pass
+                    #self.finishedCommand_Signal.emit(com,True)
+
+            if state[com] == RoachStateMachine.INPROGRESS:
+                self.pushCommand(com)
+            self.state[com]=state[com]
+        
+        
+        self.reset.emit(self.state)
+        self.finished.emit()
+        
 
     def hasCommand(self):
         return (not self.commandQueue.empty())
