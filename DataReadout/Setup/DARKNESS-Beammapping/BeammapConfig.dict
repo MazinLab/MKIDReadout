@@ -7,7 +7,7 @@ xSweepLength = '10'
 ySweepLength = '10'
 
 pixelStartIndex = '0'
-pixelStopIndex = '1999'
+pixelStopIndex = '4'
 
 outputDirectory = 'TestImages/'
 outputFilename = 'Beamlist_FL1.txt'

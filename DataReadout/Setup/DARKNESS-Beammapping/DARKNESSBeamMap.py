@@ -170,29 +170,40 @@ class StartQt4(QMainWindow):
         self.configFileName=str(text)
         self.ui.configLabel.setText(str(text))
 
-        # Extract parameters from config file
+        # Open config file
         self.configData = readDict()
         self.configData.read_from_file(self.configFileName)
 
+        # Extract parameters from config file
         self.imgFileDirectory = str(self.configData['imgFileDirectory'])
-
         self.xSweepStartingTimes = np.array(self.configData['xSweepStartingTimes'], dtype=int)
         self.ySweepStartingTimes = np.array(self.configData['ySweepStartingTimes'], dtype=int)
-
         self.xSweepLength = int(self.configData['xSweepLength'])
         self.ySweepLength = int(self.configData['ySweepLength'])
-
+        self.pixelStartIndex = int(self.configData['pixelStartIndex'])
+        self.pixelStopIndex = int(self.configData['pixelStopIndex'])
         self.numRows = int(self.configData['numRows'])
         self.numCols = int(self.configData['numCols'])
 
+        # Define number of sweeps
         self.numXSweeps = self.xSweepStartingTimes.size
         self.numYSweeps = self.ySweepStartingTimes.size
 
-        self.xCube = np.zeros((((self.numXSweeps, self.xSweepLength, self.numRows, self.numCols))))
+        # Define time axes
+        self.xTimeAxis = np.linspace(0,self.xSweepLength-1,self.xSweepLength)
+        self.yTimeAxis = np.linspace(0,self.ySweepLength-1,self.ySweepLength)
 
-        print self.xCube.shape
+        # Load x and y sweep data using information in config file
+        self.loadXYData()
+        
+        # Create timestreams for selected pixel range
+        self.createTimestreams()
 
-        # Make list of files to load
+
+    def loadXYData(self):
+        
+        # Make list of files to load for x and y sweeps
+        self.xCube = np.zeros(((self.numXSweeps, self.xSweepLength, self.numRows*self.numCols)))
         for iXSweep in range(self.numXSweeps):
             for iXFile in range(self.xSweepLength):
                 xFileName = self.imgFileDirectory + str(self.xSweepStartingTimes[iXSweep]+iXFile) + '.img'
@@ -201,11 +212,27 @@ class StartQt4(QMainWindow):
                 fmt = 'H'*(len(xFileData)/2)
                 xFile.close()
                 xImage = np.asarray(struct.unpack(fmt,xFileData), dtype=np.int)
-                xImage = xImage.reshape((self.numRows,self.numCols))
-
+                #xImage = xImage.reshape((self.numRows,self.numCols))
+                self.xCube[iXSweep][iXFile] = xImage
+        self.xCube = np.swapaxes(self.xCube,1,2)
                 
+        self.yCube = np.zeros(((self.numYSweeps, self.ySweepLength, self.numRows*self.numCols)))
+        for iYSweep in range(self.numYSweeps):
+            for iYFile in range(self.ySweepLength):
+                yFileName = self.imgFileDirectory + str(self.ySweepStartingTimes[iYSweep]+iYFile) + '.img'
+                yFile = open(yFileName)
+                yFileData = yFile.read()
+                fmt = 'H'*(len(yFileData)/2)
+                yFile.close()
+                yImage = np.asarray(struct.unpack(fmt,yFileData), dtype=np.int)
+                #yImage = yImage.reshape((self.numRows,self.numCols))
+                self.yCube[iYSweep][iYFile] = yImage
+        self.yCube = np.swapaxes(self.yCube,1,2)
 
-        # Load .img files and create cubes
+    def createTimestreams(self):
+        self.xTimestreams = np.zeros(((self.numXSweeps,self.pixelStopIndex+1-self.pixelStartIndex,self.xSweepLength)))
+        for iPixel in xrange(self.pixelStartIndex,self.pixelStopIndex+1):
+            self.xTimestreams
 
     # Functions to set the fixed peak position when return is pressed
     def le0x_pressed(self):
