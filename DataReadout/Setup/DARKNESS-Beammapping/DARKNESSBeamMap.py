@@ -1,17 +1,16 @@
+import os, sys, time, struct, traceback
 import numpy as np
 from tables import *
-import os
-import time
 import matplotlib.pyplot as plt
-import sys
 from matplotlib.backends.backend_pdf import PdfPages
 import scipy.signal as signal
 from scipy import optimize
 import scipy.stats as stats
+from readDict import readDict
 
 from PyQt4.QtGui import *
 from PyQt4.QtGui import *
-from beammap_gui import Ui_beammap_gui
+from DARKNESS_beammap_gui import Ui_beammap_gui
 
 # Define the various classes and functions needed for the beam mapping
 # Define a standard Gaussian distribution function
@@ -31,250 +30,15 @@ def fitgaussian(data,x):
     p, success = optimize.leastsq(errorfunction, params, args=(data, x))
     return p
 
-def file_len(fname):
-    with open(fname) as f:
-        for i, l in enumerate(f):
-            pass
-    return i + 1
-
-# Input Parameter Gui
-class Sweep_Number(QWidget):
-    
-    def __init__(self):
-        super(Sweep_Number, self).__init__()
-        
-        self.initUI()
-        
-    def initUI(self):
-
-        # Default values
-        self.sweep_count = [1,1]
-        self.freqpath = os.getcwd()
-        self.savepath = os.getcwd()
-        self.roachnumber = 10
-        self.maxpix = 10000
-
-        self.btnx = QPushButton('X Sweeps', self)
-        self.btnx.move(20, 20)
-        self.btnx.clicked.connect(self.showDialogX)
-
-        self.btny = QPushButton('Y Sweeps', self)
-        self.btny.move(20, 50)
-        self.btny.clicked.connect(self.showDialogY)
-
-        self.btn1 = QPushButton('Frequency Path', self)
-        self.btn1.move(20, 140)
-        self.btn1.clicked.connect(self.freq_dialog)
-
-        self.btn2 = QPushButton('Save Path', self)
-        self.btn2.move(20, 170)
-        self.btn2.clicked.connect(self.save_dialog)
-
-        self.btn3 = QPushButton('Number of Roaches', self)
-        self.btn3.move(20, 80)
-        self.btn3.clicked.connect(self.roach_dialog)
-
-        self.btn4 = QPushButton('Max Pixel Count', self)
-        self.btn4.move(20, 110)
-        self.btn4.clicked.connect(self.pix_dialog)
-        
-        self.lex = QLabel(self)
-        self.lex.setGeometry(150, 20, 40 , 20)
-        self.lex.setFrameStyle(QFrame.Panel)
-        self.lex.setText(str(self.sweep_count[0]))
-
-        self.ley = QLabel(self)
-        self.ley.setGeometry(150, 50 , 40 , 20)
-        self.ley.setFrameStyle(QFrame.Panel)
-        self.ley.setText(str(self.sweep_count[1]))
-
-        self.le1 = QLabel(self)
-        self.le1.setGeometry(150, 140, 400, 20)
-        self.le1.setFrameStyle(QFrame.Panel)
-        self.le1.setText(str(self.freqpath))
-
-        self.le2 = QLabel(self)
-        self.le2.setGeometry(150, 170, 400, 20)
-        self.le2.setFrameStyle(QFrame.Panel)
-        self.le2.setText(str(self.savepath))
-
-        self.le3 = QLabel(self)
-        self.le3.setGeometry(150, 80, 40 , 20)
-        self.le3.setFrameStyle(QFrame.Panel)
-        self.le3.setText(str(self.roachnumber))
-
-        self.le4 = QLabel(self)
-        self.le4.setGeometry(150, 110, 40 , 20)
-        self.le4.setFrameStyle(QFrame.Panel)
-        self.le4.setText(str(self.maxpix))
-
-        self.okbtn = QPushButton('OK', self)
-        self.okbtn.move(20, 200)
-        self.okbtn.clicked.connect(self.close)
-        
-        self.setGeometry(300, 300, 600, 250)
-        self.setWindowTitle('Inputs')
-        self.show()
-
-    def freq_dialog(self):
-        text =QFileDialog.getExistingDirectory()
-        self.freqpath=str(text)
-        self.le1.setText(str(text))
-        
-    def save_dialog(self):
-        text =QFileDialog.getExistingDirectory()
-        self.savepath=str(text)
-        self.le2.setText(str(text))
-
-    def roach_dialog(self):
-        text, ok = QInputDialog.getText(self, 'Input Dialog', 
-            'Number of ROACH Boards:')
-        
-        if ok:
-            self.le3.setText(str(text))
-            self.roachnumber=str(text)
-
-
-    def pix_dialog(self):
-        text, ok = QInputDialog.getText(self, 'Input Dialog', 
-            'Number of total pixels:')
-        
-        if ok:
-            self.le4.setText(str(text))
-            self.maxpix=str(text)
-        
-        
-    def showDialogX(self):
-        
-        text, ok = QInputDialog.getText(self, 'Input Dialog', 
-            'Number of X Sweeps:')
-        
-        if ok:
-            self.lex.setText(str(text))
-            self.sweep_count[0] = int(text)
-
-    def showDialogY(self):
-        
-        text, ok = QInputDialog.getText(self, 'Input Dialog', 
-            'Number of Y Sweeps:')
-        
-        if ok:
-            self.ley.setText(str(text))
-            self.sweep_count[1] = int(text)
-        
-def numberrun():
-    
-    app1 = QApplication(sys.argv)
-    ex1 = Sweep_Number()
-    app1.exec_()
-    return [ex1.sweep_count[0],ex1.sweep_count[1],ex1.freqpath,ex1.savepath, ex1.roachnumber, ex1.maxpix]
-
-
-# X Sweep Gui
-class Sweep_DialogX(QWidget):    
-    def __init__(self):
-        super(Sweep_DialogX, self).__init__()       
-        self.initUI()
-        
-    def initUI(self):
-
-        self.btn = QPushButton('Add', self)
-        self.btn.move(20, 20)
-        self.btn.clicked.connect(self.file_dialog)
-
-        self.okbtn = QPushButton('Clear', self)
-        self.okbtn.move(20, 50)
-        self.okbtn.clicked.connect(self.clear_sweeps)
-        
-        self.okbtn = QPushButton('OK', self)
-        self.okbtn.move(20, 100)
-        self.okbtn.clicked.connect(self.close)
-
-        self.le = []
-        for i in range(input_params[0]):
-            self.le.append(QLineEdit(self))
-            self.le[i].setGeometry(130, 22+22*i,400,20)
-        
-        self.x_array = []
-        
-        self.setGeometry(300, 300, 600, 150)
-        self.setWindowTitle('Choose X sweep files')
-        self.show()
-
-    def clear_sweeps(self):
-        for i in range(len(self.x_array)):
-            self.le[i].setText('')
-        self.x_array = []
-        
-            
-    def file_dialog(self):
-        text =QFileDialog.getOpenFileName(parent=None, caption=str("Choose Sweep File"), filter=str("H5 (*.h5)")) 
-        self.x_array.append(str(text))
-        for i in range(len(self.x_array)):
-            self.le[i].setText(self.x_array[i])
-
-def xrun():
-    
-    appx = QApplication(sys.argv)
-    ex = Sweep_DialogX()
-    appx.exec_()
-    return ex.x_array
-
-# Y Sweep Gui
-class Sweep_DialogY(QWidget):    
-    def __init__(self):
-        super(Sweep_DialogY, self).__init__()       
-        self.initUI()
-        
-    def initUI(self):
-
-        self.btn = QPushButton('Add', self)
-        self.btn.move(20, 20)
-        self.btn.clicked.connect(self.file_dialog)
-
-        self.okbtn = QPushButton('Clear', self)
-        self.okbtn.move(20, 50)
-        self.okbtn.clicked.connect(self.clear_sweeps)
-        
-        self.okbtn = QPushButton('OK', self)
-        self.okbtn.move(20, 100)
-        self.okbtn.clicked.connect(self.close)
-
-        self.le = []
-        for i in range(input_params[1]):
-            self.le.append(QLineEdit(self))
-            self.le[i].setGeometry(130, 22+22*i,400,20)
-        
-        self.y_array = []
-        
-        self.setGeometry(300, 300, 600, 150)
-        self.setWindowTitle('Choose Y sweep files')
-        self.show()
-
-    def clear_sweeps(self):
-        for i in range(len(self.y_array)):
-            self.le[i].setText('')
-        self.y_array = []
-        
-            
-    def file_dialog(self):
-        text =QFileDialog.getOpenFileName(parent=None, caption=str("Choose Sweep File"), filter=str("H5 (*.h5)")) 
-        self.y_array.append(str(text))
-        for i in range(len(self.y_array)):
-            self.le[i].setText(self.y_array[i])
-
-def yrun():
-    
-    appy = QApplication(sys.argv)
-    ey = Sweep_DialogY()
-    appy.exec_()
-    return ey.y_array
-
 class StartQt4(QMainWindow):
-    def __init__(self,xtime,ytime,xfilelength,yfilelength):
+    def __init__(self):
         QWidget.__init__(self, parent=None)
         self.ui = Ui_beammap_gui()
         self.ui.setupUi(self)
+
+
+        self.ui.configBtn.clicked.connect(self.loadConfigFile)
+        '''
 
         # Initialize arrays that will contain h5 data
         self.crx_median = np.zeros((maximum_pixels,xtime))
@@ -397,6 +161,51 @@ class StartQt4(QMainWindow):
         self.ui.r4.clicked.connect(self.r4_clicked)
         self.ui.x4.clicked.connect(self.x4_clicked)
         self.ui.y4.clicked.connect(self.y4_clicked)
+
+        '''
+
+    def loadConfigFile(self):
+        # Browse for config file
+        text =QFileDialog.getOpenFileName()
+        self.configFileName=str(text)
+        self.ui.configLabel.setText(str(text))
+
+        # Extract parameters from config file
+        self.configData = readDict()
+        self.configData.read_from_file(self.configFileName)
+
+        self.imgFileDirectory = str(self.configData['imgFileDirectory'])
+
+        self.xSweepStartingTimes = np.array(self.configData['xSweepStartingTimes'], dtype=int)
+        self.ySweepStartingTimes = np.array(self.configData['ySweepStartingTimes'], dtype=int)
+
+        self.xSweepLength = int(self.configData['xSweepLength'])
+        self.ySweepLength = int(self.configData['ySweepLength'])
+
+        self.numRows = int(self.configData['numRows'])
+        self.numCols = int(self.configData['numCols'])
+
+        self.numXSweeps = self.xSweepStartingTimes.size
+        self.numYSweeps = self.ySweepStartingTimes.size
+
+        self.xCube = np.zeros((((self.numXSweeps, self.xSweepLength, self.numRows, self.numCols))))
+
+        print self.xCube.shape
+
+        # Make list of files to load
+        for iXSweep in range(self.numXSweeps):
+            for iXFile in range(self.xSweepLength):
+                xFileName = self.imgFileDirectory + str(self.xSweepStartingTimes[iXSweep]+iXFile) + '.img'
+                xFile = open(xFileName)
+                xFileData = xFile.read()
+                fmt = 'H'*(len(xFileData)/2)
+                xFile.close()
+                xImage = np.asarray(struct.unpack(fmt,xFileData), dtype=np.int)
+                xImage = xImage.reshape((self.numRows,self.numCols))
+
+                
+
+        # Load .img files and create cubes
 
     # Functions to set the fixed peak position when return is pressed
     def le0x_pressed(self):
@@ -989,57 +798,10 @@ class StartQt4(QMainWindow):
         self.cid = self.fig.canvas.mpl_connect('button_press_event', self.on_click)
 '''
 
-# Set input parameters and sweep files
-input_params = numberrun()
-print input_params
-xsweep = xrun()
-ysweep = yrun()
-print 'X Sweep Files:', xsweep
-print 'Y Sweep Files:', ysweep
-
-number_of_roaches = input_params[4]
-roach_pixel_count = np.zeros(number_of_roaches)
-for roachno in xrange(0,number_of_roaches):
-    roach_pixel_count[roachno] = file_len(input_params[2] + '/ps_freq%i.txt' %roachno)-1
-maximum_pixels = input_params[5]
-ppr = maximum_pixels/number_of_roaches
-
-# Load the input files
-# X sweep data
-h5file_x = []
-ts_x = []
-exptime_x = []
-for i in range(len(xsweep)):
-#    h5file_x.append(openFile(path + xsweep[i], mode = 'r'))
-    h5file_x.append(openFile(xsweep[i], mode = 'r'))
-    try:
-        ts_x.append(int(h5file_x[i].root.header.header.col('unixtime')[0]))
-    except KeyError:
-        ts_x.append(int(h5file_x[i].root.header.header.col('ut')[0]))
-    exptime_x.append(int(h5file_x[i].root.header.header.col('exptime')[0]))
-# Y sweep data
-h5file_y = []
-ts_y = []
-exptime_y = []
-for i in range(len(ysweep)):
-#    h5file_y.append(openFile(path + ysweep[i], mode = 'r'))
-    h5file_y.append(openFile(ysweep[i], mode = 'r'))
-    try:
-        ts_y.append(int(h5file_y[i].root.header.header.col('unixtime')[0]))
-    except KeyError:
-        ts_y.append(int(h5file_y[i].root.header.header.col('ut')[0]))
-    exptime_y.append(int(h5file_y[i].root.header.header.col('exptime')[0]))
-
-
 # Start up main gui
 if __name__ == "__main__":
 	app = QApplication(sys.argv)
-	myapp = StartQt4(exptime_x[0],exptime_y[0],len(xsweep),len(ysweep))
+	myapp = StartQt4()
 	myapp.show()
 	app.exec_()
 
-# Close the h5 files in the end
-for i in range(len(h5file_x)):
-    h5file_x[i].close()
-for i in range(len(h5file_y)):
-    h5file_y[i].close()

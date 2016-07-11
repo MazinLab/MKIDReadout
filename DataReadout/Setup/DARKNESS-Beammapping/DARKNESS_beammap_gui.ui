@@ -16,6 +16,11 @@
     <verstretch>0</verstretch>
    </sizepolicy>
   </property>
+  <property name="font">
+   <font>
+    <pointsize>10</pointsize>
+   </font>
+  </property>
   <property name="windowTitle">
    <string>Beam Mapping</string>
   </property>
@@ -763,9 +768,9 @@
    <widget class="QLabel" name="label">
     <property name="geometry">
      <rect>
-      <x>720</x>
+      <x>710</x>
       <y>10</y>
-      <width>91</width>
+      <width>101</width>
       <height>21</height>
      </rect>
     </property>
@@ -781,9 +786,9 @@
    <widget class="QLabel" name="label_2">
     <property name="geometry">
      <rect>
-      <x>720</x>
+      <x>710</x>
       <y>440</y>
-      <width>81</width>
+      <width>101</width>
       <height>31</height>
      </rect>
     </property>
@@ -796,31 +801,13 @@
      <string>Y Sweeps</string>
     </property>
    </widget>
-   <widget class="QLabel" name="roachLabel">
-    <property name="geometry">
-     <rect>
-      <x>740</x>
-      <y>950</y>
-      <width>71</width>
-      <height>16</height>
-     </rect>
-    </property>
-    <property name="font">
-     <font>
-      <pointsize>14</pointsize>
-     </font>
-    </property>
-    <property name="text">
-     <string>Roach 0</string>
-    </property>
-   </widget>
    <widget class="QPushButton" name="nextbtn">
     <property name="geometry">
      <rect>
-      <x>340</x>
-      <y>990</y>
-      <width>101</width>
-      <height>41</height>
+      <x>1010</x>
+      <y>950</y>
+      <width>91</width>
+      <height>21</height>
      </rect>
     </property>
     <property name="font">
@@ -848,10 +835,10 @@
    <widget class="QPushButton" name="savebtn">
     <property name="geometry">
      <rect>
-      <x>470</x>
-      <y>990</y>
-      <width>101</width>
-      <height>41</height>
+      <x>1130</x>
+      <y>950</y>
+      <width>81</width>
+      <height>21</height>
      </rect>
     </property>
     <property name="font">
@@ -2144,31 +2131,13 @@
      <string>dle4y</string>
     </property>
    </widget>
-   <widget class="QLabel" name="label_9">
-    <property name="geometry">
-     <rect>
-      <x>30</x>
-      <y>980</y>
-      <width>46</width>
-      <height>13</height>
-     </rect>
-    </property>
-    <property name="font">
-     <font>
-      <pointsize>12</pointsize>
-     </font>
-    </property>
-    <property name="text">
-     <string>Roach</string>
-    </property>
-   </widget>
    <widget class="QLabel" name="label_10">
     <property name="geometry">
      <rect>
-      <x>30</x>
-      <y>1020</y>
+      <x>880</x>
+      <y>950</y>
       <width>46</width>
-      <height>13</height>
+      <height>20</height>
      </rect>
     </property>
     <property name="font">
@@ -2180,28 +2149,13 @@
      <string>Pixel</string>
     </property>
    </widget>
-   <widget class="QLineEdit" name="roachgo">
-    <property name="geometry">
-     <rect>
-      <x>90</x>
-      <y>980</y>
-      <width>51</width>
-      <height>20</height>
-     </rect>
-    </property>
-    <property name="font">
-     <font>
-      <pointsize>12</pointsize>
-     </font>
-    </property>
-   </widget>
    <widget class="QLineEdit" name="pixelgo">
     <property name="geometry">
      <rect>
-      <x>90</x>
-      <y>1020</y>
-      <width>51</width>
-      <height>20</height>
+      <x>920</x>
+      <y>950</y>
+      <width>61</width>
+      <height>21</height>
      </rect>
     </property>
     <property name="font">
@@ -2213,10 +2167,10 @@
    <widget class="QPushButton" name="gobtn">
     <property name="geometry">
      <rect>
-      <x>150</x>
-      <y>990</y>
-      <width>101</width>
-      <height>41</height>
+      <x>780</x>
+      <y>950</y>
+      <width>91</width>
+      <height>21</height>
      </rect>
     </property>
     <property name="font">
@@ -2361,8 +2315,8 @@
    <widget class="QLabel" name="label_11">
     <property name="geometry">
      <rect>
-      <x>920</x>
-      <y>970</y>
+      <x>930</x>
+      <y>980</y>
       <width>591</width>
       <height>71</height>
      </rect>
@@ -2378,6 +2332,40 @@
 2) Enlarged plots must be closed before setting self or double positions.</string>
     </property>
    </widget>
+   <widget class="QPushButton" name="configBtn">
+    <property name="geometry">
+     <rect>
+      <x>10</x>
+      <y>950</y>
+      <width>131</width>
+      <height>21</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>LOAD CONFIG FILE</string>
+    </property>
+   </widget>
+   <widget class="QLabel" name="configLabel">
+    <property name="geometry">
+     <rect>
+      <x>150</x>
+      <y>950</y>
+      <width>611</width>
+      <height>21</height>
+     </rect>
+    </property>
+    <property name="font">
+     <font>
+      <pointsize>8</pointsize>
+     </font>
+    </property>
+    <property name="frameShape">
+     <enum>QFrame::StyledPanel</enum>
+    </property>
+    <property name="text">
+     <string/>
+    </property>
+   </widget>
   </widget>
   <widget class="QMenuBar" name="menubar">
    <property name="geometry">
@@ -2385,7 +2373,7 @@
      <x>0</x>
      <y>0</y>
      <width>1520</width>
-     <height>21</height>
+     <height>25</height>
     </rect>
    </property>
   </widget>
