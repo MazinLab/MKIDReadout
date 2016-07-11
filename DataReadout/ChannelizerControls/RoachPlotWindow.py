@@ -14,7 +14,7 @@ Note: see http://bastibe.de/2013-05-30-speeding-up-matplotlib.html for making ma
 """
 
 import numpy as np
-import time, warnings
+import time, warnings, traceback
 import ConfigParser
 from functools import partial
 from PyQt4.QtGui import *
@@ -114,6 +114,7 @@ class RoachPhaseStreamWindow(QMainWindow):
         #self.spinbox_channel.setEnabled(True)
     
     def appendPhaseNoiseData(self, ch, data):
+        print 'here'
         fftlen = self.config.getint('Roach '+str(self.roachNum),'nLongsnapFftSamples')
         nFftAvg = int(np.floor(len(data)/fftlen))
         noiseData = np.zeros(fftlen)
@@ -121,7 +122,7 @@ class RoachPhaseStreamWindow(QMainWindow):
         data = np.reshape(data[:nFftAvg*fftlen],(nFftAvg,fftlen))
         noiseData=np.fft.rfft(data)
         noiseData=np.abs(noiseData)**2  #power spectrum
-        noiseData = np.average(noiseData,axis=0)
+        noiseData = np.average(noiseData,axis=0)/fftlen
         
         self.phaseNoiseDataList[ch]=noiseData
     
@@ -130,7 +131,9 @@ class RoachPhaseStreamWindow(QMainWindow):
         #self.ax1.clear()
         if self.phaseNoiseDataList[ch] is not None:
             ydata = np.copy(self.phaseNoiseDataList[ch])
-            x = np.fft.fftfreq(len(ydata),10.**-6.)
+            #dt = 2.^8/(250e.6)
+            dt = 1.*self.roach.params['nChannelsPerStream']/self.roach.params['fpgaClockRate']
+            x = np.fft.fftfreq(len(ydata),dt)
             #fmt='b.-'
             #self.ax1.loglog(x,data)
             self.line1.set_data(x,ydata)
@@ -174,10 +177,18 @@ class RoachPhaseStreamWindow(QMainWindow):
         ch = self.spinbox_channel.value()
         self.ax2.clear()
         if self.snapDataList[ch] is not None:
-            data = np.copy(self.snapDataList[ch])
+            snapDict = self.snapDataList[ch]
+            t = np.asarray(snapDict['time'])*1.e6
+            data=np.asarray(snapDict['phase'])
+            #print snapDict['trig']
+            #print np.where(np.asarray(snapDict['time']))
+            #print np.where(np.asarray(snapDict['time'])>0)
+            trig=np.asarray(snapDict['trig'])
             data*=180./np.pi
             fmt = 'b.-'
-            self.ax2.plot(data, fmt,**kwargs)
+            self.ax2.plot(t, data, fmt,**kwargs)
+            print 'nPhotons: ',np.sum(trig)
+            self.ax2.plot(t[np.where(trig)], data[np.where(trig)], 'ro')
             median=np.median(data)
             self.label_median.setText('Median: '+str(median)+' deg')
             self.ax2.axhline(y=median,color='k')
@@ -366,6 +377,7 @@ class RoachSweepWindow(QMainWindow):
     
     sweepClicked = QtCore.pyqtSignal()
     fitClicked = QtCore.pyqtSignal()
+    adcAttenChanged = QtCore.pyqtSignal()
     resetRoach = QtCore.pyqtSignal(int)
     
     
@@ -438,6 +450,7 @@ class RoachSweepWindow(QMainWindow):
                 self.ax2.semilogy(freqs, np.sqrt(I[ch]**2 + Q[ch]**2),fmt,**kwargs)
             except:
                 print 'Couldn\'t make transmission log plot'
+                traceback.print_exc()
             self.ax2.axvline(x=resFreq,color='r')
             
             if self.fitList[i] is not None:
@@ -553,6 +566,17 @@ class RoachSweepWindow(QMainWindow):
         #print self.ax2
         #print event.xdata
     
+    def changeADCAtten(self, adcAtten):
+        """
+        This function executes when change the adc attenuation spinbox
+        It tells the ADC attenuator to change
+        
+        Works similiarly to phaseSnapShot()
+        """
+        QtCore.QMetaObject.invokeMethod(self.roach, 'loadADCAtten', Qt.QueuedConnection,
+                                        QtCore.Q_ARG(float, adcAtten))
+        self.adcAttenChanged.emit()
+    
     def create_main_frame(self):
         """
         Makes GUI elements on the window
@@ -655,7 +679,8 @@ class RoachSweepWindow(QMainWindow):
         spinbox_adcAtten.setWrapping(False)
         spinbox_adcAtten.setCorrectionMode(QAbstractSpinBox.CorrectToNearestValue)
         spinbox_adcAtten.valueChanged.connect(partial(self.changedSetting,'adcatten'))
-        spinbox_adcAtten.valueChanged.connect(lambda x: self.resetRoach.emit(RoachStateMachine.DEFINEDACLUT))       # reset state of roach
+        spinbox_adcAtten.valueChanged.connect(lambda x: self.resetRoach.emit(RoachStateMachine.SWEEP))       # reset state of roach
+        spinbox_adcAtten.valueChanged.connect(self.changeADCAtten)
         
         loSpan = self.config.getfloat('Roach '+str(self.roachNum),'sweeplospan')
         label_loSpan = QLabel('LO Span [Hz]:')

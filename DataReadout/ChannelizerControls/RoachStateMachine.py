@@ -35,8 +35,22 @@ class RoachStateMachine(QtCore.QObject):        #Extends QObject for use with QT
     ie.. RoachStateMachine.COMPLETED=2
          RoachStateMachine.parseState(2)='Completed'
     
-    TODO:
-        uncomment everything in executeCommand()
+    SIGNALS:
+        finishedCommand_Signal - Emitted whenever a command is finished. 
+                                 The first argument is the command, the second is any data from the command
+        commandError_Signal - Emitted when a command errors out
+                              The first argument is the command, the second is a tuple containing the sys.exc_info()
+        finished - Emitted when the queue is empty
+                   also emited after other slots are called and complete succesfully
+        reset - Emitted when the roach succesfully resets to some state
+                argument is the state
+        snapPhase - Emitted after snapping phase data
+                    arg1 = channel, arg2 = phaseSnapDict
+                    phaseSnapDict is a dictionary with keywords 'phase', 'trig'
+        timestreamPhase - Emitted after collecting a a long phase snapshot over ethernet
+                          arg1 = channel, arg2 = phase data
+        ddsShift - Emitted when we load a DDS Sync lag into the ROACH2
+                   arg1 = dds lag
     """
     #FINISHED_SIGNAL = QtCore.SIGNAL("finishedCommand(int,PyQt_PyObject)")
     #ERROR_SIGNAL = QtCore.SIGNAL("commandError(int,PyQt_PyObject)")
@@ -406,7 +420,12 @@ class RoachStateMachine(QtCore.QObject):        #Extends QObject for use with QT
         '''
         Grab phase snapshot a bunch of times and take std for each channel
         set threshold for each channel
+        
+        OUTPUTS:
+            thresh - list of thresholds in radians
         '''
+        self.roachController.setMaxCountRate()  #default is 2500
+        
         nfreqs = len(self.roachController.freqList)
         threshSig = self.config.getfloat('Roach '+str(self.num),'numsigs_thresh')
         nSnap = self.config.getint('Roach '+str(self.num),'numsnaps_thresh')
@@ -414,16 +433,17 @@ class RoachStateMachine(QtCore.QObject):        #Extends QObject for use with QT
         for i in range(nfreqs):
             data=[]
             for k in range(nSnap):
-                sys.stdout.write("\rCollecting Phase on Ch: "+str(i)+" Snap "+str(k+1)+'/'+str(nSnap))
-                sys.stdout.flush()
+                #sys.stdout.write("\rCollecting Phase on Ch: "+str(i)+" Snap "+str(k+1)+'/'+str(nSnap))
+                #sys.stdout.flush()
                 data.append(self.getPhaseFromSnap(i))
             thresh.append(-1*np.std(data)*threshSig)
         #self.roachController.loadThresholds(thresh)
-        sys.stdout.write("\n")
+        #sys.stdout.write("\n")
         for i in range(nfreqs):
-            ch, stream = np.where(self.roachController.freqChannels == self.roachController.freqList[i])
-            ch = ch+stream*self.roachController.params['nChannelsPerStream']
-            self.roachController.setThresh(thresh[i],ch)
+            #ch, stream = np.where(self.roachController.freqChannels == self.roachController.freqList[i])
+            #ch = ch+stream*self.roachController.params['nChannelsPerStream']
+            #self.roachController.setThresh(thresh[i],ch)
+            self.roachController.setThreshByFreqChannel(thresh[i],i)
             
         #self.roachController.thresholds=thresh
         return thresh
@@ -475,7 +495,7 @@ class RoachStateMachine(QtCore.QObject):        #Extends QObject for use with QT
         INPUTS:
             channel - the i'th frequency in the frequency list
         OUTPUTS:
-            data - list of phase in radians
+            phaseSnap - list of phase in radians
         """
         
         print "r"+str(self.num)+": ch"+str(channel)+" Getting phase snap"
@@ -487,12 +507,12 @@ class RoachStateMachine(QtCore.QObject):        #Extends QObject for use with QT
             return
             
         ch = ch+stream*self.roachController.params['nChannelsPerStream']
-        data = self.roachController.takePhaseSnapshot(channel=ch)
+        phaseSnapDict = self.roachController.takePhaseSnapshot(channel=ch)
         
         #data=np.random.uniform(-.1,.1,200)+channel
-        self.snapPhase.emit(channel,data)
+        self.snapPhase.emit(channel,phaseSnapDict)
         self.finished.emit()
-        return data
+        return phaseSnapDict['phase']
     
     @QtCore.pyqtSlot(int,float)
     def getPhaseStream(self, channel, duration=2):
@@ -505,15 +525,22 @@ class RoachStateMachine(QtCore.QObject):        #Extends QObject for use with QT
         OutPUTS:
             data - list of phase in radians
         """
-        print "r"+str(self.num)+" Collecting phase timestream"
+        print "r"+str(self.num)+": ch"+str(channel)+" Collecting phase timestream"
+        #try:
+        #    ch, stream = np.where(self.roachController.freqChannels == self.roachController.freqList[channel])
+        #except AttributeError:
+        #    print "Need to load freqs first!"
+        #    self.finished.emit()
+        #    return
+        hostip = self.config.get('HOST','hostIP')
+        #ch = ch+stream*self.roachController.params['nChannelsPerStream']
+        #data=self.roachController.takePhaseStreamData(selChanIndex=ch, duration=duration, hostIP=hostip)
         try:
-            ch, stream = np.where(self.roachController.freqChannels == self.roachController.freqList[channel])
-        except AttributeError:
-            print "Need to load freqs first!"
+            data=self.roachController.takePhaseStreamDataOfFreqChannel(freqChan=channel, duration=duration, hostIP=hostip)
+        except:
+            traceback.print_exc()
             self.finished.emit()
             return
-        ch = ch+stream*self.roachController.params['nChannelsPerStream']
-        data=self.roachController.takePhaseStreamData(selChanIndex=ch, duration=duration, pktsPerFrame=100, fabric_port=50000, hostIP='10.0.0.50')
         #time.sleep(timelen)
         #data=np.random.uniform(-.1,.1,timelen*10.**6)
         self.timestreamPhase.emit(channel,data)
@@ -534,6 +561,18 @@ class RoachStateMachine(QtCore.QObject):        #Extends QObject for use with QT
             ddsShift = self.roachController.checkDdsShift()
         newDdsShift = self.roachController.loadDdsShift(ddsShift)
         self.ddsShift.emit(newDdsShift)
+        self.finished.emit()
+    
+    @QtCore.pyqtSlot(float)
+    def loadADCAtten(self, adcAtten):
+        '''
+        loads a new adc attenuation
+        
+        INPUTS:
+            adcAtten - dB
+        '''
+        self.roachController.changeAtten(3,adcAtten)
+        print 'r'+str(self.num)+'Changed ADCAtten to '+str(adcAtten)
         self.finished.emit()
     
     @QtCore.pyqtSlot(object)

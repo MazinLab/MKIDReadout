@@ -106,6 +106,7 @@ class HighTemplar(QMainWindow):
             window.sweepClicked.connect(partial(self.commandButtonClicked, [roach_i.num] , RoachStateMachine.SWEEP))
             window.fitClicked.connect(partial(self.commandButtonClicked, [roach_i.num] , RoachStateMachine.FIT))
             window.resetRoach.connect(partial(self.resetRoachState, roach_i.num))
+            window.adcAttenChanged.connect(partial(self.commandButtonClicked, [roach_i.num]))
             self.sweepWindows.append(window)
         self.phaseWindows=[]
         for roach_i in self.roaches:

@@ -15,9 +15,6 @@ nFftBins = 2048
 nChannels = 1024
 nChannelsPerStream = 256        #4 streams for Gen 2 readout
 #nStreams = 4                   # nChannels/nChannelsPerStream
-firCoeffsFile = 'matched30_50.0us.txt'
-firTapsMem = 'prog_fir0_single_chan_coeffs'
-firLoadChan = 'prog_fir0_load_chan'
 
 #parameters for dac look-up table (lut)
 dacSampleRate = 2.e9
@@ -41,15 +38,9 @@ start_reg = 'run'
 read_dds_reg = 'dds_lut_run'
 chanSelLoad_reg = 'chan_sel_load'
 chanSel_regs = ['chan_sel_ch_bin0','chan_sel_ch_bin1','chan_sel_ch_bin2','chan_sel_ch_bin3']    #One per stream
-iqCenter_regs = ['conv_phase0_centers', 'conv_phase1_centers', 'conv_phase2_centers', 'conv_phase3_centers']
-iqLoadCenter_regs = ['conv_phase0_load_centers', 'conv_phase1_load_centers', 'conv_phase2_load_centers', 'conv_phase3_load_centers']
 ddsMemName_regs = ['qdr0_memory','qdr1_memory','qdr2_memory','qdr3_memory']    #for dds LUT. One per stream
-#dacMemName_regs = ['dac_lut_mem0','dac_lut_mem1','dac_lut_mem2']   # for DAC LUT
 nDacLutRows_reg = 'dac_lut_n_qdr_rows'
-capture0Basekf_reg = 'capture0_base_kf'
-capture0Basekq_reg = 'capture0_base_kq'
-capture0Threshold_reg = 'capture0_threshold'
-capture0LoadThreshold_reg = 'capture0_load_thresh'
+
 ddsShift_reg = 'dds_shift'
 checkLag_reg = 'check_lag_latch'
 lagData_reg = 'check_lag_data_ch'
@@ -66,14 +57,28 @@ lutBramAddr_reg = 'a2g_ctrl_lut_dump_dac_lut_buffer'
 lutDumpDataPer_reg = 'a2g_ctrl_lut_dump_data_period'
 
 iqSnpStart_reg = 'acc_iq_start_acc'
-destIP_reg = 'gbe64_dest_ip'
+iqSnp_regs = ['acc_iq_avg0_ss','acc_iq_avg1_ss','acc_iq_avg2_ss','acc_iq_avg3_ss']
+iqCenter_regs = ['conv_phase0_centers', 'conv_phase1_centers', 'conv_phase2_centers', 'conv_phase3_centers']
+iqLoadCenter_regs = ['conv_phase0_load_centers', 'conv_phase1_load_centers', 'conv_phase2_load_centers', 'conv_phase3_load_centers']
+
+firBinPt = 9    # number of bits after binary point. fractional bits
+firTapsMem_regs = ['prog_fir0_single_chan_coeffs','prog_fir1_single_chan_coeffs','prog_fir2_single_chan_coeffs','prog_fir3_single_chan_coeffs']
+firLoadChan_regs = ['prog_fir0_load_chan','prog_fir1_load_chan','prog_fir2_load_chan','prog_fir3_load_chan']
+
+captureThreshold_regs = ['capture0_threshold','capture1_threshold','capture2_threshold','capture3_threshold']
+captureLoadThreshold_regs = ['capture0_load_thresh','capture1_load_thresh','capture2_load_thresh','capture3_load_thresh']
+captureBasekf_regs = ['capture0_base_kf','capture1_base_kf','capture2_base_kf','capture3_base_kf']
+captureBasekq_regs = ['capture0_base_kq','capture1_base_kq','capture2_base_kq','capture3_base_kq']
+captureCPSlim_regs = ['capture0_cps_lim','capture1_cps_lim','capture2_cps_lim','capture3_cps_lim']
+
 phasePort_reg = 'phase_port'
 photonPort_reg = 'photon_port'
+destIP_reg = 'gbe64_dest_ip'
 wordsPerFrame_reg = 'gbe64_words_per_frame'
 gbe64Rst_reg = 'gbe64_rst'
 phaseDumpChanSel_reg = 'phase_dmp_ch_we'
-photonCapStart_reg = 'start_cap'
 phaseDumpEn_reg = 'phase_dmp_on'
+photonCapStart_reg = 'start_cap'
 
 #UART Parameters
 baud_rate = 921600
@@ -91,9 +96,6 @@ mbEnableIntLO = 0x10
 mbEnFracLO = 0x11
 mbRecvLO = 0x12
 mbChangeAtten = 0x20
-
-
-
 
 
 

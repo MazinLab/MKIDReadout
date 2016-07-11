@@ -150,7 +150,7 @@ class RoachSettingsTab(QMainWindow):
         add2layout(vbox,self.label_ddsSyncLag,self.spinbox_ddsSyncLag,button_loadDdsShift,button_autoDdsShift)
         
         freqFile = self.config.get('Roach '+str(self.roachNum),'freqFile')
-        self.label_freqFile = QLabel('Freq file: ')
+        self.label_freqFile = QLabel('Freq file:')
         self.label_freqFile.setMinimumWidth(110)
         self.textbox_freqFile = QLineEdit(freqFile)
         self.textbox_freqFile.setMinimumWidth(70)
@@ -160,7 +160,7 @@ class RoachSettingsTab(QMainWindow):
         
         lofreq = self.config.getfloat('Roach '+str(self.roachNum),'lo_freq')
         lofreq_str = "%.9e" % lofreq
-        self.label_lofreq = QLabel('LO Freq [Hz]: ')
+        self.label_lofreq = QLabel('LO Freq [Hz]:')
         self.label_lofreq.setMinimumWidth(110)
         self.textbox_lofreq = QLineEdit(lofreq_str)
         self.textbox_lofreq.setMinimumWidth(150)
@@ -168,7 +168,16 @@ class RoachSettingsTab(QMainWindow):
         self.textbox_lofreq.textChanged.connect(lambda x: self.changedSetting('lo_freq',"%.9e" % float(x)))
         self.textbox_lofreq.textChanged.connect(lambda x: self.resetRoach.emit(RoachStateMachine.DEFINEROACHLUT))
         add2layout(vbox,self.label_lofreq,self.textbox_lofreq)
-
+        
+        firCoeffFile = self.config.get('Roach '+str(self.roachNum),'fircoefffile')
+        self.label_firCoeffFile = QLabel('FIR File:')
+        self.label_firCoeffFile.setMinimumWidth(110)
+        self.textbox_firCoeffFile = QLineEdit(firCoeffFile)
+        self.textbox_firCoeffFile.setMinimumWidth(70)
+        self.textbox_firCoeffFile.textChanged.connect(partial(self.changedSetting,'fircoefffile'))
+        self.textbox_firCoeffFile.textChanged.connect(lambda x: self.resetRoach.emit(RoachStateMachine.LOADFIR))
+        add2layout(vbox,self.label_firCoeffFile,self.textbox_firCoeffFile)
+        
         vbox.addStretch()
         
         
