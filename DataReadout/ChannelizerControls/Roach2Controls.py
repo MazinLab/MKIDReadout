@@ -1163,7 +1163,7 @@ class Roach2Controls:
         if firCoeffs.ndim==1: firCoeffs = np.tile(firCoeffs, (len(freqChans),1))    # if using the same filter for every pixel
         firBinPt=self.params['firBinPt']
         firInts=np.asarray(firCoeffs*(2**firBinPt),dtype=np.int32)
-        zeroWriteStr = struct.pack('>{}{}'.format(len(firInts[0]),'L'), *np.zeros(len(firInts[0])))     # write zeros for channels without resonators
+        zeroWriteStr = struct.pack('>{}{}'.format(len(firInts[0]),'l'), *np.zeros(len(firInts[0])))     # write zeros for channels without resonators
         
         # loop through and write FIRs to firmware
         nStreams = self.params['nChannels']/self.params['nChannelsPerStream']
@@ -1176,7 +1176,7 @@ class Roach2Controls:
                 for ch in range(self.params['nChannelsPerStream']):
                     if ch in np.atleast_1d(ch_stream):
                         ch_freq = int(np.atleast_1d(ch_freqs)[np.where(np.atleast_1d(ch_stream)==ch)])     # The freq channel of the resonator corresponding to ch/stream
-                        toWriteStr = struct.pack('>{}{}'.format(len(firInts[ch_freq]),'L'), *firInts[ch_freq])
+                        toWriteStr = struct.pack('>{}{}'.format(len(firInts[ch_freq]),'l'), *firInts[ch_freq])
                         print ' ch:'+str(ch_freq)+' ch/stream: '+str(ch)+'/'+str(stream)
                     else:
                         toWriteStr=zeroWriteStr
@@ -1190,6 +1190,16 @@ class Roach2Controls:
                 print 'Failed to write FIRs on stream '+str(stream)     # Often times test firmware only implements stream 0
                 if stream==0: raise
 
+    def takePhaseSnapshotOfFreqChannel(self, freqChan):
+        '''
+        This function overloads takePhaseSnapshot
+        
+        INPUTS:
+            freqChan - the resonator channel as indexed in the freqList
+        '''
+        ch, stream = self.freqChannelToStreamChannel(freqChannel)
+        selChanIndex = int(stream) << 8 + int(ch)
+        return self.takePhaseSnapshot(selChanIndex)
     
     def takePhaseSnapshot(self, selChanIndex=0):
         """
@@ -1475,6 +1485,16 @@ class Roach2Controls:
                      Shape = [4, (nChannelsPerStream+nChannelsPerStream) * nLOsteps]
                      Get one per stream (4 streams for all thousand resonators)
                      Formatted using formatIQSweepData then stored in self.iqSweepData
+        
+        The logic is as follows:
+            set LO
+            Arm the snapshot block
+            trigger write enable - This grabs the first set of 256 I, 256 Q points
+            disable the writeEnable
+            set LO
+            trigger write enable - This grabs the a second set of 256 I, 256 Q points
+            read snapshot block - read 1024 points from mem
+            disable writeEnable
 
         INPUTS:
             startLOFreq - starting sweep frequency [MHz]
@@ -1488,38 +1508,37 @@ class Roach2Controls:
         """
         LOFreqs = np.arange(startLOFreq, stopLOFreq, stepLOFreq)
         nStreams = self.params['nChannels']/self.params['nChannelsPerStream']
-        #iqData = np.empty([4,0])
-        #iqPt = np.empty([4,self.params['nChannelsPerStream']*4])
         iqData = np.empty([nStreams,0])
+        
+        # The magic number 4 below is the number of IQ points per read
+        # We get two I points and two Q points every read
         iqPt = np.empty([nStreams,self.params['nChannelsPerStream']*4])
         self.fpga.write_int(self.params['iqSnpStart_reg'],0)        
-        #self.fpga.snapshots['acc_iq_avg0_ss'].arm(man_valid = False, man_trig = True)
         
-        sweepCnt = 0
-        for freq in LOFreqs:
+        for i in range(len(LOFreqs)):
             if self.verbose:
-                print 'Sweeping LO ' + str(freq) + ' MHz'
-            self.loadLOFreq(freq)
-            time.sleep(0.01)
+                print 'Sweeping LO ' + str(LOFreqs[i]) + ' MHz'
+            self.loadLOFreq(LOFreqs[i])
+            time.sleep(0.01)    # I dunno how long it takes to set the LO
             if(sweepCnt%2==0):
                 for stream in range(nStreams):
                     self.fpga.snapshots[self.params['iqSnp_regs'[stream]]].arm(man_valid = False, man_trig = False) 
-                #self.fpga.snapshots['acc_iq_avg0_ss'].arm(man_valid = False, man_trig = False) 
-                #self.fpga.snapshots['acc_iq_avg1_ss'].arm(man_valid = False, man_trig = False) 
-                #self.fpga.snapshots['acc_iq_avg2_ss'].arm(man_valid = False, man_trig = False) 
-                #self.fpga.snapshots['acc_iq_avg3_ss'].arm(man_valid = False, man_trig = False) 
             self.fpga.write_int(self.params['iqSnpStart_reg'],1)
-            time.sleep(0.01)
+            time.sleep(0.001)    # takes nChannelsPerStream/fpgaClockRate seconds to load all the values
             if(sweepCnt%2==1):
                 for stream in range(nStreams):
                     iqPt[stream]=self.fpga.snapshots[self.params['iqSnp_regs'[stream]]].read(timeout = 10, arm = False)['data']['iq']
-                #iqPt[0] = self.fpga.snapshots['acc_iq_avg0_ss'].read(timeout = 10, arm = False)['data']['iq']
-                #iqPt[1] = self.fpga.snapshots['acc_iq_avg1_ss'].read(timeout = 10, arm = False)['data']['iq']
-                #iqPt[2] = self.fpga.snapshots['acc_iq_avg2_ss'].read(timeout = 10, arm = False)['data']['iq']
-                #iqPt[3] = self.fpga.snapshots['acc_iq_avg3_ss'].read(timeout = 10, arm = False)['data']['iq']
                 iqData = np.append(iqData, iqPt,1)
             self.fpga.write_int(self.params['iqSnpStart_reg'],0)
-            sweepCnt += 1
+        
+        # if odd number of LO steps then we still need to read out half of the last buffer
+        if len(LOFreqs) % 2 == 1:
+            self.fpga.write_int(self.params['iqSnpStart_reg'],1)
+            time.sleep(0.001)
+            for stream in range(nStreams):
+                iqPt[stream]=self.fpga.snapshots[self.params['iqSnp_regs'[stream]]].read(timeout = 10, arm = False)['data']['iq']
+            iqData = np.append(iqData, iqPt[:self.params['nChannelsPerStream']*2],1)
+            self.fpga.write_int(self.params['iqSnpStart_reg'],0)
         
         self.loadLOFreq()   # reloads initial lo freq
         self.iqSweepData = self.formatIQSweepData(iqData)
@@ -1531,24 +1550,34 @@ class Roach2Controls:
         Reshapes the iqdata into a usable format
         Need to put the data in the same order as the freqList that was loaded in
         
+        If we haven't loaded in a freqList then the order is channels 0..256 in stream 0, then stream 1, etc..
+        
         INPUTS:
             iqDataStreams - 2D array with following shape:
-                            [nStreams, (nChannelsPerStream+nChannelsPerStream) * nLOsteps]
+                            [nStreams, (nChannelsPerStream+nChannelsPerStream) * nSteps]
         OUTPUTS:
             iqSweepData - Dictionary with following keywords
-                          I - 2D array with shape = [nFreqs, nLOsteps]
-                          Q - 2D array with shape = [nFreqs, nLOsteps]
+                          I - 2D array with shape = [nFreqs, nSteps]
+                          Q - 2D array with shape = [nFreqs, nSteps]
         """
+        # Only return IQ data for channels/streams with resonators associated with them
+        try:
+            freqChans = range(len(self.freqList))
+            channels, streams = self.freqChannelToStreamChannel(freqChans)      # Need to be careful about how the resonators are distributed into firmware streams
+        except AttributeError:      # If we haven't loaded in frequencies yet then grab all channels
+            freqChans = range(self.params['nChannels'])
+            streams = np.repeat(range(self.params['nChannels']/self.params['nChannelsPerStream']), self.params['nChannelsPerStream'])
+            channels = np.tile(range(self.params['nChannelsPerStream']), self.params['nChannels']/self.params['nChannelsPerStream'])
+        
         I_list = []
         Q_list = []
-        for freq in self.freqList:
-            ch, stream = np.where(self.freqChannels == freq)
+        for i in range(len(freqChans)):
+            ch, stream = np.atleast_1d(channels)[i], np.atleast_1d(streams)[i]
             I = iqDataStreams[stream, ch :: self.params['nChannelsPerStream']*2]
             Q = iqDataStreams[stream, ch+self.params['nChannelsPerStream'] :: self.params['nChannelsPerStream']*2]
             I_list.append(I.flatten())
             Q_list.append(Q.flatten())
         return {'I':I_list, 'Q':Q_list}
-        
         
 
     def takeAvgIQData(self,numPts=100):
@@ -1569,32 +1598,29 @@ class Roach2Controls:
         iqData = np.empty([nStreams,0])
         self.fpga.write_int(self.params['iqSnpStart_reg'],0)        
         iqPt = np.empty([nStreams,self.params['nChannelsPerStream']*4])
-        #self.fpga.snapshots['acc_iq_avg0_ss'].arm(man_valid = False, man_trig = True)
-        self.loadLOFreq()
-        sweepCnt = 0
+        
         for i in counter:
             if self.verbose:
-                print 'Sweep # ' + str(i)
-            time.sleep(0.01)
+                print 'IQ point #' + str(i)
             if(sweepCnt%2==0):
                 for stream in range(nStreams):
                     self.fpga.snapshots[self.params['iqSnp_regs'[stream]]].arm(man_valid = False, man_trig = False) 
-                #self.fpga.snapshots['acc_iq_avg0_ss'].arm(man_valid = False, man_trig = False) 
-                #self.fpga.snapshots['acc_iq_avg1_ss'].arm(man_valid = False, man_trig = False) 
-                #self.fpga.snapshots['acc_iq_avg2_ss'].arm(man_valid = False, man_trig = False) 
-                #self.fpga.snapshots['acc_iq_avg3_ss'].arm(man_valid = False, man_trig = False) 
             self.fpga.write_int(self.params['iqSnpStart_reg'],1)
-            time.sleep(0.01)
+            time.sleep(0.001)    # takes nChannelsPerStream/fpgaClockRate seconds to load all the values
             if(sweepCnt%2==1):
                 for stream in range(nStreams):
                     iqPt[stream]=self.fpga.snapshots[self.params['iqSnp_regs'[stream]]].read(timeout = 10, arm = False)['data']['iq']
-                #iqPt[0] = self.fpga.snapshots['acc_iq_avg0_ss'].read(timeout = 10, arm = False)['data']['iq']
-                #iqPt[1] = self.fpga.snapshots['acc_iq_avg1_ss'].read(timeout = 10, arm = False)['data']['iq']
-                #iqPt[2] = self.fpga.snapshots['acc_iq_avg2_ss'].read(timeout = 10, arm = False)['data']['iq']
-                #iqPt[3] = self.fpga.snapshots['acc_iq_avg3_ss'].read(timeout = 10, arm = False)['data']['iq']
                 iqData = np.append(iqData, iqPt,1)
             self.fpga.write_int(self.params['iqSnpStart_reg'],0)
-            sweepCnt += 1
+        
+        # if odd number of steps then we still need to read out half of the last buffer
+        if len(counter) % 2 == 1:
+            self.fpga.write_int(self.params['iqSnpStart_reg'],1)
+            time.sleep(0.001)
+            for stream in range(nStreams):
+                iqPt[stream]=self.fpga.snapshots[self.params['iqSnp_regs'[stream]]].read(timeout = 10, arm = False)['data']['iq']
+            iqData = np.append(iqData, iqPt[:self.params['nChannelsPerStream']*2],1)
+            self.fpga.write_int(self.params['iqSnpStart_reg'],0)
 
         self.iqToneData = self.formatIQSweepData(iqData)
         #self.iqToneDataRaw = iqData

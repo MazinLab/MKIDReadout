@@ -104,7 +104,9 @@ class HighTemplar(QMainWindow):
         for roach_i in self.roaches:
             window = RoachSweepWindow(roach_i,self.config)
             window.sweepClicked.connect(partial(self.commandButtonClicked, [roach_i.num] , RoachStateMachine.SWEEP))
-            window.fitClicked.connect(partial(self.commandButtonClicked, [roach_i.num] , RoachStateMachine.FIT))
+            #window.fitClicked.connect(partial(self.commandButtonClicked, [roach_i.num] , RoachStateMachine.FIT))
+            window.rotateClicked.connect(partial(self.commandButtonClicked, [roach_i.num] , RoachStateMachine.ROTATE))
+            window.translateClicked.connect(partial(self.commandButtonClicked, [roach_i.num] , RoachStateMachine.TRANSLATE))
             window.resetRoach.connect(partial(self.resetRoachState, roach_i.num))
             window.adcAttenChanged.connect(partial(self.commandButtonClicked, [roach_i.num]))
             self.sweepWindows.append(window)
@@ -173,13 +175,14 @@ class HighTemplar(QMainWindow):
             
         if command == RoachStateMachine.DEFINEROACHLUT:
             self.sweepWindows[roachArg].initFreqs() # initialize LO freq
-        
         if command == RoachStateMachine.SWEEP:
             self.sweepWindows[roachArg].plotData(commandData)
-        
-        if command == RoachStateMachine.FIT:
-            self.sweepWindows[roachArg].plotData(commandData,fit=True)
-        
+        #if command == RoachStateMachine.FIT:
+        #    self.sweepWindows[roachArg].plotData(commandData,fit=True)
+        if command == RoachStateMachine.ROTATE:
+            self.sweepWindows[roachArg].plotData(commandData,rotated=True)
+        if command == RoachStateMachine.TRANSLATE:
+            self.sweepWindows[roachArg].plotData(commandData)
         if command == RoachStateMachine.LOADTHRESHOLD:
             self.phaseWindows[roachArg].appendThresh(commandData)
 

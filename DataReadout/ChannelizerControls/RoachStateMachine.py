@@ -66,15 +66,18 @@ class RoachStateMachine(QtCore.QObject):        #Extends QObject for use with QT
     
     #NUMCOMMANDS = 8
     #CONNECT,LOADFREQ,DEFINELUT,SWEEP,ROTATE,CENTER,LOADFIR,LOADTHRESHOLD = range(NUMCOMMANDS)
-    NUMCOMMANDS = 8
-    CONNECT,LOADFREQ,DEFINEROACHLUT,DEFINEDACLUT,SWEEP,FIT,LOADFIR,LOADTHRESHOLD = range(NUMCOMMANDS)
+    #NUMCOMMANDS = 8
+    #CONNECT,LOADFREQ,DEFINEROACHLUT,DEFINEDACLUT,SWEEP,FIT,LOADFIR,LOADTHRESHOLD = range(NUMCOMMANDS)
+    NUMCOMMANDS = 9
+    CONNECT,LOADFREQ,DEFINEROACHLUT,DEFINEDACLUT,SWEEP,ROTATE,CENTER,LOADFIR,LOADTHRESHOLD = range(NUMCOMMANDS)
     NUMSTATES = 4
     UNDEFINED, INPROGRESS, COMPLETED, ERROR = range(NUMSTATES)
     
     @staticmethod
     def parseCommand(command):
         #commandsString=['Connect','Load Freqs','Define LUTs','Sweep','Rotate','Center','Load FIRs','Load Thresholds']
-        commandsString=['Connect','Read Freqs','Define Roach LUTs','Define DAC LUTs','Sweep','Fit Loops','Load FIRs','Load Thresholds']
+        #commandsString=['Connect','Read Freqs','Define Roach LUTs','Define DAC LUTs','Sweep','Fit Loops','Load FIRs','Load Thresholds']
+        commandsString=['Connect','Read Freqs','Define Roach LUTs','Define DAC LUTs','Sweep','Rotate Loops','Load Centers','Load FIRs','Load Thresholds']
         if command < 0: return 'Reset'
         return commandsString[command]
     @staticmethod
@@ -297,6 +300,18 @@ class RoachStateMachine(QtCore.QObject):        #Extends QObject for use with QT
         sets the following attributes:
             self.I_data - [nFreqs, nLOsteps] array of I points
             self.Q_data - 
+            self.centers
+        
+        NOTE: each I,Q point is actually an average of 1024 points done in firmware
+        
+        OUTPUTS:
+            dictionary with keywords
+            I - [nFreqs, nLOsteps] list of I points for each resonator
+            Q - 
+            freqOffsets - list of LO offsets in Hz
+            centers - [nFreqs, 2] list of I,Q centers
+            IonRes - [nFreqs, 20] list of I points on Resonance (20 is just some arbitrary number)
+            QonRes - 
         '''
         
         LO_freq = self.roachController.LOFreq
@@ -345,7 +360,18 @@ class RoachStateMachine(QtCore.QObject):        #Extends QObject for use with QT
                     w.savenoise = 0
                     w.Save(powerSweepFile,'r0', 'a')    # always r0
         
-        return {'I':self.I_data,'Q':self.Q_data}
+        # Get freq list, center, IQonResonance
+        # Only for last sweep if power sweeping
+        LO_offsets = np.arange(LO_start, LO_end, LO_step) - LO_freq
+        self.fitLoopCenters()   # uses self.I_data, self.Q_data and instantiates self.centers
+        nPoints = 20 #arbitrary number. 20 seems fine. Could add this to config file in future
+        iqOnRes = self.roachController.takeAvgIQData(nPoints)
+        
+        return {'I':self.I_data, 'Q':self.Q_data, 'freqOffsets':LO_offsets, 
+                'centers':self.centers, 'IonRes':iqOnRes['I'],'QonRes':iqOnRes['Q']}
+        
+        #return {'I':self.I_data,'Q':self.Q_data}
+        
         '''
         nfreqs = len(self.roachController.freqList)
         self.I_data = []
@@ -360,8 +386,60 @@ class RoachStateMachine(QtCore.QObject):        #Extends QObject for use with QT
         return {'I':self.I_data,'Q':self.Q_data}
         '''
     
-    def fitLoops(self):
+    def rotateLoops(self):
         '''
+        Rotate loops so that the on resonance phase=0
+        
+        NOTE: We rotate around I,Q = 0. Not around the center of the loop
+              When we translate after, we need to resweep
+        
+        Find rotation phase
+            - Get average I and Q at resonant frequency
+        Rewrite the DDS LUT with new phases
+        
+        OUTPUTS:
+            dictionary with keywords:
+            IonRes - The average I value on resonance for each resonator
+            QonRes - The average Q value on resonance for each resonator
+            rotation - The rotation angle for each resonator before phasing the DDS LUT
+        '''
+        nIQPoints = 100     #arbitrary number. 100 seems fine. Could add this to config file in future
+        averageIQ = self.roachController.takeAvgIQData(nIQPoints)
+        avg_I = np.average(averageIQ['I'],1)
+        avg_Q = np.average(averageIQ['Q'],1)
+        rotation_phases = np.arctan2(avg_Q,avg_I)
+        
+        phaseList = np.copy(self.roachController.ddsPhaseList)
+        for i in range(len(self.roachController.freqList)):
+            arg = np.where(self.roachController.freqChannels == self.roachController.freqList[i])
+            phaseList[arg]-=rotation_phases[i]
+        
+        self.roachController.generateDdsTones(phaseList=phaseList)
+        self.roachController.loadDdsLUT()
+        
+        return {'IonRes':avg_I, 'QonRes':avg_Q, 'rotation':rotation_phases}
+
+    def translateLoops(self):
+        '''
+        This function loads the IQ loop center into firmware
+        
+        First needs to sweep
+        then find centers (happens in self.sweep())
+        then load them
+    
+        NOTE: technically we don't have to resweep everytime. We just need to sweep after rotating
+        
+        OUTPUTS:
+            sweepDict - see self.sweep()
+        '''
+        sweepDict = self.sweep()
+        #self.centers = sweepDict['centers'] # Actually, it already sets these in sweep()
+        self.roachController.loadIQcenters(self.centers)
+        return sweepDict
+    
+    '''
+    def fitLoops(self):
+        """
         Find the center
             - If centerbool is false then use the old center if it exists
         Upload center to ROACH2
@@ -371,7 +449,7 @@ class RoachStateMachine(QtCore.QObject):        #Extends QObject for use with QT
         Rewrite the DDS LUT with new phases
         
         Sets self.centers
-        '''
+        """
         recenter = self.config.getboolean('Roach '+str(self.num),'centerbool')
         if not hasattr(self, 'centers'): recenter = True
         if recenter: 
@@ -395,6 +473,7 @@ class RoachStateMachine(QtCore.QObject):        #Extends QObject for use with QT
         return {'centers':self.centers, 'iqOnRes':np.transpose([avg_I,avg_Q])}
         
         return True
+    '''
     
     def fitLoopCenters(self):
         '''
@@ -471,8 +550,12 @@ class RoachStateMachine(QtCore.QObject):        #Extends QObject for use with QT
                 returnData = self.defineDacLUTs()
             elif command == RoachStateMachine.SWEEP:
                 returnData = self.sweep()
-            elif command == RoachStateMachine.FIT:
-                returnData = self.fitLoops()
+            #elif command == RoachStateMachine.FIT:
+            #    returnData = self.fitLoops()
+            elif command == RoachStateMachine.ROTATE:
+                returnData = self.rotateLoops()
+            elif command == RoachStateMachine.TRANSLATE:
+                returnData = self.translateLoops()
             elif command == RoachStateMachine.LOADFIR:
                 returnData = self.loadFIRs()
             elif command == RoachStateMachine.LOADTHRESHOLD:
@@ -499,15 +582,21 @@ class RoachStateMachine(QtCore.QObject):        #Extends QObject for use with QT
         """
         
         print "r"+str(self.num)+": ch"+str(channel)+" Getting phase snap"
+        #try:
+        #    ch, stream = np.where(self.roachController.freqChannels == self.roachController.freqList[channel])
+        #except AttributeError:
+        #    print "Need to load freqs first!"
+        #    self.finished.emit()
+        #    return
+        #ch = ch+stream*self.roachController.params['nChannelsPerStream']
+        #phaseSnapDict = self.roachController.takePhaseSnapshot(channel=ch)
+        
         try:
-            ch, stream = np.where(self.roachController.freqChannels == self.roachController.freqList[channel])
-        except AttributeError:
-            print "Need to load freqs first!"
+            phaseSnapDict = self.roachController.takePhaseSnapshotOfFreqChannel(channel)
+        except:
+            traceback.print_exc()
             self.finished.emit()
             return
-            
-        ch = ch+stream*self.roachController.params['nChannelsPerStream']
-        phaseSnapDict = self.roachController.takePhaseSnapshot(channel=ch)
         
         #data=np.random.uniform(-.1,.1,200)+channel
         self.snapPhase.emit(channel,phaseSnapDict)
@@ -605,19 +694,36 @@ class RoachStateMachine(QtCore.QObject):        #Extends QObject for use with QT
                     self.roachController.generateDacComb(globalDacAtten=dacAtten)
                     self.finishedCommand_Signal.emit(com,True)
                 if com ==RoachStateMachine.SWEEP:
-                    self.I_data=np.zeros((len(self.roachController.freqList),1))
-                    self.Q_data=np.zeros((len(self.roachController.freqList),1))
-                    returnData = {'I':self.I_data,'Q':self.Q_data}
+                    self.I_data=np.zeros((len(self.roachController.freqList),2))
+                    self.Q_data=np.copy(self.I_data)
+                    self.centers = np.zeros((len(self.roachController.freqList),2))
+                    freqOffsets = np.asarray([-1,1])
+                    iOnRes = np.copy(self.I_data)
+                    qOnRes = np.copy(self.I_data)
+                    returnData = {'I':self.I_data,'Q':self.Q_data, 'freqOffsets':freqOffsets,
+                                  'centers':self.centers,'IonRes':iOnRes,'QonRes':qOnRes}
                     self.finishedCommand_Signal.emit(com,returnData)
-                if com ==RoachStateMachine.FIT:
-                    self.centers=np.zeros((len(self.roachController.freqList),2))
-                    returnData={'centers':self.centers, 'iqOnRes':self.centers}
+                #if com ==RoachStateMachine.FIT:
+                #    self.centers=np.zeros((len(self.roachController.freqList),2))
+                #    returnData={'centers':self.centers, 'iqOnRes':self.centers}
+                #    self.finishedCommand_Signal.emit(com,returnData)
+                if com == RoachStateMachine.ROTATE:
+                    iOnRes = np.zeros(len(self.roachController.freqList))
+                    returnData = {'IonRes':iOnRes, 'QonRes':np.copy(iOnRes), 'rotation':np.copy(iOnRes)}
+                    self.finishedCommand_Signal.emit(com,returnData)
+                if com == RoachStateMachine.TRANSLATE:
+                    self.I_data=np.zeros((len(self.roachController.freqList),2))
+                    self.Q_data=np.copy(self.I_data)
+                    self.centers = np.zeros((len(self.roachController.freqList),2))
+                    returnData = {'I':self.I_data,'Q':self.Q_data, 'freqOffsets':np.asarray([-1,1]),
+                                  'centers':self.centers,'IonRes':np.copy(self.I_data),'QonRes':np.copy(self.I_data)}
                     self.finishedCommand_Signal.emit(com,returnData)
                 if com ==RoachStateMachine.LOADFIR:
                     self.finishedCommand_Signal.emit(com,True)
                 if com ==RoachStateMachine.LOADTHRESHOLD:
-                    pass
-                    #self.finishedCommand_Signal.emit(com,True)
+                    thresh = np.asarray([-.1]*len(self.roachController.freqList))
+                    returnData = thresh
+                    self.finishedCommand_Signal.emit(com,returnData)
 
             if state[com] == RoachStateMachine.INPROGRESS:
                 self.pushCommand(com)

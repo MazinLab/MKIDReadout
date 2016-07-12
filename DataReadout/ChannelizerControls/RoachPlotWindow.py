@@ -376,7 +376,9 @@ class RoachPhaseStreamWindow(QMainWindow):
 class RoachSweepWindow(QMainWindow):
     
     sweepClicked = QtCore.pyqtSignal()
-    fitClicked = QtCore.pyqtSignal()
+    #fitClicked = QtCore.pyqtSignal()
+    rotateClicked = QtCore.pyqtSignal()
+    translateClicked = QtCore.pyqtSignal()
     adcAttenChanged = QtCore.pyqtSignal()
     resetRoach = QtCore.pyqtSignal(int)
     
@@ -400,33 +402,33 @@ class RoachSweepWindow(QMainWindow):
         self.create_main_frame()
 
         self.channelsModified=set()     # Remember which channels we've already modified but haven't reloaded into roach
-        self.dataList = []              # Save data from sweeps in memory
-        self.fitList = []               # Save fit data
+        self.dataList = []              # Save data from sweeps and translates in memory
+        self.rotatedList = []           # Save data from rotate corresponding to data in dataList
         self.numData2Show = 4           # number of previous sweeps to show
         self.maxDataListLength = 10     # maximum number of sweeps to save in memory
 
         #self.counter = 0
 
     
-    def plotData(self,data=None,fit=False,**kwargs):
+    def plotData(self,data=None,rotated=False,**kwargs):
         #print 'Plotting Data: ',data
-        if data is not None and not fit:
+        if data is not None and not rotated:
             self.appendData(data)
-        if fit:
-            self.appendFit(data)
+        if rotated:
+            self.appendRotated(data)
         if self.isVisible():
             self.makePlot(**kwargs)
             self.draw()
     
     def appendData(self,data):
         self.dataList.append(data)
-        self.fitList.append(None)
+        self.rotatedList.append(None)
         if len(self.dataList) > self.maxDataListLength:
             self.dataList = self.dataList[-1*self.maxDataListLength:]
-            self.fitList = self.fitList[-1*self.maxDataListLength:]
+            self.rotatedList = self.rotatedList[-1*self.maxDataListLength:]
     
-    def appendFit(self,data):
-        self.fitList[-1] = data
+    def appendRotated(self,data):
+        self.rotatedList[-1] = data
 
     def makePlot(self, **kwargs):
         self.ax.clear()
@@ -440,25 +442,36 @@ class RoachSweepWindow(QMainWindow):
             kwargs['alpha']=1. if i==0 else .6 - 0.5*(i-1)/(numData2Show-1)
             fmt = 'b.-' if i==0 else 'c.-'
             self.ax.plot(I[ch], Q[ch], fmt,**kwargs)
+            center = data['center'][ch]
+            self.ax.plot(center[0],center[1],'gx',alpha=kwargs['alpha'])
+            iOnRes = data['IonRes']
+            qOnRes = data['QonRes']
+            self.ax.plot(iOnRes,qOnRes,'g.',alpha=kwargs['alpha'])
 
-            resFreq = self.roach.roachController.freqList[ch]
-            loSpan = self.config.getfloat('Roach '+str(self.roachNum),'sweeplospan')
-            nSteps = len(I[ch])
-            loStep = self.config.getfloat('Roach '+str(self.roachNum),'sweeplostep')
-            freqs = np.linspace(resFreq-loSpan/2., resFreq+loSpan/2., nSteps)
+            #resFreq = self.roach.roachController.freqList[ch]
+            #loSpan = self.config.getfloat('Roach '+str(self.roachNum),'sweeplospan')
+            #nSteps = len(I[ch])
+            #loStep = self.config.getfloat('Roach '+str(self.roachNum),'sweeplostep')
+            #freqs = np.linspace(resFreq-loSpan/2., resFreq+loSpan/2., nSteps)
             try:
-                self.ax2.semilogy(freqs, np.sqrt(I[ch]**2 + Q[ch]**2),fmt,**kwargs)
+                freqs = data['freqOffsets'] + self.roach.roachController.freqList[ch]
+                self.ax2.semilogy(freqs, np.sqrt(I[ch]**2 + Q[ch]**2),fmt,alpha=kwargs['alpha'])
             except:
                 print 'Couldn\'t make transmission log plot'
                 traceback.print_exc()
-            self.ax2.axvline(x=resFreq,color='r')
+            self.ax2.axvline(x=self.roach.roachController.freqList[ch],color='r')
             
-            if self.fitList[i] is not None:
-                centers = self.fitList[i]['centers']
-                iqOnRes = self.fitList[i]['iqOnRes']
-                self.ax.plot(centers[ch][0],centers[ch][1],'rx',**kwargs)
-                self.ax.plot(iqOnRes[ch][0]+centers[ch][0],iqOnRes[ch][1]+centers[ch][1],'ro',**kwargs)
-                print 'channel center plot',ch,centers[ch][0],centers[ch][1]
+            if self.rotatedList[i] is not None:
+                iOnRes = self.rotateList[i]['IonRes']
+                qOnRes = self.rotateList[i]['QonRes']
+                
+                self.ax.plot(iOnRes[ch],qOnRes[ch],'ro',alpha=kwargs['alpha'])
+                self.ax.plot([0,iOnRes[ch]],[0,qOnRes[ch]],'r--',alpha=kwargs['alpha'])
+                self.ax.plot([0,iOnRes[ch]],[0,0],'r--',alpha=kwargs['alpha'])
+                
+                #self.ax.plot(centers[ch][0],centers[ch][1],'rx',**kwargs)
+                #self.ax.plot(iqOnRes[ch][0]+centers[ch][0],iqOnRes[ch][1]+centers[ch][1],'ro',**kwargs)
+                #print 'channel center plot',ch,centers[ch][0],centers[ch][1]
             
         self.ax.set_xlabel('I')
         self.ax.set_ylabel('Q')
@@ -705,9 +718,15 @@ class RoachSweepWindow(QMainWindow):
         button_sweep.setEnabled(True)
         button_sweep.clicked.connect(self.sweepClicked) #You can connect signals to more signals!   
         
-        button_fit = QPushButton("Fit Loops")
-        button_fit.setEnabled(True)
-        button_fit.clicked.connect(self.fitClicked)
+        #button_fit = QPushButton("Fit Loops")
+        #button_fit.setEnabled(True)
+        #button_fit.clicked.connect(self.fitClicked)
+        button_rotate = QPushButton("Rotate Loops")
+        button_rotate.setEnabled(True)
+        button_rotate.clicked.connect(self.rotateClicked)
+        button_translate = QPushButton("Translate Loops")
+        button_translate.setEnabled(True)
+        button_translate.clicked.connect(self.translateClicked)
         
         centerBool = self.config.getboolean('Roach '+str(self.roachNum),'centerbool')
         checkbox_center = QCheckBox('Recenter')
@@ -756,7 +775,9 @@ class RoachSweepWindow(QMainWindow):
         hbox_sweep.addWidget(textbox_loStep)
         hbox_sweep.addWidget(button_sweep)
         hbox_sweep.addSpacing(50)
-        hbox_sweep.addWidget(button_fit)
+        #hbox_sweep.addWidget(button_fit)
+        hbox_sweep.addWidget(button_rotate)
+        hbox_sweep.addWidget(button_translate)
         hbox_sweep.addWidget(checkbox_center)
         hbox_sweep.addStretch()
         
