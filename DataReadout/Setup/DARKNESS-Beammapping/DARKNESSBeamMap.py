@@ -37,73 +37,9 @@ class StartQt4(QMainWindow):
         self.ui.setupUi(self)
 
 
+        # Load configuration file. PRESS THIS BUTTON FIRST
         self.ui.configBtn.clicked.connect(self.loadConfigFile)
 
-        # Initialize arrays
-
-        
-
-        '''
-
-        # Initialize arrays that will contain h5 data
-        
-        
-        
-        
-        self.flagarray = np.zeros(maximum_pixels)
-        self.currentroach = 0
-        self.xfit = np.zeros((maximum_pixels,xtime))
-        self.yfit = np.zeros((maximum_pixels,ytime))
-        
-        # Calculate data used for plots
-        self.calculate_plot_data()
-
-        # Store median data
-        self.xvals=np.arange(len(self.crx_median[0][:]))
-        self.yvals=np.arange(len(self.cry_median[0][:]))
-
-        # Calculate fits from h5
-        self.perform_fits()
-        
-        self.make_plots()
-        
-        self.ui.pp0x.setText(str(self.peakpos[0][0]))
-        self.ui.pp0y.setText(str(self.peakpos[1][0]))
-        self.ui.pp1x.setText(str(self.peakpos[0][1]))
-        self.ui.pp1y.setText(str(self.peakpos[1][1]))
-        self.ui.pp2x.setText(str(self.peakpos[0][2]))
-        self.ui.pp2y.setText(str(self.peakpos[1][2]))
-        self.ui.pp3x.setText(str(self.peakpos[0][3]))
-        self.ui.pp3y.setText(str(self.peakpos[1][3]))
-        self.ui.pp4x.setText(str(self.peakpos[0][4]))
-        self.ui.pp4y.setText(str(self.peakpos[1][4]))
-
-        self.ui.le0x.setText(str(self.mypeakpos[0][0]))
-        self.ui.le0y.setText(str(self.mypeakpos[1][0]))
-        self.ui.le1x.setText(str(self.mypeakpos[0][1]))
-        self.ui.le1y.setText(str(self.mypeakpos[1][1]))
-        self.ui.le2x.setText(str(self.mypeakpos[0][2]))
-        self.ui.le2y.setText(str(self.mypeakpos[1][2]))
-        self.ui.le3x.setText(str(self.mypeakpos[0][3]))
-        self.ui.le3y.setText(str(self.mypeakpos[1][3]))
-        self.ui.le4x.setText(str(self.mypeakpos[0][4]))
-        self.ui.le4y.setText(str(self.mypeakpos[1][4]))
-
-        self.ui.dle0x.setText(str(self.doublepos[0][0]))
-        self.ui.dle0y.setText(str(self.doublepos[1][0]))
-        self.ui.dle1x.setText(str(self.doublepos[0][1]))
-        self.ui.dle1y.setText(str(self.doublepos[1][1]))
-        self.ui.dle2x.setText(str(self.doublepos[0][2]))
-        self.ui.dle2y.setText(str(self.doublepos[1][2]))
-        self.ui.dle3x.setText(str(self.doublepos[0][3]))
-        self.ui.dle3y.setText(str(self.doublepos[1][3]))
-        self.ui.dle4x.setText(str(self.doublepos[0][4]))
-        self.ui.dle4y.setText(str(self.doublepos[1][4]))
-
-        # Start the next, save, or go to process when button clicked
-        self.ui.nextbtn.clicked.connect(self.next_process)
-        self.ui.savebtn.clicked.connect(self.save_process)
-        self.ui.gobtn.clicked.connect(self.go_process)
 
         # Show enlarged plots when enlarge buttons are clicked
         self.ui.ebtn0x.clicked.connect(self.enlarge0x)
@@ -163,7 +99,26 @@ class StartQt4(QMainWindow):
         self.ui.x4.clicked.connect(self.x4_clicked)
         self.ui.y4.clicked.connect(self.y4_clicked)
 
-        '''
+        # Start the next, save, or go to process when button clicked
+        self.ui.nextbtn.clicked.connect(self.next_process)
+        self.ui.savebtn.clicked.connect(self.save_process)
+        self.ui.gobtn.clicked.connect(self.go_process)
+
+
+
+        # Buttons for loading old saved data
+        self.ui.loadDataBtn.clicked.connect(self.load_data_process)
+        self.ui.loadDoublesBtn.clicked.connect(self.load_doubles_process)
+        
+        
+        
+
+        
+
+
+        
+
+        
 
     def loadConfigFile(self):
         # Browse for config file
@@ -185,6 +140,12 @@ class StartQt4(QMainWindow):
         self.pixelStopIndex = int(self.configData['pixelStopIndex'])
         self.numRows = int(self.configData['numRows'])
         self.numCols = int(self.configData['numCols'])
+        self.outputDirectory = str(self.configData['outputDirectory'])
+        self.outputFilename = str(self.configData['outputFilename'])
+        self.doubleFilename = str(self.configData['doubleFilename'])
+        self.loadDirectory = str(self.configData['loadDirectory'])
+        self.loadDataFilename = str(self.configData['loadDataFilename'])
+        self.loadDoublesFilename = str(self.configData['loadDoublesFilename'])
 
         # Define number of sweeps
         self.numXSweeps = self.xSweepStartingTimes.size
@@ -198,6 +159,14 @@ class StartQt4(QMainWindow):
         self.numberOfPixelsInRange = self.pixelStopIndex + 1 - self.pixelStartIndex
         self.maximumNumberOfPixels = self.numRows*self.numCols
 
+        # Define save and double filename strings
+        self.saveFile = self.outputDirectory + self.outputFilename
+        self.doubleFile = self.outputDirectory + self.doubleFilename
+
+        # Define loaded data and double file strings
+        self.loadDataFile = self.loadDirectory + self.loadDataFilename
+        self.loadDoublesFile = self.loadDirectory + self.loadDoublesFilename
+
         # Initialize arrays
         self.crx_median = np.zeros((self.maximumNumberOfPixels,self.xSweepLength))
         self.cry_median = np.zeros((self.maximumNumberOfPixels,self.ySweepLength))
@@ -210,7 +179,8 @@ class StartQt4(QMainWindow):
         self.yfit = np.zeros((self.maximumNumberOfPixels,self.ySweepLength))
 
         self.holder = np.array([0,1,2,3,4]) + self.pixelStartIndex
-        print self.holder
+        
+        self.flagarray = np.zeros(self.maximumNumberOfPixels)
 
         # Load x and y sweep data using information in config file
         self.loadXYData()
@@ -225,7 +195,14 @@ class StartQt4(QMainWindow):
         self.make_plots()
 
 
-        # Add some label data?
+        # Update pixel number in pixel labels  
+        self.ui.pix0.setText('Pixel ' + str(self.holder[0]))
+        self.ui.pix1.setText('Pixel ' + str(self.holder[1]))
+        self.ui.pix2.setText('Pixel ' + str(self.holder[2]))
+        self.ui.pix3.setText('Pixel ' + str(self.holder[3]))
+        self.ui.pix4.setText('Pixel ' + str(self.holder[4]))
+
+        # Initialize the labels and line edits using the fit data
         self.ui.pp0x.setText(str(self.peakpos[0][self.holder[0]]))
         self.ui.pp0y.setText(str(self.peakpos[1][self.holder[0]]))
         self.ui.pp1x.setText(str(self.peakpos[0][self.holder[1]]))
@@ -487,7 +464,6 @@ class StartQt4(QMainWindow):
             self.xfitend=min([self.xpeakguess+20,self.xSweepLength-1])
             params_x = fitgaussian(self.crx_median[pixelno][self.xfitstart:self.xfitend],self.xTimeAxis[self.xfitstart:self.xfitend])
             self.xfit[pixelno][:] = gaussian(params_x,self.xTimeAxis)
-            print params_x
             self.peakpos[0][pixelno] = params_x[0]
             self.mypeakpos[0][pixelno] = params_x[0]
 
@@ -502,73 +478,73 @@ class StartQt4(QMainWindow):
 
     def enlarge0x(self):
         plt.clf()
-        plt.plot(self.xvals,self.crx_median[self.holder[0]][:])
-        plt.plot(self.xvals,self.xfit[self.holder[0]][:])
-        for i in range(len(xsweep)):
-            plt.plot(self.xvals,self.crx[i][self.holder[0]][:],alpha = .2)
+        plt.plot(self.xTimeAxis,self.crx_median[self.holder[0]][:])
+        plt.plot(self.xTimeAxis,self.xfit[self.holder[0]][:])
+        for i in range(self.numXSweeps):
+            plt.plot(self.xTimeAxis,self.crx[i][self.holder[0]][:],alpha = .2)
         plt.show()
     def enlarge0y(self):
         plt.clf()
-        plt.plot(self.yvals,self.cry_median[self.holder[0]][:])
-        plt.plot(self.yvals,self.yfit[self.holder[0]][:])
-        for i in range(len(ysweep)):
-            plt.plot(self.yvals,self.cry[i][self.holder[0]][:],alpha = .2)
+        plt.plot(self.yTimeAxis,self.cry_median[self.holder[0]][:])
+        plt.plot(self.yTimeAxis,self.yfit[self.holder[0]][:])
+        for i in range(self.numYSweeps):
+            plt.plot(self.yTimeAxis,self.cry[i][self.holder[0]][:],alpha = .2)
         plt.show()
     def enlarge1x(self):
         plt.clf()
-        plt.plot(self.xvals,self.crx_median[self.holder[1]][:])
-        plt.plot(self.xvals,self.xfit[self.holder[1]][:])
-        for i in range(len(xsweep)):
-            plt.plot(self.xvals,self.crx[i][self.holder[1]][:],alpha = .2)
+        plt.plot(self.xTimeAxis,self.crx_median[self.holder[1]][:])
+        plt.plot(self.xTimeAxis,self.xfit[self.holder[1]][:])
+        for i in range(self.numXSweeps):
+            plt.plot(self.xTimeAxis,self.crx[i][self.holder[1]][:],alpha = .2)
         plt.show()
     def enlarge1y(self):
         plt.clf()
-        plt.plot(self.yvals,self.cry_median[self.holder[1]][:])
-        plt.plot(self.yvals,self.yfit[self.holder[1]][:])
-        for i in range(len(ysweep)):
-            plt.plot(self.yvals,self.cry[i][self.holder[1]][:],alpha = .2)
+        plt.plot(self.yTimeAxis,self.cry_median[self.holder[1]][:])
+        plt.plot(self.yTimeAxis,self.yfit[self.holder[1]][:])
+        for i in range(self.numYSweeps):
+            plt.plot(self.yTimeAxis,self.cry[i][self.holder[1]][:],alpha = .2)
         plt.show()
     def enlarge2x(self):
         plt.clf()
-        plt.plot(self.xvals,self.crx_median[self.holder[2]][:])
-        plt.plot(self.xvals,self.xfit[self.holder[2]][:])
-        for i in range(len(xsweep)):
-            plt.plot(self.xvals,self.crx[i][self.holder[2]][:],alpha = .2)
+        plt.plot(self.xTimeAxis,self.crx_median[self.holder[2]][:])
+        plt.plot(self.xTimeAxis,self.xfit[self.holder[2]][:])
+        for i in range(self.numXSweeps):
+            plt.plot(self.xTimeAxis,self.crx[i][self.holder[2]][:],alpha = .2)
         plt.show()
     def enlarge2y(self):
         plt.clf()
-        plt.plot(self.yvals,self.cry_median[self.holder[2]][:])
-        plt.plot(self.yvals,self.yfit[self.holder[2]][:])
-        for i in range(len(ysweep)):
-            plt.plot(self.yvals,self.cry[i][self.holder[2]][:],alpha = .2)
+        plt.plot(self.yTimeAxis,self.cry_median[self.holder[2]][:])
+        plt.plot(self.yTimeAxis,self.yfit[self.holder[2]][:])
+        for i in range(self.numYSweeps):
+            plt.plot(self.yTimeAxis,self.cry[i][self.holder[2]][:],alpha = .2)
         plt.show()
     def enlarge3x(self):
         plt.clf()
-        plt.plot(self.xvals,self.crx_median[self.holder[3]][:])
-        plt.plot(self.xvals,self.xfit[self.holder[3]][:])
-        for i in range(len(xsweep)):
-            plt.plot(self.xvals,self.crx[i][self.holder[3]][:],alpha = .2)
+        plt.plot(self.xTimeAxis,self.crx_median[self.holder[3]][:])
+        plt.plot(self.xTimeAxis,self.xfit[self.holder[3]][:])
+        for i in range(self.numXSweeps):
+            plt.plot(self.xTimeAxis,self.crx[i][self.holder[3]][:],alpha = .2)
         plt.show()
     def enlarge3y(self):
         plt.clf()
-        plt.plot(self.yvals,self.cry_median[self.holder[3]][:])
-        plt.plot(self.yvals,self.yfit[self.holder[3]][:])
-        for i in range(len(ysweep)):
-            plt.plot(self.yvals,self.cry[i][self.holder[3]][:],alpha = .2)
+        plt.plot(self.yTimeAxis,self.cry_median[self.holder[3]][:])
+        plt.plot(self.yTimeAxis,self.yfit[self.holder[3]][:])
+        for i in range(self.numYSweeps):
+            plt.plot(self.yTimeAxis,self.cry[i][self.holder[3]][:],alpha = .2)
         plt.show()
     def enlarge4x(self):
         plt.clf()
-        plt.plot(self.xvals,self.crx_median[self.holder[4]][:])
-        plt.plot(self.xvals,self.xfit[self.holder[4]][:])
-        for i in range(len(xsweep)):
-            plt.plot(self.xvals,self.crx[i][self.holder[4]][:],alpha = .2)
+        plt.plot(self.xTimeAxis,self.crx_median[self.holder[4]][:])
+        plt.plot(self.xTimeAxis,self.xfit[self.holder[4]][:])
+        for i in range(self.numXSweeps):
+            plt.plot(self.xTimeAxis,self.crx[i][self.holder[4]][:],alpha = .2)
         plt.show()
     def enlarge4y(self):
         plt.clf()
-        plt.plot(self.yvals,self.cry_median[self.holder[4]][:])
-        plt.plot(self.yvals,self.yfit[self.holder[4]][:])
-        for i in range(len(ysweep)):
-            plt.plot(self.yvals,self.cry[i][self.holder[4]][:],alpha = .2)
+        plt.plot(self.yTimeAxis,self.cry_median[self.holder[4]][:])
+        plt.plot(self.yTimeAxis,self.yfit[self.holder[4]][:])
+        for i in range(self.numYSweeps):
+            plt.plot(self.yTimeAxis,self.cry[i][self.holder[4]][:],alpha = .2)
         plt.show()
 
     def make_plots(self):
@@ -633,21 +609,15 @@ class StartQt4(QMainWindow):
     def next_process(self):
         
         # Switch index to next 5 plots
-        if (self.holder[4] + 1 == (number_of_roaches-1)*ppr + roach_pixel_count[number_of_roaches - 1]):
-            self.currentroach = 0
-            self.ui.roachLabel.setText('Roach ' + str(self.currentroach))
-            self.holder = [0,1,2,3,4]
-        elif ((self.holder[4] + 1 == self.currentroach*ppr + roach_pixel_count[self.currentroach]) and (self.currentroach != number_of_roaches - 1)):
-            self.currentroach += 1
-            self.ui.roachLabel.setText('Roach ' + str(self.currentroach))
+        if (self.holder[4] == self.pixelStopIndex):
+            self.holder = np.array([0,1,2,3,4]) + self.pixelStartIndex
+        elif (self.holder[4] + 5 <= self.pixelStopIndex):
+            self.holder+=5
+            #for i in range(5):
+                #self.holder[i]+=5
+        elif (self.holder[4] + 5 > self.pixelStopIndex):
             for i in range(5):
-                self.holder[i] = int(self.currentroach*ppr + i)
-        elif (self.holder[4] + 6 <= self.currentroach*ppr + roach_pixel_count[self.currentroach]):
-            for i in range(5):
-                self.holder[i]+=5
-        elif (self.holder[4] + 6 > self.currentroach*ppr + roach_pixel_count[self.currentroach]):
-            for i in range(5):
-                self.holder[4-i] = int(self.currentroach*ppr + roach_pixel_count[self.currentroach] - 1 - i)
+                self.holder[4-i] = self.pixelStopIndex - i
 
         # Update the gui
         self.update_buttons()
@@ -656,15 +626,17 @@ class StartQt4(QMainWindow):
         self.make_plots()
 
     def go_process(self):
-        roachno = int(self.ui.roachgo.text())
         pixno = int(self.ui.pixelgo.text())
 
-        if (pixno+5 <= roach_pixel_count[roachno]):
-            for i in range(5):
-                self.holder[i] = int(roachno*253 + pixno + i)
+        if (pixno < self.pixelStartIndex):
+            self.holder = np.array([0,1,2,3,4]) + self.pixelStartIndex
+        elif (pixno + 4 <= self.pixelStopIndex):
+            self.holder = np.array([0,1,2,3,4]) + pixno
+            #for i in range(5):
+                #self.holder[i] = int(roachno*253 + pixno + i)
         else:
             for i in range(5):
-                self.holder[4-i] = int(roachno*253 + roach_pixel_count[roachno] - i -1)
+                self.holder[4-i] = self.pixelStopIndex - i
 
         self.update_buttons()
 
@@ -673,11 +645,11 @@ class StartQt4(QMainWindow):
     def update_buttons(self):
 
         # Update pixel number in pixel labels  
-        self.ui.pix0.setText('Pixel ' + str(self.holder[0]%ppr))
-        self.ui.pix1.setText('Pixel ' + str(self.holder[1]%ppr))
-        self.ui.pix2.setText('Pixel ' + str(self.holder[2]%ppr))
-        self.ui.pix3.setText('Pixel ' + str(self.holder[3]%ppr))
-        self.ui.pix4.setText('Pixel ' + str(self.holder[4]%ppr))
+        self.ui.pix0.setText('Pixel ' + str(self.holder[0]))
+        self.ui.pix1.setText('Pixel ' + str(self.holder[1]))
+        self.ui.pix2.setText('Pixel ' + str(self.holder[2]))
+        self.ui.pix3.setText('Pixel ' + str(self.holder[3]))
+        self.ui.pix4.setText('Pixel ' + str(self.holder[4]))
 
         # Update radio state, default checked true
         if (self.flagarray[self.holder[0]] == 0):
@@ -819,26 +791,57 @@ class StartQt4(QMainWindow):
         
 
     def save_process(self):
-        d=open(input_params[3] + '/doubles.pos','w')
-        for roachno in range(number_of_roaches):
-            f=open(input_params[3] + '/r%i.pos' %roachno,'w')
-            for pixelno in range(int(roach_pixel_count[roachno])):
-                f=open(input_params[3]+'/r%i.pos' %roachno,'a')
-                if self.flagarray[roachno*ppr + pixelno] == 0:
-                    f.write(str(self.mypeakpos[0,pixelno + roachno*ppr])+'\t'+str(self.mypeakpos[1,pixelno + roachno*ppr])+'\t0\n')
-                elif self.flagarray[roachno*ppr + pixelno] == 1:
-                    f.write('0.0\t0.0\t1\n')
-                elif self.flagarray[roachno*ppr + pixelno] == 2:
-                    f.write(str(self.mypeakpos[0,pixelno + roachno*ppr])+'\t0.0\t2\n')
-                elif self.flagarray[roachno*ppr + pixelno] == 3:
-                    f.write('0.0\t'+str(self.mypeakpos[1,pixelno + roachno*ppr])+'\t3\n')
+        f=open(self.saveFile,'w')
+        d=open(self.doubleFile,'w')
+        for pixelno in xrange(self.pixelStartIndex, self.pixelStopIndex+1):
+            f=open(self.saveFile,'a')
+            if self.flagarray[pixelno] == 0:
+                f.write(str(pixelno)+'\t0\t'+str(self.mypeakpos[0,pixelno])+'\t'+str(self.mypeakpos[1,pixelno])+'\n')
+            elif self.flagarray[pixelno] == 1:
+                f.write(str(pixelno)+'\t1\t'+'0.0\t0.0\n')
+            elif self.flagarray[pixelno] == 2:
+                f.write(str(pixelno)+'\t2\t'+str(self.mypeakpos[0,pixelno])+'\t0.0\n')
+            elif self.flagarray[pixelno] == 3:
+                f.write(str(pixelno)+'\t3\t'+'0.0\t'+str(self.mypeakpos[1,pixelno])+'\n')
 
-                if (self.doublepos[0][roachno*ppr + pixelno] !=0 or self.doublepos[1][roachno*ppr + pixelno] !=0):
-                    d=open(input_params[3] + '/doubles.pos','a')
-                    d.write(str(self.mypeakpos[0,pixelno + roachno*ppr])+'\t'+str(self.mypeakpos[1,pixelno + roachno*ppr])+ '\t' +str(self.doublepos[0,pixelno + roachno*ppr])+'\t'+str(self.doublepos[1,pixelno + roachno*ppr])+ '\t/r' + str(roachno) + '/p' + str(pixelno) + '\n')
-                    d.close()
+            if (self.doublepos[0][pixelno] !=0 or self.doublepos[1][pixelno] !=0):
+                d=open(self.doubleFile,'a')
+                d.write(str(pixelno) + '\t' + str(self.mypeakpos[0,pixelno])+'\t'+str(self.mypeakpos[1,pixelno])+ '\t' +str(self.doublepos[0,pixelno])+'\t'+str(self.doublepos[1,pixelno])+ '\n')
+                d.close()
                     
-                f.close()
+            f.close()
+
+
+    def load_data_process(self):
+        loadedData = np.loadtxt(self.loadDataFile)
+        self.loadedDataIndices = np.array(loadedData.T[0], dtype=int)
+        self.loadedDataFlags = np.array(loadedData.T[1], dtype=int)
+        self.loadedDataXPos = np.array(loadedData.T[2], dtype=float)
+        self.loadedDataYPos = np.array(loadedData.T[3], dtype=float)
+
+        self.flagarray[self.loadedDataIndices] = self.loadedDataFlags
+        self.mypeakpos[0][self.loadedDataIndices] = self.loadedDataXPos
+        self.mypeakpos[1][self.loadedDataIndices] = self.loadedDataYPos
+
+        self.update_buttons()
+        self.make_plots()
+
+    def load_doubles_process(self):
+        loadedDoubleData = np.loadtxt(self.loadDoublesFile)
+        self.loadedDoublesIndices = np.array(loadedDoubleData.T[0], dtype=int)
+        self.loadedDoublesXPos1 = np.array(loadedDoubleData.T[1], dtype=float)
+        self.loadedDoublesYPos1 = np.array(loadedDoubleData.T[2], dtype=float)
+        self.loadedDoublesXPos2 = np.array(loadedDoubleData.T[3], dtype=float)
+        self.loadedDoublesYPos2 = np.array(loadedDoubleData.T[4], dtype=float)
+
+        self.mypeakpos[0][self.loadedDoublesIndices] = self.loadedDoublesXPos1
+        self.mypeakpos[1][self.loadedDoublesIndices] = self.loadedDoublesYPos1
+        self.doublepos[0][self.loadedDoublesIndices] = self.loadedDoublesXPos2
+        self.doublepos[1][self.loadedDoublesIndices] = self.loadedDoublesYPos2
+
+        self.update_buttons()
+        self.make_plots()
+
 '''    
     # Try to find a peak position by manually selecting an approximate peak location
     def on_click(self,event):

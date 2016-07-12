@@ -7,10 +7,17 @@ xSweepLength = '50'
 ySweepLength = '60'
 
 pixelStartIndex = '10'
-pixelStopIndex = '14'
+pixelStopIndex = '32'
 
-outputDirectory = 'TestImages/'
+outputDirectory = '/home/pszypryt/TestImages/'
 outputFilename = 'Beamlist_FL1.txt'
+doubleFilename = 'Beamlist_FL1_DOUBLES.txt'
+
+loadDirectory = '/home/pszypryt/TestImages/'
+loadDataFilename = 'Beamlist_FL1.txt'
+loadDoublesFilename = 'Beamlist_FL1_DOUBLES.txt'
 
 numRows = '125'
 numCols = '80'
+
+

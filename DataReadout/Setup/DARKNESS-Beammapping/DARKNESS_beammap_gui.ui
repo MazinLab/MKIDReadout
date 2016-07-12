@@ -2366,6 +2366,32 @@
      <string/>
     </property>
    </widget>
+   <widget class="QPushButton" name="loadDataBtn">
+    <property name="geometry">
+     <rect>
+      <x>1240</x>
+      <y>950</y>
+      <width>111</width>
+      <height>21</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>Load Old Data</string>
+    </property>
+   </widget>
+   <widget class="QPushButton" name="loadDoublesBtn">
+    <property name="geometry">
+     <rect>
+      <x>1370</x>
+      <y>950</y>
+      <width>121</width>
+      <height>21</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>Load Old Doubles</string>
+    </property>
+   </widget>
   </widget>
   <widget class="QMenuBar" name="menubar">
    <property name="geometry">
