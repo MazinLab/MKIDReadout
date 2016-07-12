@@ -2,8 +2,8 @@
 
 # Form implementation generated from reading ui file 'pixels_gui.ui'
 #
-# Created: Fri Jan 18 15:29:06 2013
-#      by: PyQt4 UI code generator 4.9.6
+# Created: Mon Jul 11 18:01:51 2016
+#      by: PyQt4 UI code generator 4.9.4
 #
 # WARNING! All changes made in this file will be lost!
 
@@ -12,16 +12,7 @@ from PyQt4 import QtCore, QtGui
 try:
     _fromUtf8 = QtCore.QString.fromUtf8
 except AttributeError:
-    def _fromUtf8(s):
-        return s
-
-try:
-    _encoding = QtGui.QApplication.UnicodeUTF8
-    def _translate(context, text, disambig):
-        return QtGui.QApplication.translate(context, text, disambig, _encoding)
-except AttributeError:
-    def _translate(context, text, disambig):
-        return QtGui.QApplication.translate(context, text, disambig)
+    _fromUtf8 = lambda s: s
 
 class Ui_pixels_gui(object):
     def setupUi(self, pixels_gui):
@@ -30,7 +21,7 @@ class Ui_pixels_gui(object):
         self.centralwidget = QtGui.QWidget(pixels_gui)
         self.centralwidget.setObjectName(_fromUtf8("centralwidget"))
         self.pixPlot = MPL_Widget(self.centralwidget)
-        self.pixPlot.setGeometry(QtCore.QRect(0, 0, 1001, 1011))
+        self.pixPlot.setGeometry(QtCore.QRect(0, 0, 1021, 931))
         palette = QtGui.QPalette()
         brush = QtGui.QBrush(QtGui.QColor(255, 255, 255))
         brush.setStyle(QtCore.Qt.SolidPattern)
@@ -53,10 +44,10 @@ class Ui_pixels_gui(object):
         self.pixPlot.setPalette(palette)
         self.pixPlot.setObjectName(_fromUtf8("pixPlot"))
         self.dirbtn = QtGui.QPushButton(self.centralwidget)
-        self.dirbtn.setGeometry(QtCore.QRect(390, 1028, 75, 23))
+        self.dirbtn.setGeometry(QtCore.QRect(390, 938, 75, 23))
         self.dirbtn.setObjectName(_fromUtf8("dirbtn"))
         self.dirle = QtGui.QLabel(self.centralwidget)
-        self.dirle.setGeometry(QtCore.QRect(480, 1030, 321, 21))
+        self.dirle.setGeometry(QtCore.QRect(480, 940, 321, 21))
         self.dirle.setFrameShape(QtGui.QFrame.StyledPanel)
         self.dirle.setText(_fromUtf8(""))
         self.dirle.setObjectName(_fromUtf8("dirle"))
@@ -102,18 +93,18 @@ class Ui_pixels_gui(object):
         QtCore.QMetaObject.connectSlotsByName(pixels_gui)
 
     def retranslateUi(self, pixels_gui):
-        pixels_gui.setWindowTitle(_translate("pixels_gui", "Pixel Assignment", None))
-        self.dirbtn.setText(_translate("pixels_gui", "Directory", None))
-        self.savebtn.setText(_translate("pixels_gui", "Save", None))
-        self.scalele.setText(_translate("pixels_gui", "10", None))
-        self.anglele.setText(_translate("pixels_gui", "0", None))
-        self.xoffle.setText(_translate("pixels_gui", "0", None))
-        self.yoffle.setText(_translate("pixels_gui", "0", None))
-        self.label.setText(_translate("pixels_gui", "X Offset", None))
-        self.label_2.setText(_translate("pixels_gui", "Y Offset", None))
-        self.label_3.setText(_translate("pixels_gui", "Scale", None))
-        self.label_4.setText(_translate("pixels_gui", "Angle", None))
-        self.dblbtn.setText(_translate("pixels_gui", "Show Doubles", None))
-        self.hidebtn.setText(_translate("pixels_gui", "Hide Doubles", None))
+        pixels_gui.setWindowTitle(QtGui.QApplication.translate("pixels_gui", "Pixel Assignment", None, QtGui.QApplication.UnicodeUTF8))
+        self.dirbtn.setText(QtGui.QApplication.translate("pixels_gui", "Config", None, QtGui.QApplication.UnicodeUTF8))
+        self.savebtn.setText(QtGui.QApplication.translate("pixels_gui", "Save", None, QtGui.QApplication.UnicodeUTF8))
+        self.scalele.setText(QtGui.QApplication.translate("pixels_gui", "10", None, QtGui.QApplication.UnicodeUTF8))
+        self.anglele.setText(QtGui.QApplication.translate("pixels_gui", "0", None, QtGui.QApplication.UnicodeUTF8))
+        self.xoffle.setText(QtGui.QApplication.translate("pixels_gui", "0", None, QtGui.QApplication.UnicodeUTF8))
+        self.yoffle.setText(QtGui.QApplication.translate("pixels_gui", "0", None, QtGui.QApplication.UnicodeUTF8))
+        self.label.setText(QtGui.QApplication.translate("pixels_gui", "X Offset", None, QtGui.QApplication.UnicodeUTF8))
+        self.label_2.setText(QtGui.QApplication.translate("pixels_gui", "Y Offset", None, QtGui.QApplication.UnicodeUTF8))
+        self.label_3.setText(QtGui.QApplication.translate("pixels_gui", "Scale", None, QtGui.QApplication.UnicodeUTF8))
+        self.label_4.setText(QtGui.QApplication.translate("pixels_gui", "Angle", None, QtGui.QApplication.UnicodeUTF8))
+        self.dblbtn.setText(QtGui.QApplication.translate("pixels_gui", "Show Doubles", None, QtGui.QApplication.UnicodeUTF8))
+        self.hidebtn.setText(QtGui.QApplication.translate("pixels_gui", "Hide Doubles", None, QtGui.QApplication.UnicodeUTF8))
 
 from mpl_pyqt4_widget import MPL_Widget

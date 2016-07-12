@@ -1,0 +1,5 @@
+masterPositionList = '/home/pszypryt/TestImages/Beamlist_FL1.txt'
+masterDoublesList = '/home/pszypryt/TestImages/Beamlist_FL1_DOUBLES.txt'
+
+outputFilename = '/home/pszypryt/TestImages/RawMap.txt'
+outputDoubleName = '/home/pszypryt/TestImages/RawMap_DOUBLES.txt'

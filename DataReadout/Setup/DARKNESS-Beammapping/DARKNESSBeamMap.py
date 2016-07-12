@@ -455,9 +455,10 @@ class StartQt4(QMainWindow):
 
 
     def perform_fits(self):
-        for pixelno in xrange(self.pixelStartIndex, self.pixelStopIndex+1):
 
-            print 'Fitting pixel number ' + str(pixelno) + '...'
+        print 'Fitting pixel number ' + str(self.pixelStartIndex) + ' to ' + str(self.pixelStopIndex)
+
+        for pixelno in xrange(self.pixelStartIndex, self.pixelStopIndex+1):
             
             self.xpeakguess=np.where(self.crx_median[pixelno][:] == self.crx_median[pixelno][:].max())[0][0]
             self.xfitstart=max([self.xpeakguess-20,0])

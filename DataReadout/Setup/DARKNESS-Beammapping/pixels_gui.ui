@@ -19,8 +19,8 @@
      <rect>
       <x>0</x>
       <y>0</y>
-      <width>1001</width>
-      <height>1011</height>
+      <width>1021</width>
+      <height>931</height>
      </rect>
     </property>
     <property name="palette">
@@ -92,20 +92,20 @@
     <property name="geometry">
      <rect>
       <x>390</x>
-      <y>1028</y>
+      <y>938</y>
       <width>75</width>
       <height>23</height>
      </rect>
     </property>
     <property name="text">
-     <string>Directory</string>
+     <string>Config</string>
     </property>
    </widget>
    <widget class="QLabel" name="dirle">
     <property name="geometry">
      <rect>
       <x>480</x>
-      <y>1030</y>
+      <y>940</y>
       <width>321</width>
       <height>21</height>
      </rect>

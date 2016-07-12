@@ -6,6 +6,8 @@ from PyQt4.QtGui import *
 from PyQt4.QtGui import *
 from pixels_gui import Ui_pixels_gui
 
+from readDict import readDict
+
 class StartQt4(QMainWindow):
     def __init__(self):
         QWidget.__init__(self, parent=None)
@@ -25,8 +27,8 @@ class StartQt4(QMainWindow):
         self.attenvals=np.empty(0,dtype='float32')
         self.goodpixtag=np.empty(0,dtype='|S10')
 
-        self.xsize=44;
-        self.ysize=46;
+        self.xsize=80;
+        self.ysize=125;
         
         self.pscale=10;
         self.xoff=0;
@@ -60,7 +62,7 @@ class StartQt4(QMainWindow):
 
     def scalele_pressed(self):
         self.pscale=float(self.ui.scalele.text())
-        self.scale=[self.pscale]*len(self.infile)
+        self.scale=[self.pscale]
 
         self.xvals=np.empty(0,dtype='float32')
         self.yvals=np.empty(0,dtype='float32')
@@ -94,8 +96,10 @@ class StartQt4(QMainWindow):
 
     def xoffle_pressed(self):
         self.xoff=float(self.ui.xoffle.text())
-        self.origin = np.zeros((len(self.infile),2))
-        for i in range(len(self.infile)):
+        #self.origin = np.zeros((len(self.infile),2))
+        self.origin = np.zeros((1,2))
+        #for i in range(len(self.infile)):
+        for i in range(1):
             self.origin[i][0] = self.xoff
             self.origin[i][1] = self.yoff
         
@@ -131,8 +135,8 @@ class StartQt4(QMainWindow):
         
     def yoffle_pressed(self):
         self.yoff=float(self.ui.yoffle.text())
-        self.origin = np.zeros((len(self.infile),2))
-        for i in range(len(self.infile)):
+        self.origin = np.zeros((1,2))
+        for i in range(1):
             self.origin[i][0] = self.xoff
             self.origin[i][1] = self.yoff
 
@@ -220,10 +224,25 @@ class StartQt4(QMainWindow):
             self.ui.pixPlot.canvas.ax.plot([xstart2[i],xstop2[i]],[ystart2[i],ystop2[i]],'g')
     
     def dir_choose(self):
-        text =QFileDialog.getExistingDirectory()
-        self.path = str(text)
+        #text =QFileDialog.getExistingDirectory()
+        #self.path = str(text)
+        #self.ui.dirle.setText(str(text))
+
+        text =QFileDialog.getOpenFileName()
+        self.configFileName=str(text)
         self.ui.dirle.setText(str(text))
 
+        # Open config file
+        self.configData = readDict()
+        self.configData.read_from_file(self.configFileName)
+
+        # Extract relevent file names from config file
+        self.masterPositionList = str(self.configData['masterPositionList'])
+        self.masterDoublesList = str(self.configData['masterDoublesList'])
+        self.outputFilename = str(self.configData['outputFilename'])
+        self.outputDoubleName = str(self.configData['outputDoubleName'])
+
+        '''
         self.infile=[]       
         self.infile.append(self.path + '/r0.pos')
         self.infile.append(self.path + '/r1.pos')
@@ -243,37 +262,58 @@ class StartQt4(QMainWindow):
         self.psfile.append(self.path + '/ps_freq5.txt')
         self.psfile.append(self.path + '/ps_freq6.txt')
         self.psfile.append(self.path + '/ps_freq7.txt')       
-
-        self.origin = np.zeros((len(self.infile),2))
-        for i in range(len(self.infile)):
-            self.origin[i][0] = self.xoff
-            self.origin[i][1] = self.yoff
-        self.scale=[self.pscale]*len(self.infile)
-
-        self.dblfile=self.path + '/doubles.pos'
-        self.xpost0, self.ypost0, self.xpost1, self.ypost1=np.loadtxt(self.dblfile,unpack='True', usecols = (0,1,2,3))
-
-        # Extract x position, y position, and flag from input files
-        pixeltag =''
-        for j in range(len(self.infile)):
-            print self.infile[j]
-            xpos, ypos, flag=np.loadtxt(self.infile[j],unpack='True')
-            freq, xcenpos, ycenpos, atten=np.loadtxt(self.psfile[j],unpack='True',skiprows=1)       
+        '''
         
-            self.goodpix=np.where(flag == 0)[0]
+        self.origin = np.zeros((1,2))
+        self.origin[0][0] = self.xoff
+        self.origin[0][1] = self.yoff
+        self.scale=[self.pscale]
+
+        #self.origin = np.zeros((len(self.infile),2))
+        #for i in range(len(self.infile)):
+            #self.origin[i][0] = self.xoff
+            #self.origin[i][1] = self.yoff
+        #self.scale=[self.pscale]*len(self.infile)
+
+        self.dblfile = self.masterDoublesList
+
+        self.doublePixelNumber, self.xpost0, self.ypost0, self.xpost1, self.ypost1=np.loadtxt(self.dblfile,unpack='True', usecols = (0,1,2,3,4))
+
+        self.pixelNumberAll, self.flag, self.xposAll, self.yposAll = np.loadtxt(self.masterPositionList,unpack='True')
+
+        self.goodpix=np.where(self.flag == 0)[0]
+
+        print len(self.xposAll[self.goodpix]), 'Good Pixels'
+
+        self.pixelNumber = np.array(self.pixelNumberAll[self.goodpix], dtype=int)
+
+        self.xpos=np.array(self.xposAll[self.goodpix], dtype=float)
+        self.ypos=np.array(self.yposAll[self.goodpix], dtype=float)
+
+
+
+        # Extract pixel number, flag, x position, y position from input file
+        #pixeltag =''
+        #for j in range(len(self.infile)):
+            #print self.infile[j]
+            #pixelNumber, flag, xpos, ypos = np.loadtxt(self.infile[j],unpack='True')
+
+            #freq, xcenpos, ycenpos, atten=np.loadtxt(self.psfile[j],unpack='True',skiprows=1)       
         
-            pixtag=np.empty(0,dtype='|S10')
-            for pixno in range(len(freq)):
-                pixtag = np.append(pixtag,'/r%i/p%i/' %(j,pixno))     
+            #self.goodpix=np.where(flag == 0)[0]
         
-            print len(xpos[self.goodpix]), 'Good Pixels'
+            #pixtag=np.empty(0,dtype='|S10')
+            #for pixno in range(len(freq)):
+                #pixtag = np.append(pixtag,'/r%i/p%i/' %(j,pixno))     
+        
+            #print len(xpos[self.goodpix]), 'Good Pixels'
 
             #Create a list of good pixel locations
-            self.xpos=np.append(self.xpos,xpos[self.goodpix])
-            self.ypos=np.append(self.ypos,ypos[self.goodpix])
-            self.freqvals=np.append(self.freqvals,freq[self.goodpix])
-            self.attenvals=np.append(self.attenvals,atten[self.goodpix])
-            self.goodpixtag=np.append(self.goodpixtag,pixtag[self.goodpix])
+            #self.xpos=np.append(self.xpos,xpos[self.goodpix])
+            #self.ypos=np.append(self.ypos,ypos[self.goodpix])
+            #self.freqvals=np.append(self.freqvals,freq[self.goodpix])
+            #self.attenvals=np.append(self.attenvals,atten[self.goodpix])
+            #self.goodpixtag=np.append(self.goodpixtag,pixtag[self.goodpix])
 
         # Can fix this later to pick out individual roaches
         self.xvals = self.xpos/self.scale[0]
@@ -311,21 +351,19 @@ class StartQt4(QMainWindow):
 
         xpix1=self.xpos1*self.c + self.ypos1*self.s
         ypix1=-1.*self.xpos1*self.s + self.ypos1*self.c
-
-        idx=self.freqvals.argsort()
         
-        f= open('freq_atten_x_y.txt','w')
-        for i in range(len(xpix)):    
-            f= open('freq_atten_x_y.txt','a')
-            f.write(str(self.freqvals[idx[i]]) + '\t' + str(self.attenvals[idx[i]]) +'\t' + str(xpix[idx[i]]) + '\t' + str(ypix[idx[i]]) +'\t' + self.goodpixtag[idx[i]] + '\n')
+        f= open(self.outputFilename,'w')
+        for i in range(len(self.goodpix)):    
+            f= open(self.outputFilename,'a')
+            f.write(str(self.pixelNumber[i]) +'\t' + str(xpix[i]) + '\t' + str(ypix[i]) +'\n')
             f.close()
 
         print 'Number of Doubles:' + str(len(self.xpos0))
-        dbltag=np.loadtxt(self.dblfile,unpack='True', usecols = (4,), dtype='|S10' )
-        f= open('double_positions.txt','w')
+        #dbltag=np.loadtxt(self.dblfile,unpack='True', usecols = (4,), dtype='|S10' )
+        f= open(self.outputDoubleName,'w')
         for i in range(len(self.xpos0)):
-            f= open('double_positions.txt','a')
-            f.write(str(xpix0[i]) + '\t' + str(ypix0[i]) + '\t' + str(xpix1[i]) + '\t' + str(ypix1[i]) + '\t' + dbltag[i] + '\n')
+            f= open(self.outputDoubleName,'a')
+            f.write(str(self.doublePixelNumber[i]) + '\t' +str(xpix0[i]) + '\t' + str(ypix0[i]) + '\t' + str(xpix1[i]) + '\t' + str(ypix1[i]) + '\n')
             f.close()
         
 
