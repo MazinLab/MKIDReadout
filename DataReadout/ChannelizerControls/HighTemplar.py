@@ -109,6 +109,7 @@ class HighTemplar(QMainWindow):
             window.translateClicked.connect(partial(self.commandButtonClicked, [roach_i.num] , RoachStateMachine.TRANSLATE))
             window.resetRoach.connect(partial(self.resetRoachState, roach_i.num))
             window.adcAttenChanged.connect(partial(self.commandButtonClicked, [roach_i.num]))
+            window.dacAttenChanged.connect(partial(self.commandButtonClicked, [roach_i.num]))
             self.sweepWindows.append(window)
         self.phaseWindows=[]
         for roach_i in self.roaches:
@@ -124,12 +125,13 @@ class HighTemplar(QMainWindow):
         self.create_menu()
         
         
-        #Initialize by connecting to roaches over ethernet
+        #Initialize by connecting to roaches over ethernet and loading ddsshift
         for i in range(self.numRoaches):
             colorStatus = self.roaches[i].addCommands(RoachStateMachine.CONNECT)        # add command to roach queue
             self.colorCommandButtons(self.roachNums[i],colorStatus)                              # color the command buttons appropriately
             #QtCore.QMetaObject.invokeMethod(roach, 'executeCommands', Qt.QueuedConnection)
             self.roachThreads[i].start()                                                # starting the thread automatically invokes the roach's executeCommand function
+            #self.setDdsShift(self.roachNums[i])
         
     def test(self,roachNum,state):
         print "Roach "+str(roachNum)+' - '+str(state)
@@ -175,6 +177,8 @@ class HighTemplar(QMainWindow):
             
         if command == RoachStateMachine.DEFINEROACHLUT:
             self.sweepWindows[roachArg].initFreqs() # initialize LO freq
+        if command == RoachStateMachine.DEFINEDACLUT:
+            self.sweepWindows[roachArg].initFreqs() # if modified pixel attenuation then need this to remove 'MODIFIED' tag on plot window
         if command == RoachStateMachine.SWEEP:
             self.sweepWindows[roachArg].plotData(commandData)
         #if command == RoachStateMachine.FIT:
@@ -187,6 +191,7 @@ class HighTemplar(QMainWindow):
             self.phaseWindows[roachArg].appendThresh(commandData)
 
     def resetRoachState(self,roachNum,command):
+        print "Templar told to reset r"+str(roachNum)+' to '+RoachStateMachine.parseCommand(command)
         roachArg = np.where(np.asarray(self.roachNums) == roachNum)[0][0]
         QtCore.QMetaObject.invokeMethod(self.roaches[roachArg], 'resetStateTo', Qt.QueuedConnection,
                                         QtCore.Q_ARG(int, command))
@@ -335,7 +340,7 @@ class HighTemplar(QMainWindow):
         self.cyanButtonPalette.setColor(QPalette.Button,Qt.darkCyan)
 
 
-        button_size = 20
+        button_size = 25
         label_length = 110        
         label_height = 10
         
@@ -474,7 +479,7 @@ class HighTemplar(QMainWindow):
               "Color Scheme:\n" \
               "  green - \tcommand completed\n" \
               "  darkRed - \tcommand not completed\n" \
-              "  cyan - \tcommand in progress\n" \
+              "  cyan - \t\tcommand in progress\n" \
               "  red - \t\terror\n" \
               "  blue - \t\tcolor for 'all roach' buttons\n" \
               "  gray/grey - \tunused" \

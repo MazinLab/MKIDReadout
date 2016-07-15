@@ -5,6 +5,7 @@ DATE: May 15, 2016
 The RoachStateMachine class runs the commands on the readout boards. Uses Roach2Controls Class
 """
 import os, sys, time, random
+import traceback
 import numpy as np
 from PyQt4 import QtCore
 from Queue import Queue
@@ -69,7 +70,7 @@ class RoachStateMachine(QtCore.QObject):        #Extends QObject for use with QT
     #NUMCOMMANDS = 8
     #CONNECT,LOADFREQ,DEFINEROACHLUT,DEFINEDACLUT,SWEEP,FIT,LOADFIR,LOADTHRESHOLD = range(NUMCOMMANDS)
     NUMCOMMANDS = 9
-    CONNECT,LOADFREQ,DEFINEROACHLUT,DEFINEDACLUT,SWEEP,ROTATE,CENTER,LOADFIR,LOADTHRESHOLD = range(NUMCOMMANDS)
+    CONNECT,LOADFREQ,DEFINEROACHLUT,DEFINEDACLUT,SWEEP,ROTATE,TRANSLATE,LOADFIR,LOADTHRESHOLD = range(NUMCOMMANDS)
     NUMSTATES = 4
     UNDEFINED, INPROGRESS, COMPLETED, ERROR = range(NUMSTATES)
     
@@ -319,6 +320,7 @@ class RoachStateMachine(QtCore.QObject):        #Extends QObject for use with QT
         LO_start = LO_freq - LO_span/2.
         LO_end = LO_freq + LO_span/2.
         LO_step = self.config.getfloat('Roach '+str(self.num),'sweeplostep')
+        LO_offsets = np.arange(LO_start, LO_end, LO_step) - LO_freq
         start_DACAtten = self.config.getfloat('Roach '+str(self.num),'dacatten_start')
         stop_DACAtten = self.config.getfloat('Roach '+str(self.num),'dacatten_stop')
         
@@ -330,6 +332,7 @@ class RoachStateMachine(QtCore.QObject):        #Extends QObject for use with QT
                 dacAtten2 = np.ceil(dacAtten*2)/4.
                 self.roachController.changeAtten(1,dacAtten1)
                 self.roachController.changeAtten(2,dacAtten2)
+                print 'Setting DAC atten: '+str(dacAtten)
             iqData = self.roachController.performIQSweep(LO_start/1.e6, LO_end/1.e6, LO_step/1.e6)
             self.I_data = iqData['I']
             self.Q_data = iqData['Q']
@@ -362,13 +365,13 @@ class RoachStateMachine(QtCore.QObject):        #Extends QObject for use with QT
         
         # Get freq list, center, IQonResonance
         # Only for last sweep if power sweeping
-        LO_offsets = np.arange(LO_start, LO_end, LO_step) - LO_freq
+        
         self.fitLoopCenters()   # uses self.I_data, self.Q_data and instantiates self.centers
         nPoints = 20 #arbitrary number. 20 seems fine. Could add this to config file in future
         iqOnRes = self.roachController.takeAvgIQData(nPoints)
         
-        return {'I':self.I_data, 'Q':self.Q_data, 'freqOffsets':LO_offsets, 
-                'centers':self.centers, 'IonRes':iqOnRes['I'],'QonRes':iqOnRes['Q']}
+        return {'I':np.copy(self.I_data), 'Q':np.copy(self.Q_data), 'freqOffsets':np.copy(LO_offsets), 
+                'centers':np.copy(self.centers), 'IonRes':np.copy(iqOnRes['I']),'QonRes':np.copy(iqOnRes['Q'])}
         
         #return {'I':self.I_data,'Q':self.Q_data}
         
@@ -405,19 +408,28 @@ class RoachStateMachine(QtCore.QObject):        #Extends QObject for use with QT
         '''
         nIQPoints = 100     #arbitrary number. 100 seems fine. Could add this to config file in future
         averageIQ = self.roachController.takeAvgIQData(nIQPoints)
-        avg_I = np.average(averageIQ['I'],1)
-        avg_Q = np.average(averageIQ['Q'],1)
+        avg_I = np.average(averageIQ['I'],1) - self.centers[:,0]
+        avg_Q = np.average(averageIQ['Q'],1) - self.centers[:,1]
         rotation_phases = np.arctan2(avg_Q,avg_I)
+        #rotation_phases = np.ones(rotation_phases.shape)*90*np.pi/180.
         
         phaseList = np.copy(self.roachController.ddsPhaseList)
-        for i in range(len(self.roachController.freqList)):
-            arg = np.where(self.roachController.freqChannels == self.roachController.freqList[i])
-            phaseList[arg]-=rotation_phases[i]
+        channels, streams = self.roachController.freqChannelToStreamChannel()
+        for i in range(len(channels)):
+            print channels[i],streams[i]
+            print phaseList.shape
+            phaseList[channels[i],streams[i]] = phaseList[channels[i],streams[i]] + rotation_phases[i]
+        
+        
+        #for i in range(len(self.roachController.freqList)):
+        #    arg = np.where(self.roachController.freqChannels == self.roachController.freqList[i])
+        #    #phaseList[arg]+=rotation_phases[i]
+        #    phaseList[arg]+=-1*np.pi/2.
         
         self.roachController.generateDdsTones(phaseList=phaseList)
         self.roachController.loadDdsLUT()
         
-        return {'IonRes':avg_I, 'QonRes':avg_Q, 'rotation':rotation_phases}
+        return {'IonRes':np.copy(averageIQ['I']), 'QonRes':np.copy(averageIQ['Q']), 'rotation':np.copy(rotation_phases)}
 
     def translateLoops(self):
         '''
@@ -664,6 +676,23 @@ class RoachStateMachine(QtCore.QObject):        #Extends QObject for use with QT
         print 'r'+str(self.num)+'Changed ADCAtten to '+str(adcAtten)
         self.finished.emit()
     
+    @QtCore.pyqtSlot(float)
+    def loadDACAtten(self, dacAtten):
+        '''
+        loads a new dac attenuation.
+        dacAtten is the total DAC attenuation.
+        It needs to be divided into the two attenuators
+        
+        INPUTS:
+            dacAtten - dB
+        '''
+        dacAtten1 = np.floor(dacAtten*2)/4.
+        dacAtten2 = np.ceil(dacAtten*2)/4.
+        self.roachController.changeAtten(1,dacAtten1)
+        self.roachController.changeAtten(2,dacAtten2)
+        print 'r'+str(self.num)+'Changed DAC Atten to '+str(dacAtten1)+'+'+str(dacAtten2)
+        self.finished.emit()
+    
     @QtCore.pyqtSlot(object)
     def initializeToState(self, state):
         '''
@@ -694,9 +723,9 @@ class RoachStateMachine(QtCore.QObject):        #Extends QObject for use with QT
                     self.roachController.generateDacComb(globalDacAtten=dacAtten)
                     self.finishedCommand_Signal.emit(com,True)
                 if com ==RoachStateMachine.SWEEP:
-                    self.I_data=np.zeros((len(self.roachController.freqList),2))
+                    self.I_data=np.ones((len(self.roachController.freqList),2))
                     self.Q_data=np.copy(self.I_data)
-                    self.centers = np.zeros((len(self.roachController.freqList),2))
+                    self.centers = np.ones((len(self.roachController.freqList),2))
                     freqOffsets = np.asarray([-1,1])
                     iOnRes = np.copy(self.I_data)
                     qOnRes = np.copy(self.I_data)
@@ -708,13 +737,13 @@ class RoachStateMachine(QtCore.QObject):        #Extends QObject for use with QT
                 #    returnData={'centers':self.centers, 'iqOnRes':self.centers}
                 #    self.finishedCommand_Signal.emit(com,returnData)
                 if com == RoachStateMachine.ROTATE:
-                    iOnRes = np.zeros(len(self.roachController.freqList))
+                    iOnRes = np.ones(len(self.roachController.freqList))
                     returnData = {'IonRes':iOnRes, 'QonRes':np.copy(iOnRes), 'rotation':np.copy(iOnRes)}
                     self.finishedCommand_Signal.emit(com,returnData)
                 if com == RoachStateMachine.TRANSLATE:
-                    self.I_data=np.zeros((len(self.roachController.freqList),2))
+                    self.I_data=np.ones((len(self.roachController.freqList),2))
                     self.Q_data=np.copy(self.I_data)
-                    self.centers = np.zeros((len(self.roachController.freqList),2))
+                    self.centers = np.ones((len(self.roachController.freqList),2))
                     returnData = {'I':self.I_data,'Q':self.Q_data, 'freqOffsets':np.asarray([-1,1]),
                                   'centers':self.centers,'IonRes':np.copy(self.I_data),'QonRes':np.copy(self.I_data)}
                     self.finishedCommand_Signal.emit(com,returnData)

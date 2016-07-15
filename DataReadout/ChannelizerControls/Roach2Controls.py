@@ -104,7 +104,6 @@ class Roach2Controls:
             debug - Save some things to disk for debugging
         '''
         #np.random.seed(1) #Make the random phase values always the same
-        
         self.verbose=verbose
         self.debug=debug
         
@@ -133,7 +132,9 @@ class Roach2Controls:
         if not self.fpga.is_running():
             print 'Firmware is not running. Start firmware, calibrate, and load wave into qdr first!'
     
+        
         self.fpga.get_system_information()
+        print self.fpga.snapshots
     
     def checkDdsShift(self):
         '''
@@ -259,6 +260,8 @@ class Roach2Controls:
         Create and interweave dds frequencies
         
         Call setLOFreq(), generateResonatorChannels(), generateFftChanSelection() first.
+        
+        Sets self.ddsPhaseList
         
         INPUT:
             freqChannels - Each column contains the resonantor frequencies in a single stream. The row index is the channel number. It's padded with -1's. 
@@ -410,7 +413,7 @@ class Roach2Controls:
                               'nBitsPerMemRow':self.params['nBytesPerQdrSample']*8,
                               'earlierSampleIsMsb':True}
             memVals = self.formatWaveForMem(**formatWaveparams)
-            time.sleep(.1)
+            #time.sleep(.1)
             allMemVals.append(memVals)
             #time.sleep(5)
             if self.verbose: print "\twriting QDR for Stream",iMem
@@ -420,6 +423,7 @@ class Roach2Controls:
                             'bQdrFlip':True,
                             'nQdrRows':self.params['nQdrRows']}
             self.writeQdr(**writeQDRparams)
+            time.sleep(.1)
             
         self.fpga.write_int(self.params['read_dds_reg'],1)
         
@@ -860,6 +864,7 @@ class Roach2Controls:
         for i in range(len(quantizedFreqList)):
             phi = 2.*np.pi*quantizedFreqList[i]*t
             expValues = amplitudeList[i]*np.exp(1.j*(phi+phaseList[i]))
+            #print 'Rotating ch'+str(i)+' to '+str(phaseList[i]*180./np.pi)+' deg'
             iValList.append(np.real(expValues))
             qValList.append(np.imag(expValues))
         
@@ -900,7 +905,7 @@ class Roach2Controls:
         if len(np.array(freqList))>self.params['nChannels']:
             warnings.warn("Too many freqs provided. Can only accommodate "+str(self.params['nChannels'])+" resonators")
             freqList = freqList[:self.params['nChannels']]
-        self.freqList = np.ravel(freqList)
+        self.freqList = np.unique(np.ravel(freqList))
         if len(np.unique(self.freqList)) != len(self.freqList):
             warnings.warn("Be careful, I assumed everywhere that the frequencies were unique!")
         self.freqChannels = self.freqList
@@ -1027,19 +1032,19 @@ class Roach2Controls:
         #assign the bin number to be loaded to each stream
         for i in range(nStreams):
             self.fpga.write_int(self.params['chanSel_regs'][i],selBinNums[i])
-        time.sleep(.1)
+        time.sleep(.001)
         
         #in the register chan_sel_load, the lsb initiates the loading of the above bin numbers into memory
         #the 8 bits above the lsb indicate which channel is being loaded (for all streams)
         loadVal = (chanNum << 1) + 1
         self.fpga.write_int(self.params['chanSelLoad_reg'],loadVal)
-        time.sleep(.1) #give it a chance to load
+        time.sleep(.001) #give it a chance to load
 
         self.fpga.write_int(self.params['chanSelLoad_reg'],0) #stop loading
         
         if self.verbose: print '\t'+str(chanNum)+': '+str(selBinNums)
     
-    def freqChannelToStreamChannel(self, freqCh):
+    def freqChannelToStreamChannel(self, freqCh=None):
         '''
         This function converts a channel indexed by the location in the freqlist
         to a stream/channel in the Firmware
@@ -1053,6 +1058,8 @@ class Roach2Controls:
             ch - list of channel numbers for resonators in firmware
             stream - stream(s) corresponding to ch
         '''
+        if freqCh is None:
+            freqCh = range(len(self.freqList))
         ch, stream = np.where(np.in1d(self.freqChannels,np.asarray(self.freqList)[freqCh]).reshape(self.freqChannels.shape))
         return ch, stream
     
@@ -1088,7 +1095,7 @@ class Roach2Controls:
             freqChannel - channel as indexed by the freqList
         """
         ch, stream = self.freqChannelToStreamChannel(freqChannel)
-        self.setThresh(thresholdRad = thresholdRad,ch=int(ch), stream=int(stream)):
+        self.setThresh(thresholdRad = thresholdRad,ch=int(ch), stream=int(stream))
     
     def setThresh(self,thresholdRad = -.1,ch=0,stream=0):
         """Sets the phase threshold and baseline filter for photon pulse detection triggers in each channel
@@ -1130,7 +1137,7 @@ class Roach2Controls:
 
         self.fpga.write_int(self.params['captureThreshold_regs'][stream],binThreshold)
         self.fpga.write_int(self.params['captureLoadThreshold_regs'][stream],1+(ch<<1))
-        time.sleep(.1)
+        time.sleep(.003)    # Each snapshot should take 2 msec of phase data
         self.fpga.write_int(self.params['captureLoadThreshold_regs'][stream],0)
 
     def loadFIRCoeffs(self,coeffFile):
@@ -1197,11 +1204,12 @@ class Roach2Controls:
         INPUTS:
             freqChan - the resonator channel as indexed in the freqList
         '''
-        ch, stream = self.freqChannelToStreamChannel(freqChannel)
-        selChanIndex = int(stream) << 8 + int(ch)
+        ch, stream = self.freqChannelToStreamChannel(freqChan)
+        selChanIndex = (int(stream)<<8) + int(ch)
+        print "Taking phase snap from ch/stream:",str(ch),'/',str(stream),' selChanIndex:',str(selChanIndex)
         return self.takePhaseSnapshot(selChanIndex)
     
-    def takePhaseSnapshot(self, selChanIndex=0):
+    def takePhaseSnapshot(self, selChanIndex):
         """
         Takes phase data using snapshot block
 
@@ -1214,9 +1222,9 @@ class Roach2Controls:
         """
         self.fpga.write_int('sel_ch',selChanIndex)
         self.fpga.snapshots['snp_phs_ss'].arm(man_valid=False)
-        time.sleep(.1)
+        time.sleep(.001)
         self.fpga.write_int('trig_snp',1)#trigger snapshots
-        time.sleep(.1) #wait for other trigger conditions to be met
+        time.sleep(.001) #wait for other trigger conditions to be met
         self.fpga.write_int('trig_snp',0)#release trigger    
                        
         snapDict = self.fpga.snapshots['snp_phs_ss'].read(timeout=5,arm=False,man_valid=False)['data'] 
@@ -1357,7 +1365,8 @@ class Roach2Controls:
             phases - a list of phases in radians
         """
         ch, stream = self.freqChannelToStreamChannel(freqChan)
-        selChanIndex = int(stream) << 8 + int(ch)
+        selChanIndex = (int(stream) << 8) + int(ch)
+        
         return self.takePhaseStreamData(selChanIndex, duration, pktsPerFrame, fabric_port, hostIP)
         
     def takePhaseStreamData(self, selChanIndex=0, duration=2, pktsPerFrame=100, fabric_port=50000, hostIP='10.0.0.50'):
@@ -1409,6 +1418,7 @@ class Roach2Controls:
         #
         #with open(phaseDumpFile,'r') as dumpFile:
         #    data = dumpFile.read()
+        data = phaseTimeStreamData
         if phaseTimeStreamData is None:
             data = self.phaseTimeStreamData
         
@@ -1520,14 +1530,14 @@ class Roach2Controls:
                 print 'Sweeping LO ' + str(LOFreqs[i]) + ' MHz'
             self.loadLOFreq(LOFreqs[i])
             time.sleep(0.01)    # I dunno how long it takes to set the LO
-            if(sweepCnt%2==0):
+            if(i%2==0):
                 for stream in range(nStreams):
-                    self.fpga.snapshots[self.params['iqSnp_regs'[stream]]].arm(man_valid = False, man_trig = False) 
+                    self.fpga.snapshots[self.params['iqSnp_regs'][stream]].arm(man_valid = False, man_trig = False) 
             self.fpga.write_int(self.params['iqSnpStart_reg'],1)
             time.sleep(0.001)    # takes nChannelsPerStream/fpgaClockRate seconds to load all the values
-            if(sweepCnt%2==1):
+            if(i%2==1):
                 for stream in range(nStreams):
-                    iqPt[stream]=self.fpga.snapshots[self.params['iqSnp_regs'[stream]]].read(timeout = 10, arm = False)['data']['iq']
+                    iqPt[stream]=self.fpga.snapshots[self.params['iqSnp_regs'][stream]].read(timeout = 10, arm = False)['data']['iq']
                 iqData = np.append(iqData, iqPt,1)
             self.fpga.write_int(self.params['iqSnpStart_reg'],0)
         
@@ -1536,7 +1546,7 @@ class Roach2Controls:
             self.fpga.write_int(self.params['iqSnpStart_reg'],1)
             time.sleep(0.001)
             for stream in range(nStreams):
-                iqPt[stream]=self.fpga.snapshots[self.params['iqSnp_regs'[stream]]].read(timeout = 10, arm = False)['data']['iq']
+                iqPt[stream]=self.fpga.snapshots[self.params['iqSnp_regs'][stream]].read(timeout = 10, arm = False)['data']['iq']
             iqData = np.append(iqData, iqPt[:self.params['nChannelsPerStream']*2],1)
             self.fpga.write_int(self.params['iqSnpStart_reg'],0)
         
@@ -1602,14 +1612,14 @@ class Roach2Controls:
         for i in counter:
             if self.verbose:
                 print 'IQ point #' + str(i)
-            if(sweepCnt%2==0):
+            if(i%2==0):
                 for stream in range(nStreams):
-                    self.fpga.snapshots[self.params['iqSnp_regs'[stream]]].arm(man_valid = False, man_trig = False) 
+                    self.fpga.snapshots[self.params['iqSnp_regs'][stream]].arm(man_valid = False, man_trig = False) 
             self.fpga.write_int(self.params['iqSnpStart_reg'],1)
             time.sleep(0.001)    # takes nChannelsPerStream/fpgaClockRate seconds to load all the values
-            if(sweepCnt%2==1):
+            if(i%2==1):
                 for stream in range(nStreams):
-                    iqPt[stream]=self.fpga.snapshots[self.params['iqSnp_regs'[stream]]].read(timeout = 10, arm = False)['data']['iq']
+                    iqPt[stream]=self.fpga.snapshots[self.params['iqSnp_regs'][stream]].read(timeout = 10, arm = False)['data']['iq']
                 iqData = np.append(iqData, iqPt,1)
             self.fpga.write_int(self.params['iqSnpStart_reg'],0)
         
@@ -1618,7 +1628,7 @@ class Roach2Controls:
             self.fpga.write_int(self.params['iqSnpStart_reg'],1)
             time.sleep(0.001)
             for stream in range(nStreams):
-                iqPt[stream]=self.fpga.snapshots[self.params['iqSnp_regs'[stream]]].read(timeout = 10, arm = False)['data']['iq']
+                iqPt[stream]=self.fpga.snapshots[self.params['iqSnp_regs'][stream]].read(timeout = 10, arm = False)['data']['iq']
             iqData = np.append(iqData, iqPt[:self.params['nChannelsPerStream']*2],1)
             self.fpga.write_int(self.params['iqSnpStart_reg'],0)
 
@@ -1636,14 +1646,18 @@ class Roach2Controls:
                       Rows correspond to resonators in the same order as the freqlist
                       shape: [nFreqs, 2]
         """
+        channels, streams = self.freqChannelToStreamChannel()
+        
         for i in range(len(centers)):
-            ch, stream = np.where(self.freqChannels == self.freqList[i])
-            print 'IQ center',ch,centers[i][0],centers[i][1]
+            ch = channels[i]
+            stream=streams[i]
+            #ch, stream = np.where(self.freqChannels == self.freqList[i])
+            #print 'IQ center',ch,centers[i][0],centers[i][1]
             I_c = int(centers[i][0]/2**3)
             Q_c = int(centers[i][1]/2**3)
             
             center = (I_c<<16) + (Q_c<<0)   # 32 bit number - 16bit I + 16bit Q
-            print 'loading I,Q',I_c,Q_c
+            #print 'loading I,Q',I_c,Q_c
             self.fpga.write_int(self.params['iqCenter_regs'][stream], center)
             self.fpga.write_int(self.params['iqLoadCenter_regs'][stream], (ch<<1)+(1<<0))
             self.fpga.write_int(self.params['iqLoadCenter_regs'][stream], 0)

@@ -57,6 +57,7 @@ class RoachPhaseStreamWindow(QMainWindow):
         
         self.snapDataList = []
         self.phaseNoiseDataList = []
+        self.oldPhaseNoiseDataList = []
         self.thresholdDataList = []
 
         
@@ -77,6 +78,8 @@ class RoachPhaseStreamWindow(QMainWindow):
             self.snapDataList = [None]*len(freqs)
         if len(self.phaseNoiseDataList)!=len(freqs):
             self.phaseNoiseDataList = [None]*len(freqs)
+        if len(self.oldPhaseNoiseDataList)!=len(freqs):
+            self.oldPhaseNoiseDataList = [None]*len(freqs)    
     
     def initThresh(self):
         """
@@ -122,17 +125,31 @@ class RoachPhaseStreamWindow(QMainWindow):
         data = np.reshape(data[:nFftAvg*fftlen],(nFftAvg,fftlen))
         noiseData=np.fft.rfft(data)
         noiseData=np.abs(noiseData)**2  #power spectrum
-        noiseData = np.average(noiseData,axis=0)/fftlen
+        noiseData = 1.*np.average(noiseData,axis=0)/fftlen
         
+        if self.phaseNoiseDataList[ch] is not None: self.oldPhaseNoiseDataList[ch] = np.copy(self.phaseNoiseDataList[ch])
         self.phaseNoiseDataList[ch]=noiseData
     
     def makePhaseNoisePlot(self, **kwargs):
         ch = self.spinbox_channel.value()
         #self.ax1.clear()
+        
+        if self.oldPhaseNoiseDataList[ch] is not None:
+            ydata = np.copy(self.oldPhaseNoiseDataList[ch])
+            print yData
+            dt = 1.*self.roach.roachController.params['nChannelsPerStream']/self.roach.roachController.params['fpgaClockRate']
+            x = np.fft.fftfreq(len(ydata),dt)
+            self.line2.set_data(x,ydata)
+            self.ax1.relim()
+            self.ax1.autoscale_view(True,True,True)
+        else:
+            self.line2.set_data([],[])
+        
         if self.phaseNoiseDataList[ch] is not None:
             ydata = np.copy(self.phaseNoiseDataList[ch])
+            print 'phsedata: ',str(ydata)
             #dt = 2.^8/(250e.6)
-            dt = 1.*self.roach.params['nChannelsPerStream']/self.roach.params['fpgaClockRate']
+            dt = 1.*self.roach.roachController.params['nChannelsPerStream']/self.roach.roachController.params['fpgaClockRate']
             x = np.fft.fftfreq(len(ydata),dt)
             #fmt='b.-'
             #self.ax1.loglog(x,data)
@@ -141,9 +158,7 @@ class RoachPhaseStreamWindow(QMainWindow):
             self.ax1.autoscale_view(True,True,True)
             #self.ax1.set_xscale("log")
         else:
-            self.line1.set_data([],[])
-        #self.ax1.set_ylabel('Noise Power Spectrum')
-        #self.ax1.set_xlabel('f [Hz]')
+            self.line1.set_data([],[])    
     
     def phaseTimeStream(self):
         """
@@ -242,7 +257,8 @@ class RoachPhaseStreamWindow(QMainWindow):
         self.ax1 = self.fig.add_subplot(211)
         self.ax1.set_ylabel('Noise Power Spectrum')
         self.ax1.set_xlabel('f [Hz]')
-        self.line1, = self.ax1.loglog([],[])
+        self.line1, = self.ax1.loglog([],[],color='blue')
+        self.line2, = self.ax1.loglog([],[],color='cyan')
         self.ax2 = self.fig.add_subplot(212)
         self.ax2.set_xlabel('Time [us]')
         self.ax2.set_ylabel('Phase [Deg]')
@@ -380,6 +396,7 @@ class RoachSweepWindow(QMainWindow):
     rotateClicked = QtCore.pyqtSignal()
     translateClicked = QtCore.pyqtSignal()
     adcAttenChanged = QtCore.pyqtSignal()
+    dacAttenChanged = QtCore.pyqtSignal()
     resetRoach = QtCore.pyqtSignal(int)
     
     
@@ -399,23 +416,22 @@ class RoachSweepWindow(QMainWindow):
         self.config = config
         self.setWindowTitle('r'+str(self.roachNum)+': IQ Plot')
         
-        self.create_main_frame()
-
         self.channelsModified=set()     # Remember which channels we've already modified but haven't reloaded into roach
         self.dataList = []              # Save data from sweeps and translates in memory
         self.rotatedList = []           # Save data from rotate corresponding to data in dataList
         self.numData2Show = 4           # number of previous sweeps to show
         self.maxDataListLength = 10     # maximum number of sweeps to save in memory
 
+        self.create_main_frame()
         #self.counter = 0
 
     
     def plotData(self,data=None,rotated=False,**kwargs):
         #print 'Plotting Data: ',data
         if data is not None and not rotated:
-            self.appendData(data)
+            self.appendData(data.copy())
         if rotated:
-            self.appendRotated(data)
+            self.appendRotated(data.copy())
         if self.isVisible():
             self.makePlot(**kwargs)
             self.draw()
@@ -431,22 +447,27 @@ class RoachSweepWindow(QMainWindow):
         self.rotatedList[-1] = data
 
     def makePlot(self, **kwargs):
+        print "Making sweep plot"
         self.ax.clear()
         self.ax2.clear()
         numData2Show = min(self.numData2Show,len(self.dataList))
         ch = self.spinbox_channel.value()
-        for i in range(numData2Show):
-            data = self.dataList[-(i+1)]
+        #for i in range(numData2Show):
+        for i in range(len(self.dataList) - numData2Show, len(self.dataList)):
+            print 'i:',i
+            data = self.dataList[i]
             I=data['I']
             Q=data['Q']
-            kwargs['alpha']=1. if i==0 else .6 - 0.5*(i-1)/(numData2Show-1)
-            fmt = 'b.-' if i==0 else 'c.-'
+            #kwargs['alpha']=1. if i==0 else .6 - 0.5*(i-1)/(numData2Show-1)
+            kwargs['alpha'] = 1. if i==len(self.dataList)-1 else .6 - .5*(len(self.dataList)-i-1)/numData2Show
+            fmt = 'b.-' if i==len(self.dataList)-1 else 'c.-'
             self.ax.plot(I[ch], Q[ch], fmt,**kwargs)
-            center = data['center'][ch]
+            center = data['centers'][ch]
+            print 'center1 ',center
             self.ax.plot(center[0],center[1],'gx',alpha=kwargs['alpha'])
             iOnRes = data['IonRes']
             qOnRes = data['QonRes']
-            self.ax.plot(iOnRes,qOnRes,'g.',alpha=kwargs['alpha'])
+            self.ax.plot(iOnRes[ch],qOnRes[ch],'g.',alpha=kwargs['alpha'])
 
             #resFreq = self.roach.roachController.freqList[ch]
             #loSpan = self.config.getfloat('Roach '+str(self.roachNum),'sweeplospan')
@@ -455,19 +476,28 @@ class RoachSweepWindow(QMainWindow):
             #freqs = np.linspace(resFreq-loSpan/2., resFreq+loSpan/2., nSteps)
             try:
                 freqs = data['freqOffsets'] + self.roach.roachController.freqList[ch]
-                self.ax2.semilogy(freqs, np.sqrt(I[ch]**2 + Q[ch]**2),fmt,alpha=kwargs['alpha'])
+                vel = np.sqrt((I[ch][1:] - I[ch][:-1])**2 + (Q[ch][1:] - Q[ch][:-1])**2)
+                freqs = freqs[:-1]+(freqs[1]-freqs[0])/2.
+                self.ax2.plot(freqs,vel,fmt,alpha=kwargs['alpha'])
+                #self.ax2.semilogy(freqs, np.sqrt(I[ch]**2 + Q[ch]**2),fmt,alpha=kwargs['alpha'])
             except:
                 print 'Couldn\'t make transmission log plot'
                 traceback.print_exc()
             self.ax2.axvline(x=self.roach.roachController.freqList[ch],color='r')
             
             if self.rotatedList[i] is not None:
-                iOnRes = self.rotateList[i]['IonRes']
-                qOnRes = self.rotateList[i]['QonRes']
+                iOnRes2 = self.rotatedList[i]['IonRes'][ch]
+                qOnRes2 = self.rotatedList[i]['QonRes'][ch]
+                center2 = np.copy(center)     # needs local copy, not pointer
+                print 'center2 ',center2
+                avgI = np.average(iOnRes2)
+                avgQ = np.average(qOnRes2)
+                rotation = self.rotatedList[i]['rotation']
+                print 'Rotated ch'+str(ch)+' '+str(-1*rotation[ch]*180./np.pi)+' deg'
                 
-                self.ax.plot(iOnRes[ch],qOnRes[ch],'ro',alpha=kwargs['alpha'])
-                self.ax.plot([0,iOnRes[ch]],[0,qOnRes[ch]],'r--',alpha=kwargs['alpha'])
-                self.ax.plot([0,iOnRes[ch]],[0,0],'r--',alpha=kwargs['alpha'])
+                self.ax.plot(iOnRes2,qOnRes2,'r.',alpha=kwargs['alpha'])
+                self.ax.plot([center2[0],avgI],[center2[1],avgQ],'r--',alpha=kwargs['alpha'])
+                self.ax.plot([center2[0],avgI],[center2[1],center2[1]],'r--',alpha=kwargs['alpha'])
                 
                 #self.ax.plot(centers[ch][0],centers[ch][1],'rx',**kwargs)
                 #self.ax.plot(iqOnRes[ch][0]+centers[ch][0],iqOnRes[ch][1]+centers[ch][1],'ro',**kwargs)
@@ -530,13 +560,26 @@ class RoachSweepWindow(QMainWindow):
         attens[ch] = newAtten
         self.channelsModified = self.channelsModified | set([ch])
         
+        self.writeNewFreqFile(freqs, attens)
+        self.label_modifyFlag.show()
+    
+    def writeNewFreqFile(self, freqs=None, attens=None):
+        if freqs is None:
+            freqs = np.copy(self.roach.roachController.freqList)
+        if attens is None:
+            attens = np.copy(self.roach.roachController.attenList)
+        
+        keepRes = np.where(attens < 99)     # remove any resonators with atten=99
+        nFreqs = len(freqs)
+        freqs = freqs[keepRes]
+        attens=attens[keepRes]
+        if len(freqs) != nFreqs:
+            self.resetRoach.emit(RoachStateMachine.LOADFREQ)
         freqFile = self.config.get('Roach '+str(self.roachNum),'freqfile')
         newFreqFile=freqFile.rsplit('.',1)[0]+str('_NEW.')+freqFile.rsplit('.',1)[1]
         data=np.transpose([freqs,attens])
         print "Saving "+newFreqFile
         np.savetxt(newFreqFile,data,['%15.8e', '%4i'])
-        self.label_modifyFlag.show()
-        
     
     def changedSetting(self,settingID,setting):
         """
@@ -570,10 +613,29 @@ class RoachSweepWindow(QMainWindow):
         INPUTS: 
             event - matplotlib.backend_bases.MouseEvent
         """
-        if event.inaxes == self.ax2:
-            self.textbox_modifyFreq.setText("%.9e" % event.xdata)
-            self.ax2.axvline(x=event.xdata,color='g')
-            self.draw()
+        if self.mpl_toolbar._active is None:
+            if event.inaxes == self.ax2:
+                clickFreq = event.xdata
+                self.textbox_modifyFreq.setText("%.9e" % clickFreq)
+                try: self.clickLine.remove()
+                except: pass
+                self.clickLine = self.ax2.axvline(x=clickFreq,color='g')
+                
+                #plot point in IQ plane by estimating IQ between points
+                ch=self.spinbox_channel.value()
+                data = self.dataList[-1]
+                I=data['I'][ch]
+                Q=data['Q'][ch]
+                freqs = data['freqOffsets'] + self.roach.roachController.freqList[ch]
+                arg_below = np.searchsorted(freqs, clickFreq, side='left')
+                arg_above = np.searchsorted(freqs, clickFreq, side='right')
+                i_click = (I[arg_above]+I[arg_below])/2.
+                q_click = (Q[arg_above]+Q[arg_below])/2.
+                try: self.clickPoint.remove()
+                except: pass
+                self.clickPoint, = self.ax.plot(i_click, q_click, 'go')
+
+                self.draw()
         #print event.inaxes
         #print self.ax
         #print self.ax2
@@ -589,6 +651,41 @@ class RoachSweepWindow(QMainWindow):
         QtCore.QMetaObject.invokeMethod(self.roach, 'loadADCAtten', Qt.QueuedConnection,
                                         QtCore.Q_ARG(float, adcAtten))
         self.adcAttenChanged.emit()
+        self.resetRoach.emit(RoachStateMachine.SWEEP)
+    
+    def changeDACAtten(self, dacAtten):
+        """
+        This function executes when we modify the dac atten start spinbox
+        If we're keeping the resonators at a fixed atten, then we need to redefine the LUTs (which sets the DAC atten)
+        Otherwise, we need to directly change the DAC atten
+        INPUTS:
+            dacAtten - the dac attenuation
+        """
+        if self.checkbox_resAttenFixed.isChecked():
+            self.resetRoach.emit(RoachStateMachine.DEFINEDACLUT)
+        else:
+            QtCore.QMetaObject.invokeMethod(self.roach, 'loadDACAtten', Qt.QueuedConnection,
+                                            QtCore.Q_ARG(float, dacAtten))
+            self.dacAttenChanged.emit()
+            attens = self.roach.roachController.attenList
+            attens=attens+(dacAtten-self.dacAtten)
+            self.roach.roachController.attenList=attens     # force this to update
+            self.writeNewFreqFile(attens=attens)
+            self.resetRoach.emit(RoachStateMachine.SWEEP)
+            self.initFreqs(False)
+        self.dacAtten=dacAtten
+    
+    def toggleResAttenFixed(self):
+        '''
+        This function executes when you check/uncheck the keep res atten fixed box
+        
+        '''
+        if self.checkbox_resAttenFixed.isChecked():
+            self.checkbox_resAttenFixed.setText('Keep Res Atten Fixed')
+        else:
+            
+            dacAtten = self.config.getfloat('Roach '+str(self.roachNum),'dacatten_start')
+            self.checkbox_resAttenFixed.setText('Keep Res Atten Fixed (was '+str(dacAtten)+' dB)')
     
     def create_main_frame(self):
         """
@@ -629,6 +726,15 @@ class RoachSweepWindow(QMainWindow):
         self.label_atten = QLabel('Atten: 0 dB')
         self.label_lofreq = QLabel('LO Freq: 0 GHz')
         
+        label_num2Plot = QLabel('Num Plots:')
+        spinbox_num2Plot = QSpinBox()
+        spinbox_num2Plot.setWrapping(False)
+        spinbox_num2Plot.setCorrectionMode(QAbstractSpinBox.CorrectToNearestValue)
+        spinbox_num2Plot.setRange(1,self.maxDataListLength)
+        spinbox_num2Plot.setValue(self.numData2Show)
+        def changeNum2Plot(x): self.numData2Show=x
+        spinbox_num2Plot.valueChanged.connect(changeNum2Plot)
+        
         label_modify = QLabel('Modify Resonator - ')
         label_modifyFreq = QLabel('Freq [Hz]: ')
         self.textbox_modifyFreq = QLineEdit('')
@@ -651,6 +757,7 @@ class RoachSweepWindow(QMainWindow):
         self.label_modifyFlag.hide()
         
         dacAttenStart = self.config.getfloat('Roach '+str(self.roachNum),'dacatten_start')
+        self.dacAtten=dacAttenStart
         label_dacAttenStart = QLabel('DAC atten:')
         spinbox_dacAttenStart = QDoubleSpinBox()
         spinbox_dacAttenStart.setValue(dacAttenStart)
@@ -677,8 +784,8 @@ class RoachSweepWindow(QMainWindow):
         spinbox_dacAttenStop.valueChanged.connect(partial(self.changedSetting,'dacatten_stop'))
         spinbox_dacAttenStop.valueChanged.connect(lambda x: spinbox_dacAttenStop.setValue(max(spinbox_dacAttenStart.value(),x)))       #Force stop value to be larger than start value
         
-        spinbox_dacAttenStart.valueChanged.connect(lambda x: self.resetRoach.emit(RoachStateMachine.DEFINEDACLUT))      # reset roach to so that the new dac atten is loaded in next time we sweep
-        
+        #spinbox_dacAttenStart.valueChanged.connect(lambda x: self.resetRoach.emit(RoachStateMachine.DEFINEDACLUT))      # reset roach to so that the new dac atten is loaded in next time we sweep
+        spinbox_dacAttenStart.valueChanged.connect(self.changeDACAtten)
         
         
         adcAtten = self.config.getfloat('Roach '+str(self.roachNum),'adcatten')
@@ -692,8 +799,21 @@ class RoachSweepWindow(QMainWindow):
         spinbox_adcAtten.setWrapping(False)
         spinbox_adcAtten.setCorrectionMode(QAbstractSpinBox.CorrectToNearestValue)
         spinbox_adcAtten.valueChanged.connect(partial(self.changedSetting,'adcatten'))
-        spinbox_adcAtten.valueChanged.connect(lambda x: self.resetRoach.emit(RoachStateMachine.SWEEP))       # reset state of roach
+        #spinbox_adcAtten.valueChanged.connect(lambda x: self.resetRoach.emit(RoachStateMachine.SWEEP))       # reset state of roach
         spinbox_adcAtten.valueChanged.connect(self.changeADCAtten)
+        
+        
+        self.checkbox_resAttenFixed = QCheckBox('Keep Res Atten Fixed')
+        self.checkbox_resAttenFixed.setChecked(True)
+        self.checkbox_resAttenFixed.stateChanged.connect(lambda x: self.toggleResAttenFixed())
+        
+        psFile = self.config.get('Roach '+str(self.roachNum),'powersweepfile')
+        label_psFile = QLabel('Powersweep File:')
+        textbox_psFile = QLineEdit(psFile)
+        textbox_psFile.setMaximumWidth(300)
+        textbox_psFile.setMinimumWidth(300)
+        textbox_psFile.textChanged.connect(partial(self.changedSetting,'powersweepfile'))
+        
         
         loSpan = self.config.getfloat('Roach '+str(self.roachNum),'sweeplospan')
         label_loSpan = QLabel('LO Span [Hz]:')
@@ -728,12 +848,13 @@ class RoachSweepWindow(QMainWindow):
         button_translate.setEnabled(True)
         button_translate.clicked.connect(self.translateClicked)
         
+        '''
         centerBool = self.config.getboolean('Roach '+str(self.roachNum),'centerbool')
         checkbox_center = QCheckBox('Recenter')
         checkbox_center.setChecked(centerBool)
         #checkbox_center.stateChanged.connect(partial(self.changedSetting,'centerbool'))    # This has some weird tristate int
         checkbox_center.stateChanged.connect(lambda x: self.changedSetting('centerbool',checkbox_center.isChecked()))
-        
+        '''
         
         vbox_plot = QVBoxLayout()
         vbox_plot.addWidget(self.canvas)
@@ -742,10 +863,13 @@ class RoachSweepWindow(QMainWindow):
         hbox_res = QHBoxLayout()
         hbox_res.addWidget(label_channel)
         hbox_res.addWidget(self.spinbox_channel)
-        hbox_res.addSpacing(30)
+        hbox_res.addSpacing(20)
         hbox_res.addWidget(self.label_freq)
         hbox_res.addWidget(self.label_atten)
         hbox_res.addWidget(self.label_lofreq)
+        hbox_res.addSpacing(20)
+        hbox_res.addWidget(label_num2Plot)
+        hbox_res.addWidget(spinbox_num2Plot)
         hbox_res.addStretch()
         
         hbox_modifyRes = QHBoxLayout()
@@ -763,9 +887,11 @@ class RoachSweepWindow(QMainWindow):
         hbox_atten.addWidget(spinbox_dacAttenStart)
         hbox_atten.addWidget(label_dacAttenStop)
         hbox_atten.addWidget(spinbox_dacAttenStop)
-        hbox_atten.addSpacing(50)
+        hbox_atten.addSpacing(30)
         hbox_atten.addWidget(label_adcAtten)
         hbox_atten.addWidget(spinbox_adcAtten)
+        hbox_atten.addSpacing(30)
+        hbox_atten.addWidget(self.checkbox_resAttenFixed)
         hbox_atten.addStretch()
         
         hbox_sweep = QHBoxLayout()
@@ -778,7 +904,7 @@ class RoachSweepWindow(QMainWindow):
         #hbox_sweep.addWidget(button_fit)
         hbox_sweep.addWidget(button_rotate)
         hbox_sweep.addWidget(button_translate)
-        hbox_sweep.addWidget(checkbox_center)
+        #hbox_sweep.addWidget(checkbox_center)
         hbox_sweep.addStretch()
         
         box = QVBoxLayout()
@@ -786,6 +912,7 @@ class RoachSweepWindow(QMainWindow):
         box.addLayout(hbox_res)
         box.addLayout(hbox_modifyRes)
         box.addLayout(hbox_atten)
+        box.addWidget(textbox_psFile)
         box.addLayout(hbox_sweep)
         
         label_note = QLabel("NOTE: Changing Settings won't take effect until you reload them into the ROACH2")
