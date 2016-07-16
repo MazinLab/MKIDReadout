@@ -117,7 +117,6 @@ class RoachPhaseStreamWindow(QMainWindow):
         #self.spinbox_channel.setEnabled(True)
     
     def appendPhaseNoiseData(self, ch, data):
-        print 'here'
         fftlen = self.config.getint('Roach '+str(self.roachNum),'nLongsnapFftSamples')
         nFftAvg = int(np.floor(len(data)/fftlen))
         noiseData = np.zeros(fftlen)
@@ -127,16 +126,20 @@ class RoachPhaseStreamWindow(QMainWindow):
         noiseData=np.abs(noiseData)**2  #power spectrum
         noiseData = 1.*np.average(noiseData,axis=0)/fftlen
         
-        if self.phaseNoiseDataList[ch] is not None: self.oldPhaseNoiseDataList[ch] = np.copy(self.phaseNoiseDataList[ch])
-        self.phaseNoiseDataList[ch]=noiseData
+        if np.all(noiseData>0):
+            print 'Adding noise Data'
+            if self.phaseNoiseDataList[ch] is not None: 
+                print 'adding old noise data'
+                self.oldPhaseNoiseDataList[ch] = np.copy(self.phaseNoiseDataList[ch])
+            self.phaseNoiseDataList[ch]=noiseData
+        else:
+            print "Phase noise was all zeros!"
     
     def makePhaseNoisePlot(self, **kwargs):
         ch = self.spinbox_channel.value()
-        #self.ax1.clear()
         
         if self.oldPhaseNoiseDataList[ch] is not None:
             ydata = np.copy(self.oldPhaseNoiseDataList[ch])
-            print yData
             dt = 1.*self.roach.roachController.params['nChannelsPerStream']/self.roach.roachController.params['fpgaClockRate']
             x = np.fft.fftfreq(len(ydata),dt)
             self.line2.set_data(x,ydata)
@@ -147,16 +150,11 @@ class RoachPhaseStreamWindow(QMainWindow):
         
         if self.phaseNoiseDataList[ch] is not None:
             ydata = np.copy(self.phaseNoiseDataList[ch])
-            print 'phsedata: ',str(ydata)
-            #dt = 2.^8/(250e.6)
             dt = 1.*self.roach.roachController.params['nChannelsPerStream']/self.roach.roachController.params['fpgaClockRate']
             x = np.fft.fftfreq(len(ydata),dt)
-            #fmt='b.-'
-            #self.ax1.loglog(x,data)
             self.line1.set_data(x,ydata)
             self.ax1.relim()
             self.ax1.autoscale_view(True,True,True)
-            #self.ax1.set_xscale("log")
         else:
             self.line1.set_data([],[])    
     
@@ -257,8 +255,8 @@ class RoachPhaseStreamWindow(QMainWindow):
         self.ax1 = self.fig.add_subplot(211)
         self.ax1.set_ylabel('Noise Power Spectrum')
         self.ax1.set_xlabel('f [Hz]')
-        self.line1, = self.ax1.loglog([],[],color='blue')
         self.line2, = self.ax1.loglog([],[],color='cyan')
+        self.line1, = self.ax1.loglog([],[],color='blue')       # line 1 on top of line 2
         self.ax2 = self.fig.add_subplot(212)
         self.ax2.set_xlabel('Time [us]')
         self.ax2.set_ylabel('Phase [Deg]')
@@ -454,7 +452,7 @@ class RoachSweepWindow(QMainWindow):
         ch = self.spinbox_channel.value()
         #for i in range(numData2Show):
         for i in range(len(self.dataList) - numData2Show, len(self.dataList)):
-            print 'i:',i
+            #print 'i:',i
             data = self.dataList[i]
             I=data['I']
             Q=data['Q']
@@ -463,7 +461,7 @@ class RoachSweepWindow(QMainWindow):
             fmt = 'b.-' if i==len(self.dataList)-1 else 'c.-'
             self.ax.plot(I[ch], Q[ch], fmt,**kwargs)
             center = data['centers'][ch]
-            print 'center1 ',center
+            #print 'center1 ',center
             self.ax.plot(center[0],center[1],'gx',alpha=kwargs['alpha'])
             iOnRes = data['IonRes']
             qOnRes = data['QonRes']
@@ -481,7 +479,7 @@ class RoachSweepWindow(QMainWindow):
                 self.ax2.plot(freqs,vel,fmt,alpha=kwargs['alpha'])
                 #self.ax2.semilogy(freqs, np.sqrt(I[ch]**2 + Q[ch]**2),fmt,alpha=kwargs['alpha'])
             except:
-                print 'Couldn\'t make transmission log plot'
+                print 'Couldn\'t make IQ velocity plot'
                 traceback.print_exc()
             self.ax2.axvline(x=self.roach.roachController.freqList[ch],color='r')
             
@@ -489,7 +487,7 @@ class RoachSweepWindow(QMainWindow):
                 iOnRes2 = self.rotatedList[i]['IonRes'][ch]
                 qOnRes2 = self.rotatedList[i]['QonRes'][ch]
                 center2 = np.copy(center)     # needs local copy, not pointer
-                print 'center2 ',center2
+                #print 'center2 ',center2
                 avgI = np.average(iOnRes2)
                 avgQ = np.average(qOnRes2)
                 rotation = self.rotatedList[i]['rotation']
@@ -506,7 +504,7 @@ class RoachSweepWindow(QMainWindow):
         self.ax.set_xlabel('I')
         self.ax.set_ylabel('Q')
         self.ax2.set_xlabel('Freqs [Hz]')
-        self.ax2.set_ylabel('Transmission')
+        self.ax2.set_ylabel('IQ velocity')
         
         
         
@@ -621,19 +619,18 @@ class RoachSweepWindow(QMainWindow):
                 except: pass
                 self.clickLine = self.ax2.axvline(x=clickFreq,color='g')
                 
-                #plot point in IQ plane by estimating IQ between points
+                #plot closest point in IQ plane
                 ch=self.spinbox_channel.value()
                 data = self.dataList[-1]
                 I=data['I'][ch]
                 Q=data['Q'][ch]
                 freqs = data['freqOffsets'] + self.roach.roachController.freqList[ch]
-                arg_below = np.searchsorted(freqs, clickFreq, side='left')
-                arg_above = np.searchsorted(freqs, clickFreq, side='right')
-                i_click = (I[arg_above]+I[arg_below])/2.
-                q_click = (Q[arg_above]+Q[arg_below])/2.
+                arg = np.abs(np.atleast_1d(freqs) - clickFreq).argmin()
+                i_click = I[arg]
+                q_click = Q[arg]
                 try: self.clickPoint.remove()
                 except: pass
-                self.clickPoint, = self.ax.plot(i_click, q_click, 'go')
+                self.clickPoint, = self.ax.plot(i_click, q_click, 'ro')
 
                 self.draw()
         #print event.inaxes
@@ -706,7 +703,7 @@ class RoachSweepWindow(QMainWindow):
         self.ax.set_ylabel('Q')
         self.ax2 = self.fig.add_subplot(122)
         self.ax2.set_xlabel('Freq')
-        self.ax2.set_ylabel('Transmission')
+        self.ax2.set_ylabel('IQ velocity')
         
         # Create the navigation toolbar, tied to the canvas
         self.mpl_toolbar = NavigationToolbar(self.canvas, self.main_frame)
@@ -894,6 +891,11 @@ class RoachSweepWindow(QMainWindow):
         hbox_atten.addWidget(self.checkbox_resAttenFixed)
         hbox_atten.addStretch()
         
+        hbox_powersweep = QHBoxLayout()
+        hbox_powersweep.addWidget(label_psFile)
+        hbox_powersweep.addWidget(textbox_psFile)
+        hbox_powersweep.addStretch()
+        
         hbox_sweep = QHBoxLayout()
         hbox_sweep.addWidget(label_loSpan)
         hbox_sweep.addWidget(textbox_loSpan)
@@ -912,7 +914,7 @@ class RoachSweepWindow(QMainWindow):
         box.addLayout(hbox_res)
         box.addLayout(hbox_modifyRes)
         box.addLayout(hbox_atten)
-        box.addWidget(textbox_psFile)
+        box.addLayout(hbox_powersweep)
         box.addLayout(hbox_sweep)
         
         label_note = QLabel("NOTE: Changing Settings won't take effect until you reload them into the ROACH2")

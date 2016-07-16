@@ -10,7 +10,8 @@ import numpy as np
 from PyQt4 import QtCore
 from Queue import Queue
 from Roach2Controls import Roach2Controls
-from lib import iqsweep  # From old SDR code for saving powersweep files
+#from lib import iqsweep  # From old SDR code for saving powersweep files
+import iqsweep
 
 class RoachStateMachine(QtCore.QObject):        #Extends QObject for use with QThreads
     """
@@ -336,6 +337,7 @@ class RoachStateMachine(QtCore.QObject):        #Extends QObject for use with QT
             iqData = self.roachController.performIQSweep(LO_start/1.e6, LO_end/1.e6, LO_step/1.e6)
             self.I_data = iqData['I']
             self.Q_data = iqData['Q']
+            self.freqOffsets=iqData['freqOffsets']
             if stop_DACAtten > start_DACAtten:
                 
                 # Save the power sweep
@@ -370,7 +372,7 @@ class RoachStateMachine(QtCore.QObject):        #Extends QObject for use with QT
         nPoints = 20 #arbitrary number. 20 seems fine. Could add this to config file in future
         iqOnRes = self.roachController.takeAvgIQData(nPoints)
         
-        return {'I':np.copy(self.I_data), 'Q':np.copy(self.Q_data), 'freqOffsets':np.copy(LO_offsets), 
+        return {'I':np.copy(self.I_data), 'Q':np.copy(self.Q_data), 'freqOffsets':np.copy(self.freqOffsets), 
                 'centers':np.copy(self.centers), 'IonRes':np.copy(iqOnRes['I']),'QonRes':np.copy(iqOnRes['Q'])}
         
         #return {'I':self.I_data,'Q':self.Q_data}

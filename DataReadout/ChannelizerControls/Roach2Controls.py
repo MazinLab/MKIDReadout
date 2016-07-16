@@ -131,10 +131,9 @@ class Roach2Controls:
         self.fpga._timeout = 50.
         if not self.fpga.is_running():
             print 'Firmware is not running. Start firmware, calibrate, and load wave into qdr first!'
-    
-        
-        self.fpga.get_system_information()
-        print self.fpga.snapshots
+        else:
+            self.fpga.get_system_information()
+            print self.fpga.snapshots
     
     def checkDdsShift(self):
         '''
@@ -157,7 +156,9 @@ class Roach2Controls:
         #self.fpga.write_int(self.params['ddsShift_reg'],ddsShift_initial)   # load what we had in there before
         
         #ddsShift = dds_ch - data_ch +1              # have to add 1 here for some reason
-        ddsShift = (ddsShift_initial + dds_ch - data_ch +1) % self.params['nChannelsPerStream']
+        #ddsShift = (ddsShift_initial + dds_ch - data_ch +1) % self.params['nChannelsPerStream']
+        # In new firmware we don't have to add 1 anymore
+        ddsShift = (ddsShift_initial + dds_ch - data_ch ) % self.params['nChannelsPerStream']
         
         if self.verbose:
             print 'current dds lag', ddsShift_initial
@@ -468,7 +469,7 @@ class Roach2Controls:
             memValues = (memValues >> 32)+((memValues & mask32) << 32)
             #Unfortunately, with the current qdr calibration, the addresses in katcp and firmware are shifted (rolled) relative to each other
             #so to compensate we roll the values to write here
-            memValues = np.roll(memValues,-1)
+            #memValues = np.roll(memValues,-1)
         toWriteStr = struct.pack('>{}{}'.format(nValues,formatChar),*memValues)
         self.fpga.blindwrite(memName,toWriteStr,start)
     
@@ -1547,11 +1548,12 @@ class Roach2Controls:
             time.sleep(0.001)
             for stream in range(nStreams):
                 iqPt[stream]=self.fpga.snapshots[self.params['iqSnp_regs'][stream]].read(timeout = 10, arm = False)['data']['iq']
-            iqData = np.append(iqData, iqPt[:self.params['nChannelsPerStream']*2],1)
+            iqData = np.append(iqData, iqPt[:,:self.params['nChannelsPerStream']*2],1)
             self.fpga.write_int(self.params['iqSnpStart_reg'],0)
         
         self.loadLOFreq()   # reloads initial lo freq
         self.iqSweepData = self.formatIQSweepData(iqData)
+        self.iqSweepData['freqOffsets'] = LOFreqs - self.LOFreq
         #self.iqSweepData = iqData
         return self.iqSweepData
     
@@ -1629,7 +1631,7 @@ class Roach2Controls:
             time.sleep(0.001)
             for stream in range(nStreams):
                 iqPt[stream]=self.fpga.snapshots[self.params['iqSnp_regs'][stream]].read(timeout = 10, arm = False)['data']['iq']
-            iqData = np.append(iqData, iqPt[:self.params['nChannelsPerStream']*2],1)
+            iqData = np.append(iqData, iqPt[:,:self.params['nChannelsPerStream']*2],1)
             self.fpga.write_int(self.params['iqSnpStart_reg'],0)
 
         self.iqToneData = self.formatIQSweepData(iqData)
