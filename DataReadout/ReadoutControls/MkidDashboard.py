@@ -235,14 +235,14 @@ class MkidDashboard(QMainWindow):
         
         #Laser Controller
         laserIP=self.config.get('properties','laserIPaddress')
-        laserPort=self.config.get('properties','laserPort')
-        laserReceivePort = self.config.get('properties','laserReceivePort')
+        laserPort=self.config.getint('properties','laserPort')
+        laserReceivePort = self.config.getint('properties','laserReceivePort')
         self.laserController = LaserControl(laserIP,laserPort,laserReceivePort)
         
         #telscope TCS connection
         telescopeIP=self.config.get('properties','telescopeIPaddress')
-        telescopePort=self.config.get('properties','telescopePort')
-        telescopeReceivePort = self.config.get('properties','telescopeReceivePort')
+        telescopePort=self.config.getint('properties','telescopePort')
+        telescopeReceivePort = self.config.getint('properties','telescopeReceivePort')
         self.telescopeController = Telescope(telescopeIP,telescopePort,telescopeReceivePort)
         self.telescopeWindow = TelescopeWindow(self.telescopeController)
         
@@ -277,7 +277,28 @@ class MkidDashboard(QMainWindow):
         print command
         QtCore.QTimer.singleShot(50,partial(subprocess.Popen,command,shell=True))
 
+    
+    def connectToRoaches(self):
+        """
+        Connect to roaches and make sure the photon port register is set
         
+        We assume templar has already been run to set up the resonators
+        Assume roach firmware is already running
+        """
+        nRoaches = self.config.getint('properties','num_roaches')
+        roachList=[]
+        for i in range(nRoaches):
+            roachIP = self.config.get('properties','ipaddress_'+str(i))
+            roach = casperfpga.katcp_fpga.KatcpFpga(roachIP,timeout=3.)
+            roachList.append(roach)
+        time.sleep(.1)
+        for roach in roachList:    
+            roach.get_system_information()
+            roach.write_int(self.config.get('properties','photonPort_reg'), self.config.getint('properties','photonCapPort'))
+            
+            
+
+    
     def appendImage(self,image):
         """
         Save image data to memory so we can look at a timestream
@@ -604,23 +625,26 @@ class MkidDashboard(QMainWindow):
             self.observing=True
             self.button_obs.setEnabled(False)
             self.button_stop.setEnabled(True)
-            print "Starting Obs"
+            
+            
+            for roach in roachList:
+                roach.write_int(self.config.get('properties','phaseDumpEn_reg'),0)      # doesn't really need this
+                roach.write_int(self.config.get('properties','photonCapStart_reg'),1)
+            time.sleep(.001)
             
             data_path = self.config.get('properties','data_dir')
             start_file_loc = self.config.get('properties','cuber_ramdisk')
+            print "Starting Obs"
             f=open(start_file_loc+'/START','w')
             f.write(data_path)
             f.close()
-            
-            #Need switch Firmware into photon collect mode
-            #wait 1 ms, then write START file to RAM disk
 
     
     def stopObs(self):
         """
         When we stop observing we need to:
-            - switch Firmware out of photon collect mode
             - Write QUIT file to RAM disk for PacketMaster2
+            - switch Firmware out of photon collect mode
             - Move any log files in the ram disk to the hard disk
         """
         if self.observing:
@@ -630,10 +654,17 @@ class MkidDashboard(QMainWindow):
             stop_file_loc = self.config.get('properties','cuber_ramdisk')
             f=open(stop_file_loc+'/STOP','w')
             f.close()
+            
             #Need to switch Firmware out of photon collect mode
             #wait 1 ms
+            time.sleep(.001)
+            for roach in roachList:
+                roach.write_int(self.config.get('properties','photonCapStart_reg'),0)
+            
             self.button_obs.setEnabled(True)
             self.button_stop.setEnabled(False)
+            
+            
 
     def laserCalClicked(self):
         laserStr = ''
@@ -998,7 +1029,7 @@ class MkidDashboard(QMainWindow):
     def closeEvent(self, event):
         self.stopObs()                  # send packetmaster the stop signal just in case
         quit_file_loc = self.config.get('properties','cuber_ramdisk')
-        f=open(quit_file_loc+'/QUIT','w')
+        f=open(quit_file_loc+'/QUIT','w')   # tell packetmaster to end
         f.close()
         self.workers[0].search=False    # stop searching for new images
         del self.grPixMap               # Get segfault if we don't delete this. Something about signals in the queue trying to access deleted objects...
@@ -1010,7 +1041,8 @@ class MkidDashboard(QMainWindow):
         self.telescopeWindow.close()
         
         self.moveLogFiles()             # Move any log files in the ramdisk to the hard drive
-        
+        self.hide()
+        time.sleep(1)
         
         QtCore.QCoreApplication.instance().quit()
 

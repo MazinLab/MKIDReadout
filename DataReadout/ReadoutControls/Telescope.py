@@ -5,14 +5,14 @@ Date: Jul 8, 2016
 This class grabs info from the Palomar telescope
 """
 from socket import *
-import time
+import time, math
 import datetime
 from PyQt4 import QtGui
 from PyQt4.QtGui import *
 from PyQt4 import QtCore
 import ephem
 #from lib.getSeeing import getPalomarSeeing  # From old SDR code
-from getSeeing import getPalomarSeeing  # From old SDR code
+from lib.getSeeing import getPalomarSeeing  # From old SDR code
 
 class TelescopeWindow(QMainWindow):
     
@@ -90,7 +90,7 @@ class Telescope():
     def __init__(self, ipaddress="10.200.2.11", port = 49200, receivePort=1024):
         self.address = (ipaddress, port)
         self.receivePort = receivePort
-        self.client_socket = socket(AF_INET, SOCK_STREAM) #Set Up the Socket
+        #self.client_socket = socket(AF_INET, SOCK_STREAM) #Set Up the Socket
         
         #Palomar's position
         self.observatory = 'Palomar 200" Hale Telescope'
@@ -110,9 +110,11 @@ class Telescope():
 
     def sendTelescopeCommand(self, command):
         try:
+            self.client_socket = socket(AF_INET, SOCK_STREAM) #Set Up the Socket
             self.client_socket.connect(self.address)
         except:
             print "Connection to TCS failed"
+            print "Telescope IP: ",self.address
             return
         response = None
         try:
@@ -120,6 +122,7 @@ class Telescope():
             response = self.client_socket.recv(self.receivePort)
         except:
             print "Command to TCS failed: "+str(command)
+            print "Telescope IP: ",self.address
         self.client_socket.close()
         return response
 
