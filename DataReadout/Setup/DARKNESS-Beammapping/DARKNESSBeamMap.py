@@ -11,6 +11,7 @@ from readDict import readDict
 from PyQt4.QtGui import *
 from PyQt4.QtGui import *
 from DARKNESS_beammap_gui import Ui_beammap_gui
+#from DARKNESS_beammap_gui_small import Ui_beammap_gui
 
 # Define the various classes and functions needed for the beam mapping
 # Define a standard Gaussian distribution function
