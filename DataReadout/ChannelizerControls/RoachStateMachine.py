@@ -238,15 +238,21 @@ class RoachStateMachine(QtCore.QObject):        #Extends QObject for use with QT
         Loads the resonator freq files (and attenuations)
         divides the resonators into streams
         '''
+        try:
+            print 'old Freq: ', self.roachController.freqList
+        except: pass
         fn = self.config.get('Roach '+str(self.num),'freqfile')
         fn2=fn.rsplit('.',1)[0]+'_NEW.'+ fn.rsplit('.',1)[1]         # Check if ps_freq#_NEW.txt exists
-        if os.path.isfile(fn2): fn=fn2
+        if os.path.isfile(fn2): 
+            fn=fn2
+            print 'Loading freqs from '+fn
         freqs, attens = np.loadtxt(fn,unpack=True)
         freqs = np.atleast_1d(freqs)       # If there's only 1 resonator numpy loads it in as a float.
         attens = np.atleast_1d(attens)     # We need an array of floats
         
         self.roachController.generateResonatorChannels(freqs)
         self.roachController.attenList = attens
+        print 'new Freq: ', self.roachController.freqList
 
         return True
     
@@ -341,7 +347,7 @@ class RoachStateMachine(QtCore.QObject):        #Extends QObject for use with QT
             if stop_DACAtten > start_DACAtten:
                 
                 # Save the power sweep
-                nSteps = len(iqData['I'][0])
+                nSteps = len(self.freqOffsets)
                 for n in range(len(self.roachController.freqList)):
                     w = iqsweep.IQsweep()
                     w.f0 = self.roachController.freqList[n]
@@ -356,23 +362,39 @@ class RoachStateMachine(QtCore.QObject):        #Extends QObject for use with QT
                     w.I0 = 0.0
                     w.Q0 = 0.0
                     w.resnum = n
-                    w.freq = np.arange(LO_start, LO_end, LO_step, dtype='float32') - LO_freq +  w.f0
-                    w.I = iqData['I'][n]
-                    w.Q = iqData['Q'][n]
+                    w.freq = w.f0 + self.freqOffsets
+                    w.I = self.I_data[n]
+                    w.Q = self.Q_data[n]
                     w.Isd = np.zeros(nSteps)
                     w.Qsd = np.zeros(nSteps)
                     w.time = time.time()
                     w.savenoise = 0
                     w.Save(powerSweepFile,'r0', 'a')    # always r0
         
+        
+
         # Get freq list, center, IQonResonance
         # Only for last sweep if power sweeping
-        
         self.fitLoopCenters()   # uses self.I_data, self.Q_data and instantiates self.centers
         nPoints = 20 #arbitrary number. 20 seems fine. Could add this to config file in future
+        #time.sleep(.1)  # I'm not sure if we need this but might need to wait for LO to stabilize after sweep
         iqOnRes = self.roachController.takeAvgIQData(nPoints)
         
+        
+        if stop_DACAtten > start_DACAtten:      # reset the dac atten to the start value again if we did a power sweep
+            dacAtten1 = np.floor(start_DACAtten*2)/4.
+            dacAtten2 = np.ceil(start_DACAtten*2)/4.
+            self.roachController.changeAtten(1,dacAtten1)
+            self.roachController.changeAtten(2,dacAtten2)
+            print 'Setting DAC atten: '+str(start_DACAtten)
+        
+        fList = np.copy(self.roachController.dacQuantizedFreqList)
+        fList[np.where(fList>(self.roachController.params['dacSampleRate']/2.))] -= self.roachController.params['dacSampleRate']
+        fList+=LO_freq
+        
         return {'I':np.copy(self.I_data), 'Q':np.copy(self.Q_data), 'freqOffsets':np.copy(self.freqOffsets), 
+                #'freqList':np.copy(self.roachController.freqList),
+                'freqList':fList,
                 'centers':np.copy(self.centers), 'IonRes':np.copy(iqOnRes['I']),'QonRes':np.copy(iqOnRes['Q'])}
         
         #return {'I':self.I_data,'Q':self.Q_data}
@@ -416,7 +438,8 @@ class RoachStateMachine(QtCore.QObject):        #Extends QObject for use with QT
         #rotation_phases = np.ones(rotation_phases.shape)*90*np.pi/180.
         
         phaseList = np.copy(self.roachController.ddsPhaseList)
-        channels, streams = self.roachController.freqChannelToStreamChannel()
+        #channels, streams = self.roachController.freqChannelToStreamChannel()
+        channels, streams = self.roachController.getStreamChannelFromFreqChannel()
         for i in range(len(channels)):
             print channels[i],streams[i]
             print phaseList.shape
@@ -640,6 +663,9 @@ class RoachStateMachine(QtCore.QObject):        #Extends QObject for use with QT
         #data=self.roachController.takePhaseStreamData(selChanIndex=ch, duration=duration, hostIP=hostip)
         try:
             data=self.roachController.takePhaseStreamDataOfFreqChannel(freqChan=channel, duration=duration, hostIP=hostip)
+            longSnapFN = self.config.get('Roach '+str(self.num),'longsnapfile')
+            longSnapFN = longSnapFN.rsplit('.',1)[0]+'_'+time.strftime("%Y%m%d-%H%M%S",time.localtime())+'.'+longSnapFN.rsplit('.',1)[1]
+            np.savez(longSnapFN,data)
         except:
             traceback.print_exc()
             self.finished.emit()

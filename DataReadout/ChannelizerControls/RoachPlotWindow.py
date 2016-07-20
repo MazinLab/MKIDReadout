@@ -138,10 +138,11 @@ class RoachPhaseStreamWindow(QMainWindow):
     def makePhaseNoisePlot(self, **kwargs):
         ch = self.spinbox_channel.value()
         
+        fftlen = self.config.getint('Roach '+str(self.roachNum),'nLongsnapFftSamples')
         if self.oldPhaseNoiseDataList[ch] is not None:
             ydata = np.copy(self.oldPhaseNoiseDataList[ch])
             dt = 1.*self.roach.roachController.params['nChannelsPerStream']/self.roach.roachController.params['fpgaClockRate']
-            x = np.fft.fftfreq(len(ydata),dt)
+            x = np.fft.rfftfreq(fftlen,dt)
             self.line2.set_data(x,ydata)
             self.ax1.relim()
             self.ax1.autoscale_view(True,True,True)
@@ -151,7 +152,7 @@ class RoachPhaseStreamWindow(QMainWindow):
         if self.phaseNoiseDataList[ch] is not None:
             ydata = np.copy(self.phaseNoiseDataList[ch])
             dt = 1.*self.roach.roachController.params['nChannelsPerStream']/self.roach.roachController.params['fpgaClockRate']
-            x = np.fft.fftfreq(len(ydata),dt)
+            x = np.fft.rfftfreq(fftlen,dt)
             self.line1.set_data(x,ydata)
             self.ax1.relim()
             self.ax1.autoscale_view(True,True,True)
@@ -435,6 +436,10 @@ class RoachSweepWindow(QMainWindow):
             self.draw()
     
     def appendData(self,data):
+        if len(self.dataList)>0:
+            if len(data['I']) != len(self.dataList[0]['I']):     #Changed the frequncy list
+                self.dataList=[]
+                self.rotatedList=[]
         self.dataList.append(data)
         self.rotatedList.append(None)
         if len(self.dataList) > self.maxDataListLength:
@@ -450,6 +455,9 @@ class RoachSweepWindow(QMainWindow):
         self.ax2.clear()
         numData2Show = min(self.numData2Show,len(self.dataList))
         ch = self.spinbox_channel.value()
+        c, s = self.roach.roachController.getStreamChannelFromFreqChannel(ch)
+        print 'ch, freq[ch]:',ch, ', ',self.roach.roachController.freqList[ch]
+        print 'ch/stream, freq[ch,stream]:',c,'/',s,', ',self.roach.roachController.freqChannels[c,s]
         #for i in range(numData2Show):
         for i in range(len(self.dataList) - numData2Show, len(self.dataList)):
             #print 'i:',i
@@ -473,7 +481,8 @@ class RoachSweepWindow(QMainWindow):
             #loStep = self.config.getfloat('Roach '+str(self.roachNum),'sweeplostep')
             #freqs = np.linspace(resFreq-loSpan/2., resFreq+loSpan/2., nSteps)
             try:
-                freqs = data['freqOffsets'] + self.roach.roachController.freqList[ch]
+                #freqs = data['freqOffsets'] + self.roach.roachController.freqList[ch]
+                freqs = data['freqOffsets'] + data['freqList'][ch]
                 vel = np.sqrt((I[ch][1:] - I[ch][:-1])**2 + (Q[ch][1:] - Q[ch][:-1])**2)
                 freqs = freqs[:-1]+(freqs[1]-freqs[0])/2.
                 self.ax2.plot(freqs,vel,fmt,alpha=kwargs['alpha'])
@@ -536,8 +545,17 @@ class RoachSweepWindow(QMainWindow):
         try: lofreq = self.roach.roachController.LOFreq
         except AttributeError: lofreq=0
         
+        try:
+            fList = np.copy(self.roach.roachController.dacQuantizedFreqList)
+            fList[np.where(fList>(self.roach.roachController.params['dacSampleRate']/2.))] -= self.roach.roachController.params['dacSampleRate']
+            fList+=self.roach.roachController.LOFreq
+            freqs=np.copy(fList)
+            self.label_freq.setText('Quantized Freq: '+str(freqs[ch]/1.e9)+' GHz')
+        except AttributeError:
+            self.label_freq.setText('Freq: '+str(freqs[ch]/1.e9)+' GHz')
+        
         self.spinbox_channel.setRange(0,len(freqs)-1)
-        self.label_freq.setText('Freq: '+str(freqs[ch]/1.e9)+' GHz')
+        
         self.label_atten.setText('Atten: '+str(attens[ch])+' dB')
         self.label_lofreq.setText('LO Freq: '+str(lofreq/1.e9)+' GHz')
         
@@ -548,8 +566,11 @@ class RoachSweepWindow(QMainWindow):
         freqs = self.roach.roachController.freqList
         attens = self.roach.roachController.attenList
         ch=self.spinbox_channel.value()
-
+        
+        print 'P:Old freq: ', freqs[ch]
+        
         newFreq = float(self.textbox_modifyFreq.text())
+        print 'P:New freq: ', newFreq
         newAtten = self.spinbox_modifyAtten.value()
         if newFreq!=freqs[ch]: self.resetRoach.emit(RoachStateMachine.LOADFREQ)
         elif newAtten!= attens[ch]: self.resetRoach.emit(RoachStateMachine.DEFINEDACLUT)
@@ -558,7 +579,7 @@ class RoachSweepWindow(QMainWindow):
         attens[ch] = newAtten
         self.channelsModified = self.channelsModified | set([ch])
         
-        self.writeNewFreqFile(freqs, attens)
+        self.writeNewFreqFile(np.copy(freqs), np.copy(attens))
         self.label_modifyFlag.show()
     
     def writeNewFreqFile(self, freqs=None, attens=None):
@@ -577,7 +598,7 @@ class RoachSweepWindow(QMainWindow):
         newFreqFile=freqFile.rsplit('.',1)[0]+str('_NEW.')+freqFile.rsplit('.',1)[1]
         data=np.transpose([freqs,attens])
         print "Saving "+newFreqFile
-        np.savetxt(newFreqFile,data,['%15.8e', '%4i'])
+        np.savetxt(newFreqFile,data,['%15.9e', '%4i'])
     
     def changedSetting(self,settingID,setting):
         """
@@ -718,8 +739,8 @@ class RoachSweepWindow(QMainWindow):
         self.spinbox_channel.valueChanged.connect(lambda x: self.initFreqs(False))
         
         self.label_freq = QLabel('Freq: 0 GHz')
-        self.label_freq.setMinimumWidth(150)
-        self.label_freq.setMaximumWidth(150)
+        self.label_freq.setMinimumWidth(170)
+        self.label_freq.setMaximumWidth(170)
         self.label_atten = QLabel('Atten: 0 dB')
         self.label_lofreq = QLabel('LO Freq: 0 GHz')
         

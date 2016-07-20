@@ -41,6 +41,7 @@ chanSel_regs = ['chan_sel_ch_bin0','chan_sel_ch_bin1','chan_sel_ch_bin2','chan_s
 ddsMemName_regs = ['qdr0_memory','qdr1_memory','qdr2_memory','qdr3_memory']    #for dds LUT. One per stream
 nDacLutRows_reg = 'dac_lut_n_qdr_rows'
 
+adcScale_reg = 'adc_in_scale'
 ddsShift_reg = 'dds_shift'
 checkLag_reg = 'check_lag_latch'
 lagData_reg = 'check_lag_data_ch'
@@ -61,9 +62,16 @@ iqSnp_regs = ['acc_iq_avg0_ss','acc_iq_avg1_ss','acc_iq_avg2_ss','acc_iq_avg3_ss
 iqCenter_regs = ['conv_phase0_centers', 'conv_phase1_centers', 'conv_phase2_centers', 'conv_phase3_centers']
 iqLoadCenter_regs = ['conv_phase0_load_centers', 'conv_phase1_load_centers', 'conv_phase2_load_centers', 'conv_phase3_load_centers']
 
+phaseSnpCh_reg = 'sel_ch'
+phaseSnapshot = 'snp_phs_ss'
+phaseSnpTrig_reg = 'trig_snp'
+
 firBinPt = 9    # number of bits after binary point. fractional bits
 firTapsMem_regs = ['prog_fir0_single_chan_coeffs','prog_fir1_single_chan_coeffs','prog_fir2_single_chan_coeffs','prog_fir3_single_chan_coeffs']
 firLoadChan_regs = ['prog_fir0_load_chan','prog_fir1_load_chan','prog_fir2_load_chan','prog_fir3_load_chan']
+
+adcScaleBinPt = 4
+adcScaleNBits = 4
 
 captureThreshold_regs = ['capture0_threshold','capture1_threshold','capture2_threshold','capture3_threshold']
 captureLoadThreshold_regs = ['capture0_load_thresh','capture1_load_thresh','capture2_load_thresh','capture3_load_thresh']
