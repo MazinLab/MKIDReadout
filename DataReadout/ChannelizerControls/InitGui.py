@@ -121,7 +121,8 @@ class InitGui(QMainWindow):
         self.colorCommandButtons(roachNum,colorStatus)
         
         roachArg = np.where(np.asarray(self.roachNums) == roachNum)[0][0]
-        #if command == RoachStateMachine.LOADFREQ:
+        if command == InitStateMachine.INIT_V7:
+            self.settingsWindow.finishedInitV7(roachNum)
             
     def resetRoachState(self,roachNum,command):
         roachArg = np.where(np.asarray(self.roachNums) == roachNum)[0][0]

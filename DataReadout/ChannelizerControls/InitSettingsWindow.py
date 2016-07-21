@@ -22,6 +22,8 @@ class InitSettingsWindow(QTabWidget):
     SIGNALS
         resetRoach - Signal emmited when we change a setting so we can reload it into the ROACH2
         initTemplar - Signal emmited when we want to trick templar into initializing into a specific state
+        nBitsRemovedInFFT
+        
         
         The first parameter is the roach number
         The second parameter is data
@@ -29,6 +31,7 @@ class InitSettingsWindow(QTabWidget):
     
     resetRoach = QtCore.pyqtSignal(int,int)     
     initTemplar = QtCore.pyqtSignal(int,object)
+    nBitsRemovedInFFT = QtCore.pyqtSignal(int)
     
     def __init__(self,roachNums,config,parent=None):
         """
@@ -52,6 +55,7 @@ class InitSettingsWindow(QTabWidget):
             tab = InitSettingsTab(roachNum, self.config)
             tab.resetRoach.connect(partial(self.resetRoach.emit,roachNum))
             tab.initTemplar.connect(partial(self.initTemplar.emit,roachNum))
+            #tab.nBitsRemovedInFFT.connect(partial(self.nBitsRemovedInFFT.emit,roachNum))
             self.addTab(tab, ''+str(roachNum))
         
         #self.setMovable(True)
@@ -65,6 +69,11 @@ class InitSettingsWindow(QTabWidget):
         #self.printColors()
 
     
+    def finishedInitV7(self, roachNum):
+        tabArg = np.where(np.asarray(self.roachNums) == roachNum)[0][0]
+        self.widget(tabArg).checkbox_waitV7.setChecked(False)
+        #self.config.set('Roach '+str(self.num),'waitForV7Ready',False)
+    
     def closeEvent(self, event):
         if self._want_to_close:
             self.close()
@@ -76,6 +85,7 @@ class InitSettingsWindow(QTabWidget):
 class InitSettingsTab(QMainWindow):
     resetRoach = QtCore.pyqtSignal(int)     #Signal emmited when we change a setting so we can reload it into the ROACH2
     initTemplar = QtCore.pyqtSignal(object)
+    nBitsRemovedInFFT = QtCore.pyqtSignal() #signal emitted when we change the number of bits removed before the FFT
 
     def __init__(self,roachNum,config):
         super(InitSettingsTab, self).__init__() #parent=None. This is the correct way according to the QTabWidget documentation
@@ -84,6 +94,10 @@ class InitSettingsTab(QMainWindow):
         
         self.create_main_frame()
     
+    def changedNBitsRemoved(self, nBitsRemoved):
+        self.changedSetting('nBitsRemovedInFFT',nBitsRemoved)
+        #self.nBitsRemovedInFFT.emit()
+
     def changedSetting(self,settingID,setting):
         """
         When a setting is changed, reflect the change in the config object which is shared across all GUI elements.
@@ -132,10 +146,10 @@ class InitSettingsTab(QMainWindow):
         textbox_fpgPath.textChanged.connect(lambda x: self.resetRoach.emit(InitStateMachine.PROGRAM_V6))      # reset roach state if ipAddress changes
         add2layout(vbox, label_fpgPath, textbox_fpgPath)
 
-        checkbox_waitV7 = QCheckBox('waitForV7Ready')
-        checkbox_waitV7.setChecked(True)
-        checkbox_waitV7.stateChanged.connect(lambda x: self.changedSetting('waitForV7Ready', checkbox_waitV7.isChecked()))
-        add2layout(vbox,checkbox_waitV7)
+        self.checkbox_waitV7 = QCheckBox('waitForV7Ready')
+        self.checkbox_waitV7.setChecked(True)
+        self.checkbox_waitV7.stateChanged.connect(lambda x: self.changedSetting('waitForV7Ready', self.checkbox_waitV7.isChecked()))
+        add2layout(vbox,self.checkbox_waitV7)
 
         FPGAParamFile = self.config.get('Roach '+str(self.roachNum),'FPGAParamFile')
         label_FPGAParamFile = QLabel('FPGAParamFile: ')
@@ -145,6 +159,16 @@ class InitSettingsTab(QMainWindow):
         textbox_FPGAParamFile.textChanged.connect(partial(self.changedSetting,'FPGAParamFile'))
         textbox_FPGAParamFile.textChanged.connect(lambda x: self.resetRoach.emit(-1))      # reset roach state if ipAddress changes
         add2layout(vbox, label_FPGAParamFile, textbox_FPGAParamFile)
+        
+        nBitsRemovedInFFT = self.config.getint('Roach '+str(self.roachNum),'nBitsRemovedInFFT')
+        label_nBitsRemovedInFFT = QLabel('nBitsRemovedInFFT:')
+        label_nBitsRemovedInFFT.setMinimumWidth(110)
+        spinbox_nBitsRemovedInFFT = QSpinBox()
+        spinbox_nBitsRemovedInFFT.setRange(0,12)
+        spinbox_nBitsRemovedInFFT.setValue(nBitsRemovedInFFT)
+        spinbox_nBitsRemovedInFFT.valueChanged.connect(self.changedNBitsRemoved)
+        add2layout(vbox, label_nBitsRemovedInFFT, spinbox_nBitsRemovedInFFT)
+        
         
 
         label_note = QLabel("NOTE: Changing the ip address won't take effect until you re-connect.")

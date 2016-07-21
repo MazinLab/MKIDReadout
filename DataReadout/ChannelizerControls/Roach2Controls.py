@@ -92,6 +92,7 @@ import socket
 import binascii
 from Utils.binTools import castBin  # part of SDR
 from readDict import readDict       #Part of the ARCONS-pipeline/util
+from initialBeammap import xyPack,xyUnpack
 
 class Roach2Controls:
 
@@ -430,14 +431,15 @@ class Roach2Controls:
         
         return allMemVals
     
-    def writeBram(self, memName, valuesToWrite, start=0, nRows=2**10):
+    def writeBram(self, memName, valuesToWrite, start=0,nBytesPerSample=4):
         """
         format values and write them to bram
         
-        
         """
-        nBytesPerSample = 8
-        formatChar = 'Q'
+        if nBytesPerSample == 4:
+            formatChar = 'L'
+        elif nBytesPerSample == 8:
+            formatChar = 'Q'
         memValues = np.array(valuesToWrite,dtype=np.uint64) #cast signed values
         nValues = len(valuesToWrite)
         toWriteStr = struct.pack('>{}{}'.format(nValues,formatChar),*memValues)
@@ -1315,7 +1317,10 @@ class Roach2Controls:
         self.fpga.write_int(self.params['destIP_reg'],dest_ip)
         self.fpga.write_int(self.params['phasePort_reg'],fabric_port)
         self.fpga.write_int(self.params['wordsPerFrame_reg'],pktsPerFrame)
+        
         #reset the core to make sure it's in a clean state
+        self.fpga.write_int(self.params['photonCapStart_reg'],0)    #make sure we're not streaming photons
+        self.fpga.write_int(self.params['phaseDumpEn_reg'],0)       #can't send packets when resetting
         self.fpga.write_int(self.params['gbe64Rst_reg'],1)
         time.sleep(.1)
         self.fpga.write_int(self.params['gbe64Rst_reg'],0)
@@ -1323,7 +1328,6 @@ class Roach2Controls:
         #choose what channel to stream
         self.fpga.write_int(self.params['phaseDumpChanSel_reg'],selChanIndex)
         #turn it on
-        self.fpga.write_int(self.params['photonCapStart_reg'],0)#make sure we're not streaming photons
         self.fpga.write_int(self.params['phaseDumpEn_reg'],1)
     
     def stopStream(self):
@@ -1350,7 +1354,7 @@ class Roach2Controls:
         OUTPUTS:
             self.phaseTimeStreamData - phase packet data. See parsePhaseStream()
         """
-        d = datetime.datetime.today()
+        #d = datetime.datetime.today()
         #filename = ('phase_dump_pixel_' + str(channel) + '_' + str(d.day) + '_' + str(d.month) + '_' + 
         #    str(d.year) + '_' + str(d.hour) + '_' + str(d.minute) + str('.bin'))
                 
@@ -1673,6 +1677,34 @@ class Roach2Controls:
         #Q_list2[-2:]=Q_list[:2]
         return {'I':I_list2, 'Q':Q_list2}
         
+    def loadBeammapCoords(self,beammap=None,initialBeammapDict=None):
+        """
+        Load the beammap coordinates x,y corresponding to each frqChannel for each stream
+        INPUTS:
+            beammap - to be determined, if None, use initial beammap assignments
+            initialBeammapDict containts
+                'feedline' - the feedline for this roach
+                'sideband' - either 'pos' or 'neg' indicating whether these frequences are above or below the LO
+                'boardRange' - either 'a' or 'b' indicationg whether this board is assigned to low (a) or high (b) frequencies of a feedline
+        """
+        if beammap is None:
+            allStreamChannels,allStreams = self.getStreamChannelFromFreqChannel()
+            for stream in np.unique(allStreams):
+                streamChannels = allStreamChannels[np.where(allStreams==stream)]
+                streamCoordBits = []
+                for streamChannel in streamChannels:
+                    freqChannel = self.getFreqChannelFromStreamChannel(streamChannel,stream)
+
+                    coordDict = xyPack(freqChannel=freqChannel,**initialBeammapDict)
+                    x = coordDict['x']
+                    y = coordDict['y']
+                    streamCoordBits.append((x << self.params['nBitsYCoord']) + y)
+                streamCoordBits = np.array(streamCoordBits)
+                self.writeBram(memName = self.params['pixelnames_bram'][stream],valuesToWrite = streamCoordBits)
+            
+
+        else:
+            raise ValueError('loading beammaps not implemented yet')
 
     def takeAvgIQData(self,numPts=100):
         """

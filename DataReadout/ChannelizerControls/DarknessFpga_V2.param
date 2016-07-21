@@ -88,6 +88,10 @@ phaseDumpChanSel_reg = 'phase_dmp_ch_we'
 phaseDumpEn_reg = 'phase_dmp_on'
 photonCapStart_reg = 'start_cap'
 
+pixelnames_bram = ['capture0_pix','capture1_pix','capture2_pix','capture3_pix']
+nBitsYCoord = 10
+nBitsXCoord = 10
+
 #UART Parameters
 baud_rate = 921600
 lut_dump_buffer_size = 4096
