@@ -24,7 +24,8 @@ int writeImage(char* filename, int width, int height, uint16_t buffer[XPIX*YPIX]
 
 int main(int argc, char *argv[])
 {
-    uint16_t image[XPIX*YPIX];
+    //uint16_t image[XPIX*YPIX];
+    uint16_t image[XPIX][YPIX];
     FILE *rp;
     long i;
 
@@ -50,7 +51,7 @@ int main(int argc, char *argv[])
 	// Save the image to a PNG file
 	// The 'title' string is stored as part of the PNG file
 	//printf("Saving PNG\n");
-	int result = writeImage(argv[2], width, height, image, "This is my test image");
+	int result = writeImage(argv[2], width, height, image[0], "This is my test image");
 
 	return result;
 }

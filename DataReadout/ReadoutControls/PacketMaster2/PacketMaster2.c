@@ -20,6 +20,7 @@
 #include <sys/stat.h>
 #include <inttypes.h>
 #include <math.h>
+#include <byteswap.h>
 
 #define _POSIX_C_SOURCE 200809L
 
@@ -33,18 +34,18 @@
 // compile with gcc -o PacketMaster2 PacketMaster2.c -I. -lm -lrt
 
 struct datapacket {
-    unsigned int xcoord:10;
-    unsigned int ycoord:10;
-    unsigned int timestamp:9;
-    unsigned int wvl:18;
     unsigned int baseline:17;
+    unsigned int wvl:18;
+    unsigned int timestamp:9;
+    unsigned int ycoord:10;
+    unsigned int xcoord:10;
 }__attribute__((packed));;
 
 struct hdrpacket {
-    unsigned int start:8;
-    unsigned int roach:8;
-    unsigned int frame:12;
     unsigned long timestamp:36;
+    unsigned int frame:12;
+    unsigned int roach:8;
+    unsigned int start:8;
 }__attribute__((packed));;
 
 void diep(char *s)
@@ -79,16 +80,20 @@ void ParsePacket( uint16_t image[XPIX][YPIX], char *packet, unsigned int l, uint
     uint64_t starttime;
     uint16_t curframe;
     char curroach;
+    uint64_t swp,swp1;
 
     // pull out header information from the first packet
-    hdr = (struct hdrpacket *) (&packet[0]);
+    swp = *((uint64_t *) (&packet[0]));
+    swp1 = __bswap_64(swp);
+    hdr = (struct hdrpacket *) (&swp1);             
+
     starttime = hdr->timestamp;
     curframe = hdr->frame;
     curroach = hdr->roach;
         
     // check for missed frames and print an error if we got the wrong frame number
     if( frame[curroach] != curframe) {
-        printf("Roach %d: Expected Frame %d, Received Frame %d\n",curroach,frame[curroach],curframe); fflush(stdout);
+        //printf("Roach %d: Expected Frame %d, Received Frame %d\n",curroach,frame[curroach],curframe); fflush(stdout);
         frame[curroach] = (frame[curroach]+1)%4096;
     }
     else {
@@ -96,8 +101,16 @@ void ParsePacket( uint16_t image[XPIX][YPIX], char *packet, unsigned int l, uint
     }
 
     for(i=1;i<l/8;i++) {
-       data = (struct datapacket *) (&packet[i*8]);
+       
+       swp = *((uint64_t *) (&packet[i*8]));
+       swp1 = __bswap_64(swp);
+       data = (struct datapacket *) (&swp1);
        image[(data->xcoord)%XPIX][(data->ycoord)%YPIX]++;
+       
+       // debug
+       //if( (data->xcoord)%XPIX == 25 ) {
+       //  printf("x,y = %d,%d = %d\t %lx\n",(data->xcoord),(data->ycoord), image[(data->xcoord)%XPIX][(data->ycoord)%YPIX], *((uint64_t *) (&packet[i*8])) );           
+       //}
     }
 
     //printf("%d %d %d %d %d %d %d %d %d %d - roach %d frame %d\n",frame[0],frame[1],frame[2],frame[3],frame[4],frame[5],frame[6],frame[7],frame[8],frame[9],curroach,curframe); fflush(stdout);
@@ -109,7 +122,7 @@ void Cuber()
     int br,i,j,cwr;
     char data[1024];
     char olddata[1048576];
-    char packet[808];
+    char packet[808*2];
     time_t s,olds;  // Seconds
     struct timespec spec;
     uint16_t image[XPIX][YPIX];
@@ -119,13 +132,18 @@ void Cuber()
     uint64_t frame[NROACH];
     uint64_t pcount = 0;
     struct hdrpacket *hdr;
+    struct hdrpacket hdrv;
+    char temp[8];
+    uint64_t swp,swp1;
     char cmd[120];    
     
     printf("Fear the wrath of CUBER!\n");
     printf(" Cuber: My PID is %d\n", getpid());
     printf(" Cuber: My parent's PID is %d\n", getppid()); fflush(stdout);
     
-    cwr = open("/mnt/ramdisk/CuberPipe.pip", O_RDONLY | O_NDELAY);
+    while( (cwr = open("/mnt/ramdisk/CuberPipe.pip", O_RDONLY | O_NDELAY)) == -1);
+    printf("cwr = %d\n",cwr);
+    
     //cwr = open("/mnt/ramdisk/CuberPipe.pip", O_RDONLY );    
     
     //printf("struct sizes = %d, %d\n",sizeof(struct hdrpacket),sizeof(struct datapacket));
@@ -133,7 +151,7 @@ void Cuber()
     memset(image, 0, sizeof(image[0][0]) * XPIX * YPIX);    // zero out array
     memset(olddata, 0, sizeof(olddata[0])*2048);    // zero out array
     memset(data, 0, sizeof(data[0]) * 1024);    // zero out array
-    memset(packet, 0, sizeof(packet[0]) * 808);    // zero out array
+    memset(packet, 0, sizeof(packet[0]) * 808 * 2);    // zero out array
     memset(frame,0,sizeof(frame[0])*NROACH);
 
     clock_gettime(CLOCK_REALTIME, &spec);   
@@ -150,6 +168,7 @@ void Cuber()
           
           sprintf(outfile,"/mnt/ramdisk/%d.img",olds);
           wp = fopen(outfile,"wb");
+          printf("WRITING: %d %d \n",image[25][39],image[25][54]);
           fwrite(image, sizeof(image[0][0]), XPIX * YPIX, wp);
           fclose(wp);
 
@@ -167,7 +186,7 @@ void Cuber()
 	   br = read(cwr, data, 1024*sizeof(char));
 	    
        if( br != -1) {
-          //printf("br = %d | oldbr = %d\n",br,oldbr);fflush(stdout);
+          //if( br > 0 ) printf("br = %d | oldbr = %d\n",br,oldbr);fflush(stdout);
                  
           // we may be in the middle of a packet so put together a full packet from old data and new data
           // and only parse when the packet is complete
@@ -188,15 +207,20 @@ void Cuber()
        if( oldbr > 0 ) {       
           // search the available data for a packet boundary
           for( i=1; i<oldbr/8; i++) {
-             hdr = (struct hdrpacket *) &olddata[i*8];
+             
+             swp = *((uint64_t *) (&olddata[i*8]));
+             swp1 = __bswap_64(swp);
+             hdr = (struct hdrpacket *) (&swp1);             
+            
+                          
              //printf("%d-%d\t",i,hdr->start); fflush(stdout);
              if (hdr->start == 0b11111111) {        // found new packet header!
                 //printf("Found new packet header at %d.  roach=%d, frame=%d\n",i,hdr->roach,hdr->frame);
        
-                if( i*8 > 808 ) { 
+                if( i*8 > 104*8 ) { 
                    printf("Error - packet too long: %d\n",i);
-                   printf("br = %d : oldbr = %d : i = %d\n",br,oldbr,i);
-                   for(j=0;j<oldbr/8;j++) printf("%d : 0x%X\n",j,(uint64_t) olddata[j*8]);                
+                   //printf("br = %d : oldbr = %d : i = %d\n",br,oldbr,i);
+                   //for(j=0;j<oldbr/8;j++) printf("%d : 0x%X\n",j,(uint64_t) olddata[j*8]);                
                    fflush(stdout);
                 }
                 
@@ -387,16 +411,21 @@ void Reader()
   //set up a socket connection
   struct sockaddr_in si_me, si_other;
   int s, i, slen=sizeof(si_other);
-  unsigned char buf[BUFLEN];
+  unsigned char buf[BUFLEN], buf2[BUFLEN];
   ssize_t nBytesReceived = 0;
   ssize_t nTotalBytes = 0;
-  int cwr, wwr;
+  int cwrp, wwr;
+  int n1,n2;
   
   printf("READER: Connecting to Socket!\n"); fflush(stdout);
 
   // open up FIFOs for writing in non-blocking mode
-  cwr = open("/mnt/ramdisk/CuberPipe.pip", O_WRONLY | O_NDELAY);
-  wwr = open("/mnt/ramdisk/WriterPipe.pip", O_WRONLY | O_NDELAY);
+
+  while( (cwrp = open("/mnt/ramdisk/CuberPipe.pip", O_WRONLY | O_NDELAY)) == -1 );
+  //printf("cwrp = %d",cwrp);
+  
+  while( (wwr = open("/mnt/ramdisk/WriterPipe.pip", O_WRONLY | O_NDELAY)) == -1);
+  //printf("wwr = %d",wwr);
 
   if ((s=socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP))==-1)
     diep("socket");
@@ -458,8 +487,17 @@ void Reader()
     ++nFrames; 
     //fwrite(buf,sizeof(char),nBytesReceived,dump_file);
     //printf("read from socket %d %d!\n",nFrames, nBytesReceived);
-    write(wwr, buf, nBytesReceived);
-    write(cwr, buf, nBytesReceived);
+    
+    //write(cwr, buf, nBytesReceived);
+    //write(wwr, buf, nBytesReceived);
+    
+    memmove(buf2,buf,BUFLEN);
+    
+    n1=write(wwr, buf, nBytesReceived);
+    if( n1 == -1) perror("write wwr");
+    n2=write(cwrp, buf2, nBytesReceived);
+    if( n2 == -1) perror("write cwr");
+    
     //printf("wrote 2 pipes %d %d!\n",nFrames, nBytesReceived);
 
     /*
@@ -486,7 +524,7 @@ void Reader()
   printf("received %d frames, %d bytes\n",nFrames,nTotalBytes);
   close(s);
   close(wwr);
-  close(cwr);
+  close(cwrp);
   return;
 
 }
@@ -589,9 +627,9 @@ void TestReader()
       }
 
       n1=write(wwr, data, sizeof(struct datapacket)*(nphot+1));
-      if( n1 == -1) perror("write");
+      if( n1 == -1) perror("write tr");
       n2=write(cwr, data, sizeof(struct datapacket)*(nphot+1));
-      if( n2 == -1) perror("write");
+      if( n2 == -1) perror("write tr");
       //printf("%d %d\n",n1,n2);
       
       // pause 1 millisecond
@@ -666,9 +704,9 @@ int main(void)
         	//printf("MASTER: Cuber died!\n"); fflush(stdout);
         	exit(0);
     	} 
-
-	//Reader(pfdsa,pfdsb);
-	TestReader();
+        
+	Reader();
+	//TestReader();
 
         wait(NULL);
         printf("Reader: En Taro Adun!\n");
