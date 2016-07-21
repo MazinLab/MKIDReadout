@@ -19,6 +19,8 @@ This is a GUI class for real time control of the DARKNESS instrument.
  
  
 import os, sys, time, struct, traceback
+import binascii
+from socket import inet_aton
 from functools import partial
 import subprocess
 import numpy as np
@@ -30,13 +32,15 @@ from PyQt4.QtGui import *
 from PixelTimestreamWindow import PixelTimestreamWindow
 from LaserControl import LaserControl
 from Telescope import *
+import casperfpga
+from Roach2Controls import Roach2Controls
 
 class ImageSearcher(QtCore.QObject):     #Extends QObject for use with QThreads
     """
     This class looks for binary '.img' files spit out by the PacketMaster2 c program on the ramdisk
     
     When it finds an image, it grabs the data, parses it into an array, and emits an imageFound signal
-    It then deletes the data on the ramdisk so it doesn't fill up
+    Optionally, it deletes the data on the ramdisk so it doesn't fill up
     
     SIGNALS
         imageFound - emits when an image is found
@@ -71,7 +75,7 @@ class ImageSearcher(QtCore.QObject):     #Extends QObject for use with QThreads
             removeOldFiles - remove .img and .png files after we read them
         """
         self.search=True
-        latestTime = time.time()
+        latestTime = time.time()-.5
         while self.search:
             flist = []
             for f in os.listdir(self.path):
@@ -104,12 +108,15 @@ class ImageSearcher(QtCore.QObject):     #Extends QObject for use with QThreads
         INPUTS:
             fn - full filename of image file
         """
-        fin = open(fn, "rb")
-        data = fin.read()
-        fmt = 'H'*(len(data)/2)   # 2 bytes per each unsigned 16 bit integer
-        fin.close()
-        image = np.asarray(struct.unpack(fmt,data), dtype=np.int)
-        image=image.reshape((self.nRows,self.nCols))
+        #fin = open(fn, "rb")
+        #data = fin.read()
+        #fmt = 'H'*(len(data)/2)   # 2 bytes per each unsigned 16 bit integer
+        #fin.close()
+        
+        image=np.fromfile(open(fn, mode='rb'),dtype=np.uint16)
+        image = np.transpose(np.reshape(image, (self.nCols, self.nRows)))
+        #image = np.asarray(struct.unpack(fmt,data), dtype=np.int)
+        #image=image.reshape((self.nRows,self.nCols))
         return image
         
 class ConvertPhotonsToRGB(QtCore.QObject):
@@ -179,6 +186,7 @@ class ConvertPhotonsToRGB(QtCore.QObject):
         
         image2 = np.interp(self.image.flatten(),imbins[:-1],cdf)
         image2=image2.reshape(self.image.shape)
+        image2[np.where(self.image<=self.minCountCutoff)]=0
         self.makeQPixMap(image2)
     
     def makeQPixMap(self, image):
@@ -210,7 +218,7 @@ class MkidDashboard(QMainWindow):
     
     newImageProcessed = QtCore.pyqtSignal()
     
-    def __init__(self, configPath=None, observing=False, parent=None):
+    def __init__(self, roachNums, configPath=None, observing=False, parent=None):
         """
         INPUTS:
             configPath - path to configuration file. See ConfigParser doc for making configuration file
@@ -256,6 +264,8 @@ class MkidDashboard(QMainWindow):
         self.create_menu()  # file menu
         
         #Connect to ROACHES and initialize network port in firmware
+        self.connectToRoaches(roachNums)
+        self.turnOnPhotonCapture()
         
         # Setup search for image files from cuber
         darkImageSearcher = ImageSearcher(self.config.get('properties','cuber_ramdisk'), self.config.getint('properties','ncols'),self.config.getint('properties','nrows'),parent=None)
@@ -269,6 +279,7 @@ class MkidDashboard(QMainWindow):
         darkImageSearcher.finished.connect(thread.quit)
         QtCore.QTimer.singleShot(10,self.threadPool[0].start) #start the thread after a second
         
+        '''
         # Start PacketMaster2
         packetMaster_path=self.config.get('properties','packetMaster_path')
         packetMasterLog_path = self.config.get('properties','packetMasterLog_path')
@@ -276,27 +287,59 @@ class MkidDashboard(QMainWindow):
         command = "%s >> %s"%(packetMaster_path, packetMasterLog_path)
         print command
         QtCore.QTimer.singleShot(50,partial(subprocess.Popen,command,shell=True))
-
+        '''
+        
+    def turnOffPhotonCapture(self):
+        for roach in self.roachList:
+            roach.fpga.write_int(self.config.get('properties','photonCapStart_reg'),0)
     
-    def connectToRoaches(self):
+    def turnOnPhotonCapture(self):
+        for roach in self.roachList:
+            # set up ethernet parameters
+            hostIP = self.config.get('properties','hostIP')
+            dest_ip = binascii.hexlify(inet_aton(hostIP))
+            dest_ip = int(dest_ip,16)
+            roach.fpga.write_int(self.config.get('properties','destIP_reg'),dest_ip)
+            roach.fpga.write_int(self.config.get('properties','wordsPerFrame_reg'),self.config.getint('properties','wordsPerFrame'))
+            
+            # restart gbe
+            roach.fpga.write_int(self.config.get('properties','photonCapStart_reg'),0)
+            roach.fpga.write_int(self.config.get('properties','phaseDumpEn_reg'),0)
+            roach.fpga.write_int(self.config.get('properties','gbe64Rst_reg'),1)
+            time.sleep(.01)
+            roach.fpga.write_int(self.config.get('properties','gbe64Rst_reg'),0)
+
+            # Start photon caputure
+            roach.fpga.write_int(self.config.get('properties','photonCapStart_reg'),1)
+        
+    
+    def connectToRoaches(self, roachNums):
         """
         Connect to roaches and make sure the photon port register is set
         
         We assume templar has already been run to set up the resonators
         Assume roach firmware is already running
         """
-        nRoaches = self.config.getint('properties','num_roaches')
-        roachList=[]
-        for i in range(nRoaches):
-            roachIP = self.config.get('properties','ipaddress_'+str(i))
-            roach = casperfpga.katcp_fpga.KatcpFpga(roachIP,timeout=3.)
-            roachList.append(roach)
-        time.sleep(.1)
-        for roach in roachList:    
-            roach.get_system_information()
-            roach.write_int(self.config.get('properties','photonPort_reg'), self.config.getint('properties','photonCapPort'))
+        self.roachList = []
+        for roachNum in roachNums:
+            ipaddress = self.config.get('Roach '+str(roachNum),'ipaddress')
+            roachParamFile = self.config.get('Roach '+str(roachNum),'roachParamFile')
+            roach=Roach2Controls(ipaddress, roachParamFile, True, False)
+            roach.connect()
             
+            roach.fpga.write_int(self.config.get('properties','photonPort_reg'), self.config.getint('properties','photonCapPort'))
+            roach.fpga.write_int(self.config.get('properties','minFramePeriod_reg'),self.config.getint('properties','minFramePeriod'))
             
+            # initialize beammap
+            freqList = self.config.get('Roach '+str(roachNum),'freqList')
+            freqs,_ = np.loadtxt(freqList,unpack=True)
+            roach.generateResonatorChannels(freqs)
+            beammapDict= {'feedline': self.config.getint('Roach '+str(roachNum),'feedline'),
+                          'sideband': self.config.get('Roach '+str(roachNum),'sideband'),
+                          'boardRange': self.config.get('Roach '+str(roachNum),'boardRange')}
+            roach.loadBeammapCoords(initialBeammapDict = beammapDict)
+            
+            self.roachList.append(roach)
 
     
     def appendImage(self,image):
@@ -626,11 +669,16 @@ class MkidDashboard(QMainWindow):
             self.button_obs.setEnabled(False)
             self.button_stop.setEnabled(True)
             
-            
-            for roach in roachList:
-                roach.write_int(self.config.get('properties','phaseDumpEn_reg'),0)      # doesn't really need this
-                roach.write_int(self.config.get('properties','photonCapStart_reg'),1)
-            time.sleep(.001)
+            self.turnOnPhotonCapture()
+            #for roach in self.roachList:
+            #    # restart gbe
+            #    roach.fpga.write_int(self.config.get('properties','photonCapStart_reg'),0)
+            #    roach.fpga.write_int(self.config.get('properties','phaseDumpEn_reg'),0)
+            #    roach.fpga.write_int(self.config.get('properties','gbe64Rst_reg'),1)
+            #    time.sleep(.1)
+            #    roach.fpga.write_int(self.config.get('properties','gbe64Rst_reg'),0)
+            #    # start photon capture
+            #    roach.fpga.write_int(self.config.get('properties','photonCapStart_reg'),1)
             
             data_path = self.config.get('properties','data_dir')
             start_file_loc = self.config.get('properties','cuber_ramdisk')
@@ -657,9 +705,9 @@ class MkidDashboard(QMainWindow):
             
             #Need to switch Firmware out of photon collect mode
             #wait 1 ms
-            time.sleep(.001)
-            for roach in roachList:
-                roach.write_int(self.config.get('properties','photonCapStart_reg'),0)
+            #time.sleep(.001)
+            #for roach in self.roachList:
+            #    roach.write_int(self.config.get('properties','photonCapStart_reg'),0)
             
             self.button_obs.setEnabled(True)
             self.button_stop.setEnabled(False)
@@ -931,8 +979,8 @@ class MkidDashboard(QMainWindow):
                     QFrame
                        |
                  QGraphicsView   QGraphicsPixmapItem
-                       \           /         |
-                         \       /        QPixmap
+                        \          /         |
+                         \        /       QPixmap
                        QGraphicsScene
         
         To update image:
@@ -959,10 +1007,7 @@ class MkidDashboard(QMainWindow):
         grview.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
         grview.setContextMenuPolicy(Qt.CustomContextMenu)
         grview.customContextMenuRequested.connect(self.showContextMenu)
-        #grview.setMouseTracking(True)
-        #grview.setAcceptHoverEvents(True)
-        
-        
+
         
         layout=QHBoxLayout()
         layout.addWidget(grview)
@@ -1027,7 +1072,11 @@ class MkidDashboard(QMainWindow):
         print 'setting ',settingID,' to ',newSetting
         
     def closeEvent(self, event):
-        self.stopObs()                  # send packetmaster the stop signal just in case
+        """
+        Clean up before closing
+        """
+        if self.observing:
+            self.stopObs()
         quit_file_loc = self.config.get('properties','cuber_ramdisk')
         f=open(quit_file_loc+'/QUIT','w')   # tell packetmaster to end
         f.close()
@@ -1037,6 +1086,7 @@ class MkidDashboard(QMainWindow):
             thread.quit()
         for window in self.timeStreamWindows:
             window.close()
+        self.turnOffPhotonCapture()     # stop sending photon packets
         self.telescopeWindow._want_to_close=True
         self.telescopeWindow.close()
         
@@ -1048,7 +1098,14 @@ class MkidDashboard(QMainWindow):
 
 def main():
     app = QApplication(sys.argv)
-    form = MkidDashboard()
+    try: roachNums = np.asarray(sys.argv[1:],dtype=np.int)
+    except: pass
+    if len(sys.argv[1:]) == 2:
+        if sys.argv[1] == '-a' or sys.argv[1] == '-all':
+            roachNums = np.arange(int(sys.argv[2]),dtype=np.int)
+        elif sys.argv[2] == '-a' or sys.argv[2] == '-all':
+            roachNums = np.arange(int(sys.argv[1]),dtype=np.int)
+    form = MkidDashboard(roachNums)
     form.show()
     app.exec_()
 

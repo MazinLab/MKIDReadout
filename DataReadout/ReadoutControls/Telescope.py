@@ -87,10 +87,9 @@ class TelescopeWindow(QMainWindow):
 
 class Telescope():
 
-    def __init__(self, ipaddress="10.200.2.11", port = 49200, receivePort=1024):
+    def __init__(self, ipaddress="198.202.125.194", port = 5004, receivePort=1024):
         self.address = (ipaddress, port)
         self.receivePort = receivePort
-        #self.client_socket = socket(AF_INET, SOCK_STREAM) #Set Up the Socket
         
         #Palomar's position
         self.observatory = 'Palomar 200" Hale Telescope'
@@ -122,7 +121,7 @@ class Telescope():
             response = self.client_socket.recv(self.receivePort)
         except:
             print "Command to TCS failed: "+str(command)
-            print "Telescope IP: ",self.address
+            print "Received at: ",self.receivePort
         self.client_socket.close()
         return response
 
@@ -133,10 +132,15 @@ class Telescope():
             
         utc, line2, line3, line4, cass_angle = response.split('\n')
         telescope_id, focus, tubelength = line2.split(', ')
-        focus_title, focus_val = focus.split('= ')
-        return {'status_utc':utc, 'cass_angle':cass_angle,
-                'id':telescope_id, 'tubelength':tubelength,
-                'focus_title':focus_title, 'focus':focus_val}
+        focus_title, focus_val = focus.split(' = ')
+        cassAngle_key, cassAngle_val = cass_angle.split(' =  ')
+        cassAngle_val = cassAngle_val.split('\x00')[0]
+        telescopeID_key, telescopeID_val = telescope_id.split(' = ')
+        utc = utc.split(' = ')[1]
+        tubeLength_key, tubeLength_val = tubelength.split(' = ')
+        return {'Status UTC':utc, cassAngle_key: cassAngle_val,
+                telescopeID_key: telescopeID_val, tubeLength_key: tubeLength_val,
+                focus_title:focus_val}
 
     def get_parallactic(self):
         response = self.sendTelescopeCommand('?PARALLACTIC\r')
