@@ -2,7 +2,7 @@
 
 # Form implementation generated from reading ui file 'DARKNESS_beammap_gui.ui'
 #
-# Created: Mon Jul 18 14:15:57 2016
+# Created: Thu Jul 21 09:52:55 2016
 #      by: PyQt4 UI code generator 4.9.4
 #
 # WARNING! All changes made in this file will be lost!
@@ -472,31 +472,31 @@ class Ui_beammap_gui(object):
         self.line_8.setFrameShadow(QtGui.QFrame.Sunken)
         self.line_8.setObjectName(_fromUtf8("line_8"))
         self.pix0 = QtGui.QLabel(self.centralwidget)
-        self.pix0.setGeometry(QtCore.QRect(140, 910, 71, 16))
+        self.pix0.setGeometry(QtCore.QRect(140, 910, 101, 16))
         font = QtGui.QFont()
         font.setPointSize(12)
         self.pix0.setFont(font)
         self.pix0.setObjectName(_fromUtf8("pix0"))
         self.pix1 = QtGui.QLabel(self.centralwidget)
-        self.pix1.setGeometry(QtCore.QRect(440, 910, 71, 16))
+        self.pix1.setGeometry(QtCore.QRect(440, 910, 111, 16))
         font = QtGui.QFont()
         font.setPointSize(12)
         self.pix1.setFont(font)
         self.pix1.setObjectName(_fromUtf8("pix1"))
         self.pix2 = QtGui.QLabel(self.centralwidget)
-        self.pix2.setGeometry(QtCore.QRect(740, 910, 71, 16))
+        self.pix2.setGeometry(QtCore.QRect(740, 910, 101, 16))
         font = QtGui.QFont()
         font.setPointSize(12)
         self.pix2.setFont(font)
         self.pix2.setObjectName(_fromUtf8("pix2"))
         self.pix3 = QtGui.QLabel(self.centralwidget)
-        self.pix3.setGeometry(QtCore.QRect(1040, 910, 71, 16))
+        self.pix3.setGeometry(QtCore.QRect(1040, 910, 101, 16))
         font = QtGui.QFont()
         font.setPointSize(12)
         self.pix3.setFont(font)
         self.pix3.setObjectName(_fromUtf8("pix3"))
         self.pix4 = QtGui.QLabel(self.centralwidget)
-        self.pix4.setGeometry(QtCore.QRect(1330, 910, 71, 16))
+        self.pix4.setGeometry(QtCore.QRect(1330, 910, 111, 16))
         font = QtGui.QFont()
         font.setPointSize(12)
         self.pix4.setFont(font)

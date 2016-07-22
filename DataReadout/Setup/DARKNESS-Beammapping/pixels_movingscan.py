@@ -28,7 +28,7 @@ class StartQt4(QMainWindow):
         self.goodpixtag=np.empty(0,dtype='|S10')
 
         self.xsize=80;
-        self.ysize=125;
+        self.ysize=25;
         
         self.pscale=10;
         self.xoff=0;
@@ -358,10 +358,10 @@ class StartQt4(QMainWindow):
             f.write(str(self.pixelNumber[i]) +'\t' + str(xpix[i]) + '\t' + str(ypix[i]) +'\n')
             f.close()
 
-        print 'Number of Doubles:' + str(len(self.xpos0))
+        print 'Number of Doubles:' + str(self.xpost0.size)
         #dbltag=np.loadtxt(self.dblfile,unpack='True', usecols = (4,), dtype='|S10' )
         f= open(self.outputDoubleName,'w')
-        for i in range(len(self.xpos0)):
+        for i in range(self.xpos0.size):
             f= open(self.outputDoubleName,'a')
             f.write(str(self.doublePixelNumber[i]) + '\t' +str(xpix0[i]) + '\t' + str(ypix0[i]) + '\t' + str(xpix1[i]) + '\t' + str(ypix1[i]) + '\n')
             f.close()

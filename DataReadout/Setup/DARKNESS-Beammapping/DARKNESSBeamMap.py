@@ -250,7 +250,8 @@ class StartQt4(QMainWindow):
                 fmt = 'H'*(len(xFileData)/2)
                 xFile.close()
                 xImage = np.asarray(struct.unpack(fmt,xFileData), dtype=np.int)
-                #xImage = xImage.reshape((self.numRows,self.numCols))
+                xImage = xImage.reshape((self.numCols,self.numRows)).T
+                xImage = xImage.reshape(self.maximumNumberOfPixels)
                 self.xCube[iXSweep][iXFile] = xImage
         self.crx = np.swapaxes(self.xCube,1,2)
                 
@@ -263,7 +264,8 @@ class StartQt4(QMainWindow):
                 fmt = 'H'*(len(yFileData)/2)
                 yFile.close()
                 yImage = np.asarray(struct.unpack(fmt,yFileData), dtype=np.int)
-                #yImage = yImage.reshape((self.numRows,self.numCols))
+                yImage = yImage.reshape((self.numCols,self.numRows)).T
+                yImage = yImage.reshape(self.maximumNumberOfPixels)
                 self.yCube[iYSweep][iYFile] = yImage
         self.cry = np.swapaxes(self.yCube,1,2)
 
