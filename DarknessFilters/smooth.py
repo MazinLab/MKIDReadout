@@ -30,6 +30,7 @@ TODO: the window parameter could be the window itself if an array instead of a s
 
 import numpy
 
+
 def smooth(x,window_len=11,window='hanning'):
 
     if x.ndim != 1:
