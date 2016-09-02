@@ -1,0 +1,7 @@
+Folder 
+{date YYYYMMDDTTTTSS}_{WaferName}
+
+Filename
+log file goes in here (as Log_File.log)
+{roach_num}_{pixel_num}_{duration_in_seconds}.dat
+
