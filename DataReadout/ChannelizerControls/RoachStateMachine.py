@@ -230,6 +230,7 @@ class RoachStateMachine(QtCore.QObject):        #Extends QObject for use with QT
         self.roachController.ip = ipaddress
         self.roachController.connect()
         #self.roachController.initV7MB()
+        self.loadDdsShift()
         
         return True
     
@@ -246,9 +247,15 @@ class RoachStateMachine(QtCore.QObject):        #Extends QObject for use with QT
         if os.path.isfile(fn2): 
             fn=fn2
             print 'Loading freqs from '+fn
-        freqs, attens = np.loadtxt(fn,unpack=True)
+        _, freqs, attens = np.loadtxt(fn,unpack=True)
         freqs = np.atleast_1d(freqs)       # If there's only 1 resonator numpy loads it in as a float.
         attens = np.atleast_1d(attens)     # We need an array of floats
+         
+        print len(freqs)
+        print len(np.unique(freqs))
+        print len(attens)
+        for i in range(len(freqs)):
+            print i, np.where(freqs==freqs[i])[0]
         
         self.roachController.generateResonatorChannels(freqs)
         self.roachController.attenList = attens
@@ -664,7 +671,7 @@ class RoachStateMachine(QtCore.QObject):        #Extends QObject for use with QT
         try:
             data=self.roachController.takePhaseStreamDataOfFreqChannel(freqChan=channel, duration=duration, hostIP=hostip)
             longSnapFN = self.config.get('Roach '+str(self.num),'longsnapfile')
-            longSnapFN = longSnapFN.rsplit('.',1)[0]+'_'+time.strftime("%Y%m%d-%H%M%S",time.localtime())+'.'+longSnapFN.rsplit('.',1)[1]
+            longSnapFN = longSnapFN.rsplit('.',1)[0]+'_ch'+str(int(channel))+'_'+time.strftime("%Y%m%d-%H%M%S",time.localtime())+'.'+longSnapFN.rsplit('.',1)[1]
             np.savez(longSnapFN,data)
         except:
             traceback.print_exc()
