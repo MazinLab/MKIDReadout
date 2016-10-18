@@ -16,18 +16,9 @@ NOTES:
  - do not add commands to the RoachStateMachine object while the thread is executing commands
 
 Features to add:
- - Popup window for IQ plots + settings
-    - connect to file menu and right click on sweep
-    - make own thread and add progress bar when waiting for data?
- - Popup window for thresholds + settings
-    - connect to file menu and right click on thresholds
-    - make own thread and add progress bar when waiting for data?
- - Docking window for settings
  - color buttons yellow on warnings
  - keep log of errors and warnings in txt file
     - add to file menu (help) a viewer for log file
- - combine rotate and center commands. Use a fitting routine to get both at same time
-
 """
 import sys, time, traceback
 from functools import partial
@@ -131,7 +122,10 @@ class HighTemplar(QMainWindow):
             self.colorCommandButtons(self.roachNums[i],colorStatus)                              # color the command buttons appropriately
             #QtCore.QMetaObject.invokeMethod(roach, 'executeCommands', Qt.QueuedConnection)
             self.roachThreads[i].start()                                                # starting the thread automatically invokes the roach's executeCommand function
-            #self.setDdsShift(self.roachNums[i])
+        
+        # Also auto set DDS shift
+        #for i in range(self.numRoaches):
+        #    self.setDdsShift(self.roachNums[i])
         
     def test(self,roachNum,state):
         print "Roach "+str(roachNum)+' - '+str(state)
@@ -507,6 +501,17 @@ class HighTemplar(QMainWindow):
 
 def main():
     app = QApplication(sys.argv)
+    args = sys.argv[1:]
+    defaultValues=None
+    if '-c' in args:
+        indx = args.index('-c')
+        defaultValues=args[indx+1]
+        try: args = args[:indx]+args[indx+2:]
+        except IndexError:args = args[:indx]
+    roachNums = np.asarray(args, dtype=np.int)
+    print defaultValues,roachNums
+
+    '''
     try: roachNums = np.asarray(sys.argv[1:],dtype=np.int)
     except: pass
     if len(sys.argv[1:]) == 2:
@@ -514,23 +519,12 @@ def main():
             roachNums = np.arange(int(sys.argv[2]),dtype=np.int)
         elif sys.argv[2] == '-a' or sys.argv[2] == '-all':
             roachNums = np.arange(int(sys.argv[1]),dtype=np.int)
-    
-    form = HighTemplar(roachNums)
+    '''
+    form = HighTemplar(roachNums,defaultValues)
     form.show()
     app.exec_()
 
 
 if __name__ == "__main__":
-    for i in range(10):
-        nFreqs=np.random.randint(100,200)
-        loFreq = 5.e9
-        spacing = 2.e6
-        freqList = np.arange(loFreq-nFreqs/2.*spacing,loFreq+nFreqs/2.*spacing,spacing)
-        freqList+=np.random.uniform(-spacing,spacing,nFreqs)
-        freqList = np.sort(freqList)
-        attenList = np.random.randint(35,45,nFreqs)
-        
-        data = np.transpose([freqList,attenList])
-        np.savetxt('ps_freq'+str(i)+'.txt',data,['%15.8e', '%4i'])
 
     main()

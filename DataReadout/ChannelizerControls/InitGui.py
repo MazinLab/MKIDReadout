@@ -247,7 +247,7 @@ class InitGui(QMainWindow):
         self.cyanButtonPalette.setColor(QPalette.Button,Qt.darkCyan)
 
 
-        button_size = 20
+        button_size = 25
         label_length = 110        
         label_height = 10
         
