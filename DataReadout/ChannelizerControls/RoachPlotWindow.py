@@ -159,6 +159,14 @@ class RoachPhaseStreamWindow(QMainWindow):
         else:
             self.line1.set_data([],[])    
     
+    def phaseTimeStreamAllChannels(self):
+        timelen = self.config.getfloat('Roach '+str(self.roachNum),'longsnaptime')
+        for ch in range(len(self.roach.roachController.freqList)):
+        #for ch in range(5):
+            QtCore.QMetaObject.invokeMethod(self.roach, 'getPhaseStream', Qt.QueuedConnection,
+                                            QtCore.Q_ARG(int, ch),QtCore.Q_ARG(float, timelen))
+        self.phaseTimestreamClicked.emit()
+    
     def phaseTimeStream(self):
         """
         This function executes when you press the collect phase timestream button.
@@ -328,6 +336,15 @@ class RoachPhaseStreamWindow(QMainWindow):
         button_longSnap.setEnabled(True)
         button_longSnap.clicked.connect(self.phaseTimeStream)
         
+        button_allLongSnap = QPushButton("Collect Phase Timestream for all Channels")
+        def allChPhaseStreamClicked():
+            ret = QMessageBox.warning(self, 'Collect Phase Timestream for all Channels',
+                                      "Are you sure you want to collect phase time stream data on all channels? This may take a while. Also, don't try to collect photon data while streaming phase streams over the ethernet.",
+                                      buttons = QMessageBox.Ok | QMessageBox.Cancel,
+                                      defaultButton = QMessageBox.Cancel)
+            if ret==QMessageBox.Ok: self.phaseTimeStreamAllChannels()
+        button_allLongSnap.clicked.connect(allChPhaseStreamClicked)
+        
         vbox_plot = QVBoxLayout()
         vbox_plot.addWidget(self.canvas)
         vbox_plot.addWidget(self.mpl_toolbar)
@@ -350,6 +367,7 @@ class RoachPhaseStreamWindow(QMainWindow):
         hbox_phaseTimestream = QHBoxLayout()
         hbox_phaseTimestream.addWidget(spinbox_longSnapTime)
         hbox_phaseTimestream.addWidget(button_longSnap)
+        hbox_phaseTimestream.addWidget(button_allLongSnap)
         hbox_phaseTimestream.addStretch()
         
         vbox1 = QVBoxLayout()
@@ -562,15 +580,110 @@ class RoachSweepWindow(QMainWindow):
         self.textbox_modifyFreq.setText("%.9e" % freqs[ch])
         self.spinbox_modifyAtten.setValue(int(attens[ch]))
     
+    def getBestFreqs(self, channels=None):
+        '''
+        Get the freq with the highest IQ velocity for channel or list of channels
+        
+        INPUTS:
+            ch - single value or list of freq channel
+                 if negative then do all channels
+                 if None then do the current channel
+        OUTPUTS:
+            newFreqs - list of new freqs
+                       The freq is the old freq or the freq with highest iqVel if that channel was specified
+        '''
+        if channels is None: channels=self.spinbox_channel.value()
+        elif np.any(channels<0): channels = range(len(self.roach.roachController.freqList))
+        channels=np.atleast_1d(channels)
+        data = self.dataList[-1]
+        newFreqs = np.copy(data['freqList'][channels])
+        for ch in channels:
+            iVals = data['I'][ch]
+            qVals = data['Q'][ch]
+            iqVel = np.sqrt((iVals[1:] - iVals[:-1])**2 + (qVals[1:] - qVals[:-1])**2)
+            velMaxIndx = np.argmax(iqVel)
+            if velMaxIndx+1 < len(iqVel) and iqVel[velMaxIndx-1] < iqVel[velMaxIndx+1]:
+                newFreqIndx = velMaxIndx+1
+            else:
+                newFreqIndx = velMaxIndx
+            newFreqs[ch] = newFreqs[ch]+data['freqOffsets'][newFreqIndx]
+        return newFreqs
+    
+    def snapFreq(self, ch=None):
+        if ch is None: ch=self.spinbox_channel.value()
+        newFreq = self.getBestFreqs(ch)[0]
+        
+        if ch == self.spinbox_channel.value():
+            self.textbox_modifyFreq.setText("%.9e" % newFreq)
+            try: self.clickLine.remove()
+            except: pass
+            self.clickLine = self.ax2.axvline(x=newFreq,color='g')
+            
+            #plot closest point in IQ plane
+            ch=self.spinbox_channel.value()
+            data = self.dataList[-1]
+            I=data['I'][ch]
+            Q=data['Q'][ch]
+            freqs = data['freqOffsets'] + self.roach.roachController.freqList[ch]
+            arg = np.abs(np.atleast_1d(freqs) - newFreq).argmin()
+            i_click = I[arg]
+            q_click = Q[arg]
+            try: self.clickPoint.remove()
+            except: pass
+            self.clickPoint, = self.ax.plot(i_click, q_click, 'ro')
+
+            self.draw()
+    
+    def plotNewFreqLine(self, newFreq):
+        ch=self.spinbox_channel.value()
+        self.textbox_modifyFreq.setText("%.9e" % newFreq)
+        try: self.clickLine.remove()
+        except: pass
+        self.clickLine = self.ax2.axvline(x=newFreq,color='g')
+        
+        #plot closest point in IQ plane
+        data = self.dataList[-1]
+        I=data['I'][ch]
+        Q=data['Q'][ch]
+        freqs = data['freqOffsets'] + self.roach.roachController.freqList[ch]
+        arg = np.abs(np.atleast_1d(freqs) - newFreq).argmin()
+        i_click = I[arg]
+        q_click = Q[arg]
+        try: self.clickPoint.remove()
+        except: pass
+        self.clickPoint, = self.ax.plot(i_click, q_click, 'ro')
+
+        self.draw()
+    
+    def snapAllFreqs(self):
+        newFreqs = self.getBestFreqs(-1)
+        self.snapFreq() # plot it on current ch
+        attens = self.roach.roachController.attenList
+        self.resetRoach.emit(RoachStateMachine.LOADFREQ)
+        self.channelsModified = self.channelsModified | set(range(len(newFreqs)))
+        self.writeNewFreqFile(np.copy(newFreqs), np.copy(attens))
+        self.label_modifyFlag.show()
+    
+    def shiftAllFreqs(self):
+        deltaFreq = float(self.textbox_shiftAllFreqs.text())
+        newFreqs = self.roach.roachController.freqList
+        newFreqs = newFreqs+deltaFreq
+        self.plotNewFreqLine(newFreq = newFreqs[self.spinbox_channel.value()])
+        attens = self.roach.roachController.attenList
+        self.resetRoach.emit(RoachStateMachine.LOADFREQ)
+        self.channelsModified = self.channelsModified | set(range(len(newFreqs)))
+        self.writeNewFreqFile(np.copy(newFreqs), np.copy(attens))
+        self.label_modifyFlag.show()
+    
     def saveResonator(self):
         freqs = self.roach.roachController.freqList
         attens = self.roach.roachController.attenList
         ch=self.spinbox_channel.value()
         
-        print 'P:Old freq: ', freqs[ch]
+        #print 'P:Old freq: ', freqs[ch]
         
         newFreq = float(self.textbox_modifyFreq.text())
-        print 'P:New freq: ', newFreq
+        #print 'P:New freq: ', newFreq
         newAtten = self.spinbox_modifyAtten.value()
         if newFreq!=freqs[ch]: self.resetRoach.emit(RoachStateMachine.LOADFREQ)
         elif newAtten!= attens[ch]: self.resetRoach.emit(RoachStateMachine.DEFINEDACLUT)
@@ -595,10 +708,11 @@ class RoachSweepWindow(QMainWindow):
         if len(freqs) != nFreqs:
             self.resetRoach.emit(RoachStateMachine.LOADFREQ)
         freqFile = self.config.get('Roach '+str(self.roachNum),'freqfile')
+        resID, _, _ = np.loadtxt(freqFile, unpack=True)
         newFreqFile=freqFile.rsplit('.',1)[0]+str('_NEW.')+freqFile.rsplit('.',1)[1]
-        data=np.transpose([freqs,attens])
+        data=np.transpose([resID, freqs, attens])
         print "Saving "+newFreqFile
-        np.savetxt(newFreqFile,data,['%15.9e', '%4i'])
+        np.savetxt(newFreqFile,data,'%6i  %15.9e  %4i')
     
     def changedSetting(self,settingID,setting):
         """
@@ -774,6 +888,22 @@ class RoachSweepWindow(QMainWindow):
         self.label_modifyFlag.setStyleSheet('color: red')
         self.label_modifyFlag.hide()
         
+        
+        label_shiftAllFreqs = QLabel('[Hz]')
+        self.textbox_shiftAllFreqs = QLineEdit('1.0e4.')
+        self.textbox_shiftAllFreqs.setMaximumWidth(90)
+        self.textbox_shiftAllFreqs.setMinimumWidth(90)
+        button_shiftAllFreqs = QPushButton('Shift All Freqs')
+        button_shiftAllFreqs.clicked.connect(self.shiftAllFreqs)
+        
+        button_snapFreq = QPushButton('Snap Freq')
+        button_snapFreq.clicked.connect(self.snapFreq)
+        button_snapAllFreqs = QPushButton('Snap All Freqs')
+        button_snapAllFreqs.clicked.connect(self.snapAllFreqs)
+        button_snapAllFreqs.setEnabled(False)
+        
+        
+        
         dacAttenStart = self.config.getfloat('Roach '+str(self.roachNum),'dacatten_start')
         self.dacAtten=dacAttenStart
         label_dacAttenStart = QLabel('DAC atten:')
@@ -900,6 +1030,15 @@ class RoachSweepWindow(QMainWindow):
         hbox_modifyRes.addWidget(self.label_modifyFlag)
         hbox_modifyRes.addStretch()
         
+        hbox_snapFreqs = QHBoxLayout()
+        hbox_snapFreqs.addWidget(self.textbox_shiftAllFreqs)
+        hbox_snapFreqs.addWidget(label_shiftAllFreqs)
+        hbox_snapFreqs.addWidget(button_shiftAllFreqs)
+        hbox_snapFreqs.addSpacing(10)
+        hbox_snapFreqs.addWidget(button_snapFreq)
+        hbox_snapFreqs.addWidget(button_snapAllFreqs)
+        hbox_snapFreqs.addStretch()
+        
         hbox_atten = QHBoxLayout()
         hbox_atten.addWidget(label_dacAttenStart)
         hbox_atten.addWidget(spinbox_dacAttenStart)
@@ -934,6 +1073,7 @@ class RoachSweepWindow(QMainWindow):
         box.addLayout(vbox_plot)
         box.addLayout(hbox_res)
         box.addLayout(hbox_modifyRes)
+        box.addLayout(hbox_snapFreqs)
         box.addLayout(hbox_atten)
         box.addLayout(hbox_powersweep)
         box.addLayout(hbox_sweep)
