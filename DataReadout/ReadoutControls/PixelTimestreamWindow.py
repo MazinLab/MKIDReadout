@@ -57,13 +57,15 @@ class PixelTimestreamWindow(QMainWindow):
             c = np.asarray(imageList)[:,y,x]
             countRate = np.sum(c,axis=1)
             if self.checkbox_normalize.isChecked():
-                countRate/=len(pixList)
+                numZeroPix = len(np.where(np.sum(c,axis=0)==0)[0])
+                if len(pixList)>numZeroPix:
+                    countRate/=(len(pixList)-numZeroPix)
             return countRate
         return []
         
     def addData(self, imageList):
-        countRate = np.sum(np.asarray(image)[self.pixelList[:,1],self.pixelList[:,0]])
-        self.countTimestream = np.append(self.countTimestream,countRate)
+        #countRate = np.sum(np.asarray(image)[self.pixelList[:,1],self.pixelList[:,0]])
+        #self.countTimestream = np.append(self.countTimestream,countRate)
         self.plotData()
     
     def draw(self):

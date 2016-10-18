@@ -133,8 +133,8 @@ class Telescope():
         utc, line2, line3, line4, cass_angle = response.split('\n')
         telescope_id, focus, tubelength = line2.split(', ')
         focus_title, focus_val = focus.split(' = ')
-        cassAngle_key, cassAngle_val = cass_angle.split(' =  ')
-        cassAngle_val = cassAngle_val.split('\x00')[0]
+        cassAngle_key, cassAngle_val = cass_angle.split(' = ')
+        cassAngle_val = cassAngle_val.strip().split('\x00')[0]
         telescopeID_key, telescopeID_val = telescope_id.split(' = ')
         utc = utc.split(' = ')[1]
         tubeLength_key, tubeLength_val = tubelength.split(' = ')
