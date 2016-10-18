@@ -30,10 +30,12 @@ from PyQt4.QtCore import Qt
 from PyQt4 import QtGui
 from PyQt4.QtGui import *
 from PixelTimestreamWindow import PixelTimestreamWindow
+from PixelHistogramWindow import PixelHistogramWindow
 from LaserControl import LaserControl
 from Telescope import *
 import casperfpga
 from Roach2Controls import Roach2Controls
+from initialBeammap import xyPack,xyUnpack
 
 class ImageSearcher(QtCore.QObject):     #Extends QObject for use with QThreads
     """
@@ -150,7 +152,7 @@ class ConvertPhotonsToRGB(QtCore.QObject):
         """
         map photon count to RGB linearly
         """
-        print "linear Stretch"
+        #print "linear Stretch"
         self.image[np.where(self.image>self.maxCountCutoff)]=self.maxCountCutoff
         self.image[np.where(self.image<self.minCountCutoff)]=self.minCountCutoff
         
@@ -158,8 +160,8 @@ class ConvertPhotonsToRGB(QtCore.QObject):
         minVal = np.amin(self.image)
         
         image2=(self.image-minVal)/(1.0*maxVal-minVal)*255.
-        image2[2:4,2:4]=255
-        image2[5:10,2]=0
+        #image2[2:4,2:4]=255
+        #image2[5:10,2]=0
         self.makeQPixMap(image2)
     
     def histEqualization(self):
@@ -234,12 +236,17 @@ class MkidDashboard(QMainWindow):
         self.workers=[]                             # Holds workder objects corresponding to threads
         self.imageList=[]                           # Holds photon count image data
         self.timeStreamWindows = []                 # Holds PixelTimestreamWindow objects
+        self.histogramWindows = []                  # Holds PixelHistogramWindow objects
         self.selectedPixels=set()                   # Holds the pixels currently selected
         self.observing = observing                  # Indicates if packetmaster is currently writing data to disk
+        self.darkField=None                         # Holds a dark image for subtracting
+        self.flatField=None                         # Holds a flat image for normalizing
         # Often overwritten variables
         self.clicking=False                         # Flag to indicate we've pressed the left mouse button and haven't released it yet
         self.pixelClicked = None                    # Holds the pixel clicked when mouse is pressed
         self.pixelCurrent = None                    # Holds the pixel the mouse is currently hovering on
+        self.takingDark = -1                        # Flag for taking dark image. Indicates number of images we still need for darkField image. Negative means not taking a dark
+        self.takingFlat = -1                        # Flag for taking flat image. Indicates number of images we still need for flatField image
         
         #Laser Controller
         laserIP=self.config.get('properties','laserIPaddress')
@@ -258,7 +265,6 @@ class MkidDashboard(QMainWindow):
         super(QMainWindow, self).__init__(parent)
         self.setWindowTitle(self.config.get('properties','instrument')+' Dashboard')
         self.create_image_widget()
-        #self.obsTime = QtCore.QTime()
         self.create_dock_widget()
         self.contextMenu = QtGui.QMenu(self)    # pops up on right click
         self.create_menu()  # file menu
@@ -266,6 +272,7 @@ class MkidDashboard(QMainWindow):
         #Connect to ROACHES and initialize network port in firmware
         self.connectToRoaches(roachNums)
         self.turnOnPhotonCapture()
+        self.loadBeammap()
         
         # Setup search for image files from cuber
         darkImageSearcher = ImageSearcher(self.config.get('properties','cuber_ramdisk'), self.config.getint('properties','ncols'),self.config.getint('properties','nrows'),parent=None)
@@ -290,10 +297,19 @@ class MkidDashboard(QMainWindow):
         '''
         
     def turnOffPhotonCapture(self):
+        """
+        Tells roaches to stop photon capture
+        """
         for roach in self.roachList:
             roach.fpga.write_int(self.config.get('properties','photonCapStart_reg'),0)
+        print 'Roaches stopped sending photon packets :-('
     
     def turnOnPhotonCapture(self):
+        """
+        Tells roaches to start photon capture
+        
+        Have to be careful to set the registers in the correct order in case we are currently in phase capture mode
+        """
         for roach in self.roachList:
             # set up ethernet parameters
             hostIP = self.config.get('properties','hostIP')
@@ -311,6 +327,7 @@ class MkidDashboard(QMainWindow):
 
             # Start photon caputure
             roach.fpga.write_int(self.config.get('properties','photonCapStart_reg'),1)
+        print 'Roaches Sending Photon Packets!'
         
     
     def connectToRoaches(self, roachNums):
@@ -324,23 +341,55 @@ class MkidDashboard(QMainWindow):
         for roachNum in roachNums:
             ipaddress = self.config.get('Roach '+str(roachNum),'ipaddress')
             roachParamFile = self.config.get('Roach '+str(roachNum),'roachParamFile')
-            roach=Roach2Controls(ipaddress, roachParamFile, True, False)
+            roach=Roach2Controls(ipaddress, roachParamFile, False, False)
+            roach.num=roachNum
             roach.connect()
             
             roach.fpga.write_int(self.config.get('properties','photonPort_reg'), self.config.getint('properties','photonCapPort'))
             roach.fpga.write_int(self.config.get('properties','minFramePeriod_reg'),self.config.getint('properties','minFramePeriod'))
-            
-            # initialize beammap
-            freqList = self.config.get('Roach '+str(roachNum),'freqList')
-            freqs,_ = np.loadtxt(freqList,unpack=True)
-            roach.generateResonatorChannels(freqs)
-            beammapDict= {'feedline': self.config.getint('Roach '+str(roachNum),'feedline'),
-                          'sideband': self.config.get('Roach '+str(roachNum),'sideband'),
-                          'boardRange': self.config.get('Roach '+str(roachNum),'boardRange')}
-            roach.loadBeammapCoords(initialBeammapDict = beammapDict)
-            
-            self.roachList.append(roach)
 
+            self.roachList.append(roach)
+            
+    def loadBeammap(self):
+        beammapFN = self.config.get('properties','beammapFile')
+        self.beammapFailed = np.ones((self.config.getint('properties','nrows'),self.config.getint('properties','ncols')),dtype=bool)
+        for roach in self.roachList:
+            freqList = self.config.get('Roach '+str(roach.num),'freqList')
+            resID, freqs, _ = np.loadtxt(freqList,unpack=True)
+            roach.generateResonatorChannels(freqs)
+            if beammapFN is 'None': # default beammap
+                beammapDict= {'feedline': self.config.getint('Roach '+str(roach.num),'feedline'),
+                              'sideband': self.config.get('Roach '+str(roach.num),'sideband'),
+                              'boardRange': self.config.get('Roach '+str(roach.num),'boardRange')}
+                roach.loadBeammapCoords(initialBeammapDict = beammapDict)
+            else:
+                beammapData =  np.loadtxt(beammapFN)
+                freqCh, flag, xCoord, yCoord =[],[],[],[]
+                
+                for i in range(len(resID)):
+                    #print beammapData[:,0]
+                    #print resID[i]
+                    #print beammapData[:,0]==resID[i]
+                    #print np.where(beammapData[:,0]==resID[i])
+                    try:
+                        indx = int(np.where(beammapData[:,0]==resID[i])[0][0])
+                        freqCh.append(i)
+                        flag.append(beammapData[indx,1])
+                        x=int(beammapData[indx,2])
+                        y=int(beammapData[indx,3])
+                        xCoord.append(x)
+                        yCoord.append(y)
+                        if beammapData[indx,1]==0:
+                            self.beammapFailed[y,x]=False
+                    except IndexError:
+                        freqCh.append(i)
+                        flag.append(1)
+                        xCoord.append(self.config.getint('properties','ncols'))
+                        yCoord.append(self.config.getint('properties','nrows'))
+                    
+                beammapDict = {'freqCh':np.copy(freqCh), 'flag':np.copy(flag), 'x':np.copy(xCoord), 'y':np.copy(yCoord)}
+                roach.loadBeammapCoords(beammapDict = beammapDict)
+        print 'nGoodBeammapped:',self.config.getint('properties','nrows')*self.config.getint('properties','ncols') - np.sum(self.beammapFailed)
     
     def appendImage(self,image):
         """
@@ -358,6 +407,47 @@ class MkidDashboard(QMainWindow):
         if len(self.imageList) > self.config.getint('properties','num_images_to_save'):
             self.imageList = self.imageList[-1*self.config.getint('properties','num_images_to_save'):]
     
+    def addDarkImage(self, photonImage):
+        print photonImage[36,32]
+        self.spinbox_darkImage.setEnabled(False)
+        if self.darkField is None or self.takingDark==self.spinbox_darkImage.value():
+            self.darkField=photonImage
+        else: self.darkField=self.darkField+photonImage
+        self.takingDark-=1
+        if self.takingDark ==0:
+            self.takingDark=-1
+            self.darkField=self.darkField/(self.config.getint('properties','num_images_for_dark')*self.config.getfloat('properties','packetmaster2_image_inttime'))
+            self.checkbox_darkImage.setChecked(True)
+            self.spinbox_darkImage.setEnabled(True)
+        print self.darkField[36,32]
+    
+    def addFlatImage(self, photonImage):
+        if self.checkbox_darkImage.isChecked() and self.darkField is not None:
+            photonImage -= self.darkField
+        self.spinbox_flatImage.setEnabled(False)
+        if self.flatField is not None: self.flatField+=photonImage
+        else: self.flatField=photonImage
+        self.takingFlat-=1
+        if self.takingFlat ==0:
+            self.takingFlat=-1
+            self.flatField=self.flatField/(self.config.getint('properties','num_images_for_flat')*self.config.getfloat('properties','packetmaster2_image_inttime'))
+            flatAvg=np.mean(self.flatField[np.where(self.flatField>0)])
+            zeros = np.where(self.flatField==0)
+            minFlat = 1.
+            maxFlat = 2500.
+            self.flatField[np.where(self.flatField<minFlat)]=minFlat
+            self.flatField[np.where(self.flatField>maxFlat)]=maxFlat
+            self.flatField[zeros]=1
+            self.flatField = 1./self.flatField
+            
+            #self.flatField[np.where(self.flatField >0)] = 1.*self.config.getint('properties','num_images_for_flat')/self.flatField[np.where(self.flatField >0)]
+            self.checkbox_flatImage.setChecked(True)
+            self.spinbox_flatImage.setEnabled(True)
+            flatFN = self.config.get('properties','flatFieldFN')
+            np.save(flatFN, self.flatField)
+            
+        
+    
     def convertImage(self,photonImage=None):
         """
         This function is automatically called when ImageSearcher object finds a new image file from cuber program
@@ -369,19 +459,51 @@ class MkidDashboard(QMainWindow):
         We do this in a separate thread because it might take a while to process
         
         INPUTS:
-            photonImage - 2D numpy array of photon counts
+            photonImage - 2D numpy array of photon counts (type np.uint16 if from ImageSearcher object)
         """
+        # If there's new data, append it
         if photonImage is not None:
-            # If there's new data, append it
-            self.appendImage(photonImage)
+            photonImage = photonImage.astype(np.int)
+            self.appendImage(np.copy(photonImage))
+            if self.takingDark>0:
+                self.addDarkImage(np.copy(photonImage))
+            if self.takingFlat>0:
+                self.addFlatImage(np.copy(photonImage))
             
         # Get the (average) photon count image
         numImages2Sum = self.config.getint('properties','num_images_to_add')
         numImages2Sum = min(numImages2Sum,len(self.imageList))
         image = np.sum(self.imageList[-1*numImages2Sum:],axis=0)
-        minCountCutoff=self.config.getint('properties','min_count_rate')*numImages2Sum/self.config.getfloat('properties','packetmaster2_image_intTime')
-        maxCountCutoff=self.config.getint('properties','max_count_rate')*numImages2Sum/self.config.getfloat('properties','packetmaster2_image_intTime')
-        logStretch=True
+        image = 1.0*image/(numImages2Sum*self.config.getfloat('properties','packetmaster2_image_intTime'))
+        #minCountCutoff=self.config.getint('properties','min_count_rate')*numImages2Sum/self.config.getfloat('properties','packetmaster2_image_intTime')
+        #maxCountCutoff=self.config.getint('properties','max_count_rate')*numImages2Sum/self.config.getfloat('properties','packetmaster2_image_intTime')
+        minCountCutoff=self.config.getint('properties','min_count_rate')
+        maxCountCutoff=self.config.getint('properties','max_count_rate')
+        logStretch=False
+        bias=0
+        #bias=1000
+        
+        # Possibly subtract dark image
+        if self.checkbox_darkImage.isChecked() and self.darkField is not None:
+            #print self.darkField
+            #zeroes = np.where(self.darkField>image)
+            image = image -self.darkField
+            #image[zeroes] = 0
+        # Possibly normalize with flat image
+        if self.checkbox_flatImage.isChecked():
+            if self.flatField is None:
+                flatFN = self.config.get('properties','flatFieldFN')
+                try: self.flatField = np.load(flatFN)
+                except IOError: pass
+            if self.flatField is not None:
+                image[np.where(image>0)]=image[np.where(image>0)]*self.flatField[np.where(image>0)]
+        # Possibly remove pixels that were unbeammaped
+        if not self.checkbox_showAllPix.isChecked():
+            try: image[np.where(self.beammapFailed)]=-1*bias
+            except AttributeError: pass     # self.beammapFailed is only defined if we load a beammap
+        
+        if self.checkbox_darkImage.isChecked():
+            image=image+bias   # add bias so that anything that's negative after the dark isn't cutoff
         
         # Set up worker object and thread
         converter=ConvertPhotonsToRGB(image,minCountCutoff,maxCountCutoff,logStretch)
@@ -391,11 +513,11 @@ class MkidDashboard(QMainWindow):
         thread.setObjectName("convertImage_"+str(thread_num))
         self.threadPool.append(thread)                      #Need to have local reference to thread or else it will get lost!
         converter.moveToThread(thread)
-        thread.started.connect(converter.histEqualization)
-        #thread.started.connect(converter.linStretch)
+        #thread.started.connect(converter.histEqualization)
+        thread.started.connect(converter.linStretch)
         converter.convertedImage.connect(lambda x: thread.quit())
         converter.convertedImage.connect(self.updateImage)
-        thread.finished.connect(partial(self.threadPool.remove,thread))         # delete these so we don't have a memory leak
+        thread.finished.connect(partial(self.threadPool.remove,thread))         # delete these when done so we don't have a memory leak
         thread.finished.connect(partial(self.workers.remove,converter))
         
         # When it's done converting the worker will emit a convertedImage Signal
@@ -591,9 +713,9 @@ class MkidDashboard(QMainWindow):
             if type(item) != QGraphicsPixmapItem:
                 self.grPixMap.scene().removeItem(item)
     
-    def getPixCountRate(self, pixelList, numImages2Sum=None):
+    def getPixCountRate(self, pixelList, numImages2Sum=None, applyDark=False):
         """
-        Fet the count rate of a list of pixels.
+        Get the count rate of a list of pixels.
         Can be slow :( 
         Might want to move this to a new thread in future...
         
@@ -607,9 +729,13 @@ class MkidDashboard(QMainWindow):
             numImages2Sum = self.config.getint('properties','num_images_to_add')
         numImages2Sum = min(numImages2Sum,len(self.imageList))
         image = np.sum(self.imageList[-1*numImages2Sum:],axis=0)
+        image = image / (numImages2Sum*self.config.getfloat('properties','packetmaster2_image_intTime'))
+        if applyDark:
+            try: image=image-self.darkField
+            except: pass
         pixelList=np.asarray(pixelList)
         val = np.sum(np.asarray(image)[[pixelList[:,1],pixelList[:,0]]])
-        return val/(1.*numImages2Sum)
+        return val
     
     def updateSelectedPixelLabels(self):
         """
@@ -620,7 +746,11 @@ class MkidDashboard(QMainWindow):
         if len(self.selectedPixels) > 0:
             pixels = np.asarray([[p[0],p[1]] for p in self.selectedPixels])
             val=self.getPixCountRate(pixels)
-            self.label_selectedPixValue.setText('Selected Pix : '+str(np.round(val,2))+' #/second')
+            labelStr = 'Selected Pix : '+str(np.round(val,2))+' #/s'
+            if self.checkbox_darkImage.isChecked():
+                valDark = self.getPixCountRate(pixels,applyDark=True)
+                labelStr='Selected Pix : '+str(np.round(val,2))+' --> '+str(np.round(valDark,2))+' #/s'
+            self.label_selectedPixValue.setText(labelStr)
 
     def updateCurrentPixelLabel(self):
         """
@@ -632,6 +762,36 @@ class MkidDashboard(QMainWindow):
         if self.pixelCurrent != None:
             val=self.getPixCountRate([self.pixelCurrent])
             self.label_pixelInfo.setText('(' + str(self.pixelCurrent[0]) + ' , ' + str(self.pixelCurrent[1]) +') : '+str(np.round(val,2))+' #/second')
+            
+            beammapFN = self.config.get('properties','beammapFile')
+            beammapData = np.loadtxt(beammapFN)
+            resID=0
+            freq = 0
+            feedline=0
+            board='a'
+            freqCh=0
+            try:
+                indx = np.where((beammapData[:,2]==self.pixelCurrent[0]) & (beammapData[:,3]==self.pixelCurrent[1]))[0][0]
+                resID=beammapData[indx,0]
+                for roach in self.roachList:
+                    freqFN = self.config.get('Roach '+str(roach.num),'freqList')
+                    resIDs, freqs = np.loadtxt(freqFN, unpack=True, usecols=(0,1))
+                    try:
+                        freqCh = int(np.where(resIDs==resID)[0][0])
+                        freq = freqs[freqCh]
+                        feedline = self.config.getint('Roach '+str(roach.num),'feedline')
+                        board = self.config.get('Roach '+str(roach.num),'boardRange')
+                        break
+                    except IndexError: pass
+            except IndexError: pass
+            self.label_pixelID.setText('ResID: '+str(resID)+'\nFreq: '+
+                                       str(freq/10**9.)+' GHz\nFeedline: '+
+                                       str(feedline)+'\nBoard: '+board+'\nCh: '+
+                                       str(freqCh))
+            
+            
+            
+            
         
     def showContextMenu(self, point):
         """
@@ -641,6 +801,7 @@ class MkidDashboard(QMainWindow):
         """
         self.contextMenu.clear()
         self.contextMenu.addAction('Plot Timestream',self.plotTimestream)
+        self.contextMenu.addAction('Plot Histogram',self.plotHistogram)
         self.contextMenu.exec_(self.sender().mapToGlobal(point))       # Need to reference to global coordinate system
     
     def plotTimestream(self):
@@ -656,6 +817,21 @@ class MkidDashboard(QMainWindow):
         window = PixelTimestreamWindow(pixels, parent=self)
         self.timeStreamWindows.append(window)
         window.closeWindow.connect(partial(self.timeStreamWindows.remove, window))    # remove from list if the window is closed
+        window.show()
+        
+    def plotHistogram(self):
+        """
+        This function is called when the user clicks on the Plot Histogram action in the context menu
+        
+        It pops up a window showing a histogram of count rates for the selected pixels
+        """
+        if len(self.selectedPixels) > 0:
+            pixels = np.asarray([[p[0],p[1]] for p in self.selectedPixels])
+        else: pixels=[self.pixelCurrent]
+        
+        window = PixelHistogramWindow(pixels, parent=self)
+        self.histogramWindows.append(window)
+        window.closeWindow.connect(partial(self.histogramWindows.remove, window))    # remove from list if the window is closed
         window.show()
     
     def startObs(self):
@@ -712,19 +888,20 @@ class MkidDashboard(QMainWindow):
             self.button_obs.setEnabled(True)
             self.button_stop.setEnabled(False)
             
-            
 
-    def laserCalClicked(self):
-        laserStr = ''
+    def laserCalClicked(self, logTitle = 'laserCal'):
+        if self.radiobutton_flipper.isChecked(): laserStr = '1'
+        else: laserStr = '0'
+        
         for checkbox_laser in self.checkbox_laser_list:
             if checkbox_laser.isChecked(): laserStr+='1'
             else: laserStr+='0'
         laserTime=self.spinbox_laserTime.value()
         self.laserController.toggleLaser(laserStr, laserTime)
-        self.writeLog('laserCal', utc=time.time(), time=laserTime, lasers=laserStr)
-        if not self.observing:
-            self.startObs()
-            QtCore.QTimer.singleShot(laserTime*1000+1, self.stopObs)
+        self.writeLog(logTitle, utc=time.time(), time=laserTime, lasers=laserStr)
+        #if not self.observing:
+        #    self.startObs()
+        #    QtCore.QTimer.singleShot(laserTime*1000+1, self.stopObs)
             
     def writeTelescopeLog(self):
         telescopeDict = self.telescopeController.getAllTelescopeInfo(self.textbox_target.text())
@@ -747,7 +924,7 @@ class MkidDashboard(QMainWindow):
         else: path = self.config.get('properties','log_dir')
         currentTime=int(time.time())
         if target is None or len(target)<1: fn = str(currentTime)+'.log'
-        else: fn = str(currentTime)+'_'+str(target)+'.log'
+        else: fn = str(currentTime)+'_'+str(target).replace(' ','_')+'.log'
         f=open(path+fn,'a')
         for arg in args:
             f.write(str(arg))
@@ -756,6 +933,7 @@ class MkidDashboard(QMainWindow):
             f.write("%s: %s" % (key, str(kwargs[key])))
             f.write('\n')
         f.close()
+        print 'Wrote log:', fn
     
     def moveLogFiles(self):
         '''
@@ -766,6 +944,14 @@ class MkidDashboard(QMainWindow):
         log_path = self.config.get('properties','log_dir')
         
         command = 'mv %s*.log %s'%(ramdiskLog_path, log_path)
+        print command
+        proc = subprocess.Popen(command,shell=True)
+        proc.wait()
+    
+    def printLogs(self, num=10):
+        ramdiskLog_path = self.config.get('properties','log_ramdisk')
+        log_path = self.config.get('properties','log_dir')
+        command = 'grep "" %s*.log %s*.log | tail -%i'%(log_path,ramdiskLog_path, num)
         print command
         proc = subprocess.Popen(command,shell=True)
         proc.wait()
@@ -846,7 +1032,7 @@ class MkidDashboard(QMainWindow):
         spinbox_integrationTime = QSpinBox()
         spinbox_integrationTime.setRange(1,max_int_time)
         spinbox_integrationTime.setValue(integrationTime)
-        spinbox_integrationTime.setSuffix(' * '+str(image_int_time)+' seconds')
+        spinbox_integrationTime.setSuffix(' * '+str(image_int_time)+' s')
         spinbox_integrationTime.setWrapping(False)
         spinbox_integrationTime.setCorrectionMode(QAbstractSpinBox.CorrectToNearestValue)
         spinbox_integrationTime.valueChanged.connect(partial(self.changedSetting,'num_images_to_add'))    # change in config file
@@ -855,6 +1041,39 @@ class MkidDashboard(QMainWindow):
         self.label_numIntegrated = QLabel('0/'+str(integrationTime))
         spinbox_integrationTime.valueChanged.connect(lambda x: self.label_numIntegrated.setText(self.label_numIntegrated.text().split('/')[0]+'/'+str(x)))
         spinbox_integrationTime.valueChanged.connect(lambda x: QtCore.QTimer.singleShot(10,self.convertImage)) # remake current image after 10 ms
+        
+        # dark Image
+        darkIntTime=self.config.getint('properties','num_images_for_dark')
+        self.spinbox_darkImage = QSpinBox()
+        self.spinbox_darkImage.setRange(1,max_int_time)
+        self.spinbox_darkImage.setValue(darkIntTime)
+        self.spinbox_darkImage.setSuffix(' * '+str(image_int_time)+' s')
+        self.spinbox_darkImage.setWrapping(False)
+        self.spinbox_darkImage.setCorrectionMode(QAbstractSpinBox.CorrectToNearestValue)
+        self.spinbox_darkImage.valueChanged.connect(partial(self.changedSetting,'num_images_for_dark'))    # change in config file
+        button_darkImage = QPushButton('Take Dark')
+        def takeDark():
+            self.takingDark=self.spinbox_darkImage.value()
+        button_darkImage.clicked.connect(takeDark)
+        self.checkbox_darkImage = QCheckBox()
+        self.checkbox_darkImage.setChecked(False)
+        
+        # flat Image
+        flatIntTime=self.config.getint('properties','num_images_for_flat')
+        self.spinbox_flatImage = QSpinBox()
+        self.spinbox_flatImage.setRange(1,max_int_time)
+        self.spinbox_flatImage.setValue(flatIntTime)
+        self.spinbox_flatImage.setSuffix(' * '+str(image_int_time)+' s')
+        self.spinbox_flatImage.setWrapping(False)
+        self.spinbox_flatImage.setCorrectionMode(QAbstractSpinBox.CorrectToNearestValue)
+        self.spinbox_flatImage.valueChanged.connect(partial(self.changedSetting,'num_images_for_flat'))    # change in config file
+        button_flatImage = QPushButton('Take Flat')
+        def takeFlat():
+            self.takingFlat=self.spinbox_flatImage.value()
+        button_flatImage.clicked.connect(takeFlat)
+        self.checkbox_flatImage = QCheckBox()
+        self.checkbox_flatImage.setChecked(False)
+        
         # maxCountRate
         maxCountRate = self.config.getint('properties','max_count_rate')
         minCountRate = self.config.getint('properties','min_count_rate')
@@ -880,11 +1099,17 @@ class MkidDashboard(QMainWindow):
         spinbox_maxCountRate.valueChanged.connect(spinbox_minCountRate.setMaximum)
         spinbox_maxCountRate.valueChanged.connect(lambda x: QtCore.QTimer.singleShot(10,self.convertImage)) # remake current image after 10 ms
         spinbox_minCountRate.valueChanged.connect(lambda x: QtCore.QTimer.singleShot(10,self.convertImage)) # remake current image after 10 ms
-        # Pixel info label
+        
+        # Checkbox for showing unbeammaped pixels
+        self.checkbox_showAllPix = QCheckBox('Show All Pixels')
+        self.checkbox_showAllPix.setChecked(False)
+        
+        # Pixel info labels
         self.label_pixelInfo=QLabel('(, ) - (, ) : 0 #/s')
         self.label_pixelInfo.setMaximumWidth(250)
         self.label_selectedPixValue = QLabel('Selected Pix : 0 #/s')
         self.label_selectedPixValue.setMaximumWidth(250)
+        self.label_pixelID = QLabel('ResID: -1\nFreq: 0 GHz\nFeedline: 1\nBoard: a\nCh: 0')
 
         
         #=============================================
@@ -908,6 +1133,12 @@ class MkidDashboard(QMainWindow):
             self.checkbox_laser_list.append(checkbox_laser)
         
         button_laserCal.clicked.connect(self.laserCalClicked)
+        
+        # Also have the pupil imager flipper controlled with laser box arduino
+        self.radiobutton_flipper = QRadioButton('Flipper')
+        self.radiobutton_flipper.setChecked(False)
+        self.radiobutton_flipper.toggled.connect(partial(self.laserCalClicked,'flipper'))
+        
         
         #================================================
         # Layout on GUI
@@ -945,6 +1176,20 @@ class MkidDashboard(QMainWindow):
         hbox_intTime.addStretch()
         vbox.addLayout(hbox_intTime)
         
+        hbox_darkImage = QHBoxLayout()
+        hbox_darkImage.addWidget(self.spinbox_darkImage)
+        hbox_darkImage.addWidget(button_darkImage)
+        hbox_darkImage.addWidget(self.checkbox_darkImage)
+        hbox_darkImage.addStretch()
+        vbox.addLayout(hbox_darkImage)
+        
+        hbox_flatImage = QHBoxLayout()
+        hbox_flatImage.addWidget(self.spinbox_flatImage)
+        hbox_flatImage.addWidget(button_flatImage)
+        hbox_flatImage.addWidget(self.checkbox_flatImage)
+        hbox_flatImage.addStretch()
+        vbox.addLayout(hbox_flatImage)
+        
         hbox_CountRate = QHBoxLayout()
         hbox_CountRate.addWidget(label_minCountRate)
         hbox_CountRate.addWidget(spinbox_minCountRate)
@@ -953,8 +1198,10 @@ class MkidDashboard(QMainWindow):
         hbox_CountRate.addWidget(spinbox_maxCountRate)
         hbox_CountRate.addStretch()
         vbox.addLayout(hbox_CountRate)
-        vbox.addWidget(self.label_pixelInfo)
+        vbox.addWidget(self.checkbox_showAllPix)
         vbox.addWidget(self.label_selectedPixValue)
+        vbox.addWidget(self.label_pixelInfo)
+        vbox.addWidget(self.label_pixelID)
         
         vbox.addStretch()
         
@@ -964,6 +1211,7 @@ class MkidDashboard(QMainWindow):
         vbox.addLayout(hbox_laser)
         for checkbox_laser in self.checkbox_laser_list:
             vbox.addWidget(checkbox_laser)
+        vbox.addWidget(self.radiobutton_flipper)
         
         obs_widget.setLayout(vbox)
         obs_dock_widget.setWidget(obs_widget)
@@ -1017,9 +1265,13 @@ class MkidDashboard(QMainWindow):
 
     def create_menu(self):        
         self.file_menu = self.menuBar().addMenu("&File")
-        quit_action = self.create_action("&Quit", slot=self.close,shortcut="Ctrl+Q", tip="Close the application")
         telescope_action = self.create_action("&Telescope Info", slot=self.telescopeWindow.show,shortcut="Ctrl+T", tip="Show Telescope Info")
-        self.add_actions(self.file_menu, (telescope_action,None, quit_action))
+        photonCapOn_action = self.create_action("Start &Photon Capture", slot=self.turnOnPhotonCapture,shortcut="Ctrl+P", tip="Tell Roaches to send photon packets")
+        photonCapOff_action = self.create_action("Stop &Photon Capture", slot=self.turnOffPhotonCapture,shortcut="Ctrl+Shift+P", tip="Tell Roaches to stop sending photon packets")
+        viewLogs_action = self.create_action("Pring &Logs",slot=partial(self.printLogs,15),shortcut="Ctrl+L", tip="Print last 15 logs into terminal")
+        quit_action = self.create_action("&Quit", slot=self.close,shortcut="Ctrl+Q", tip="Close the application")
+        
+        self.add_actions(self.file_menu, (telescope_action,photonCapOn_action,photonCapOff_action,viewLogs_action,None, quit_action))
 
         self.help_menu = self.menuBar().addMenu("&Help")
         about_action = self.create_action("&About", shortcut='F1',slot=self.on_about, tip='About the demo')
@@ -1086,6 +1338,8 @@ class MkidDashboard(QMainWindow):
             thread.quit()
         for window in self.timeStreamWindows:
             window.close()
+        for window in self.histogramWindows:
+            window.close()
         self.turnOffPhotonCapture()     # stop sending photon packets
         self.telescopeWindow._want_to_close=True
         self.telescopeWindow.close()
@@ -1098,6 +1352,17 @@ class MkidDashboard(QMainWindow):
 
 def main():
     app = QApplication(sys.argv)
+    args = sys.argv[1:]
+    defaultValues=None
+    if '-c' in args:
+        indx = args.index('-c')
+        defaultValues=args[indx+1]
+        try: args = args[:indx]+args[indx+2:]
+        except IndexError:args = args[:indx]
+    roachNums = np.asarray(args, dtype=np.int)
+    print defaultValues,roachNums
+    '''
+    
     try: roachNums = np.asarray(sys.argv[1:],dtype=np.int)
     except: pass
     if len(sys.argv[1:]) == 2:
@@ -1105,7 +1370,8 @@ def main():
             roachNums = np.arange(int(sys.argv[2]),dtype=np.int)
         elif sys.argv[2] == '-a' or sys.argv[2] == '-all':
             roachNums = np.arange(int(sys.argv[1]),dtype=np.int)
-    form = MkidDashboard(roachNums)
+    '''
+    form = MkidDashboard(roachNums, defaultValues)
     form.show()
     app.exec_()
 
@@ -1113,13 +1379,4 @@ def main():
 if __name__ == "__main__":
     main()
         
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
+
