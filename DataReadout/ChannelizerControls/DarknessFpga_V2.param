@@ -95,6 +95,8 @@ nBitsXCoord = 10
 #UART Parameters
 baud_rate = 921600
 lut_dump_buffer_size = 4096
+v7Err = 2
+v7LUTReady = 3
 
 #List of UART MicroBlaze Commands
 mbRecvDACLUT = 0x09
