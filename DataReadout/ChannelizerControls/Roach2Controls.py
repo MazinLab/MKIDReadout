@@ -581,7 +581,7 @@ class Roach2Controls:
             while(not(self.v7_ready)):
                 self.v7_ready = self.fpga.read_int(self.params['v7Ready_reg'])
 
-            if(self.v7_ready != self.params['v7LUTReady'])
+            if(self.v7_ready != self.params['v7LUTReady']):
                 raise Exception('Microblaze not ready to recieve LUT!')
 
             self.fpga.write_int(self.params['txEnUART_reg'],1)
@@ -639,7 +639,7 @@ class Roach2Controls:
             while(not(self.v7_ready)):
                 self.v7_ready = self.fpga.read_int(self.params['v7Ready_reg'])
 
-            if(self.v7_ready == self.params['v7Err'])
+            if(self.v7_ready == self.params['v7Err']):
                 raise Exception('MicroBlaze errored out.  Try reinitializing LO.')
 
             self.v7_ready = 0
@@ -660,7 +660,7 @@ class Roach2Controls:
             while(not(self.v7_ready)):
                 self.v7_ready = self.fpga.read_int(self.params['v7Ready_reg'])
             
-            if(self.v7_ready == self.params['v7Err'])
+            if(self.v7_ready == self.params['v7Err']):
                 raise Exception('MicroBlaze errored out.  Try reinitializing LO.')
 
             self.v7_ready = 0
@@ -673,7 +673,7 @@ class Roach2Controls:
         while(not(self.v7_ready)):      # Wait for V7 to say it's done setting LO
             self.v7_ready = self.fpga.read_int(self.params['v7Ready_reg'])
 
-        if(self.v7_ready == self.params['v7Err'])
+        if(self.v7_ready == self.params['v7Err']):
             raise Exception('MicroBlaze failed to set LO!')
 
 
