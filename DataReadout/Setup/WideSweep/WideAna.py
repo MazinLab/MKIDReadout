@@ -332,11 +332,11 @@ class WideAna(QMainWindow):
         af = open(self.allFile,'wb')
         id = (self.flNum-1)*2000
         for index in range(len(self.goodPeakMask)):
-            if self.goodpeakMask[index] or self.badPeakMask[index]:
+            if self.goodPeakMask[index] or self.badPeakMask[index]:
                 line = "%8d %12d %16.7f\n"%(id,index,self.wsf.x[index])
                 af.write(line)
                 id += 1
-        gf.close()
+        af.close()
 
     # deal with zooming and plotting one segment
     def zoom(self,zoom):
