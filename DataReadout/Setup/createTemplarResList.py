@@ -36,9 +36,9 @@ def createTemplarResList(fn, LO1, LO2, feedline=1, atten=46):
     
     path = os.path.dirname(fn)+'/'
     data = np.transpose([ids1,freqs1*10**9,[atten]*len(freqs1)])
-    np.savetxt(path+'freq_FL'+str(feedline)+'_a.txt', data, fmt="%10.1f %4i")
+    np.savetxt(path+'freq_FL'+str(feedline)+'_a.txt', data, fmt="%4i %10.1f %4i")
     data = np.transpose([ids2,freqs2*10**9,[atten]*len(freqs2)])
-    np.savetxt(path+'freq_FL'+str(feedline)+'_b.txt', data, fmt="%10.1f %4i")
+    np.savetxt(path+'freq_FL'+str(feedline)+'_b.txt', data, fmt="%4i %10.1f %4i")
     
     
     
@@ -87,9 +87,9 @@ if __name__=='__main__':
     fn = sys.argv[1]
     dirn = os.environ['MKID_DATA_DIR']
     fn = os.path.join(dirn,fn)
-    LO1 = 5.54
-    LO2 = 7.54
-    createTemplarResList(fn, LO1, LO2, feedline=3)
+    LO1 = 5.50
+    LO2 = 7.50
+    createTemplarResList(fn, LO1, LO2, feedline=2)
 
 
 
