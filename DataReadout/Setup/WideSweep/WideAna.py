@@ -54,7 +54,7 @@ from scipy.interpolate import UnivariateSpline
 from WideSweepFile import WideSweepFile
 
 class WideAna(QMainWindow):
-    def __init__(self, parent=None,plotFunc=None,title='',separateProcess=False, image=None,showMe=True, initialFile=None):
+    def __init__(self, parent=None,plotFunc=None,title='',separateProcess=False, image=None,showMe=True, initialFile=None, flNum=None):
         self.parent = parent
         if self.parent == None:
             self.app = QApplication([])
@@ -64,11 +64,15 @@ class WideAna(QMainWindow):
         self.initialFile = initialFile
         self.baseFile = ('.').join(initialFile.split('.')[:-1])
         self.goodFile = self.baseFile+"-good.txt"
+        self.allFile = self.baseFile+"-all.txt"
         if os.path.exists(self.goodFile):
             self.goodFile = self.goodFile+time.strftime("-%Y-%m-%d-%H-%M-%S")
             #shutil.copy(self.goodFile,self.goodFile+time.strftime("-%Y-%m-%d-%H-%M-%S"))
+        if os.path.exists(self.allFile):
+            self.allFile = self.allFile+time.strftime("-%Y-%m-%d-%H-%M-%S")
         self.pdfFile = self.baseFile+"-good.pdf"
         self.fitLineEdits = {}
+        self.flNum = flNum
         self.fitLabels = {}
         self.splineS = 1
         self.splineK = 3
@@ -136,17 +140,29 @@ class WideAna(QMainWindow):
             if pressed == "d":
                 #if self.peakMask[bestWsfIndex]:
                 #self.peakMask[bestWsfIndex] = False
-                self.peakMask[bestWsfIndex-7:bestWsfIndex+7] = False # larger area of indicies to pinpoint false resonator location
+                self.goodPeakMask[bestWsfIndex-7:bestWsfIndex+7] = False # larger area of indicies to pinpoint false resonator location
+                self.badPeakMask[bestWsfIndex-7:bestWsfIndex+7] = False # larger area of indicies to pinpoint false resonator location
                 self.setCountLabel()
                 self.replot()
                 self.writeToGoodFile()
 
             if pressed == "a":
-                if not self.peakMask[bestWsfIndex]:
-                    self.peakMask[bestWsfIndex] = True
+                if not self.goodPeakMask[bestWsfIndex]:
+                    self.goodPeakMask[bestWsfIndex] = True
+                    self.badPeakMask[bestWsfIndex] = False
                     self.setCountLabel()
                     self.replot()
                     self.writeToGoodFile()
+                    self.writeToAllFile()
+           
+            if pressed == "s":
+                if not self.badPeakMask[bestWsfIndex]:
+                    self.badPeakMask[bestWsfIndex] = True
+                    self.goodPeakMask[bestWsfIndex] = False
+                    self.setCountLabel()
+                    self.replot()
+                    self.writeToGoodFile()
+                    self.writeToAllFile()
 
     def replot(self):
             xlim = self.axes.set_xlim()
@@ -256,7 +272,8 @@ class WideAna(QMainWindow):
         #self.wsf.fitSpline(splineS=1.0, splineK=1)
         self.wsf.fitFilter(wn=0.01)
         self.wsf.findPeaks(m=2)
-        self.peakMask = np.zeros(len(self.wsf.x),dtype=np.bool)
+        self.goodPeakMask = np.zeros(len(self.wsf.x),dtype=np.bool)
+        self.badPeakMask = np.zeros(len(self.wsf.x),dtype=np.bool)
         self.collMask = np.zeros(len(self.wsf.x),dtype=np.bool)
         if os.path.isfile(self.baseFile+"-ml.txt"):             # update: use machine learning peak loacations if they've been made
             print 'loading peak location predictions from', self.baseFile+"-ml.txt"
@@ -291,21 +308,33 @@ class WideAna(QMainWindow):
             
         peaks = np.delete(peaks,colls) #remove collisions (peaks < 0.5MHz apart = < 9 steps apart)
         #peaks = np.delete(peaks,np.where(dist<9)) #remove collisions (peaks < 0.5MHz apart = < 9 steps apart)
-        self.peakMask[peaks] = True
+        self.goodPeakMask[peaks] = True
 
         self.setCountLabel()
         self.writeToGoodFile()
 
     def setCountLabel(self):
-        self.countLabel.setText("Number of peaks = %d"%self.peakMask.sum())
+        self.countLabel.setText("Number of good peaks = %d"%self.goodPeakMask.sum())
 
     def writeToGoodFile(self):
         gf = open(self.goodFile,'wb')
-        id = 0
-        for index in range(len(self.peakMask)):
-            if self.peakMask[index]:
+        id = (self.flNum-1)*2000
+        for index in range(len(self.goodPeakMask)):
+            if self.goodPeakMask[index]:
                 line = "%8d %12d %16.7f\n"%(id,index,self.wsf.x[index])
                 gf.write(line)
+                id += 1
+            elif self.badPeakMask[index]:
+                id += 1
+        gf.close()
+
+    def writeToAllFile(self):
+        af = open(self.allFile,'wb')
+        id = (self.flNum-1)*2000
+        for index in range(len(self.goodPeakMask)):
+            if self.goodpeakMask[index] or self.badPeakMask[index]:
+                line = "%8d %12d %16.7f\n"%(id,index,self.wsf.x[index])
+                af.write(line)
                 id += 1
         gf.close()
 
@@ -357,15 +386,21 @@ class WideAna(QMainWindow):
             self.axes.clear()
             self.axes.plot(self.wsf.x, yPlot, label=yName)
 
-            for x in self.wsf.x[self.peakMask]:
+            for x in self.wsf.x[self.goodPeakMask]:
                 if x > self.xMin and x < self.xMax:
-                    self.axes.axvline(x=x,color='r')
-                    self.axes.axvline(x=x+0.00025,color='r',linestyle='-.',linewidth=0.5)
-                    self.axes.axvline(x=x-0.00025,color='r',linestyle='-.',linewidth=0.5)
+                    self.axes.axvline(x=x,color='g')
+                    self.axes.axvline(x=x+0.00025,color='g',linestyle='-.',linewidth=0.5)
+                    self.axes.axvline(x=x-0.00025,color='g',linestyle='-.',linewidth=0.5)
             for c in self.wsf.x[self.collMask]:
                 if c > self.xMin and c < self.xMax:
                     self.axes.axvline(x=c,color='g')
 
+            for x in self.wsf.x[self.badPeakMask]:
+                if x > self.xMin and x < self.xMax:
+                    self.axes.axvline(x=x,color='r')
+                    self.axes.axvline(x=x+0.00025,color='r',linestyle='-.',linewidth=0.5)
+                    self.axes.axvline(x=x-0.00025,color='r',linestyle='-.',linewidth=0.5)
+            
             self.axes.set_xlim((self.xMin,self.xMax))
             self.axes.set_title("segment=%.1f/%.1f"%(self.segment,self.segmentMax))
             self.axes.legend().get_frame().set_alpha(0.5)
@@ -390,17 +425,18 @@ class WideAna(QMainWindow):
         if self.parent == None:
             self.app.exec_()
 
-def main(initialFile=None):
-    form = WideAna(showMe=False,title='WideSweep',initialFile=initialFile)
+def main(initialFile=None, flNum=None):
+    form = WideAna(showMe=False,title='WideSweep',initialFile=initialFile,flNum=flNum)
     form.show()
 
 if __name__ == "__main__":
     initialFile = None
-    if len(sys.argv) > 1:
+    if len(sys.argv) > 2:
         initialFileName = sys.argv[1]
         mdd = os.environ['MKID_DATA_DIR']
         initialFile = os.path.join(mdd,initialFileName)
+        flNum = int(sys.argv[2])
     else:
-        print "need to specify a filename located in MKID_DATA_DIR"
+        print "need to specify a filename located in MKID_DATA_DIR, and a feedline number"
         exit()
-    main(initialFile=initialFile)
+    main(initialFile=initialFile, flNum=flNum)
