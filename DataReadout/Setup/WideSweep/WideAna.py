@@ -376,11 +376,11 @@ class WideAna(QMainWindow):
         ydText = self.yDisplay.text()
         if self.wsf != None:
             if ydText == "raw":
-                yPlot = self.wsf.mag
-                yName = "magnitude"
+                yPlot = 20*np.log10(self.wsf.mag)
+                yName = "log-magnitude"
             else:
                 yPlot = self.wsf.mag-self.wsf.baseline
-                yName = "mag-baseline"
+                yName = "log(mag-baseline)"
             stride = self.wsf.data1.shape[0]/self.segmentMax
             # plot all values and then set xmin and xmax to show this segment
             self.axes.clear()
