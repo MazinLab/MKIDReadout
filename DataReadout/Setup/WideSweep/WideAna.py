@@ -63,8 +63,8 @@ class WideAna(QMainWindow):
                            'spline':{"splineS":1,"splineK":3}}
         self.initialFile = initialFile
         self.baseFile = ('.').join(initialFile.split('.')[:-1])
-        self.goodFile = self.baseFile+"-good.txt"
-        self.allFile = self.baseFile+"-all.txt"
+        self.goodFile = self.baseFile+"-freqs-good.txt"
+        self.allFile = self.baseFile+"-freqs-all.txt"
         if os.path.exists(self.goodFile):
             self.goodFile = self.goodFile+time.strftime("-%Y-%m-%d-%H-%M-%S")
             #shutil.copy(self.goodFile,self.goodFile+time.strftime("-%Y-%m-%d-%H-%M-%S"))
