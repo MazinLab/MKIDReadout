@@ -35,11 +35,11 @@ from LaserControl import LaserControl
 from Telescope import *
 import casperfpga
 from Roach2Controls import Roach2Controls
-from initialBeammap import xyPack,xyUnpack
+#from initialBeammap import xyPack,xyUnpack
 
 class ImageSearcher(QtCore.QObject):     #Extends QObject for use with QThreads
     """
-    This class looks for binary '.img' files spit out by the PacketMaster2 c program on the ramdisk
+    This class looks for binary '.img' files spit out by the PacketMaster c program on the ramdisk
     
     When it finds an image, it grabs the data, parses it into an array, and emits an imageFound signal
     Optionally, it deletes the data on the ramdisk so it doesn't fill up
@@ -54,7 +54,7 @@ class ImageSearcher(QtCore.QObject):     #Extends QObject for use with QThreads
     def __init__(self, path, nCols, nRows, parent=None):
         """
         INPUTS:
-            path - path to the ramdisk where PacketMaster2 places the image files
+            path - path to the ramdisk where PacketMaster places the image files
             nCols - Number of columns in image (for DARKNESS its 80)
             nRows - for DARKNESS its 125
             parent - Leave as None so that we can add to new thread
@@ -223,6 +223,7 @@ class MkidDashboard(QMainWindow):
     def __init__(self, roachNums, configPath=None, observing=False, parent=None):
         """
         INPUTS:
+            roachNums - List of roach numbers to connect with
             configPath - path to configuration file. See ConfigParser doc for making configuration file
             observing - indicates if packetmaster is currently writing data to disk
             parent -
@@ -249,12 +250,14 @@ class MkidDashboard(QMainWindow):
         self.takingFlat = -1                        # Flag for taking flat image. Indicates number of images we still need for flatField image
         
         #Laser Controller
+        print 'Setting up laser control...'
         laserIP=self.config.get('properties','laserIPaddress')
         laserPort=self.config.getint('properties','laserPort')
         laserReceivePort = self.config.getint('properties','laserReceivePort')
         self.laserController = LaserControl(laserIP,laserPort,laserReceivePort)
         
         #telscope TCS connection
+        print 'Setting up telescope connection...'
         telescopeIP=self.config.get('properties','telescopeIPaddress')
         telescopePort=self.config.getint('properties','telescopePort')
         telescopeReceivePort = self.config.getint('properties','telescopeReceivePort')
@@ -262,6 +265,7 @@ class MkidDashboard(QMainWindow):
         self.telescopeWindow = TelescopeWindow(self.telescopeController)
         
         #Setup GUI
+        print 'Setting up GUI...'
         super(QMainWindow, self).__init__(parent)
         self.setWindowTitle(self.config.get('properties','instrument')+' Dashboard')
         self.create_image_widget()
@@ -270,11 +274,13 @@ class MkidDashboard(QMainWindow):
         self.create_menu()  # file menu
         
         #Connect to ROACHES and initialize network port in firmware
+        print 'Connecting roaches and loading beammap...'
         self.connectToRoaches(roachNums)
         self.turnOnPhotonCapture()
         self.loadBeammap()
         
         # Setup search for image files from cuber
+        print 'Setting up image searcher...'
         darkImageSearcher = ImageSearcher(self.config.get('properties','cuber_ramdisk'), self.config.getint('properties','ncols'),self.config.getint('properties','nrows'),parent=None)
         self.workers.append(darkImageSearcher)
         thread = QtCore.QThread(parent=self)
@@ -286,15 +292,14 @@ class MkidDashboard(QMainWindow):
         darkImageSearcher.finished.connect(thread.quit)
         QtCore.QTimer.singleShot(10,self.threadPool[0].start) #start the thread after a second
         
-        '''
-        # Start PacketMaster2
+        # Start PacketMaster3
+        print 'Starting packetmaster3...'
         packetMaster_path=self.config.get('properties','packetMaster_path')
         packetMasterLog_path = self.config.get('properties','packetMasterLog_path')
         #command = "sudo nice -n -10 %s >> %s"%(packetMaster_path, packetMasterLog_path)
         command = "%s >> %s"%(packetMaster_path, packetMasterLog_path)
         print command
-        QtCore.QTimer.singleShot(50,partial(subprocess.Popen,command,shell=True))
-        '''
+        #QtCore.QTimer.singleShot(50,partial(subprocess.Popen,command,shell=True))
         
     def turnOffPhotonCapture(self):
         """
@@ -351,7 +356,46 @@ class MkidDashboard(QMainWindow):
             self.roachList.append(roach)
             
     def loadBeammap(self):
+        """
+        This function loads the beammap into the roach firmware
+        It uses the beammapFile property in the config file
+        If it can't find the beammap file then it loads in the defualt beammap from default_beammap.txt
+        
+        We set self.beammapFailed here for later use. It's a 2D boolean array with the (row,col)=(y,x) 
+        indicating if that pixel is in the beammap or not
+        """
         beammapFN = self.config.get('properties','beammapFile')
+        try:
+            resID, flag, xCoord, yCoord = np.loadtxt(beammapFN, usecols=[0,1,2,3], unpack=True)
+        except IOError:
+            print "Could not find beammap:",beammapFN
+            beammapFN = self.config.get('properties','defaultBeammapFile')
+            resID, flag, xCoord, yCoord = np.loadtxt(beammapFN, usecols=[0,1,2,3], unpack=True)
+            print "Loaded default beammap instead"
+            
+        for roach in self.roachList:
+            freqList = self.config.get('Roach '+str(roach.num),'freqList')
+            resID_roach, freqs, _ = np.loadtxt(freqList,unpack=True)
+            roach.generateResonatorChannels(freqs)
+            freqCh_roach = np.arange(0,len(resID_roach))
+            
+            freqCh = np.ones(len(resID))*-2
+            for i in range(len(resID_roach)):
+                indx = np.where(resID==resID_roach[i])[0][0]
+                freqCh[indx] = freqCh_roach[i]
+            
+            beammapDict = {'resID':resID, 'freqCh':freqCh, 'xCoord':xCoord, 'yCoord':yCoord,'flag':flag}
+            roach.loadBeammapCoords(beammapDict)
+
+        self.beammapFailed = np.ones((self.config.getint('properties','nrows'),self.config.getint('properties','ncols')),dtype=bool)
+        for i in range(len(resID)):
+            self.beammapFailed[int(yCoord[i]),int(xCoord[i])]=(flag[i]!=0)
+        print 'nGoodBeammapped:',self.config.getint('properties','nrows')*self.config.getint('properties','ncols') - np.sum(self.beammapFailed)
+        
+        
+        '''
+        #beammapFN = self.config.get('properties','beammapFile')
+        beammapFN = 'None'
         self.beammapFailed = np.ones((self.config.getint('properties','nrows'),self.config.getint('properties','ncols')),dtype=bool)
         for roach in self.roachList:
             freqList = self.config.get('Roach '+str(roach.num),'freqList')
@@ -390,6 +434,8 @@ class MkidDashboard(QMainWindow):
                 beammapDict = {'freqCh':np.copy(freqCh), 'flag':np.copy(flag), 'x':np.copy(xCoord), 'y':np.copy(yCoord)}
                 roach.loadBeammapCoords(beammapDict = beammapDict)
         print 'nGoodBeammapped:',self.config.getint('properties','nrows')*self.config.getint('properties','ncols') - np.sum(self.beammapFailed)
+        '''
+    
     
     def appendImage(self,image):
         """
@@ -416,7 +462,7 @@ class MkidDashboard(QMainWindow):
         self.takingDark-=1
         if self.takingDark ==0:
             self.takingDark=-1
-            self.darkField=self.darkField/(self.config.getint('properties','num_images_for_dark')*self.config.getfloat('properties','packetmaster2_image_inttime'))
+            self.darkField=self.darkField/(self.config.getint('properties','num_images_for_dark')*self.config.getfloat('properties','packetmaster_image_inttime'))
             self.checkbox_darkImage.setChecked(True)
             self.spinbox_darkImage.setEnabled(True)
         print self.darkField[36,32]
@@ -430,7 +476,7 @@ class MkidDashboard(QMainWindow):
         self.takingFlat-=1
         if self.takingFlat ==0:
             self.takingFlat=-1
-            self.flatField=self.flatField/(self.config.getint('properties','num_images_for_flat')*self.config.getfloat('properties','packetmaster2_image_inttime'))
+            self.flatField=self.flatField/(self.config.getint('properties','num_images_for_flat')*self.config.getfloat('properties','packetmaster_image_inttime'))
             flatAvg=np.mean(self.flatField[np.where(self.flatField>0)])
             zeros = np.where(self.flatField==0)
             minFlat = 1.
@@ -474,9 +520,9 @@ class MkidDashboard(QMainWindow):
         numImages2Sum = self.config.getint('properties','num_images_to_add')
         numImages2Sum = min(numImages2Sum,len(self.imageList))
         image = np.sum(self.imageList[-1*numImages2Sum:],axis=0)
-        image = 1.0*image/(numImages2Sum*self.config.getfloat('properties','packetmaster2_image_intTime'))
-        #minCountCutoff=self.config.getint('properties','min_count_rate')*numImages2Sum/self.config.getfloat('properties','packetmaster2_image_intTime')
-        #maxCountCutoff=self.config.getint('properties','max_count_rate')*numImages2Sum/self.config.getfloat('properties','packetmaster2_image_intTime')
+        image = 1.0*image/(numImages2Sum*self.config.getfloat('properties','packetmaster_image_intTime'))
+        #minCountCutoff=self.config.getint('properties','min_count_rate')*numImages2Sum/self.config.getfloat('properties','packetmaster_image_intTime')
+        #maxCountCutoff=self.config.getint('properties','max_count_rate')*numImages2Sum/self.config.getfloat('properties','packetmaster_image_intTime')
         minCountCutoff=self.config.getint('properties','min_count_rate')
         maxCountCutoff=self.config.getint('properties','max_count_rate')
         logStretch=False
@@ -729,7 +775,7 @@ class MkidDashboard(QMainWindow):
             numImages2Sum = self.config.getint('properties','num_images_to_add')
         numImages2Sum = min(numImages2Sum,len(self.imageList))
         image = np.sum(self.imageList[-1*numImages2Sum:],axis=0)
-        image = image / (numImages2Sum*self.config.getfloat('properties','packetmaster2_image_intTime'))
+        image = image / (numImages2Sum*self.config.getfloat('properties','packetmaster_image_intTime'))
         if applyDark:
             try: image=image-self.darkField
             except: pass
@@ -838,7 +884,7 @@ class MkidDashboard(QMainWindow):
         """
         When we start to observe we have to:
             - switch Firmware into photon collect mode
-            - write START file to RAM disk for PacketMaster2
+            - write START file to RAM disk for PacketMaster
         """
         if not self.observing:
             self.observing=True
@@ -867,7 +913,7 @@ class MkidDashboard(QMainWindow):
     def stopObs(self):
         """
         When we stop observing we need to:
-            - Write QUIT file to RAM disk for PacketMaster2
+            - Write QUIT file to RAM disk for PacketMaster
             - switch Firmware out of photon collect mode
             - Move any log files in the ram disk to the hard disk
         """
@@ -1026,7 +1072,7 @@ class MkidDashboard(QMainWindow):
         # Image settings!
         # integration Time
         integrationTime = self.config.getint('properties','num_images_to_add')
-        image_int_time=self.config.getfloat('properties','packetmaster2_image_inttime')
+        image_int_time=self.config.getfloat('properties','packetmaster_image_inttime')
         max_int_time=self.config.getint('properties','num_images_to_save')
         label_integrationTime = QLabel('int time:')
         spinbox_integrationTime = QSpinBox()

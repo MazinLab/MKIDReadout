@@ -92,7 +92,7 @@ import socket
 import binascii
 from Utils.binTools import castBin  # part of SDR
 from readDict import readDict       #Part of the ARCONS-pipeline/util
-from initialBeammap import xyPack,xyUnpack
+#from initialBeammap import xyPack,xyUnpack
 
 class Roach2Controls:
 
@@ -134,7 +134,7 @@ class Roach2Controls:
             print 'Firmware is not running. Start firmware, calibrate, and load wave into qdr first!'
         else:
             self.fpga.get_system_information()
-            print self.fpga.snapshots
+            #print self.fpga.snapshots
     
     def checkDdsShift(self):
         '''
@@ -1693,7 +1693,38 @@ class Roach2Controls:
         #Q_list2[:-2]=Q_list[2:]
         #Q_list2[-2:]=Q_list[:2]
         return {'I':I_list2, 'Q':Q_list2}
-        
+    
+    
+    
+    def loadBeammapCoords(self,beammapDict):
+        """
+        Load the beammap coordinates x,y corresponding to each frqChannel for each stream
+        INPUTS:
+            beammapDict contains:
+                'resID'  : list of unique resonator IDs     (ignored)
+                'freqCh' : list of freqCh of resonators.    (index in frequency list)
+                'xCoord' : list of x Coordinates
+                'yCoord' : list of y Coords
+                'flag'   : list of flags from beammap code  (ignored)
+        """
+        #resID, flag, xCoord, yCoord = np.loadtxt(beammapFN, usecols=[0,1,2,3])
+        allStreamChannels,allStreams = self.getStreamChannelFromFreqChannel()
+        for stream in np.unique(allStreams):
+            streamChannels = allStreamChannels[np.where(allStreams==stream)]
+            streamCoordBits = []
+            for streamChannel in streamChannels:
+                freqChannel = self.getFreqChannelFromStreamChannel(streamChannel,stream)
+                indx = np.where(np.asarray(beammapDict['freqCh'])==freqChannel)[0]
+                if len(indx)==0:
+                    x=0
+                    y=0
+                else:
+                    x=beammapDict['xCoord'][indx[0]]
+                    y=beammapDict['yCoord'][indx[0]]
+                streamCoordBits.append((int(x) << self.params['nBitsYCoord']) + int(y))
+            streamCoordBits = np.array(streamCoordBits)
+            self.writeBram(memName = self.params['pixelnames_bram'][stream],valuesToWrite = streamCoordBits)
+    '''    
     def loadBeammapCoords(self,beammap=None,initialBeammapDict=None):
         """
         Load the beammap coordinates x,y corresponding to each frqChannel for each stream
@@ -1704,6 +1735,7 @@ class Roach2Controls:
                 'sideband' - either 'pos' or 'neg' indicating whether these frequences are above or below the LO
                 'boardRange' - either 'a' or 'b' indicationg whether this board is assigned to low (a) or high (b) frequencies of a feedline
         """
+
         if beammap is None:
             allStreamChannels,allStreams = self.getStreamChannelFromFreqChannel()
             for stream in np.unique(allStreams):
@@ -1722,6 +1754,7 @@ class Roach2Controls:
 
         else:
             raise ValueError('loading beammaps not implemented yet')
+    '''
 
     def takeAvgIQData(self,numPts=100):
         """

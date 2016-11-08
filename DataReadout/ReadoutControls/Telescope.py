@@ -110,6 +110,7 @@ class Telescope():
     def sendTelescopeCommand(self, command):
         try:
             self.client_socket = socket(AF_INET, SOCK_STREAM) #Set Up the Socket
+            self.client_socket.settimeout(0.2)
             self.client_socket.connect(self.address)
         except:
             print "Connection to TCS failed"
