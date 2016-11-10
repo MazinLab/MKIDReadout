@@ -132,6 +132,7 @@ class StartQt4(QMainWindow):
         self.configData.read_from_file(self.configFileName)
 
         # Extract parameters from config file
+        self.beammapFormatFile = str(self.configData['beammapFormatFile'])
         self.imgFileDirectory = str(self.configData['imgFileDirectory'])
         self.xSweepStartingTimes = np.array(self.configData['xSweepStartingTimes'], dtype=int)
         self.ySweepStartingTimes = np.array(self.configData['ySweepStartingTimes'], dtype=int)
@@ -147,6 +148,10 @@ class StartQt4(QMainWindow):
         self.loadDirectory = str(self.configData['loadDirectory'])
         self.loadDataFilename = str(self.configData['loadDataFilename'])
         self.loadDoublesFilename = str(self.configData['loadDoublesFilename'])
+
+
+        # Extract default beammap info
+        self.pixelID, self.defaultFlag, self.defaultX, self.defaultY = np.loadtxt(self.beammapFormatFile, unpack=True)
 
         # Define number of sweeps
         self.numXSweeps = self.xSweepStartingTimes.size
@@ -194,6 +199,8 @@ class StartQt4(QMainWindow):
 
         # Plot initial data
         self.make_plots()
+        
+        self.update_buttons()
 
 
         # Update pixel number in pixel labels  
@@ -249,10 +256,29 @@ class StartQt4(QMainWindow):
                 xFileData = xFile.read()
                 fmt = 'H'*(len(xFileData)/2)
                 xFile.close()
-                xImage = np.asarray(struct.unpack(fmt,xFileData), dtype=np.int)
+                
+                #xImage=np.fromfile(open(xFileName, mode='rb'),dtype=np.uint16)
+                #xImage = np.transpose(np.reshape(xImage, (self.numCols, self.numRows)))
+                
+                
+                xImage = np.asarray(struct.unpack(fmt,xFileData), dtype=np.int)          
+                #xImage = xImage.reshape((self.numRows,self.numCols))
                 xImage = xImage.reshape((self.numCols,self.numRows)).T
-                xImage = xImage.reshape(self.maximumNumberOfPixels)
-                self.xCube[iXSweep][iXFile] = xImage
+                
+                
+                #plt.matshow(xImage)
+                #plt.show()
+                
+                tempXImage = np.zeros(self.maximumNumberOfPixels)
+                for iPixel in range(self.maximumNumberOfPixels):
+                    tempXImage[iPixel] = xImage[self.defaultY[iPixel], self.defaultX[iPixel]]
+                
+                #tempXImage = xImage[self.defaultY, self.defaultX]
+               
+                
+                #xImage = xImage.reshape(self.maximumNumberOfPixels)
+
+                self.xCube[iXSweep][iXFile] = tempXImage
         self.crx = np.swapaxes(self.xCube,1,2)
                 
         self.yCube = np.zeros(((self.numYSweeps, self.ySweepLength, self.numRows*self.numCols)))
@@ -265,8 +291,14 @@ class StartQt4(QMainWindow):
                 yFile.close()
                 yImage = np.asarray(struct.unpack(fmt,yFileData), dtype=np.int)
                 yImage = yImage.reshape((self.numCols,self.numRows)).T
-                yImage = yImage.reshape(self.maximumNumberOfPixels)
-                self.yCube[iYSweep][iYFile] = yImage
+                
+                tempYImage = np.zeros(self.maximumNumberOfPixels)
+                for iPixel in range(self.maximumNumberOfPixels):
+                    tempYImage[iPixel] = yImage[self.defaultY[iPixel], self.defaultX[iPixel]]
+                
+                #yImage = yImage.reshape(self.maximumNumberOfPixels)
+                                
+                self.yCube[iYSweep][iYFile] = tempYImage
         self.cry = np.swapaxes(self.yCube,1,2)
 
     # Functions to set the fixed peak position when return is pressed
@@ -455,6 +487,9 @@ class StartQt4(QMainWindow):
             # Save medians of all sweeps for each individual pixel timestream.  Use for fitting
             self.cry_median[pixelno] = np.median(np.array(median_array),axis=0)
 
+
+            if np.logical_or(np.sum(self.crx_median[pixelno]) == 0, np.sum(self.cry_median[pixelno]) == 0):
+                self.flagarray[pixelno] = 1
 
 
     def perform_fits(self):

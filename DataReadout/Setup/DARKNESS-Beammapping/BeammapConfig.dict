@@ -1,21 +1,23 @@
-imgFileDirectory = '/home/pszypryt/TestImages/'
+beammapFormatFile = '/mnt/data0/MkidDigitalReadout/DataReadout/Setup/DARKNESS-Beammapping/default_beammap.txt'
 
-xSweepStartingTimes = ['1468185000', '1468185020']
-ySweepStartingTimes = ['1468185010', '1468185030']
+imgFileDirectory = '/mnt/data0/ScienceDataIMGs/20161107/'
 
-xSweepLength = '50'
-ySweepLength = '60'
+xSweepStartingTimes = ['1478650710']
+ySweepStartingTimes = ['1478651080']
 
-pixelStartIndex = '10'
-pixelStopIndex = '32'
+xSweepLength = '337'
+ySweepLength = '539'
 
-outputDirectory = '/home/pszypryt/TestImages/'
-outputFilename = 'Beamlist_FL1.txt'
-doubleFilename = 'Beamlist_FL1_DOUBLES.txt'
+pixelStartIndex = '8000'
+pixelStopIndex = '9999'
 
-loadDirectory = '/home/pszypryt/TestImages/'
-loadDataFilename = 'Beamlist_FL1.txt'
-loadDoublesFilename = 'Beamlist_FL1_DOUBLES.txt'
+outputDirectory = '/mnt/data0/Darkness/20161107/beammaps/'
+outputFilename = 'Beamlist_FL5.txt'
+doubleFilename = 'Beamlist_FL5_DOUBLES.txt'
+
+loadDirectory = '/mnt/data0/Darkness/20161107/beammaps/'
+loadDataFilename = 'Beamlist_FL5.txt'
+loadDoublesFilename = 'Beamlist_FL5_DOUBLES.txt'
 
 numRows = '125'
 numCols = '80'

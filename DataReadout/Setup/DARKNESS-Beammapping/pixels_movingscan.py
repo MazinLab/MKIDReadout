@@ -28,7 +28,8 @@ class StartQt4(QMainWindow):
         self.goodpixtag=np.empty(0,dtype='|S10')
 
         self.xsize=80;
-        self.ysize=25;
+        self.ysize=125;
+        self.pixNumber = self.xsize*self.ysize
         
         self.pscale=10;
         self.xoff=0;
@@ -337,6 +338,10 @@ class StartQt4(QMainWindow):
         self.plot_grid()
         self.ui.pixPlot.canvas.ax.plot(self.xvals[self.mask],self.yvals[self.mask],'b+')
         self.ui.pixPlot.canvas.draw()
+        
+        
+        
+        
 
     def save_process(self):
         print len(self.xvals), 'Total Good Pixels'
@@ -352,10 +357,27 @@ class StartQt4(QMainWindow):
         xpix1=self.xpos1*self.c + self.ypos1*self.s
         ypix1=-1.*self.xpos1*self.s + self.ypos1*self.c
         
+        self.xposAllTransformed = self.xposAll/self.scale[0]
+        self.xposAllTransformed += self.origin[0][0]
+        self.yposAllTransformed = self.yposAll/self.scale[0]
+        self.yposAllTransformed += self.origin[0][1]
+        
+        self.xpixAll = ((self.xposAllTransformed*self.c) + (self.yposAllTransformed)*self.s)
+        self.ypixAll = (-1.*(self.xposAllTransformed)*self.s + (self.yposAllTransformed)*self.c)
+        
         f= open(self.outputFilename,'w')
-        for i in range(len(self.goodpix)):    
+        #for i in range(len(self.goodpix)):  
+        for i in range(self.pixNumber):  
             f= open(self.outputFilename,'a')
-            f.write(str(self.pixelNumber[i]) +'\t' + str(xpix[i]) + '\t' + str(ypix[i]) +'\n')
+            #f.write(str(self.pixelNumber[i]) +'\t' + str(xpix[i]) + '\t' + str(ypix[i]+25) +'\n')
+            if int(self.flag[i]) == 0:
+                f.write(str(int(self.pixelNumberAll[i])) + '\t' + str(int(self.flag[i])) + '\t' + str(self.xpixAll[i]) + '\t' + str(self.ypixAll[i]) + '\n')
+            elif int(self.flag[i]) == 1:
+                f.write(str(int(self.pixelNumberAll[i])) + '\t' + str(int(self.flag[i])) + '\t' + str(999) + '\t' + str(999) + '\n')
+            elif int(self.flag[i]) == 2:
+                f.write(str(int(self.pixelNumberAll[i])) + '\t' + str(int(self.flag[i])) + '\t' + str(self.xpixAll[i]) + '\t' + str(999) + '\n')
+            elif int(self.flag[i]) == 3:
+                f.write(str(int(self.pixelNumberAll[i])) + '\t' + str(int(self.flag[i])) + '\t' + str(999) + '\t' + str(self.ypixAll[i]) + '\n')
             f.close()
 
         print 'Number of Doubles:' + str(self.xpost0.size)
