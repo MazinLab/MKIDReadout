@@ -1699,6 +1699,10 @@ class Roach2Controls:
     def loadBeammapCoords(self,beammapDict):
         """
         Load the beammap coordinates x,y corresponding to each frqChannel for each stream
+        
+        NOTE: we don't need to worry about loading in positions to empty stream/channel 
+			  positions since they won't trigger on photons. (no probe; dds tone is zeros; filter is zeros)
+        
         INPUTS:
             beammapDict contains:
                 'resID'  : list of unique resonator IDs     (ignored)
@@ -1707,7 +1711,7 @@ class Roach2Controls:
                 'yCoord' : list of y Coords
                 'flag'   : list of flags from beammap code  (ignored)
         """
-        #resID, flag, xCoord, yCoord = np.loadtxt(beammapFN, usecols=[0,1,2,3])
+        
         allStreamChannels,allStreams = self.getStreamChannelFromFreqChannel()
         for stream in np.unique(allStreams):
             streamChannels = allStreamChannels[np.where(allStreams==stream)]
@@ -1716,8 +1720,10 @@ class Roach2Controls:
                 freqChannel = self.getFreqChannelFromStreamChannel(streamChannel,stream)
                 indx = np.where(np.asarray(beammapDict['freqCh'])==freqChannel)[0]
                 if len(indx)==0:
-                    x=0
-                    y=0
+					# If a resonator is being probed but isn't mentioned in the beammap file
+					# This shouldn't happen since all 10000 pixels should be in the beammap...
+                    x=2**self.params['nBitsXCoord'] - 1
+                    y=2**self.params['nBitsYCoord'] - 1
                 else:
                     x=beammapDict['xCoord'][indx[0]]
                     y=beammapDict['yCoord'][indx[0]]
