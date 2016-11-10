@@ -1,5 +1,5 @@
-masterPositionList = '/home/pszypryt/TestImages/Beamlist_FL1.txt'
-masterDoublesList = '/home/pszypryt/TestImages/Beamlist_FL1_DOUBLES.txt'
+masterPositionList = '/mnt/data0/Darkness/20161107/beammaps/Beamlist_Master.txt'
+masterDoublesList = '/mnt/data0/Darkness/20161107/beammaps/Beamlist_Master_Doubles.txt'
 
-outputFilename = '/home/pszypryt/TestImages/RawMap.txt'
-outputDoubleName = '/home/pszypryt/TestImages/RawMap_DOUBLES.txt'
+outputFilename = '/mnt/data0/Darkness/20161107/beammaps/RawMap.txt'
+outputDoubleName = '/mnt/data0/Darkness/20161107/beammaps/RawMap_DOUBLES.txt'
