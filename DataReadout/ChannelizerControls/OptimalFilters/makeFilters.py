@@ -6,7 +6,7 @@ import makeNoiseSpectrum as noise
 import makeArtificialData as mAD
 import makeTemplate as mkt
 
-def makeMatchedFilter(template, noiseSpectrum, nTaps=50, tempOffs=90):
+def makeMatchedFilter(template, noiseSpectrum, nTaps=50, tempOffs=95):
     '''
     Make a matched filter using a template and noise PSD
     INPUTS:
@@ -29,7 +29,7 @@ def makeMatchedFilter(template, noiseSpectrum, nTaps=50, tempOffs=90):
     
     return matchedFilt
 
-def makeSuperMatchedFilter(template, noiseSpectrum, fallTime, nTaps=50, tempOffs=90,sampleRate=1e6):
+def makeSuperMatchedFilter(template, noiseSpectrum, fallTime, nTaps=50, tempOffs=95,sampleRate=1e6):
     '''
     Make a matched filter that is robust against pulse pileup using prescription from
     Alpert 2013 Rev. of Sci. Inst. 84

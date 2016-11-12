@@ -5,6 +5,7 @@ import scipy.optimize as opt
 from baselineIIR import IirFilter
 import makeNoiseSpectrum as mNS
 import makeArtificialData as mAD
+import warnings
 
 def makeTemplate(rawData, numOffsCorrIters=1 , decayTime=50, nSigmaTrig=4., isVerbose=False, isPlot=False,sigPass=1):
     '''
@@ -104,7 +105,7 @@ def sigmaTrigger(data,nSigmaTrig=5.,deadTime=200,decayTime=30,isVerbose=False):
                 peakData = data[p:p+decayTime]
             else:
                 peakData = data[p:]
-            peakMaxIndices = np.append(peakMaxIndices, np.argmax(np.abs(peakData))+p)
+            peakMaxIndices = np.append(peakMaxIndices, np.argmax(np.abs(peakData))+int(p))
                             
             i+=1
             if i < len(peakIndices):
@@ -147,7 +148,7 @@ def cutPulsePileup(peakIndices, nPointsBefore= 100, nPointsAfter = 700 , decayTi
     #check that no peaks are near current peak and then add to new indices variable
     for iPeak, peakIndex in enumerate(peakIndices):
         if np.min(np.abs(peakIndices[np.arange(len(peakIndices))!=iPeak]-peakIndex))>window:
-            newPeakIndices=np.append(newPeakIndices,peakIndex)
+            newPeakIndices=np.append(newPeakIndices,int(peakIndex))
 
     if len(newPeakIndices)==0:
         raise ValueError('cutPulsePileup: no pulses passed the pileup cut')       
@@ -159,14 +160,14 @@ def cutPulsePileup(peakIndices, nPointsBefore= 100, nPointsAfter = 700 , decayTi
 
 def cutChiSquared(data,peakIndices,sigPass=1, decayTime=50, nPointsBefore= 100, nPointsAfter=700, isVerbose=False, isPlot=False):   
     '''
-    Removes a fraction of pulses (1-fPass) with the worst Chi Squared fit to 
+    Removes a fraction of pulses with the worst Chi Squared fit to 
     the exponential tail. This should remove any triggers that don't look like 
     pulses. Currently not optimized to fit in the frequency domain.
     
     INPUTS:
     data - raw phase timestream
     peakIndices - list of pulse positions
-    fPass - fraction of pulses selected to pass the cut
+    sigPass - fraction of pulses selected to pass the cut
     decayTime - expected pulse decay time (units: ticks)
     nPointsBefore - number of points before peakIndex included in template
     nPointsAfter - number of points after peakIndex included in template
@@ -182,7 +183,9 @@ def cutChiSquared(data,peakIndices,sigPass=1, decayTime=50, nPointsBefore= 100, 
         currentData=data[peakIndex+int(decayTime/2):peakIndex+nPointsAfter]
         ampGuess=currentData[np.argmax(np.abs(currentData))]
         try:
+            warnings.filterwarnings("ignore")
             expCoef, _ = opt.curve_fit(lambda t, a, tau: a*np.exp(-t/tau) , time, currentData , [ampGuess, decayTime] )
+            warnings.filterwarnings("default")
             ampFit=expCoef[0]
             decayFit=expCoef[1]
             chiSquared[iPeak]=np.sum((currentData-ampFit*np.exp(-time/decayFit))**2)
@@ -196,7 +199,7 @@ def cutChiSquared(data,peakIndices,sigPass=1, decayTime=50, nPointsBefore= 100, 
     newChiSquared=np.array([])
     for iPeak, peakIndex in enumerate(peakIndices):
         if np.abs(chiSquared[iPeak]-chi2Median)<sigPass*chi2Sig:
-            newPeakIndices=np.append(newPeakIndices,peakIndex)
+            newPeakIndices=np.append(newPeakIndices,int(peakIndex))
             newChiSquared=np.append(newChiSquared,chiSquared[iPeak])
             
     
@@ -249,12 +252,13 @@ def averagePulses(data, peakIndices, isoffset=False, nPointsBefore=100, nPointsA
     numPeaks = 0
     template=np.zeros(nPointsBefore+nPointsAfter)
     for iPeak,peakIndex in enumerate(peakIndices):
+        peakIndex=int(peakIndex)
         if peakIndex >= nPointsBefore and peakIndex < len(data)-nPointsAfter:
-            peakRecord = data[peakIndex-nPointsBefore:peakIndex+nPointsAfter]
-            peakData = data[peakIndex-decayTime:peakIndex+decayTime]
+            peakRecord = data[int(peakIndex-nPointsBefore):int(peakIndex+nPointsAfter)]
+            peakData = data[int(peakIndex-decayTime):int(peakIndex+decayTime)]
             
             if isoffset:
-                peakRecord/=np.abs(data[peakIndex])
+                peakRecord/=np.abs(data[int(peakIndex)])
             else:
                 peakHeight = np.max(np.abs(peakData))
                 peakRecord /= peakHeight
@@ -308,7 +312,7 @@ def correctPeakOffs(data, peakIndices, noiseSpectDict, template, filterType, off
     #   maximizes the pulse amplitude after application of the filter
     for iPeak,peakIndex in enumerate(peakIndices):
         if peakIndex > nPointsBefore-np.min(offsets) and peakIndex < len(data)-(nPointsAfter+np.max(offsets)):
-            peakRecord = data[peakIndex-nPointsBefore:peakIndex+nPointsAfter]
+            peakRecord = data[int(peakIndex-nPointsBefore):int(peakIndex+nPointsAfter)]
             peakRecord = peakRecord / np.max(np.abs(peakRecord))
             #check which time shifted filter results in the biggest signal
             peakRecordFft = np.fft.fft(peakRecord)/nPointsTotal
@@ -316,7 +320,7 @@ def correctPeakOffs(data, peakIndices, noiseSpectDict, template, filterType, off
             bestOffsetIndex = np.argmax(convSums)
             bestConvSum = convSums[bestOffsetIndex]
             bestOffset = offsets[bestOffsetIndex]
-            newPeakIndices=np.append(newPeakIndices, peakIndex+bestOffset)
+            newPeakIndices=np.append(newPeakIndices, int(peakIndex+bestOffset))
 
     return newPeakIndices
     
