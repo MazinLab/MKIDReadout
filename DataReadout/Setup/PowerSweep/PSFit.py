@@ -70,6 +70,10 @@ class StartQt4(QMainWindow):
         self.Res1.LoadPowers(str(self.openfile), 'r0', self.freq[self.resnum])
         self.ui.res_num.setText(str(self.resnum))
         self.resfreq = self.freq[self.resnum]
+        
+        ###THIS IS WHERE WE NEED TO CHANGE IDS TO self.id from what's in H5
+        self.id = self.resnum
+        
         self.ui.frequency.setText(str(self.resfreq))
         self.NAttens = len(self.Res1.atten1s)
         self.res1_iq_vels=numpy.zeros((self.NAttens,self.Res1.fsteps-1))
@@ -172,6 +176,8 @@ class StartQt4(QMainWindow):
         self.select_freq(guess)
 
     def loadps(self):
+        #### IN HERE NEED TO ADD LOADING OF ID FIELD FROM PS
+    
         hd5file=openFile(str(self.openfile),mode='r')
         group = hd5file.getNode('/','r0')
         self.freq=empty(0,dtype='float32')
@@ -183,6 +189,7 @@ class StartQt4(QMainWindow):
         #self.freqList = np.zeros(len(k['f0']))
         #self.attenList = np.zeros(len(self.freqList)) - 1
         self.freqList = np.zeros(2000)
+        self.idList = np.zeros(len(self.freqList)) - 1
         self.attenList = np.zeros(len(self.freqList)) - 1
         hd5file.close()
         self.loadres()
@@ -298,9 +305,11 @@ class StartQt4(QMainWindow):
         #    self.f.close()
         #Icen=0
         #Qcen=0
+        
+        self.idList[self.resnum] = self.id
         self.freqList[self.resnum] = self.resfreq
         self.attenList[self.resnum] = self.atten
-        data = np.transpose([self.freqList[np.where(self.attenList >=0)], self.attenList[np.where(self.attenList >=0)]])
+        data = np.transpose([self.idList[np.where(self.attenList >=0)], self.freqList[np.where(self.attenList >=0)], self.attenList[np.where(self.attenList >=0)]])
         
         print data
         
@@ -314,22 +323,37 @@ class StartQt4(QMainWindow):
             #notDuplicates = np.where(np.in1d(dataCurrent[:,0], data[:,0],invert=True))      # freqs aren't duplicated at these indices
             #dataCurrent = dataCurrent[notDuplicates,:]
             
-            #remove doubles
-            doubleThreshold = 0.1e6     # 100 kHz
-            closestIdx = [(np.abs(data[:,0] - i)).argmin() for i in dataCurrent[:,0]]
-            notDoubles = np.where(np.abs(dataCurrent[:,0] - data[closestIdx,0]) > doubleThreshold)[0]
-            dataCurrent = dataCurrent[notDoubles,:]
+            #remove doubles based on freq
+            #doubleThreshold = 0.05e6     # 100 kHz
+            #closestIdx = [(np.abs(data[:,1] - i)).argmin() for i in dataCurrent[:,1]]
+            #notDoubles = np.where(np.abs(dataCurrent[:,1] - data[closestIdx,1]) > doubleThreshold)[0]
+            #dataCurrent = dataCurrent[notDoubles,:]
+
+            #remove doubles based on ID (seems to be bug in code that writes some lines twice)
+            #doubleThreshold = 0.1e6
+            #closestIdx = [(np.abs(data[:,0] - i)).argmin() for i in dataCurrent[:,0]]
+            #notDoubles = np.where(np.abs(dataCurrent[:,0] - data[closestIdx,0]) > doubleThreshold)[0]
+            #dataCurrent = dataCurrent[notDoubles,:]
 
             print dataCurrent
 
             dataNew = np.append(dataCurrent,data,axis=0)
             
+            #sort the frequencies and remove duplicate IDs
+            ids = np.copy(dataNew[:,0][::-1])
+            freqs = np.copy(dataNew[:,1][::-1])
+            attens = np.copy(dataNew[:,2][::-1])
+            newIDs, indx = np.unique(ids, return_index=True)
+            newFreqs = freqs[indx]
+            newAttens = attens[indx]
             
             #sort the frequencies
-            freqs = np.copy(dataNew[:,0][::-1])
-            attens = np.copy(dataNew[:,1][::-1])
-            newFreqs, indx = np.unique(freqs, return_index=True)
-            newAttens = attens[indx]
+            #ids = np.copy(dataNew[:,0][::-1])
+            #freqs = np.copy(dataNew[:,1][::-1])
+            #attens = np.copy(dataNew[:,2][::-1])
+            #newFreqs, indx = np.unique(freqs, return_index=True)
+            #newIDs = ids[indx]
+            #newAttens = attens[indx]
             
             '''
             #Remove any doubles
@@ -341,18 +365,18 @@ class StartQt4(QMainWindow):
             newAttens = newAttens[notDoubles]
             '''
             
-            data = np.transpose([newFreqs,newAttens])
+            data = np.transpose([newIDs,newFreqs,newAttens])
         except IOError:
             print 'IOError'
             pass
         
-        np.savetxt(str(self.savefile), data, "%10.9e %4i")
+        np.savetxt(str(self.savefile), data, "%6i %10.9e %4i")
         
         #self.f = open(str(self.savefile), 'a')
         #self.f.write(str(self.resfreq)+'\t'+str(Icen)+'\t'+str(Qcen)+'\t'+str(self.atten)+'\n')
         #self.f.write(str(self.resfreq)+'\t'+str(self.atten)+'\n')
         #self.f.close()
-        print " ....... Saved to file:  resnum=",self.resnum," resfreq=",self.resfreq," atten=",self.atten
+        print " ....... Saved to file:  resnum=",self.resnum," resID=",self.id, " resfreq=",self.resfreq," atten=",self.atten
         self.resnum += 1
         self.atten = -1
         self.loadres()
