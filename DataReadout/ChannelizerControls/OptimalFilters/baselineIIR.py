@@ -5,10 +5,10 @@ import csv
 import matplotlib.pyplot as plt
 
 class IirFilter:
-    def __init__(self,criticalFreqHz=100,sampleFreqHz=1e6,order=2,btype='lowpass',numCoeffs=None,denomCoeffs=None,zeros=None,poles=None,gain=None):
+    def __init__(self,criticalFreqHz=100,sampleFreqHz=1e6,order=2,btype='lowpass',numCoeffs=[],denomCoeffs=[],zeros=[],poles=[],gain=[]):
         self.sampleFreqHz = sampleFreqHz
         self.nyquistFreqHz = sampleFreqHz / 2.
-        if numCoeffs == None and zeros == None and poles == None:
+        if numCoeffs == [] and zeros == [] and poles == []:
             self.criticalFreqHz = criticalFreqHz
             self.order = order
             self.criticalW = criticalFreqHz/self.nyquistFreqHz
@@ -16,7 +16,7 @@ class IirFilter:
             self.btype = btype
             self.numCoeffs,self.denomCoeffs = scipy.signal.iirfilter(self.order,self.criticalW,btype=self.btype,ftype=self.ftype,output='ba')
             self.zeros,self.poles,self.gain = scipy.signal.iirfilter(self.order,self.criticalW,btype=self.btype,ftype=self.ftype,output='zpk')
-        elif numCoeffs != None:
+        elif numCoeffs != []:
             self.order = len(denomCoeffs)
             self.numCoeffs = numCoeffs
             self.denomCoeffs = denomCoeffs
@@ -38,9 +38,9 @@ class IirFilter:
         filteredData = scipy.signal.lfilter(self.numCoeffs,self.denomCoeffs,data)
         return filteredData
 
-    def plotFreqResponse(self,ax=None,showMe=True,label=None,**kwargs):
+    def plotFreqResponse(self,ax=[],showMe=True,label=[],**kwargs):
         freqRespDict = self.freqResp(**kwargs)
-        if ax == None:
+        if ax == []:
             fig,ax = plt.subplots(1,1)
         ax.plot(freqRespDict['sampledFreqsHz'] / 1.e3,freqRespDict['freqRespDb'],label=label)
         ax.set_xlabel('freq (kHz)')
