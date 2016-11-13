@@ -1345,12 +1345,13 @@ class Roach2Controls:
         negDerivCond = negDerivCheckSum >= nNegDerivChecks - nNegDerivLeniance
         
         posDerivCheckSum = np.zeros(len(isPosDeriv[0:-nPosDerivChecks-1]))
-        for i in range(nPosDerivChecks)
+        for i in range(nPosDerivChecks):
             posDerivCheckSum += isPosDeriv[i:i-nPosDerivChecks-1]
         posDerivCond = posDeriveCheckSum >= nPosDerivChecks
-        posDerivCond = np.delete(posDerivCond, np.arange(0,nNegDerivChecks) #align with other conditions
+        posDerivCond = np.delete(posDerivCond, np.arange(0,nNegDerivChecks)) #align with other conditions
         
-        trigger = np.logical_and(threshCond, negDerivCond, posDerivCond)
+        trigger = np.logical_and(threshCond, negDerivCond)
+        trigger = np.logical_and(trigger, posDerivCond)
         trigger = np.pad(trigger, (nNegDerivChecks,0), 'constant') 
         trigger = np.pad(trigger, (0, len(phaseData)-len(trigger)), 'constant')
         return trigger
