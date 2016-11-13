@@ -70,8 +70,10 @@ class RoachPhaseStreamWindow(QMainWindow):
         """
         freqs = self.roach.roachController.freqList
         ch=self.spinbox_channel.value()
+        resID = self.roach.roachController.resIDs[ch]
         
         self.spinbox_channel.setRange(0,len(freqs)-1)
+        self.label_resID.setText('ResID: '+str(int(resID)))
         self.label_freq.setText('Freq: '+str(freqs[ch]/1.e9)+' GHz')
         
         if len(self.snapDataList)!=len(freqs):
@@ -304,9 +306,13 @@ class RoachPhaseStreamWindow(QMainWindow):
         self.spinbox_channel.valueChanged.connect(lambda x: self.initFreqs())
         self.spinbox_channel.valueChanged.connect(lambda x: self.initThresh())
         
+        self.label_resID = QLabel('ResID: ')
+        self.label_resID.setMinimumWidth(60)
+        self.label_resID.setMaximumWidth(60)
+        
         self.label_freq = QLabel('Freq: 0 GHz')
-        self.label_freq.setMinimumWidth(150)
-        self.label_freq.setMaximumWidth(150)
+        self.label_freq.setMinimumWidth(140)
+        self.label_freq.setMaximumWidth(140)
         self.label_thresh = QLabel('Thresh: 0 deg')
         self.label_thresh.setMinimumWidth(100)
         self.label_thresh.setMaximumWidth(100)
@@ -374,6 +380,8 @@ class RoachPhaseStreamWindow(QMainWindow):
         hbox_ch = QHBoxLayout()
         hbox_ch.addWidget(label_channel)
         hbox_ch.addWidget(self.spinbox_channel)
+        hbox_ch.addWidget(self.label_resID)
+        hbox_ch.addSpacing(5)
         hbox_ch.addWidget(self.label_freq)
         hbox_ch.addWidget(self.label_thresh)
         hbox_ch.addWidget(self.label_median)
@@ -586,6 +594,7 @@ class RoachSweepWindow(QMainWindow):
         else:
             self.label_modifyFlag.hide()
         
+        resIDs = self.roach.roachController.resIDs
         freqs = self.roach.roachController.freqList
         attens = self.roach.roachController.attenList
         try: lofreq = self.roach.roachController.LOFreq
@@ -601,7 +610,7 @@ class RoachSweepWindow(QMainWindow):
             self.label_freq.setText('Freq: '+str(freqs[ch]/1.e9)+' GHz')
         
         self.spinbox_channel.setRange(0,len(freqs)-1)
-        
+        self.label_resID.setText('resID: '+str(int(resIDs[ch])))
         self.label_atten.setText('Atten: '+str(attens[ch])+' dB')
         self.label_lofreq.setText('LO Freq: '+str(lofreq/1.e9)+' GHz')
         
@@ -880,11 +889,19 @@ class RoachSweepWindow(QMainWindow):
         self.spinbox_channel.valueChanged.connect(lambda x: self.plotData())
         self.spinbox_channel.valueChanged.connect(lambda x: self.initFreqs(False))
         
+        self.label_resID = QLabel('ResID: ')
+        self.label_resID.setMinimumWidth(60)
+        self.label_resID.setMaximumWidth(60)
+        
         self.label_freq = QLabel('Freq: 0 GHz')
-        self.label_freq.setMinimumWidth(170)
-        self.label_freq.setMaximumWidth(170)
+        self.label_freq.setMinimumWidth(175)
+        self.label_freq.setMaximumWidth(175)
         self.label_atten = QLabel('Atten: 0 dB')
+        self.label_atten.setMinimumWidth(80)
+        self.label_atten.setMaximumWidth(80)
         self.label_lofreq = QLabel('LO Freq: 0 GHz')
+        self.label_lofreq.setMinimumWidth(150)
+        self.label_lofreq.setMaximumWidth(150)
         
         label_num2Plot = QLabel('Num Plots:')
         spinbox_num2Plot = QSpinBox()
@@ -1039,11 +1056,12 @@ class RoachSweepWindow(QMainWindow):
         hbox_res = QHBoxLayout()
         hbox_res.addWidget(label_channel)
         hbox_res.addWidget(self.spinbox_channel)
-        hbox_res.addSpacing(20)
+        hbox_res.addWidget(self.label_resID)
+        hbox_res.addSpacing(5)
         hbox_res.addWidget(self.label_freq)
         hbox_res.addWidget(self.label_atten)
         hbox_res.addWidget(self.label_lofreq)
-        hbox_res.addSpacing(20)
+        hbox_res.addSpacing(5)
         hbox_res.addWidget(label_num2Plot)
         hbox_res.addWidget(spinbox_num2Plot)
         hbox_res.addStretch()
@@ -1052,6 +1070,7 @@ class RoachSweepWindow(QMainWindow):
         hbox_modifyRes.addWidget(label_modify)
         hbox_modifyRes.addWidget(label_modifyFreq)
         hbox_modifyRes.addWidget(self.textbox_modifyFreq)
+        hbox_modifyRes.addSpacing(5)
         hbox_modifyRes.addWidget(label_modifyAtten)
         hbox_modifyRes.addWidget(self.spinbox_modifyAtten)
         hbox_modifyRes.addWidget(self.button_modifyRes)
