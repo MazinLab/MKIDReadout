@@ -206,11 +206,13 @@ class RoachPhaseStreamWindow(QMainWindow):
             #print np.where(np.asarray(snapDict['time']))
             #print np.where(np.asarray(snapDict['time'])>0)
             trig=np.asarray(snapDict['trig'])
+            swTrig=np.asarray(snapDict['swTrig'])
             data*=180./np.pi
             fmt = 'b.-'
             self.ax2.plot(t, data, fmt,**kwargs)
             print 'nPhotons: ',np.sum(trig)
             self.ax2.plot(t[np.where(trig)], data[np.where(trig)], 'ro')
+            self.ax2.plot(t[np.where(swTrig)], data[np.where(swTrig)], 'go')
             median=np.median(data)
             self.label_median.setText('Median: '+str(median)+' deg')
             self.ax2.axhline(y=median,color='k')

@@ -125,6 +125,7 @@ class Roach2Controls:
         self.ddsFreqPadValue = -1   # 
         self.v7_ready = 0
         self.lut_dump_buffer_size = self.params['lut_dump_buffer_size']
+        self.thresholdList = np.zeros(1024)
     
     def connect(self):
         self.fpga = casperfpga.katcp_fpga.KatcpFpga(self.ip,timeout=3.)
@@ -1173,6 +1174,7 @@ class Roach2Controls:
         """
         #ch, stream = self.freqChannelToStreamChannel(freqChannel)
         ch, stream = self.getStreamChannelFromFreqChannel(freqChannel)
+        self.thresholdList[ch+(stream<<8)] = thresholdRad
         self.setThresh(thresholdRad = thresholdRad,ch=int(ch), stream=int(stream))
     
     def setThresh(self,thresholdRad = -.1,ch=0,stream=0):
@@ -1311,7 +1313,48 @@ class Roach2Controls:
         snapDict['trig']=trig
         dt=self.params['nChannelsPerStream']/self.params['fpgaClockRate']
         snapDict['time']=dt*np.arange(len(trig))
+        snapDict['swTrig']=self.calcSWTriggers(selChanIndex, snapDict['phase'])
         return snapDict
+
+    def calcSWTriggers(self, selChanIndex, phaseData, nNegDerivChecks=10, nNegDerivLeniance=1, nPosDerivChecks=2):
+        """
+        Triggers on  photons in phase snapshots. 
+        Trigger conditions (should match firmware):
+            -nNegDeriveChecks-nNegDeriveLeniance/nNegDeriveChecks negative slopes, 
+                followed by nPosDeriveChecks positive slopes
+            -<threshold (b/c pulses are negative)
+        
+        INPUTS:
+            selChanIndex: channel to take data from
+            phaseData: array containing phase from snapshot, in radians
+            nNegDeriveChecks, nNegDerivLeniance, nPosDeriveChecks are explained above
+        
+        OUTPUTS:
+            trigPos: array of size len(phaseData), w/ a 1
+            at photon trigger positions
+        """
+        phaseDeriv = np.diff(phaseData)
+        isNegDeriv = phaseDeriv <= 0
+        isPosDeriv = phaseDeriv > 0
+        threshCond = phaseData > self.thresholdList[selChanIndex]
+        threshCond = np.delete(meetsThresh,np.arange(0,nNegDerivChecks)) #align this condition with derivatives
+        
+        negDerivChecksSum = np.zeros(len(isNegDeriv[0:-nNegDerivChecks-1]))
+        for i in range(nNegDerivChecks):
+            negDerivChecksSum += isNegDeriv[i:i-nNegDerivChecks-1]
+        negDerivCond = negDerivCheckSum >= nNegDerivChecks - nNegDerivLeniance
+        
+        posDerivCheckSum = np.zeros(len(isPosDeriv[0:-nPosDerivChecks-1]))
+        for i in range(nPosDerivChecks)
+            posDerivCheckSum += isPosDeriv[i:i-nPosDerivChecks-1]
+        posDerivCond = posDeriveCheckSum >= nPosDerivChecks
+        posDerivCond = np.delete(posDerivCond, np.arange(0,nNegDerivChecks) #align with other conditions
+        
+        trigger = np.logical_and(threshCond, negDerivCond, posDerivCond)
+        trigger = np.pad(trigger, (nNegDerivChecks,0), 'constant') 
+        trigger = np.pad(trigger, (0, len(phaseData)-len(trigger)), 'constant')
+        return trigger
+
 
     #def startPhaseStream(self,selChanIndex=0, pktsPerFrame=100, fabric_port=50000, destIPID=50):
     def startPhaseStream(self,selChanIndex=0, pktsPerFrame=100, fabric_port=50000, hostIP='10.0.0.50'):
