@@ -89,7 +89,7 @@ class RoachPhaseStreamWindow(QMainWindow):
         try:
             ch=self.spinbox_channel.value()
             #thresh = self.roach.roachController.thresholds[ch]
-            thresh = self.thresholdDataList[ch]
+            thresh = np.round(self.thresholdDataList[ch],4)
             self.label_thresh.setText('Threshold: '+str(thresh)+' deg')
             self.plotSnap()
         except:
@@ -160,6 +160,9 @@ class RoachPhaseStreamWindow(QMainWindow):
             self.line1.set_data([],[])    
     
     def phaseTimeStreamAllChannels(self):
+        """
+        Loops through 
+        """
         timelen = self.config.getfloat('Roach '+str(self.roachNum),'longsnaptime')
         for ch in range(len(self.roach.roachController.freqList)):
         #for ch in range(5):
@@ -181,6 +184,10 @@ class RoachPhaseStreamWindow(QMainWindow):
         self.phaseTimestreamClicked.emit()
         
     def plotSnap(self,ch=None, data=None,**kwargs):
+        """
+        This function executes when the roachStateMachine object emits a snapPhase signal with new data.
+        We also execute without new data when switching channels so we can replot the correct snap (if it exists)
+        """
         self.spinbox_channel.setEnabled(False)
         currentCh = self.spinbox_channel.value()
         if ch is None: ch=currentCh
@@ -192,10 +199,19 @@ class RoachPhaseStreamWindow(QMainWindow):
         self.spinbox_channel.setEnabled(True)
     
     def appendSnapData(self,ch,data):
+        """
+        This function is called when plotSnap() is executed by the RoachStateMachine signal with new snap data
+        """
         self.snapDataList[ch]=data
 
     
     def makeSnapPlot(self,**kwargs):
+        """
+        This function actually changes the plot.
+        You can pass plot arguments through kwargs but we don't at the moment
+        
+        NOTE: snapDict['trig'] only contains firmware trigger data from stream 0
+        """
         ch = self.spinbox_channel.value()
         self.ax2.clear()
         if self.snapDataList[ch] is not None:
@@ -210,10 +226,12 @@ class RoachPhaseStreamWindow(QMainWindow):
             data*=180./np.pi
             fmt = 'b.-'
             self.ax2.plot(t, data, fmt,**kwargs)
-            print 'nPhotons: ',np.sum(trig)
-            self.ax2.plot(t[np.where(trig)], data[np.where(trig)], 'ro')
+            _, stream = self.roach.roachController.getStreamChannelFromFreqChannel(ch)
+            if stream[0]==0:
+                print 'nPhotons: ',np.sum(trig)
+                self.ax2.plot(t[np.where(trig)], data[np.where(trig)], 'ro')
             self.ax2.plot(t[np.where(swTrig)], data[np.where(swTrig)], 'go')
-            median=np.median(data)
+            median=np.round(np.median(data),4)
             self.label_median.setText('Median: '+str(median)+' deg')
             self.ax2.axhline(y=median,color='k')
             try:
@@ -244,7 +262,7 @@ class RoachPhaseStreamWindow(QMainWindow):
             The roach thread automatically starts executing any needed commands in it's queue (ie. loadFreq, DefineLUT, etc..)
             When the commands are done executing it executes anything waiting for the thread event loop (ie. getPhaseFromSnap())
             getPhaseFromSnap() runs on the RoachStateMachine object and when done emits a snapPhase signal with the data
-            This window object sees that signal and updates the plot
+            This window object sees that signal and updates the plot with plotSnap()
         """
         ch=self.spinbox_channel.value()
         QtCore.QMetaObject.invokeMethod(self.roach, 'getPhaseFromSnap', Qt.QueuedConnection,
@@ -290,9 +308,11 @@ class RoachPhaseStreamWindow(QMainWindow):
         self.label_freq.setMinimumWidth(150)
         self.label_freq.setMaximumWidth(150)
         self.label_thresh = QLabel('Thresh: 0 deg')
-        self.label_thresh.setMinimumWidth(150)
-        self.label_thresh.setMaximumWidth(150)
+        self.label_thresh.setMinimumWidth(100)
+        self.label_thresh.setMaximumWidth(100)
         self.label_median = QLabel('Median: 0 deg')
+        self.label_median.setMinimumWidth(100)
+        self.label_median.setMaximumWidth(100)
         
         button_snapPhase = QPushButton("Phase Snapshot")
         button_snapPhase.setEnabled(True)
@@ -382,6 +402,9 @@ class RoachPhaseStreamWindow(QMainWindow):
         self.setCentralWidget(self.main_frame)
     
     def draw(self):
+        """
+        The plot window calls this function
+        """
         #print 'r'+str(self.roachNum)+' drawing data - '+str(self.counter)
         self.canvas.draw()
         self.canvas.flush_events()
@@ -400,6 +423,9 @@ class RoachPhaseStreamWindow(QMainWindow):
         print 'setting ',settingID,' to ',newSetting
     
     def closeEvent(self, event):
+        """
+        When you try to close the window it just hides it instead so that all the internal variables are saved
+        """
         if self._want_to_close:
             event.accept()
             self.close()

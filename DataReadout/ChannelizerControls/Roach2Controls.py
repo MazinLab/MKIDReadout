@@ -1313,12 +1313,13 @@ class Roach2Controls:
         snapDict['trig']=trig
         dt=self.params['nChannelsPerStream']/self.params['fpgaClockRate']
         snapDict['time']=dt*np.arange(len(trig))
-        snapDict['swTrig']=self.calcSWTriggers(selChanIndex, snapDict['phase'])
+        #snapDict['swTrig']=self.calcSWTriggers(selChanIndex, snapDict['phase'])
+        snapDict['swTrig']=snapDict['trig']
         return snapDict
 
     def calcSWTriggers(self, selChanIndex, phaseData, nNegDerivChecks=10, nNegDerivLeniance=1, nPosDerivChecks=2):
         """
-        Triggers on  photons in phase snapshots. 
+        Software derived trigger on photons in phase snapshots. 
         Trigger conditions (should match firmware):
             -nNegDeriveChecks-nNegDeriveLeniance/nNegDeriveChecks negative slopes, 
                 followed by nPosDeriveChecks positive slopes
@@ -1337,17 +1338,18 @@ class Roach2Controls:
         isNegDeriv = phaseDeriv <= 0
         isPosDeriv = phaseDeriv > 0
         threshCond = phaseData > self.thresholdList[selChanIndex]
-        threshCond = np.delete(meetsThresh,np.arange(0,nNegDerivChecks)) #align this condition with derivatives
+        #threshCond = np.delete(meetsThresh,np.arange(0,nNegDerivChecks)) #align this condition with derivatives
+        threshCond = np.delete(threshCond,np.arange(0,nNegDerivChecks)) #align this condition with derivatives
         
         negDerivChecksSum = np.zeros(len(isNegDeriv[0:-nNegDerivChecks-1]))
         for i in range(nNegDerivChecks):
             negDerivChecksSum += isNegDeriv[i:i-nNegDerivChecks-1]
-        negDerivCond = negDerivCheckSum >= nNegDerivChecks - nNegDerivLeniance
+        negDerivCond = negDerivChecksSum >= nNegDerivChecks - nNegDerivLeniance
         
-        posDerivCheckSum = np.zeros(len(isPosDeriv[0:-nPosDerivChecks-1]))
+        posDerivChecksSum = np.zeros(len(isPosDeriv[0:-nPosDerivChecks-1]))
         for i in range(nPosDerivChecks):
-            posDerivCheckSum += isPosDeriv[i:i-nPosDerivChecks-1]
-        posDerivCond = posDeriveCheckSum >= nPosDerivChecks
+            posDerivChecksSum += isPosDeriv[i:i-nPosDerivChecks-1]
+        posDerivCond = posDerivChecksSum >= nPosDerivChecks
         posDerivCond = np.delete(posDerivCond, np.arange(0,nNegDerivChecks)) #align with other conditions
         
         trigger = np.logical_and(threshCond, negDerivCond)
@@ -1712,10 +1714,10 @@ class Roach2Controls:
         Q_list = []
         for i in range(len(freqChans)):
             ch, stream = np.atleast_1d(channels)[i], np.atleast_1d(streams)[i]
-            if i==380 or i==371:
-                print 'i:',i,' stream/ch:',stream,'/',ch
-                print 'freq[ch]:',self.freqList[i]
-                print 'freq[ch,stream]:',self.freqChannels[ch,stream]
+            #if i==380 or i==371:
+            #    print 'i:',i,' stream/ch:',stream,'/',ch
+            #    print 'freq[ch]:',self.freqList[i]
+            #    print 'freq[ch,stream]:',self.freqChannels[ch,stream]
             I = iqDataStreams[stream, ch :: self.params['nChannelsPerStream']*2]
             Q = iqDataStreams[stream, ch+self.params['nChannelsPerStream'] :: self.params['nChannelsPerStream']*2]
             #Ivals = np.roll(I.flatten(),-2) 
