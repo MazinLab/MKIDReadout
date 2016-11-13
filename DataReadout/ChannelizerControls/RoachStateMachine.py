@@ -236,7 +236,7 @@ class RoachStateMachine(QtCore.QObject):        #Extends QObject for use with QT
     
     def loadFreq(self):
         '''
-        Loads the resonator freq files (and attenuations)
+        Loads the resonator freq files (and attenuations, resIDs)
         divides the resonators into streams
         '''
         try:
@@ -247,18 +247,23 @@ class RoachStateMachine(QtCore.QObject):        #Extends QObject for use with QT
         if os.path.isfile(fn2): 
             fn=fn2
             print 'Loading freqs from '+fn
-        _, freqs, attens = np.loadtxt(fn,unpack=True)
+        resIDs, freqs, attens = np.loadtxt(fn,unpack=True)
         freqs = np.atleast_1d(freqs)       # If there's only 1 resonator numpy loads it in as a float.
         attens = np.atleast_1d(attens)     # We need an array of floats
-         
-        print len(freqs)
-        print len(np.unique(freqs))
-        print len(attens)
+        resIDs = np.atleast_1d(resIDs)
+        
+        assert(len(freqs) == len(np.unique(freqs))), "Frequencies in "+fn+" need to be unique."
+        assert(len(resIDs) == len(np.unique(resIDs))), "Resonator IDs in "+fn+" need to be unique."
+        argsSorted = np.argsort(freqs)  # sort them by frequency (I don't think this is needed)
+        freqs = freqs[argsSorted]
+        resIDs = resIDs[argsSorted]
+        attens = attens[argsSorted]
         for i in range(len(freqs)):
-            print i, np.where(freqs==freqs[i])[0]
+            print i, resIDs[i], freqs[i], attens[i]
         
         self.roachController.generateResonatorChannels(freqs)
         self.roachController.attenList = attens
+        self.roachController.resIDs = resIDs
         print 'new Freq: ', self.roachController.freqList
 
         return True
@@ -369,6 +374,7 @@ class RoachStateMachine(QtCore.QObject):        #Extends QObject for use with QT
                     w.I0 = 0.0
                     w.Q0 = 0.0
                     w.resnum = n
+                    w.resID = self.roachController.resIDs[n]
                     w.freq = w.f0 + self.freqOffsets
                     w.I = self.I_data[n]
                     w.Q = self.Q_data[n]
