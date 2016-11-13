@@ -524,7 +524,7 @@ void Reader()
 
     ++nFrames; 
 
-    //printf("read from socket %d %d!\n",nFrames, nBytesReceived);
+    printf("read from socket %d %d!\n",nFrames, nBytesReceived);
 
     /* packetmaster2 version
     memmove(buf2,buf,BUFLEN);

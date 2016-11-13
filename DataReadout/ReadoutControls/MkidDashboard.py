@@ -364,24 +364,26 @@ class MkidDashboard(QMainWindow):
         We set self.beammapFailed here for later use. It's a 2D boolean array with the (row,col)=(y,x) 
         indicating if that pixel is in the beammap or not
         """
-        beammapFN = self.config.get('properties','beammapFile')
+        self.beammapFN = self.config.get('properties','beammapFile')
         try:
-            resID, flag, xCoord, yCoord = np.loadtxt(beammapFN, usecols=[0,1,2,3], unpack=True)
+            resID, flag, xCoord, yCoord = np.loadtxt(self.beammapFN, usecols=[0,1,2,3], unpack=True)
         except IOError:
-            print "Could not find beammap:",beammapFN
-            beammapFN = self.config.get('properties','defaultBeammapFile')
-            resID, flag, xCoord, yCoord = np.loadtxt(beammapFN, usecols=[0,1,2,3], unpack=True)
+            print "Could not find beammap:",self.beammapFN
+            self.beammapFN = self.config.get('properties','defaultBeammapFile')
+            resID, flag, xCoord, yCoord = np.loadtxt(self.beammapFN, usecols=[0,1,2,3], unpack=True)
             print "Loaded default beammap instead"
             
         for roach in self.roachList:
             freqList = self.config.get('Roach '+str(roach.num),'freqList')
+            print freqList
             resID_roach, freqs, _ = np.loadtxt(freqList,unpack=True)
+            print resID_roach
             roach.generateResonatorChannels(freqs)
             freqCh_roach = np.arange(0,len(resID_roach))
-            
+            print resID
             freqCh = np.ones(len(resID))*-2
             for i in range(len(resID_roach)):
-                indx = np.where(resID==resID_roach[i])[0][0]
+                indx = np.where(resID==resID_roach[i])[0]
                 freqCh[indx] = freqCh_roach[i]
             
             beammapDict = {'resID':resID, 'freqCh':freqCh, 'xCoord':xCoord, 'yCoord':yCoord,'flag':flag}
@@ -809,8 +811,8 @@ class MkidDashboard(QMainWindow):
             val=self.getPixCountRate([self.pixelCurrent])
             self.label_pixelInfo.setText('(' + str(self.pixelCurrent[0]) + ' , ' + str(self.pixelCurrent[1]) +') : '+str(np.round(val,2))+' #/second')
             
-            beammapFN = self.config.get('properties','beammapFile')
-            beammapData = np.loadtxt(beammapFN)
+            #beammapFN = self.config.get('properties','beammapFile')
+            beammapData = np.loadtxt(self.beammapFN)
             resID=0
             freq = 0
             feedline=0

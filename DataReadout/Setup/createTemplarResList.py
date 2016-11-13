@@ -87,9 +87,9 @@ if __name__=='__main__':
     fn = sys.argv[1]
     dirn = os.environ['MKID_DATA_DIR']
     fn = os.path.join(dirn,fn)
-    LO1 = 5.50
-    LO2 = 7.50
-    createTemplarResList(fn, LO1, LO2, feedline=2)
+    LO1 = 5.364
+    LO2 = 7.89
+    createTemplarResList(fn, LO1, LO2, feedline=3)
 
 
 
