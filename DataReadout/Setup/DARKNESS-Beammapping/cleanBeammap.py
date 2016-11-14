@@ -9,8 +9,6 @@ Outputs final cleaned beammap with ID, flag, x, y; ready to go into dashboard
 
 TODO:
 -Place failed pixels randomly at end (flags 1, 2, 3, 4), but in correct roach
--In overlap correction, add constraint to keep IDs in correct FL
-
 """
 
 import numpy as np
@@ -19,6 +17,35 @@ import os
 import matplotlib.pyplot as plt
 from arrayPopup import plotArray
 from readDict import readDict
+
+def isInCorrectFL(i, y):
+    #given a resonator ID (i) and y location
+    #returns True if  that y-loc is in the correct FL for that resonator ID
+    if 0<=i and i<=1999: #FL1
+        if (y>=0) and (y<=24):
+            return True
+        else:
+            return False
+    elif 2000<=i and i<=3999: #FL2
+        if (y>=25) and (y<=49):
+            return True
+        else:
+            return False
+    elif 4000<=i and i<=5999: #FL3
+        if (y>=50) and (y<=74):
+            return True
+        else:
+            return False
+    elif 6000<=i and i<=7999: #FL4
+        if (y>=75) and (y<=99):
+            return True
+        else:
+            return False
+    elif 8000<=i and i<=9999: #FL5
+        if (y>=100) and (y<=124):
+            return True
+        else:
+            return False
 
 #Should get these from config file
 #nRows = 125
@@ -196,7 +223,7 @@ print 'res',np.min(ids[goodMask]),np.max(ids[goodMask])
 for entry in gridDicts:
     x = entry['x']
     y = entry['y']
-    if x != -1 and y != -1 and entry['fail']==0:
+    if entry['fail']==0:
         overlapItems = [(item,k) for (k,item) in enumerate(gridDicts) if (item['x'] == entry['x'] and item['y'] == entry['y'])]
         overlapItems,gridIndices = zip(*overlapItems) #unzip
         nPixelsAssigned = len(overlapItems)
@@ -210,7 +237,7 @@ for entry in gridDicts:
                     #the direction the distVector is pointing
                     unassignedCoords = np.where(grid==0)
                     unassignedCoords = zip(unassignedCoords[1],unassignedCoords[0]) #x,y
-                    unassignedNeighbors = [coord for coord in unassignedCoords if (np.abs(coord[0]-x)<=1 and np.abs(coord[1]-y)<=1)]
+                    unassignedNeighbors = [coord for coord in unassignedCoords if (np.abs(coord[0]-x)<=1 and np.abs(coord[1]-y)<=1 and isInCorrectFL(gridDicts[gridIndices[j]]['resId'],coord[1]))]
 
                     try:
                         bestUnassignedNeighbor = np.argmin([np.sqrt((coord[0]+.5-overlapItems[j]['preciseX'])**2 + (coord[1]+.5-overlapItems[j]['preciseY'])**2)])
@@ -226,7 +253,29 @@ for entry in gridDicts:
                         print 'error in best-neighbor reassignment'
 
 plotArray(grid,title='Relocated overlaps (moved pixels given 7 value)', origin='upper')
-plt.show()
+
+#randomly place failed pixels into empty locations
+for entry in gridDicts:
+    x = entry['x']
+    y = entry['y']
+    i = entry['resId']
+    if entry['fail']!=0:
+        unassignedCoords = np.where(grid==0)
+        unassignedCoords = zip(unassignedCoords[1],unassignedCoords[0]) #x,y
+        unassignedNeighbors = [coord for coord in unassignedCoords if isInCorrectFL(i,coord[1])]
+        try:
+            newX = unassignedNeighbors[0][0]
+            newY = unassignedNeighbors[0][1]
+            print 'placing failed pixel ',i,newX,newY
+            entry['x'] = newX
+            entry['y'] = newY
+            grid[newY,newX] = 10
+        except IndexError:
+            print 'no neighbor could be found'
+        except:
+            print 'error in best-neighbor reassignment'
+
+plotArray(grid,title='Final BM, 7=overlap fix, 10=random drop', origin='upper')
 
 newLocationData = [[entry['resId'],entry['fail'],entry['x'],entry['y']] for entry in gridDicts]
 newLocationData = np.array(newLocationData)
