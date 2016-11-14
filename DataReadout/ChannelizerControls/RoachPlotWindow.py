@@ -779,7 +779,7 @@ class RoachSweepWindow(QMainWindow):
         if attens is None:
             attens = np.copy(self.roach.roachController.attenList)
         
-        keepRes = np.where(attens < 99)     # remove any resonators with atten=99
+        keepRes = np.where(attens >= 0)     # remove any resonators with negative attenuation
         nFreqs = len(freqs)
         freqs = freqs[keepRes]
         attens=attens[keepRes]
@@ -876,7 +876,7 @@ class RoachSweepWindow(QMainWindow):
         else:
             QtCore.QMetaObject.invokeMethod(self.roach, 'loadDACAtten', Qt.QueuedConnection,
                                             QtCore.Q_ARG(float, dacAtten))
-            self.dacAttenChanged.emit()
+            self.dacAttenChanged.emit()     # starts the roach thread
             attens = self.roach.roachController.attenList
             attens=attens+(dacAtten-self.dacAtten)
             self.roach.roachController.attenList=attens     # force this to update
