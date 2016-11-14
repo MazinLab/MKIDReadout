@@ -71,8 +71,8 @@ class StartQt4(QMainWindow):
         self.ui.res_num.setText(str(self.resnum))
         self.resfreq = self.freq[self.resnum]
         
-        ###THIS IS WHERE WE NEED TO CHANGE IDS TO self.id from what's in H5
-        self.id = self.resnum
+        self.resID =self.Res1.resID
+        print "Res: "+str(self.resnum)+' --> ID: '+str(self.resID)
         
         self.ui.frequency.setText(str(self.resfreq))
         self.NAttens = len(self.Res1.atten1s)
@@ -181,15 +181,17 @@ class StartQt4(QMainWindow):
         hd5file=openFile(str(self.openfile),mode='r')
         group = hd5file.getNode('/','r0')
         self.freq=empty(0,dtype='float32')
+        self.idList=empty(0,dtype='int32')
         for sweep in group._f_walkNodes('Leaf'):
             k=sweep.read()
             self.scale = k['scale'][0]
             #print "Scale factor is ", self.scale
             self.freq=append(self.freq,[k['f0'][0]])
+            self.idList=append(self.idList,[k['resID'][0]])
         #self.freqList = np.zeros(len(k['f0']))
         #self.attenList = np.zeros(len(self.freqList)) - 1
         self.freqList = np.zeros(2000)
-        self.idList = np.zeros(len(self.freqList)) - 1
+        #self.idList = np.zeros(len(self.freqList)) - 1
         self.attenList = np.zeros(len(self.freqList)) - 1
         hd5file.close()
         self.loadres()
@@ -306,7 +308,8 @@ class StartQt4(QMainWindow):
         #Icen=0
         #Qcen=0
         
-        self.idList[self.resnum] = self.id
+        #self.idList[self.resnum] = self.id
+        assert self.idList[self.resnum]==self.resID, "Something is wrong. Need to debug resID"
         self.freqList[self.resnum] = self.resfreq
         self.attenList[self.resnum] = self.atten
         data = np.transpose([self.idList[np.where(self.attenList >=0)], self.freqList[np.where(self.attenList >=0)], self.attenList[np.where(self.attenList >=0)]])
@@ -376,7 +379,7 @@ class StartQt4(QMainWindow):
         #self.f.write(str(self.resfreq)+'\t'+str(Icen)+'\t'+str(Qcen)+'\t'+str(self.atten)+'\n')
         #self.f.write(str(self.resfreq)+'\t'+str(self.atten)+'\n')
         #self.f.close()
-        print " ....... Saved to file:  resnum=",self.resnum," resID=",self.id, " resfreq=",self.resfreq," atten=",self.atten
+        print " ....... Saved to file:  resnum=",self.resnum," resID=",self.resID, " resfreq=",self.resfreq," atten=",self.atten
         self.resnum += 1
         self.atten = -1
         self.loadres()

@@ -67,12 +67,42 @@ class RoachPhaseStreamWindow(QMainWindow):
     def initFreqs(self):
         """
         After we've loaded the frequency file in RoachStateMachine object then we can initialize some GUI elements
+        This also gets called everytime we switch channels and when new phase data comes in
         """
         freqs = self.roach.roachController.freqList
         ch=self.spinbox_channel.value()
+        resID = self.roach.roachController.resIDs[ch]
         
         self.spinbox_channel.setRange(0,len(freqs)-1)
+        self.label_resID.setText('ResID: '+str(int(resID)))
         self.label_freq.setText('Freq: '+str(freqs[ch]/1.e9)+' GHz')
+        
+        resDistance = np.asarray(freqs) - freqs[ch]
+        resDistance[ch]=freqs[ch]
+        nearestResCh = np.argmin(np.abs(resDistance))
+        self.label_nearestRes.setText('Nearest Res: ch '+str(nearestResCh)+' --> '+str(resDistance[nearestResCh]/1.e3)+' kHz')
+        collisionThreshold = 500000     # Collision if less than 500kHz apart
+        palette = self.label_nearestRes.palette()
+        if np.abs(resDistance[nearestResCh]) < collisionThreshold:
+            palette.setColor(QtGui.QPalette.Foreground,QtCore.Qt.red)
+            self.label_nearestRes.setPalette(palette)
+        else:
+            palette.setColor(QtGui.QPalette.Foreground,QtCore.Qt.black)
+            self.label_nearestRes.setPalette(palette)
+        try:
+            lofreq = self.roach.roachController.LOFreq
+            aliasFreqs = (np.asarray(freqs)-lofreq)*-1 + lofreq
+            aliasDist = aliasFreqs - freqs[ch]
+            nearestAliasCh = np.argmin(np.abs(aliasDist))
+            self.label_nearestSideband.setText('Nearest Alias: ch '+str(nearestAliasCh)+' --> '+str(aliasDist[nearestAliasCh]/1.e3)+' kHz')
+            palette = self.label_nearestRes.palette()
+            if np.abs(aliasDist[nearestAliasCh]) < collisionThreshold:
+                palette.setColor(QtGui.QPalette.Foreground,QtCore.Qt.red)
+                self.label_nearestSideband.setPalette(palette)
+            else:
+                palette.setColor(QtGui.QPalette.Foreground,QtCore.Qt.black)
+                self.label_nearestSideband.setPalette(palette)
+        except AttributeError: pass
         
         if len(self.snapDataList)!=len(freqs):
             self.snapDataList = [None]*len(freqs)
@@ -304,9 +334,13 @@ class RoachPhaseStreamWindow(QMainWindow):
         self.spinbox_channel.valueChanged.connect(lambda x: self.initFreqs())
         self.spinbox_channel.valueChanged.connect(lambda x: self.initThresh())
         
+        self.label_resID = QLabel('ResID: ')
+        self.label_resID.setMinimumWidth(60)
+        self.label_resID.setMaximumWidth(60)
+        
         self.label_freq = QLabel('Freq: 0 GHz')
-        self.label_freq.setMinimumWidth(150)
-        self.label_freq.setMaximumWidth(150)
+        self.label_freq.setMinimumWidth(140)
+        self.label_freq.setMaximumWidth(140)
         self.label_thresh = QLabel('Thresh: 0 deg')
         self.label_thresh.setMinimumWidth(100)
         self.label_thresh.setMaximumWidth(100)
@@ -318,6 +352,12 @@ class RoachPhaseStreamWindow(QMainWindow):
         button_snapPhase.setEnabled(True)
         button_snapPhase.clicked.connect(self.phaseSnapShot)
         
+        self.label_nearestRes = QLabel('Nearest Res: ')
+        self.label_nearestRes.setMinimumWidth(200)
+        self.label_nearestRes.setMaximumWidth(200)
+        self.label_nearestSideband = QLabel('Nearest Alias: ')
+        self.label_nearestSideband.setMinimumWidth(200)
+        self.label_nearestSideband.setMaximumWidth(200)
         
         numSnapsThresh = self.config.getint('Roach '+str(self.roachNum),'numsnaps_thresh')
         spinbox_numSnapsThresh = QSpinBox()
@@ -374,11 +414,19 @@ class RoachPhaseStreamWindow(QMainWindow):
         hbox_ch = QHBoxLayout()
         hbox_ch.addWidget(label_channel)
         hbox_ch.addWidget(self.spinbox_channel)
+        hbox_ch.addWidget(self.label_resID)
+        hbox_ch.addSpacing(5)
         hbox_ch.addWidget(self.label_freq)
         hbox_ch.addWidget(self.label_thresh)
         hbox_ch.addWidget(self.label_median)
         hbox_ch.addWidget(button_snapPhase)
         hbox_ch.addStretch()
+        
+        hbox_nearestRes = QHBoxLayout()
+        hbox_nearestRes.addWidget(self.label_nearestRes)
+        hbox_nearestRes.addSpacing(7)
+        hbox_nearestRes.addWidget(self.label_nearestSideband)
+        hbox_nearestRes.addStretch()
         
         hbox_thresh = QHBoxLayout()
         hbox_thresh.addWidget(spinbox_numSnapsThresh)
@@ -395,6 +443,7 @@ class RoachPhaseStreamWindow(QMainWindow):
         vbox1 = QVBoxLayout()
         vbox1.addLayout(vbox_plot)
         vbox1.addLayout(hbox_ch)
+        vbox1.addLayout(hbox_nearestRes)
         vbox1.addLayout(hbox_thresh)
         vbox1.addLayout(hbox_phaseTimestream)
         
@@ -586,6 +635,7 @@ class RoachSweepWindow(QMainWindow):
         else:
             self.label_modifyFlag.hide()
         
+        resIDs = self.roach.roachController.resIDs
         freqs = self.roach.roachController.freqList
         attens = self.roach.roachController.attenList
         try: lofreq = self.roach.roachController.LOFreq
@@ -601,7 +651,7 @@ class RoachSweepWindow(QMainWindow):
             self.label_freq.setText('Freq: '+str(freqs[ch]/1.e9)+' GHz')
         
         self.spinbox_channel.setRange(0,len(freqs)-1)
-        
+        self.label_resID.setText('resID: '+str(int(resIDs[ch])))
         self.label_atten.setText('Atten: '+str(attens[ch])+' dB')
         self.label_lofreq.setText('LO Freq: '+str(lofreq/1.e9)+' GHz')
         
@@ -729,7 +779,7 @@ class RoachSweepWindow(QMainWindow):
         if attens is None:
             attens = np.copy(self.roach.roachController.attenList)
         
-        keepRes = np.where(attens < 99)     # remove any resonators with atten=99
+        keepRes = np.where(attens >= 0)     # remove any resonators with negative attenuation
         nFreqs = len(freqs)
         freqs = freqs[keepRes]
         attens=attens[keepRes]
@@ -826,7 +876,7 @@ class RoachSweepWindow(QMainWindow):
         else:
             QtCore.QMetaObject.invokeMethod(self.roach, 'loadDACAtten', Qt.QueuedConnection,
                                             QtCore.Q_ARG(float, dacAtten))
-            self.dacAttenChanged.emit()
+            self.dacAttenChanged.emit()     # starts the roach thread
             attens = self.roach.roachController.attenList
             attens=attens+(dacAtten-self.dacAtten)
             self.roach.roachController.attenList=attens     # force this to update
@@ -880,11 +930,19 @@ class RoachSweepWindow(QMainWindow):
         self.spinbox_channel.valueChanged.connect(lambda x: self.plotData())
         self.spinbox_channel.valueChanged.connect(lambda x: self.initFreqs(False))
         
+        self.label_resID = QLabel('ResID: ')
+        self.label_resID.setMinimumWidth(60)
+        self.label_resID.setMaximumWidth(60)
+        
         self.label_freq = QLabel('Freq: 0 GHz')
-        self.label_freq.setMinimumWidth(170)
-        self.label_freq.setMaximumWidth(170)
+        self.label_freq.setMinimumWidth(175)
+        self.label_freq.setMaximumWidth(175)
         self.label_atten = QLabel('Atten: 0 dB')
+        self.label_atten.setMinimumWidth(80)
+        self.label_atten.setMaximumWidth(80)
         self.label_lofreq = QLabel('LO Freq: 0 GHz')
+        self.label_lofreq.setMinimumWidth(150)
+        self.label_lofreq.setMaximumWidth(150)
         
         label_num2Plot = QLabel('Num Plots:')
         spinbox_num2Plot = QSpinBox()
@@ -1039,11 +1097,12 @@ class RoachSweepWindow(QMainWindow):
         hbox_res = QHBoxLayout()
         hbox_res.addWidget(label_channel)
         hbox_res.addWidget(self.spinbox_channel)
-        hbox_res.addSpacing(20)
+        hbox_res.addWidget(self.label_resID)
+        hbox_res.addSpacing(5)
         hbox_res.addWidget(self.label_freq)
         hbox_res.addWidget(self.label_atten)
         hbox_res.addWidget(self.label_lofreq)
-        hbox_res.addSpacing(20)
+        hbox_res.addSpacing(5)
         hbox_res.addWidget(label_num2Plot)
         hbox_res.addWidget(spinbox_num2Plot)
         hbox_res.addStretch()
@@ -1052,6 +1111,7 @@ class RoachSweepWindow(QMainWindow):
         hbox_modifyRes.addWidget(label_modify)
         hbox_modifyRes.addWidget(label_modifyFreq)
         hbox_modifyRes.addWidget(self.textbox_modifyFreq)
+        hbox_modifyRes.addSpacing(5)
         hbox_modifyRes.addWidget(label_modifyAtten)
         hbox_modifyRes.addWidget(self.spinbox_modifyAtten)
         hbox_modifyRes.addWidget(self.button_modifyRes)

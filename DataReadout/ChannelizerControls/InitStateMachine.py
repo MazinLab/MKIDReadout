@@ -224,7 +224,10 @@ class InitStateMachine(QtCore.QObject):        #Extends QObject for use with QTh
         time.sleep(.1)
 
         nBitsRemovedInFFT = self.config.getint('Roach '+str(self.num),'nBitsRemovedInFFT')
-        self.roachController.setAdcScale(1./(2**nBitsRemovedInFFT))
+        if(nBitsRemovedInFFT == 0):
+            self.roachController.setAdcScale(0.9375) #Max ADC scale value
+        else:
+            self.roachController.setAdcScale(1./(2**nBitsRemovedInFFT))
 
         self.roachController.fpga.write_int('run',1)
         busDelays = [14,18,14,13]

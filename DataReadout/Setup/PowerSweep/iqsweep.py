@@ -34,6 +34,7 @@ class IQsweeptables(IsDescription):
     I0 = Float32Col()
     Q0 = Float32Col()
     resnum = Int32Col()
+    resID = Int32Col()
     freq = Float32Col(2000) 
     I = Float32Col(2000)
     Q = Float32Col(2000)
@@ -445,6 +446,7 @@ class IQsweep:
             swp['I0'] = self.I0
             swp['Q0'] = self.Q0
             swp['resnum'] = self.resnum
+            swp['resID'] = self.resID
             swp['freq'] = np.concatenate( (self.freq,np.zeros(2000-self.fsteps)),axis=0 )
             swp['I'] = np.concatenate( (self.I,np.zeros(2000-self.fsteps)),axis=0 )
             swp['Q'] = np.concatenate( (self.Q,np.zeros(2000-self.fsteps)),axis=0 )
@@ -544,6 +546,11 @@ class IQsweep:
             pass
         
         try:
+            self.resID = k['resID'][0]
+        except:
+            print "No resID column in file"
+        
+        try:
             self.freq = k['freq'][0,0:self.fsteps]
             self.I = k['I'][0,0:self.fsteps]
             self.Q = k['Q'][0,0:self.fsteps]
@@ -622,6 +629,11 @@ class IQsweep:
             pass
         
         try:
+            self.resID = k['resID'][0]
+        except:
+            print "No resID column in file"
+        
+        try:
             self.freq = k['freq'][0,0:self.fsteps]
             self.Is = k['I'][:,0:self.fsteps]
             self.Qs = k['Q'][:,0:self.fsteps]
@@ -688,6 +700,11 @@ class IQsweep:
             self.time = k['time'][row]
         except:
             pass
+        
+        try:
+            self.resID = k['resID'][row]
+        except:
+            print "No resID column in table"
         
         try:
             self.freq = k['freq'][row,0:self.fsteps]
