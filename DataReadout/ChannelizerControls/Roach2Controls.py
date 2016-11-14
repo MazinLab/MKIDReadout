@@ -125,7 +125,7 @@ class Roach2Controls:
         self.ddsFreqPadValue = -1   # 
         self.v7_ready = 0
         self.lut_dump_buffer_size = self.params['lut_dump_buffer_size']
-        self.thresholdList = np.zeros(1024)
+        self.thresholdList = -np.pi*np.ones(1024)
     
     def connect(self):
         self.fpga = casperfpga.katcp_fpga.KatcpFpga(self.ip,timeout=3.)
@@ -1313,11 +1313,11 @@ class Roach2Controls:
         snapDict['trig']=trig
         dt=self.params['nChannelsPerStream']/self.params['fpgaClockRate']
         snapDict['time']=dt*np.arange(len(trig))
-        #snapDict['swTrig']=self.calcSWTriggers(selChanIndex, snapDict['phase'])
-        snapDict['swTrig']=snapDict['trig']
+        snapDict['swTrig']=self.calcSWTriggers(selChanIndex, snapDict['phase'])
+        #snapDict['swTrig']=snapDict['trig']
         return snapDict
 
-    def calcSWTriggers(self, selChanIndex, phaseData, nNegDerivChecks=10, nNegDerivLeniance=1, nPosDerivChecks=2):
+    def calcSWTriggers(self, selChanIndex, phaseData, nNegDerivChecks=10, nNegDerivLeniance=1, nPosDerivChecks=2, deadtime=10):
         """
         Software derived trigger on photons in phase snapshots. 
         Trigger conditions (should match firmware):
@@ -1337,14 +1337,15 @@ class Roach2Controls:
         phaseDeriv = np.diff(phaseData)
         isNegDeriv = phaseDeriv <= 0
         isPosDeriv = phaseDeriv > 0
-        threshCond = phaseData > self.thresholdList[selChanIndex]
+        phaseData = phaseData - np.median(phaseData) #baseline subtract data
+        threshCond = phaseData < self.thresholdList[selChanIndex]
         #threshCond = np.delete(meetsThresh,np.arange(0,nNegDerivChecks)) #align this condition with derivatives
         threshCond = np.delete(threshCond,np.arange(0,nNegDerivChecks)) #align this condition with derivatives
         
         negDerivChecksSum = np.zeros(len(isNegDeriv[0:-nNegDerivChecks-1]))
         for i in range(nNegDerivChecks):
             negDerivChecksSum += isNegDeriv[i:i-nNegDerivChecks-1]
-        negDerivCond = negDerivChecksSum >= nNegDerivChecks - nNegDerivLeniance
+        negDerivCond = (negDerivChecksSum >= (nNegDerivChecks - nNegDerivLeniance))
         
         posDerivChecksSum = np.zeros(len(isPosDeriv[0:-nPosDerivChecks-1]))
         for i in range(nPosDerivChecks):
@@ -1352,10 +1353,18 @@ class Roach2Controls:
         posDerivCond = posDerivChecksSum >= nPosDerivChecks
         posDerivCond = np.delete(posDerivCond, np.arange(0,nNegDerivChecks)) #align with other conditions
         
-        trigger = np.logical_and(threshCond, negDerivCond)
-        trigger = np.logical_and(trigger, posDerivCond)
+        trigger = np.logical_and(threshCond[0:len(negDerivCond)], negDerivCond)
+        trigger = np.logical_and(trigger[0:len(posDerivCond)], posDerivCond[0:len(trigger)])
         trigger = np.pad(trigger, (nNegDerivChecks,0), 'constant') 
         trigger = np.pad(trigger, (0, len(phaseData)-len(trigger)), 'constant')
+
+        #apply deadtime
+        trigSum = np.zeros(len(trigger))
+        for i in range(deadtime):
+            trigSum[deadtime:] += trigger[deadtime-i:len(trigger)-i]
+        violatesDt = np.where(trigSum >= 2)[0]
+        trigger[violatesDt] = 0
+        
         return trigger
 
 
