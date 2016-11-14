@@ -67,6 +67,7 @@ class RoachPhaseStreamWindow(QMainWindow):
     def initFreqs(self):
         """
         After we've loaded the frequency file in RoachStateMachine object then we can initialize some GUI elements
+        This also gets called everytime we switch channels and when new phase data comes in
         """
         freqs = self.roach.roachController.freqList
         ch=self.spinbox_channel.value()
@@ -75,6 +76,33 @@ class RoachPhaseStreamWindow(QMainWindow):
         self.spinbox_channel.setRange(0,len(freqs)-1)
         self.label_resID.setText('ResID: '+str(int(resID)))
         self.label_freq.setText('Freq: '+str(freqs[ch]/1.e9)+' GHz')
+        
+        resDistance = np.asarray(freqs) - freqs[ch]
+        resDistance[ch]=freqs[ch]
+        nearestResCh = np.argmin(np.abs(resDistance))
+        self.label_nearestRes.setText('Nearest Res: ch '+str(nearestResCh)+' --> '+str(resDistance[nearestResCh]/1.e3)+' kHz')
+        collisionThreshold = 500000     # Collision if less than 500kHz apart
+        palette = self.label_nearestRes.palette()
+        if np.abs(resDistance[nearestResCh]) < collisionThreshold:
+            palette.setColor(QtGui.QPalette.Foreground,QtCore.Qt.red)
+            self.label_nearestRes.setPalette(palette)
+        else:
+            palette.setColor(QtGui.QPalette.Foreground,QtCore.Qt.black)
+            self.label_nearestRes.setPalette(palette)
+        try:
+            lofreq = self.roach.roachController.LOFreq
+            aliasFreqs = (np.asarray(freqs)-lofreq)*-1 + lofreq
+            aliasDist = aliasFreqs - freqs[ch]
+            nearestAliasCh = np.argmin(np.abs(aliasDist))
+            self.label_nearestSideband.setText('Nearest Alias: ch '+str(nearestAliasCh)+' --> '+str(aliasDist[nearestAliasCh]/1.e3)+' kHz')
+            palette = self.label_nearestRes.palette()
+            if np.abs(aliasDist[nearestAliasCh]) < collisionThreshold:
+                palette.setColor(QtGui.QPalette.Foreground,QtCore.Qt.red)
+                self.label_nearestSideband.setPalette(palette)
+            else:
+                palette.setColor(QtGui.QPalette.Foreground,QtCore.Qt.black)
+                self.label_nearestSideband.setPalette(palette)
+        except AttributeError: pass
         
         if len(self.snapDataList)!=len(freqs):
             self.snapDataList = [None]*len(freqs)
@@ -324,6 +352,12 @@ class RoachPhaseStreamWindow(QMainWindow):
         button_snapPhase.setEnabled(True)
         button_snapPhase.clicked.connect(self.phaseSnapShot)
         
+        self.label_nearestRes = QLabel('Nearest Res: ')
+        self.label_nearestRes.setMinimumWidth(200)
+        self.label_nearestRes.setMaximumWidth(200)
+        self.label_nearestSideband = QLabel('Nearest Alias: ')
+        self.label_nearestSideband.setMinimumWidth(200)
+        self.label_nearestSideband.setMaximumWidth(200)
         
         numSnapsThresh = self.config.getint('Roach '+str(self.roachNum),'numsnaps_thresh')
         spinbox_numSnapsThresh = QSpinBox()
@@ -388,6 +422,12 @@ class RoachPhaseStreamWindow(QMainWindow):
         hbox_ch.addWidget(button_snapPhase)
         hbox_ch.addStretch()
         
+        hbox_nearestRes = QHBoxLayout()
+        hbox_nearestRes.addWidget(self.label_nearestRes)
+        hbox_nearestRes.addSpacing(7)
+        hbox_nearestRes.addWidget(self.label_nearestSideband)
+        hbox_nearestRes.addStretch()
+        
         hbox_thresh = QHBoxLayout()
         hbox_thresh.addWidget(spinbox_numSnapsThresh)
         hbox_thresh.addWidget(spinbox_threshSigs)
@@ -403,6 +443,7 @@ class RoachPhaseStreamWindow(QMainWindow):
         vbox1 = QVBoxLayout()
         vbox1.addLayout(vbox_plot)
         vbox1.addLayout(hbox_ch)
+        vbox1.addLayout(hbox_nearestRes)
         vbox1.addLayout(hbox_thresh)
         vbox1.addLayout(hbox_phaseTimestream)
         
