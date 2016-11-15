@@ -497,6 +497,9 @@ void Reader()
     diep("set receive buffer size");
 
   uint64_t nFrames = 0;
+  
+  // clean out socket before we start
+  while ( recv(s, buf, BUFLEN, 0) > 0 );
 
   while (access( "/mnt/ramdisk/QUIT", F_OK ) == -1)
   {
