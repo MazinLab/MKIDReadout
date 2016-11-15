@@ -3,6 +3,9 @@ import matplotlib.pyplot as plt
 from arrayPopup import plotArray
 import os
 
+
+
+
 basePath = '/mnt/data0/Darkness/20161107/beammaps/'
 if __name__=='__main__':
     labels = ['fl_all']
@@ -102,7 +105,7 @@ if __name__=='__main__':
                         except IndexError:
                             print 'no neighbor could be found'
                         except:
-                            print 'other error'
+                            print 'error in best-neighbor reassignment'
 
     plotArray(grid,origin='upper')
     plt.show()
