@@ -133,7 +133,7 @@ class ConvertPhotonsToRGB(QtCore.QObject):
     """
     convertedImage = QtCore.pyqtSignal(object)
     
-    def __init__(self, image, minCountCutoff=0,maxCountCutoff=450, logStretch=True,interpolate=False,parent=None):
+    def __init__(self, image, minCountCutoff=0,maxCountCutoff=450, logStretch=True,interpolate=False,makeRed=True, parent=None):
         """
         INPUTS:
             image - 2D numpy array of photon counts with np.nan where beammap failed
@@ -148,6 +148,7 @@ class ConvertPhotonsToRGB(QtCore.QObject):
         self.maxCountCutoff=maxCountCutoff
         self.logStretch=logStretch
         self.interpolate=interpolate
+        self.makeRed = makeRed
         
         #print '#red: ',len(self.redPixels[0])
     
@@ -157,7 +158,8 @@ class ConvertPhotonsToRGB(QtCore.QObject):
         """
         if self.interpolate: self.image = interpolateImage(self.image)
         self.image[np.where(np.logical_not(np.isfinite(self.image)))] = 0   # get rid of np.nan's
-        self.redPixels = np.where(self.image>=self.maxCountCutoff)
+        if self.makeRed: self.redPixels = np.where(self.image>=self.maxCountCutoff)
+        else: self.redPixels=[]
         
         #print "linear Stretch"
         self.image[np.where(self.image>self.maxCountCutoff)]=self.maxCountCutoff
@@ -179,7 +181,8 @@ class ConvertPhotonsToRGB(QtCore.QObject):
         """
         if self.interpolate: self.image = interpolateImage(self.image)
         self.image[np.where(np.logical_not(np.isfinite(self.image)))] = 0   # get rid of np.nan's
-        self.redPixels = np.where(self.image>=self.maxCountCutoff)
+        if self.makeRed: self.redPixels = np.where(self.image>=self.maxCountCutoff) # make maxed out pixels red
+        else: self.redPixels=[]
         
         #print "Running hist"
         imShape=self.image.shape
@@ -569,12 +572,14 @@ class MkidDashboard(QMainWindow):
         
         # Set up worker object and thread
         image[np.where(self.beammapFailed)]=np.nan
-        converter=ConvertPhotonsToRGB(image,minCountCutoff,maxCountCutoff,logStretch,self.checkbox_interpolate.isChecked())
-        self.workers.append(converter)                       #Need local reference or else signal is lost!
+        interpBool = self.checkbox_interpolate.isChecked()
+        smoothBool = self.checkbox_smooth.isChecked()       # if we're smoothing don't make pixels red
+        converter=ConvertPhotonsToRGB(image,minCountCutoff,maxCountCutoff,logStretch,interpBool,not smoothBool)
+        self.workers.append(converter)                       # Need local reference or else signal is lost!
         thread = QtCore.QThread(parent=self)
         thread_num=len(self.threadPool)
         thread.setObjectName("convertImage_"+str(thread_num))
-        self.threadPool.append(thread)                      #Need to have local reference to thread or else it will get lost!
+        self.threadPool.append(thread)                      # Need to have local reference to thread or else it will get lost!
         converter.moveToThread(thread)
         #thread.started.connect(converter.histEqualization)
         thread.started.connect(converter.linStretch)
@@ -1329,7 +1334,7 @@ class MkidDashboard(QMainWindow):
         self.grPixMap.setAcceptHoverEvents(True)
         self.grPixMap.hoverMoveEvent = self.mouseMoved
         blurEffect = QGraphicsBlurEffect()
-        blurEffect.setBlurRadius(2*self.config.getint('properties','image_scale'))
+        blurEffect.setBlurRadius(1.5*self.config.getint('properties','image_scale'))
         self.grPixMap.setGraphicsEffect(blurEffect)
         self.grPixMap.graphicsEffect().setEnabled(False)
         grview.setScene(scene)
