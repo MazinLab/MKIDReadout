@@ -1777,11 +1777,14 @@ class Roach2Controls:
                 if len(indx)==0:
 					# If a resonator is being probed but isn't mentioned in the beammap file
 					# This shouldn't happen since all 10000 pixels should be in the beammap...
-                    x=2**self.params['nBitsXCoord'] - 1
+                    # First 20 bits are 10111111111111111111. Fake photons are 01111's. Headers have the frist 8 bits as 1's
+                    x=2**self.params['nBitsXCoord'] - 1 - 2**(self.params['nBitsXCoord']-2)
                     y=2**self.params['nBitsYCoord'] - 1
                 else:
                     x=beammapDict['xCoord'][indx[0]]
                     y=beammapDict['yCoord'][indx[0]]
+                x = max(0,min(2**self.params['nBitsXCoord'] - 1, x))    # clip to between 0 and 2^10-1
+                y = max(0,min(2**self.params['nBitsYCoord'] - 1, y))
                 streamCoordBits.append((int(x) << self.params['nBitsYCoord']) + int(y))
             streamCoordBits = np.array(streamCoordBits)
             self.writeBram(memName = self.params['pixelnames_bram'][stream],valuesToWrite = streamCoordBits)
