@@ -8,7 +8,7 @@ Places failed pixels randomly.
 Outputs final cleaned beammap with ID, flag, x, y; ready to go into dashboard
 
 TODO:
--Place failed pixels randomly at end (flags 1, 2, 3, 4), but in correct roach
+-Fix bug that is leaving resonator 9999 at x,y = 999,999
 """
 
 import numpy as np
@@ -128,6 +128,8 @@ for (i,flag,y) in zip(ids[goodMask],flags[goodMask],preciseYs[goodMask]):
             print "Pixel ", i, " is out of its FL with y = ", y
             print "Flagged as bad (4)"
             flags[np.where(ids==i)[0]]=4
+            preciseXs[np.where(ids==i)[0]]=999.0
+            preciseYs[np.where(ids==i)[0]]=999.0
         elif y>=25:
             print "Pixel ", i, " is out of its FL with y = ", y
             print "Moved to y = 24.99"
@@ -138,6 +140,8 @@ for (i,flag,y) in zip(ids[goodMask],flags[goodMask],preciseYs[goodMask]):
             print "Pixel ", i, " is out of its FL with y = ", y
             print "Flagged as bad (4)"
             flags[np.where(ids==i)[0]]=4
+            preciseXs[np.where(ids==i)[0]]=999.0
+            preciseYs[np.where(ids==i)[0]]=999.0
         elif y>=50:
             print "Pixel ", i, " is out of its FL with y = ", y
             print "Moved to y = 49.99"
@@ -152,6 +156,8 @@ for (i,flag,y) in zip(ids[goodMask],flags[goodMask],preciseYs[goodMask]):
             print "Pixel ", i, " is out of its FL with y = ", y
             print "Flagged as bad (4)"
             flags[np.where(ids==i)[0]]=4
+            preciseXs[np.where(ids==i)[0]]=999.0
+            preciseYs[np.where(ids==i)[0]]=999.0
         elif y>=75:
             print "Pixel ", i, " is out of its FL with y = ", y
             print "Moved to y = 74.99"
@@ -166,6 +172,8 @@ for (i,flag,y) in zip(ids[goodMask],flags[goodMask],preciseYs[goodMask]):
             print "Pixel ", i, " is out of its FL with y = ", y
             print "Flagged as bad (4)"
             flags[np.where(ids==i)[0]]=4
+            preciseXs[np.where(ids==i)[0]]=999.0
+            preciseYs[np.where(ids==i)[0]]=999.0
         elif y>=100:
             print "Pixel ", i, " is out of its FL with y = ", y
             print "Moved to y = 99.99"
@@ -180,6 +188,8 @@ for (i,flag,y) in zip(ids[goodMask],flags[goodMask],preciseYs[goodMask]):
             print "Pixel ", i, " is out of its FL with y = ", y
             print "Flagged as bad (4)"
             flags[np.where(ids==i)[0]]=4
+            preciseXs[np.where(ids==i)[0]]=999.0
+            preciseYs[np.where(ids==i)[0]]=999.0
         elif y<100:
             print "Pixel ", i, " is out of its FL with y = ", y
             print "Moved to y = 100.01"
@@ -273,12 +283,12 @@ for entry in gridDicts:
         except IndexError:
             print 'no neighbor could be found'
         except:
-            print 'error in best-neighbor reassignment'
+            print 'error in failed-BM pixel reassignment'
 
 plotArray(grid,title='Final BM, 7=overlap fix, 10=random drop', origin='upper')
 
 newLocationData = [[entry['resId'],entry['fail'],entry['x'],entry['y']] for entry in gridDicts]
 newLocationData = np.array(newLocationData)
 
-np.savetxt(basePath+outFileName,newLocationData,fmt='%d\t%d\t%d\t%d')
-print 'done!'
+np.savetxt(finalPath,newLocationData,fmt='%d\t%d\t%d\t%d')
+print 'wrote clean beammap to ', finalPath

@@ -35,6 +35,7 @@ from LaserControl import LaserControl
 from Telescope import *
 import casperfpga
 from Roach2Controls import Roach2Controls
+from lib.utils import interpolateImage
 #from initialBeammap import xyPack,xyUnpack
 
 class ImageSearcher(QtCore.QObject):     #Extends QObject for use with QThreads
@@ -132,26 +133,34 @@ class ConvertPhotonsToRGB(QtCore.QObject):
     """
     convertedImage = QtCore.pyqtSignal(object)
     
-    def __init__(self, image, minCountCutoff=0,maxCountCutoff=450, logStretch=True,parent=None):
+    def __init__(self, image, minCountCutoff=0,maxCountCutoff=450, logStretch=True,interpolate=False,makeRed=True, parent=None):
         """
         INPUTS:
-            image - 2D numpy array of photon counts
+            image - 2D numpy array of photon counts with np.nan where beammap failed
             minCountCutoff - anything <= this number of counts will be black
             maxCountCutoff - anything >= this number of counts will be red
             logStretch - see histEqualization()
+            interpolate - interpolate over np.nan pixels
         """
         super(QtCore.QObject, self).__init__(parent)
         self.image=np.copy(image)
         self.minCountCutoff=minCountCutoff
         self.maxCountCutoff=maxCountCutoff
         self.logStretch=logStretch
-        self.redPixels = np.where(self.image>=self.maxCountCutoff)
+        self.interpolate=interpolate
+        self.makeRed = makeRed
+        
         #print '#red: ',len(self.redPixels[0])
     
     def linStretch(self):
         """
         map photon count to RGB linearly
         """
+        if self.interpolate: self.image = interpolateImage(self.image)
+        self.image[np.where(np.logical_not(np.isfinite(self.image)))] = 0   # get rid of np.nan's
+        if self.makeRed: self.redPixels = np.where(self.image>=self.maxCountCutoff)
+        else: self.redPixels=[]
+        
         #print "linear Stretch"
         self.image[np.where(self.image>self.maxCountCutoff)]=self.maxCountCutoff
         self.image[np.where(self.image<self.minCountCutoff)]=self.minCountCutoff
@@ -170,6 +179,11 @@ class ConvertPhotonsToRGB(QtCore.QObject):
         
         if self.logStretch is True the histogram uses logarithmic spaced bins
         """
+        if self.interpolate: self.image = interpolateImage(self.image)
+        self.image[np.where(np.logical_not(np.isfinite(self.image)))] = 0   # get rid of np.nan's
+        if self.makeRed: self.redPixels = np.where(self.image>=self.maxCountCutoff) # make maxed out pixels red
+        else: self.redPixels=[]
+        
         #print "Running hist"
         imShape=self.image.shape
         
@@ -199,11 +213,13 @@ class ConvertPhotonsToRGB(QtCore.QObject):
             image - 2D numpy array of [0,256) grey colors
         """
         image2=image.astype(np.uint32)
+        
         redMask = np.copy(image2)
         redMask[self.redPixels] = np.uint32(0)
         #           24-32 -> A  16-24 -> R     8-16 -> G      0-8 -> B
         imageRGB = (255 << 24 | image2 << 16 | redMask << 8 | redMask).flatten()    # pack into RGBA
         q_im = QtGui.QImage(imageRGB,self.image.shape[1],self.image.shape[0],QImage.Format_RGB32)
+        
         self.convertedImage.emit(q_im)
         
         
@@ -391,7 +407,8 @@ class MkidDashboard(QMainWindow):
 
         self.beammapFailed = np.ones((self.config.getint('properties','nrows'),self.config.getint('properties','ncols')),dtype=bool)
         for i in range(len(resID)):
-            self.beammapFailed[int(yCoord[i]),int(xCoord[i])]=(flag[i]!=0)
+            try: self.beammapFailed[int(yCoord[i]),int(xCoord[i])]=(flag[i]!=0)
+            except IndexError: pass
         print 'nGoodBeammapped:',self.config.getint('properties','nrows')*self.config.getint('properties','ncols') - np.sum(self.beammapFailed)
         
         
@@ -554,12 +571,15 @@ class MkidDashboard(QMainWindow):
             image=image+bias   # add bias so that anything that's negative after the dark isn't cutoff
         
         # Set up worker object and thread
-        converter=ConvertPhotonsToRGB(image,minCountCutoff,maxCountCutoff,logStretch)
-        self.workers.append(converter)                       #Need local reference or else signal is lost!
+        image[np.where(self.beammapFailed)]=np.nan
+        interpBool = self.checkbox_interpolate.isChecked()
+        smoothBool = self.checkbox_smooth.isChecked()       # if we're smoothing don't make pixels red
+        converter=ConvertPhotonsToRGB(image,minCountCutoff,maxCountCutoff,logStretch,interpBool,not smoothBool)
+        self.workers.append(converter)                       # Need local reference or else signal is lost!
         thread = QtCore.QThread(parent=self)
         thread_num=len(self.threadPool)
         thread.setObjectName("convertImage_"+str(thread_num))
-        self.threadPool.append(thread)                      #Need to have local reference to thread or else it will get lost!
+        self.threadPool.append(thread)                      # Need to have local reference to thread or else it will get lost!
         converter.moveToThread(thread)
         #thread.started.connect(converter.histEqualization)
         thread.started.connect(converter.linStretch)
@@ -587,6 +607,10 @@ class MkidDashboard(QMainWindow):
         imageScale=self.config.getint('properties','image_scale')
         q_image=q_image.scaledToWidth(q_image.width()*imageScale)
         self.grPixMap.pixmap().convertFromImage(q_image)
+        
+        # Possibly smooth image
+        if self.checkbox_smooth.isChecked(): self.grPixMap.graphicsEffect().setEnabled(True)
+        else: self.grPixMap.graphicsEffect().setEnabled(False)
         
         # Resize the GUI to fit whole image
         borderSize=24   # Not sure how to get the size of the frame's border so hardcoded this for now
@@ -1152,6 +1176,13 @@ class MkidDashboard(QMainWindow):
         self.checkbox_showAllPix = QCheckBox('Show All Pixels')
         self.checkbox_showAllPix.setChecked(False)
         
+        # Checkbox for interpolating dead (unbeammapped) pixels
+        self.checkbox_interpolate = QCheckBox('Interpolate Dead Pixels')
+        self.checkbox_interpolate.setChecked(False)
+        # Checkbox for Smoothing image
+        self.checkbox_smooth = QCheckBox('Smooth Image')
+        self.checkbox_smooth.setChecked(False)
+        
         # Pixel info labels
         self.label_pixelInfo=QLabel('(, ) - (, ) : 0 #/s')
         self.label_pixelInfo.setMaximumWidth(250)
@@ -1247,6 +1278,8 @@ class MkidDashboard(QMainWindow):
         hbox_CountRate.addStretch()
         vbox.addLayout(hbox_CountRate)
         vbox.addWidget(self.checkbox_showAllPix)
+        vbox.addWidget(self.checkbox_interpolate)
+        vbox.addWidget(self.checkbox_smooth)
         vbox.addWidget(self.label_selectedPixValue)
         vbox.addWidget(self.label_pixelInfo)
         vbox.addWidget(self.label_pixelID)
@@ -1275,13 +1308,15 @@ class MkidDashboard(QMainWindow):
                     QFrame
                        |
                  QGraphicsView   QGraphicsPixmapItem
-                        \          /         |
-                         \        /       QPixmap
+                        \          /         |      \
+                         \        /       QPixmap   QGraphicsBlurEffect
                        QGraphicsScene
         
         To update image:
             - Replace the QPixmap in the QGraphicsPixmapItem
+            - Call QGraphicsPixmapItem.graphicsEffect().setEnabled(True) to turn on blurring
             - Call update() on the QGraphicsPixmapItem to repaint the QGraphicsScene
+            
         """
         self.imageFrame = QtGui.QFrame(parent=self)
         self.imageFrame.setFrameShape(QtGui.QFrame.Box)
@@ -1298,6 +1333,10 @@ class MkidDashboard(QMainWindow):
         self.grPixMap.mouseReleaseEvent = self.mouseReleased
         self.grPixMap.setAcceptHoverEvents(True)
         self.grPixMap.hoverMoveEvent = self.mouseMoved
+        blurEffect = QGraphicsBlurEffect()
+        blurEffect.setBlurRadius(1.5*self.config.getint('properties','image_scale'))
+        self.grPixMap.setGraphicsEffect(blurEffect)
+        self.grPixMap.graphicsEffect().setEnabled(False)
         grview.setScene(scene)
         grview.setVerticalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
         grview.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
