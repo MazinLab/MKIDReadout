@@ -140,7 +140,10 @@ void ParsePacket( uint16_t image[XPIX][YPIX], char *packet, unsigned int l, uint
        swp = *((uint64_t *) (&packet[i*8]));
        swp1 = __bswap_64(swp);
        data = (struct datapacket *) (&swp1);
-       image[(data->xcoord)%XPIX][(data->ycoord)%YPIX]++;
+       //image[(data->xcoord)%XPIX][(data->ycoord)%YPIX]++;
+       
+       if( data->xcoord >= XPIX || data->ycoord >= YPIX ) continue;
+       image[data->xcoord][data->ycoord]++;
        
        // debug
        //if( (data->xcoord)%XPIX == 25 ) {
@@ -156,8 +159,8 @@ void Cuber()
 {
     int br,i,j,cwr;
     char data[1024];
-    char olddata[1048576];
-    char packet[808*2];
+    char *olddata;
+    char packet[808*16];
     time_t s,olds;  // Seconds
     struct timespec spec;
     uint16_t image[XPIX][YPIX];
@@ -179,6 +182,7 @@ void Cuber()
     
     // open shared memory block 2 for photon data
     rptr = OpenShared("/roachstream2");    
+    olddata = (char *) malloc(sizeof(char)*16777216);
     
     //printf("struct sizes = %d, %d\n",sizeof(struct hdrpacket),sizeof(struct datapacket));
 
@@ -212,13 +216,15 @@ void Cuber()
           pcount=0;
           
           // spawn Bin2PNG to make png file
-          sprintf(cmd,"/mnt/data0/PacketMaster2/Bin2PNG %s /mnt/ramdisk/%d.png &",outfile,olds);
-          system(cmd);
+          //sprintf(cmd,"/mnt/data0/PacketMaster2/Bin2PNG %s /mnt/ramdisk/%d.png &",outfile,olds);
+          //system(cmd);
        }
        
-       // not a new second, so read in new data and parse it          
-	   br = rptr->unread;
-	    
+       // not a new second, so read in new data and parse it    
+       while( rptr->busy == 1 ) continue; 
+       rptr->busy=1;     
+	   br = rptr->unread; 
+	   	    
        if( br > 0) {
           //if( br > 0 ) printf("br = %d | oldbr = %d\n",br,oldbr);fflush(stdout);
                  
@@ -228,22 +234,20 @@ void Cuber()
           // append current data to existing data if old data is present
           // NOTE !!!  olddata must start with a packet header
           if( oldbr > 0 ) {
-             while( rptr->busy == 1 ) continue;
-             rptr->busy = 1;
              memmove(&olddata[oldbr],rptr->data,br);
              oldbr+=br;
              rptr->unread = 0;
-             rptr->busy = 0;
+             if (oldbr > 16000000) {
+                printf("oldbr = %d",oldbr); fflush(stdout);             
+             }
           } 
           else {
-             while( rptr->busy == 1 ) continue;
-             rptr->busy = 1;
              memcpy(olddata,rptr->data,br);
              oldbr=br;          
-             rptr->unread = 0;
-             rptr->busy = 0;         
+             rptr->unread = 0;     
           }
-       }   
+       }
+       rptr->busy=0;   
        
        // if there is data waiting, process it
        if( oldbr > 0 ) {       
@@ -259,7 +263,7 @@ void Cuber()
              if (hdr->start == 0b11111111) {        // found new packet header!
                 //printf("Found new packet header at %d.  roach=%d, frame=%d\n",i,hdr->roach,hdr->frame);
        
-                if( i*8 > 104*8 ) { 
+                if( i*8 > 110*8 ) { 
                    printf("Error - packet too long: %d\n",i);
                    //printf("br = %d : oldbr = %d : i = %d\n",br,oldbr,i);
                    //for(j=0;j<oldbr/8;j++) printf("%d : 0x%X\n",j,(uint64_t) olddata[j*8]);                
@@ -276,10 +280,14 @@ void Cuber()
                 oldbr = oldbr-i*8;
                    
                 // parse it!
-                pcount++;
-                ParsePacket(image,packet,i*8,frame);
+                if( oldbr < 16100000 ) {  // if buffer is full don't parse it - no time!
+                    pcount++;                
+                    ParsePacket(image,packet,i*8,frame);
+                }
                 break;  // abort loop and start over!                
              } 
+             
+             /*
              else if (hdr->start == 0b01111111 && hdr->roach == 0b11111111 )  {  // short packet detected
                 // fill packet for parsing
                 //printf("Partial Packet %d\n",i);fflush(stdout);
@@ -295,7 +303,8 @@ void Cuber()
                 ParsePacket(image,packet,i*8,frame);
                 break;  // abort loop and start over!                
                 
-             }           
+             } 
+             */          
              
              // need to check for short/EOF packet, which is one zero and 63 ones
              /*
@@ -317,7 +326,7 @@ void Cuber()
     }
 
     printf("CUBER: Closing\n");
-    close(cwr);
+    free(olddata);
     return;
 }
 
@@ -332,7 +341,7 @@ void Writer()
     char data[1024];
     char path[80];
     char fname[120];
-    int br,wwr;
+    int br;
     struct readoutstream *rptr;
 
     printf("Rev up the RAID array,WRITER is active!\n");
@@ -354,10 +363,12 @@ void Writer()
 
     while (mode != 3) {
 
-       // keep the pipe clean!       
-       if( mode == 0 ) { 
-	   br = read(wwr, data, 1024*sizeof(char)); 
-           //if( br != -1) printf("Writer: received %d\n",br);
+       // keep the shared mem clean!       
+       if( mode == 0 ) {
+          while( rptr->busy == 1 ) continue;
+	      rptr->busy = 1;
+	      rptr->unread = 0;
+	      rptr->busy = 0;
        }
 
        if( mode == 0 && access( "/mnt/ramdisk/START", F_OK ) != -1 ) {
@@ -376,7 +387,7 @@ void Writer()
           clock_gettime(CLOCK_REALTIME, &spec);   
           s  = spec.tv_sec;
           olds = s;
-          sprintf(fname,"%s/%d.bin",path,s);
+          sprintf(fname,"%s%d.bin",path,s);
           printf("Writing to %s\n",fname);
           wp = fopen(fname,"wb");
           mode = 2;
@@ -400,7 +411,7 @@ void Writer()
 
              if( s - olds >= 1 ) {
                  fclose(wp);
-                 sprintf(fname,"%s/%d.bin",path,s);
+                 sprintf(fname,"%s%d.bin",path,s);
                  printf("WRITER: Writing to %s, rate = %ld MBytes/sec\n",fname,outcount/1000000);
                  wp = fopen(fname,"wb");
                  olds = s;
@@ -411,7 +422,7 @@ void Writer()
 	         if( rptr->unread > 0 ) {
 	            while( rptr->busy == 1 ) continue;
 	            rptr->busy = 1;
-	            fwrite( rptr->data, 1, rptr->unread, wp); 
+	            fwrite( rptr->data, 1, rptr->unread, wp);    // could probably speed this up by copying data to new array and doing the fwrite after setting busy to 0
 	            outcount += rptr->unread; 
 	            rptr->unread = 0;
 	            rptr->busy = 0;
@@ -445,7 +456,6 @@ void Writer()
     }
 */
     printf("WRITER: Closing\n");
-    close(wwr);
     return;
 }
 
@@ -499,7 +509,9 @@ void Reader()
   uint64_t nFrames = 0;
   
   // clean out socket before we start
+  printf("READER: clearing buffer.\n"); fflush(stdout);
   while ( recv(s, buf, BUFLEN, 0) > 0 );
+  printf("READER: buffer clear!\n"); fflush(stdout);
 
   while (access( "/mnt/ramdisk/QUIT", F_OK ) == -1)
   {
@@ -510,6 +522,7 @@ void Reader()
     }
     */
     nBytesReceived = recv(s, buf, BUFLEN, 0);
+    //printf("read from socket %d %d!\n",nFrames, nBytesReceived); fflush(stdout);
     if (nBytesReceived == -1)
     {
       if (errno == EAGAIN || errno == EWOULDBLOCK)
@@ -520,6 +533,9 @@ void Reader()
       else
         diep("recvfrom()");
     }
+    
+    if (nBytesReceived == 0 ) continue;
+    
     nTotalBytes += nBytesReceived;
     //printf("Received packet from %s:%d\nData: %s\n\n", 
     //inet_ntoa(si_other.sin_addr), ntohs(si_other.sin_port), buf);
@@ -527,15 +543,7 @@ void Reader()
 
     ++nFrames; 
 
-    printf("read from socket %d %d!\n",nFrames, nBytesReceived);
-
-    /* packetmaster2 version
-    memmove(buf2,buf,BUFLEN);
-    n1=write(wwr, buf, nBytesReceived);
-    if( n1 == -1) perror("write wwr");
-    n2=write(cwrp, buf2, nBytesReceived);
-    if( n2 == -1) perror("write cwr");
-    */
+    //printf("read from socket %d %d!\n",nFrames, nBytesReceived);
     
     // write the socket data to shared memory
     while( rptr1->busy == 1 ) continue;
@@ -563,7 +571,7 @@ void Reader()
   }
 
   //fclose(dump_file);
-  printf("received %d frames, %d bytes\n",nFrames,nTotalBytes);
+  printf("received %ld frames, %ld bytes\n",nFrames,nTotalBytes);
   close(s);
 
   return;
