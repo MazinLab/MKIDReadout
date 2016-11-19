@@ -31,6 +31,19 @@ def fitgaussian(data,x):
     p, success = optimize.leastsq(errorfunction, params, args=(data, x))
     return p
 
+
+def crossCorrelate(template, data):
+    '''
+    returns np.correlate's cross correlation of the template with the data.
+    The max of the correlation is where your timestream matches up
+    '''
+    corr = []
+    for i in range(len(data)):
+        corr.append(np.correlate(template, data[i], mode='same'))
+    corr = np.array(corr)
+    return corr
+    
+
 class StartQt4(QMainWindow):
     def __init__(self):
         QWidget.__init__(self, parent=None)
@@ -193,6 +206,9 @@ class StartQt4(QMainWindow):
 
         # Calculate remaining data for plots (just median values here)
         self.calculate_plot_data()
+
+        # Choose/make template for cross correlation fit
+        self.makeTemplates()
         
         # Perform fits on median data
         self.perform_fits()
@@ -491,6 +507,21 @@ class StartQt4(QMainWindow):
             if np.logical_or(np.sum(self.crx_median[pixelno]) == 0, np.sum(self.cry_median[pixelno]) == 0):
                 self.flagarray[pixelno] = 1
 
+    def makeTemplates(self):
+        ''' #As placeholder, hardcode for one pixel to test on FL5 from 20161118
+        self.xTemp = self.crx_median[4360]
+        self.xTempLoc = 191#.3363
+        self.yTemp = self.cry_median[4360]
+        self.yTempLoc = 363#.4590
+        '''
+
+        '''As placeholder, hardcode for one pixel to test on FL5 from 20161118'''
+        tempID = 8359
+        self.xTemp = self.crx_median[tempID]
+        self.xTempLoc = 287
+        self.yTemp = self.cry_median[tempID]
+        self.yTempLoc = 497
+
 
     def perform_fits(self):
 
@@ -498,7 +529,10 @@ class StartQt4(QMainWindow):
 
         for pixelno in xrange(self.pixelStartIndex, self.pixelStopIndex+1):
             
-            self.xpeakguess=np.where(self.crx_median[pixelno][:] == self.crx_median[pixelno][:].max())[0][0]
+            #self.xpeakguess=np.where(self.crx_median[pixelno][:] == self.crx_median[pixelno][:].max())[0][0]
+            self.xcorr = np.correlate(self.crx_median[pixelno], self.xTemp, 'full')
+            self.xpeakguess = np.where(self.xcorr==self.xcorr.max())[0][0]+self.xTempLoc-len(self.xTemp)+1
+
             self.xfitstart=max([self.xpeakguess-20,0])
             self.xfitend=min([self.xpeakguess+20,self.xSweepLength-1])
             params_x = fitgaussian(self.crx_median[pixelno][self.xfitstart:self.xfitend],self.xTimeAxis[self.xfitstart:self.xfitend])
@@ -507,7 +541,10 @@ class StartQt4(QMainWindow):
             self.mypeakpos[0][pixelno] = params_x[0]
 
 
-            self.ypeakguess=np.where(self.cry_median[pixelno][:] == self.cry_median[pixelno][:].max())[0][0]
+            #self.ypeakguess=np.where(self.cry_median[pixelno][:] == self.cry_median[pixelno][:].max())[0][0]
+            self.ycorr = np.correlate(self.cry_median[pixelno], self.yTemp, 'full')
+            self.ypeakguess = np.where(self.ycorr==self.ycorr.max())[0][0]+self.yTempLoc-len(self.yTemp)+1
+
             self.yfitstart=max([self.ypeakguess-20,0])
             self.yfitend=min([self.ypeakguess+20,self.ySweepLength-1])
             params_y = fitgaussian(self.cry_median[pixelno][self.yfitstart:self.yfitend],self.yTimeAxis[self.yfitstart:self.yfitend])
