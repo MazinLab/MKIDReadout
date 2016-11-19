@@ -672,10 +672,11 @@ class RoachStateMachine(QtCore.QObject):        #Extends QObject for use with QT
         #    self.finished.emit()
         #    return
         hostip = self.config.get('HOST','hostIP')
+        port = int(self.config.get('Roach '+str(self.num),'port'))
         #ch = ch+stream*self.roachController.params['nChannelsPerStream']
         #data=self.roachController.takePhaseStreamData(selChanIndex=ch, duration=duration, hostIP=hostip)
         try:
-            data=self.roachController.takePhaseStreamDataOfFreqChannel(freqChan=channel, duration=duration, hostIP=hostip)
+            data=self.roachController.takePhaseStreamDataOfFreqChannel(freqChan=channel, duration=duration, hostIP=hostip, fabric_port=port)
             longSnapFN = self.config.get('Roach '+str(self.num),'longsnapfile')
             longSnapFN = longSnapFN.rsplit('.',1)[0]+'_ch'+str(int(channel))+'_'+time.strftime("%Y%m%d-%H%M%S",time.localtime())+'.'+longSnapFN.rsplit('.',1)[1]
             np.savez(longSnapFN,data)

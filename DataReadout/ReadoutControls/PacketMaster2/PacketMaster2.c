@@ -50,7 +50,7 @@ struct hdrpacket {
 
 void diep(char *s)
 {
-  printf("errono: %d",errno);
+  printf("errono: %d",errno); fflush(stdout);
   perror(s);
   exit(1);
 }
@@ -168,7 +168,7 @@ void Cuber()
           
           sprintf(outfile,"/mnt/ramdisk/%d.img",olds);
           wp = fopen(outfile,"wb");
-          printf("WRITING: %d %d \n",image[25][39],image[25][54]);
+          //printf("WRITING: %d %d \n",image[25][39],image[25][54]);
           fwrite(image, sizeof(image[0][0]), XPIX * YPIX, wp);
           fclose(wp);
 
@@ -178,8 +178,8 @@ void Cuber()
           pcount=0;
           
           // spawn Bin2PNG to make png file
-          sprintf(cmd,"/mnt/data0/PacketMaster2/Bin2PNG %s /mnt/ramdisk/%d.png &",outfile,olds);
-          system(cmd);
+          //sprintf(cmd,"/mnt/data0/PacketMaster2/Bin2PNG %s /mnt/ramdisk/%d.png &",outfile,olds);
+          //system(cmd);
        }
        
        // not a new second, so read in new data and parse it          
@@ -211,8 +211,7 @@ void Cuber()
              swp = *((uint64_t *) (&olddata[i*8]));
              swp1 = __bswap_64(swp);
              hdr = (struct hdrpacket *) (&swp1);             
-            
-                          
+                                      
              //printf("%d-%d\t",i,hdr->start); fflush(stdout);
              if (hdr->start == 0b11111111) {        // found new packet header!
                 //printf("Found new packet header at %d.  roach=%d, frame=%d\n",i,hdr->roach,hdr->frame);
@@ -333,7 +332,7 @@ void Writer()
           clock_gettime(CLOCK_REALTIME, &spec);   
           s  = spec.tv_sec;
           olds = s;
-          sprintf(fname,"%s/%d.bin",path,s);
+          sprintf(fname,"%s%d.bin",path,s);
           printf("Writing to %s\n",fname);
           wp = fopen(fname,"wb");
           mode = 2;
@@ -422,10 +421,10 @@ void Reader()
   // open up FIFOs for writing in non-blocking mode
 
   while( (cwrp = open("/mnt/ramdisk/CuberPipe.pip", O_WRONLY | O_NDELAY)) == -1 );
-  //printf("cwrp = %d",cwrp);
+  printf("READER: cwrp = %d",cwrp);
   
   while( (wwr = open("/mnt/ramdisk/WriterPipe.pip", O_WRONLY | O_NDELAY)) == -1);
-  //printf("wwr = %d",wwr);
+  printf("READER: wwr = %d",wwr);
 
   if ((s=socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP))==-1)
     diep("socket");
@@ -457,18 +456,24 @@ void Reader()
     diep("set receive buffer size");
 
   uint64_t nFrames = 0;
+  
+  // clean out socket before we start
+  //while ( recv(s, buf, BUFLEN, 0) > 0 );
+  //printf("READER: Cleaned buffer!\n");
 
   //FILE* dump_file;
   //dump_file = fopen("phaseDump.bin","wb");
 
   while (access( "/mnt/ramdisk/QUIT", F_OK ) == -1)
   {
+    
     /*
     if (nFrames % 100 == 0)
     {
         printf("Frame %d\n",nFrames);  fflush(stdout);
     }
     */
+    
     nBytesReceived = recv(s, buf, BUFLEN, 0);
     if (nBytesReceived == -1)
     {
@@ -491,11 +496,11 @@ void Reader()
     //write(cwr, buf, nBytesReceived);
     //write(wwr, buf, nBytesReceived);
     
-    memmove(buf2,buf,BUFLEN);
+    //memmove(buf2,buf,BUFLEN);
     
     n1=write(wwr, buf, nBytesReceived);
     if( n1 == -1) perror("write wwr");
-    n2=write(cwrp, buf2, nBytesReceived);
+    n2=write(cwrp, buf, nBytesReceived);
     if( n2 == -1) perror("write cwr");
     
     //printf("wrote 2 pipes %d %d!\n",nFrames, nBytesReceived);
@@ -676,7 +681,7 @@ int main(void)
     mknod("/mnt/ramdisk/CuberPipe.pip", S_IFIFO | 0666 , 0);
     mknod("/mnt/ramdisk/WriterPipe.pip", S_IFIFO | 0666 , 0);
         
-    // Delete pre-existing control files
+    // Delete pre-existing control files 
     remove("/mnt/ramdisk/START");
     remove("/mnt/ramdisk/STOP");
     remove("/mnt/ramdisk/QUIT");
@@ -699,9 +704,9 @@ int main(void)
 
 	// spawn Cuber
 	if (!fork()) {
-	        //printf("MASTER: Spawning Cuber\n"); fflush(stdout);
+	        printf("MASTER: Spawning Cuber\n"); fflush(stdout);
         	Cuber();
-        	//printf("MASTER: Cuber died!\n"); fflush(stdout);
+        	printf("MASTER: Cuber died!\n"); fflush(stdout);
         	exit(0);
     	} 
         
