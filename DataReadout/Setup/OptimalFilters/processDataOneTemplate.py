@@ -1,11 +1,16 @@
 import numpy as np
 import makeTemplate as mT
 import makeFilters as mF
+import makeNoiseSpectrum as mNS
 import os
 import sys
 import matplotlib.pyplot as plt
+reload(mT)
+reload(mF)
+reload(mNS)
 
-def processData(directory,defaultFilter,filterType='matched',isVerbose=False):
+
+def processData(directory,defaultFilter, template, filterType='matched',isVerbose=False):
     '''
     Loop through .npz files in the directory and create filter coefficient files for each
     INPUTS:
@@ -93,9 +98,6 @@ def processData(directory,defaultFilter,filterType='matched',isVerbose=False):
      
     #initialize filter coefficient array
     filterArray=np.zeros((50,len(fileList)))
-    
-    #initialize template array
-    templateArray=np.zeros((50,len(fileList)))
             
     #loop through all the phase stream data files in the directories
     for index, fileName in enumerate(fileList):
@@ -105,28 +107,30 @@ def processData(directory,defaultFilter,filterType='matched',isVerbose=False):
             rawData=np.load(os.path.join(directory,fileName))
             key=rawData.keys()
             rawData=rawData[key[0]]
+            
+            nSigmaTrig=5.
+            sigPass=.05
+            
+            #hipass filter data to remove any baseline
+            data = mT.hpFilter(rawData)
         
-            #make template
-            template, time , noiseSpectrumDict, _, _ = mT.makeTemplate \
-            (rawData,nSigmaTrig=5.,numOffsCorrIters=3, sigPass=.05)
+            #trigger on pulses in data 
+            peakDict = mT.sigmaTrigger(data,nSigmaTrig=nSigmaTrig, decayTime=20, isVerbose=False)
             
-            if np.trapz(template[95:95+50])>-10: #or np.abs(np.trapz(np.diff(template[95:95+50])))<-3:
-                errorFlag=1
-                raise ValueError('proccessData: template not correct')
-            
+            #create noise spectrum from pre-pulse data for filter
+            noiseSpectDict = mNS.makeWienerNoiseSpectrum(data,peakDict['peakMaxIndices'],template=template)
+            #noiseSpectDict['noiseSpectrum']=np.ones(len(noiseSpectDict['noiseSpectrum']))        
+
             #make filter
             if filterType=='matched':
-                filterCoef=mF.makeMatchedFilter(template, noiseSpectrumDict['noiseSpectrum'], nTaps=50, tempOffs=95)
+                filterCoef=mF.makeMatchedFilter(template, noiseSpectDict['noiseSpectrum'], nTaps=50, tempOffs=0)
             else:
                 sys.stdout.write("processData: filter type not defined")
                 sys.stdout.flush()
                 return
-            
+
             #add filter coefficients to array
             filterArray[:,index]=filterCoef
-            
-            #add template coefficients to array
-            templateArray[:,index]=template[95:95+50]
                         
         except Exception:
             logFileFlag=1
@@ -136,7 +140,6 @@ def processData(directory,defaultFilter,filterType='matched',isVerbose=False):
                 elif errorFlag==1:
                     logfile.write("File '{0}' filter template failed. Replaced with standard filter \r".format(fileName))
             filterArray[:,index]=defaultFilter
-            templateArray[:,index]=0#-defaultFilter/np.max(np.abs(defaultFilter))
             filterFail+=1
             
         #print progress to terminal
@@ -149,7 +152,6 @@ def processData(directory,defaultFilter,filterType='matched',isVerbose=False):
                 print "Percent of filters created: 100%    "    
     print "{0}% of pixels using optimal filters".format((1-filterFail/float(len(fileList)))*100)    
     np.savetxt(os.path.join(directory,'filter_coefficients.txt'),filterArray)
-    np.savetxt(os.path.join(directory,'template_coefficients.txt'),templateArray)  
     
     with open(os.path.join(directory,"log_file.txt"),'a') as logfile:
         logfile.write("\rFile list that was itterated over: \r")
