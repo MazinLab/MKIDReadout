@@ -133,45 +133,70 @@ class ConvertPhotonsToRGB(QtCore.QObject):
     """
     convertedImage = QtCore.pyqtSignal(object)
     
-    def __init__(self, image, minCountCutoff=0,maxCountCutoff=450, logStretch=True,interpolate=False,makeRed=True, parent=None):
+    def __init__(self, image, minCountCutoff=0,maxCountCutoff=450, stretchMode='log',interpolate=False,makeRed=True, parent=None):
         """
         INPUTS:
             image - 2D numpy array of photon counts with np.nan where beammap failed
             minCountCutoff - anything <= this number of counts will be black
             maxCountCutoff - anything >= this number of counts will be red
-            logStretch - see histEqualization()
+            stretchMode - can be log, linear, hist
             interpolate - interpolate over np.nan pixels
         """
         super(QtCore.QObject, self).__init__(parent)
         self.image=np.copy(image)
         self.minCountCutoff=minCountCutoff
         self.maxCountCutoff=maxCountCutoff
-        self.logStretch=logStretch
+        #self.logStretch=logStretch
         self.interpolate=interpolate
         self.makeRed = makeRed
+        self.stretchMode=stretchMode
         
         #print '#red: ',len(self.redPixels[0])
     
-    def linStretch(self):
+    def stretchImage(self):
         """
-        map photon count to RGB linearly
+        map photons to greyscale
         """
+        # first interpolate and find hot pixels
         if self.interpolate: self.image = interpolateImage(self.image)
         self.image[np.where(np.logical_not(np.isfinite(self.image)))] = 0   # get rid of np.nan's
         if self.makeRed: self.redPixels = np.where(self.image>=self.maxCountCutoff)
         else: self.redPixels=[]
         
-        #print "linear Stretch"
+        if self.stretchMode=='logarithmic': imageGrey = self.logStretch()
+        elif self.stretchMode=='linear': imageGrey = self.linStretch()
+        elif self.stretchMode=='histogram equalization': imageGrey = self.histEqualization()
+        else: raise ValueError
+        
+        self.makeQPixMap(imageGrey)
+    
+    def logStretch(self):
+        """
+        map photon counts to greyscale logarithmically
+        """
+        self.image[np.where(self.image>self.maxCountCutoff)]=self.maxCountCutoff
+        self.image[np.where(self.image<self.minCountCutoff)]=self.minCountCutoff
+        maxVal = np.amax(self.image)
+        minVal = np.amin(self.image)
+        maxVal=np.amax([minVal+1, maxVal])
+        
+        image2 = 255./(np.log10(1+maxVal-minVal)) * np.log10(1+self.image - minVal)
+        return image2
+        
+    
+    def linStretch(self):
+        """
+        map photon count to greyscale linearly (max 255 min 0)
+        """
         self.image[np.where(self.image>self.maxCountCutoff)]=self.maxCountCutoff
         self.image[np.where(self.image<self.minCountCutoff)]=self.minCountCutoff
         
         maxVal = np.amax(self.image)
         minVal = np.amin(self.image)
+        maxVal=np.amax([minVal+1, maxVal])
         
         image2=(self.image-minVal)/(1.0*maxVal-minVal)*255.
-        #image2[2:4,2:4]=255
-        #image2[5:10,2]=0
-        self.makeQPixMap(image2)
+        return image2
     
     def histEqualization(self):
         """
@@ -179,12 +204,6 @@ class ConvertPhotonsToRGB(QtCore.QObject):
         
         if self.logStretch is True the histogram uses logarithmic spaced bins
         """
-        if self.interpolate: self.image = interpolateImage(self.image)
-        self.image[np.where(np.logical_not(np.isfinite(self.image)))] = 0   # get rid of np.nan's
-        if self.makeRed: self.redPixels = np.where(self.image>=self.maxCountCutoff) # make maxed out pixels red
-        else: self.redPixels=[]
-        
-        #print "Running hist"
         imShape=self.image.shape
         
         self.image[np.where(self.image>self.maxCountCutoff)]=self.maxCountCutoff
@@ -203,7 +222,8 @@ class ConvertPhotonsToRGB(QtCore.QObject):
         image2 = np.interp(self.image.flatten(),imbins[:-1],cdf)
         image2=image2.reshape(self.image.shape)
         image2[np.where(self.image<=self.minCountCutoff)]=0
-        self.makeQPixMap(image2)
+        
+        return image2
     
     def makeQPixMap(self, image):
         """
@@ -221,10 +241,9 @@ class ConvertPhotonsToRGB(QtCore.QObject):
         q_im = QtGui.QImage(imageRGB,self.image.shape[1],self.image.shape[0],QImage.Format_RGB32)
         
         self.convertedImage.emit(q_im)
-        
-        
-        
-        
+
+
+
 
 class MkidDashboard(QMainWindow):
     """
@@ -337,6 +356,7 @@ class MkidDashboard(QMainWindow):
             dest_ip = binascii.hexlify(inet_aton(hostIP))
             dest_ip = int(dest_ip,16)
             roach.fpga.write_int(self.config.get('properties','destIP_reg'),dest_ip)
+            roach.fpga.write_int(self.config.get('properties','photonPort_reg'), self.config.getint('properties','photonCapPort'))
             roach.fpga.write_int(self.config.get('properties','wordsPerFrame_reg'),self.config.getint('properties','wordsPerFrame'))
             
             # restart gbe
@@ -544,7 +564,6 @@ class MkidDashboard(QMainWindow):
         #maxCountCutoff=self.config.getint('properties','max_count_rate')*numImages2Sum/self.config.getfloat('properties','packetmaster_image_intTime')
         minCountCutoff=self.config.getint('properties','min_count_rate')
         maxCountCutoff=self.config.getint('properties','max_count_rate')
-        logStretch=False
         bias=0
         #bias=1000
         
@@ -574,15 +593,15 @@ class MkidDashboard(QMainWindow):
         image[np.where(self.beammapFailed)]=np.nan
         interpBool = self.checkbox_interpolate.isChecked()
         smoothBool = self.checkbox_smooth.isChecked()       # if we're smoothing don't make pixels red
-        converter=ConvertPhotonsToRGB(image,minCountCutoff,maxCountCutoff,logStretch,interpBool,not smoothBool)
+        mode=self.combobox_stretch.currentText()
+        converter=ConvertPhotonsToRGB(image,minCountCutoff,maxCountCutoff,mode,interpBool,not smoothBool)
         self.workers.append(converter)                       # Need local reference or else signal is lost!
         thread = QtCore.QThread(parent=self)
         thread_num=len(self.threadPool)
         thread.setObjectName("convertImage_"+str(thread_num))
         self.threadPool.append(thread)                      # Need to have local reference to thread or else it will get lost!
         converter.moveToThread(thread)
-        #thread.started.connect(converter.histEqualization)
-        thread.started.connect(converter.linStretch)
+        thread.started.connect(converter.stretchImage)
         converter.convertedImage.connect(lambda x: thread.quit())
         converter.convertedImage.connect(self.updateImage)
         thread.finished.connect(partial(self.threadPool.remove,thread))         # delete these when done so we don't have a memory leak
@@ -1172,6 +1191,12 @@ class MkidDashboard(QMainWindow):
         spinbox_maxCountRate.valueChanged.connect(lambda x: QtCore.QTimer.singleShot(10,self.convertImage)) # remake current image after 10 ms
         spinbox_minCountRate.valueChanged.connect(lambda x: QtCore.QTimer.singleShot(10,self.convertImage)) # remake current image after 10 ms
         
+        #Drop down menu for choosing image stretch
+        label_stretch = QLabel("Image Stretch:")
+        self.combobox_stretch = QComboBox()
+        self.combobox_stretch.addItems(['logarithmic', 'linear', 'histogram equalization'])
+        
+        
         # Checkbox for showing unbeammaped pixels
         self.checkbox_showAllPix = QCheckBox('Show All Pixels')
         self.checkbox_showAllPix.setChecked(False)
@@ -1277,6 +1302,11 @@ class MkidDashboard(QMainWindow):
         hbox_CountRate.addWidget(spinbox_maxCountRate)
         hbox_CountRate.addStretch()
         vbox.addLayout(hbox_CountRate)
+        hbox_stretch = QHBoxLayout()
+        hbox_stretch.addWidget(label_stretch)
+        hbox_stretch.addWidget(self.combobox_stretch)
+        hbox_stretch.addStretch()
+        vbox.addLayout(hbox_stretch)
         vbox.addWidget(self.checkbox_showAllPix)
         vbox.addWidget(self.checkbox_interpolate)
         vbox.addWidget(self.checkbox_smooth)
