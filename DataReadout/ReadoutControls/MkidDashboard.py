@@ -163,9 +163,9 @@ class ConvertPhotonsToRGB(QtCore.QObject):
         if self.makeRed: self.redPixels = np.where(self.image>=self.maxCountCutoff)
         else: self.redPixels=[]
         
-        if self.stretchMode=='log': imageGrey = self.logStretch()
+        if self.stretchMode=='logarithmic': imageGrey = self.logStretch()
         elif self.stretchMode=='linear': imageGrey = self.linStretch()
-        elif self.stretchMode=='hist': imageGrey = self.histEqualization()
+        elif self.stretchMode=='histogram equalization': imageGrey = self.histEqualization()
         else: raise ValueError
         
         self.makeQPixMap(imageGrey)
@@ -356,6 +356,7 @@ class MkidDashboard(QMainWindow):
             dest_ip = binascii.hexlify(inet_aton(hostIP))
             dest_ip = int(dest_ip,16)
             roach.fpga.write_int(self.config.get('properties','destIP_reg'),dest_ip)
+            roach.fpga.write_int(self.config.get('properties','photonPort_reg'), self.config.getint('properties','photonCapPort'))
             roach.fpga.write_int(self.config.get('properties','wordsPerFrame_reg'),self.config.getint('properties','wordsPerFrame'))
             
             # restart gbe
@@ -592,7 +593,7 @@ class MkidDashboard(QMainWindow):
         image[np.where(self.beammapFailed)]=np.nan
         interpBool = self.checkbox_interpolate.isChecked()
         smoothBool = self.checkbox_smooth.isChecked()       # if we're smoothing don't make pixels red
-        mode='log'
+        mode=self.combobox_stretch.currentText()
         converter=ConvertPhotonsToRGB(image,minCountCutoff,maxCountCutoff,mode,interpBool,not smoothBool)
         self.workers.append(converter)                       # Need local reference or else signal is lost!
         thread = QtCore.QThread(parent=self)
@@ -1190,6 +1191,12 @@ class MkidDashboard(QMainWindow):
         spinbox_maxCountRate.valueChanged.connect(lambda x: QtCore.QTimer.singleShot(10,self.convertImage)) # remake current image after 10 ms
         spinbox_minCountRate.valueChanged.connect(lambda x: QtCore.QTimer.singleShot(10,self.convertImage)) # remake current image after 10 ms
         
+        #Drop down menu for choosing image stretch
+        label_stretch = QLabel("Image Stretch:")
+        self.combobox_stretch = QComboBox()
+        self.combobox_stretch.addItems(['logarithmic', 'linear', 'histogram equalization'])
+        
+        
         # Checkbox for showing unbeammaped pixels
         self.checkbox_showAllPix = QCheckBox('Show All Pixels')
         self.checkbox_showAllPix.setChecked(False)
@@ -1295,6 +1302,11 @@ class MkidDashboard(QMainWindow):
         hbox_CountRate.addWidget(spinbox_maxCountRate)
         hbox_CountRate.addStretch()
         vbox.addLayout(hbox_CountRate)
+        hbox_stretch = QHBoxLayout()
+        hbox_stretch.addWidget(label_stretch)
+        hbox_stretch.addWidget(self.combobox_stretch)
+        hbox_stretch.addStretch()
+        vbox.addLayout(hbox_stretch)
         vbox.addWidget(self.checkbox_showAllPix)
         vbox.addWidget(self.checkbox_interpolate)
         vbox.addWidget(self.checkbox_smooth)
