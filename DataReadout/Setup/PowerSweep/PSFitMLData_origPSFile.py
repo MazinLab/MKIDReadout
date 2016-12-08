@@ -1,6 +1,7 @@
 ''' 
-Class for loading and/or saving ML data for PS fitting.  Class contains one data set, could be either inference or training.  Typical
-use would have the save functionality used exclusively for inference.
+Class for loading and/or saving ML data for PS fitting using the original Power Sweeo File format.  
+Class contains one data set, could be either inference or training. Typical use would have the save
+ functionality used exclusively for inference.
 
 '''
 import os,sys,inspect
@@ -163,34 +164,49 @@ class PSFitMLData():
 
         if os.path.isfile(self.PSFile):
             print 'loading peak location data from %s' % self.PSFile
-            PSFile = np.loadtxt(self.PSFile, skiprows=0)
-            opt_freqs = PSFile[:,1]
-            opt_attens = PSFile[:,2]
-            if self.useResID:
-                goodResIDs = PSFile[:,0]
-                self.good_res = np.where(map(lambda x: np.any(x==goodResIDs), self.resIDs))[0]
-            else:
-                self.good_res = np.array(PSFile[:,0]-PSFile[0,0],dtype='int')
+            PSFile = np.loadtxt(self.PSFile, skiprows=1)
+            opt_freqs = PSFile[:,0]
+            opt_attens = PSFile[:,3]
+            self.opt_iAttens = opt_attens -min(self.attens[0])
+            # if self.useResID:
+            #     goodResIDs = PSFile[:,0]
+            #     self.good_res = np.where(map(lambda x: np.any(x==goodResIDs), self.resIDs))[0]
+            # else:
+                # self.good_res = np.array(PSFile[:,0]-PSFile[0,0],dtype='int')
+
+            # if the PSFile is in the old format match the resonators using the frequencies 
+            all_freqs = np.around(self.freqs, decimals=-4)
+            opt_freqs = np.around(opt_freqs, decimals=-4)
+            self.good_res = np.arange(len(self.freqs))
+            a,b = 0,0
+
+            for g in range(len(opt_freqs)-2):
+                while opt_freqs[g] not in all_freqs[a,:]:
+                    self.good_res = np.delete(self.good_res,g+b) # identify this value of all_freqs as bad by removing from list
+                    a += 1  # keep incrementing until opt_freqs matches good_freqs
+                a += 1 # as g increments so does a 
+            iFinTrainRes = np.where(opt_freqs[-1]==np.around(self.freqs[self.good_res], decimals=-4))[0][0]+1            
+            self.good_res = self.good_res[:iFinTrainRes]
 
             self.res_nums = len(self.good_res)          
 
-            self.attens = self.attens[self.good_res,:]
-            optAttenLocs = np.where(np.transpose(np.transpose(np.array(self.attens))==np.array(opt_attens))) #find optimal atten indices
-            optAttenExists = optAttenLocs[0]
-            self.opt_iAttens = optAttenLocs[1]
-
-            attenSkips = optAttenLocs[0]-np.arange(len(optAttenLocs[0]))
-            attenSkips = np.where(np.diff(attenSkips))[0]+1 #indices where opt atten was not found
-            for resSkip in attenSkips:
-                print 'resSkip', resSkip
-                if(opt_attens[resSkip]<self.attens[resSkip,0]):
-                    opt_attens[resSkip] = self.attens[resSkip,0]
-                    self.opt_iAttens = np.insert(self.opt_iAttens,resSkip,0) 
-                elif(opt_attens[resSkip]>self.attens[resSkip,-1]):
-                    opt_attens[resSkip] = self.attens[resSkip,-1]
-                    self.opt_iAttens = np.insert(self.opt_iAttens,resSkip,np.shape(self.attens)[1]-1)
-                else:
-                    raise ValueError('Atten skip index error')
+            # self.attens = self.attens[self.good_res,:]
+            # optAttenLocs = np.where(np.transpose(np.transpose(np.array(self.attens))==np.array(opt_attens))) #find optimal atten indices
+            # optAttenExists = optAttenLocs[0]
+            # self.opt_iAttens = optAttenLocs[1]
+            
+            # attenSkips = optAttenLocs[0]-np.arange(len(optAttenLocs[0]))
+            # attenSkips = np.where(np.diff(attenSkips))[0]+1 #indices where opt atten was not found
+            # for resSkip in attenSkips:
+            #     print 'resSkip', resSkip
+            #     if(opt_attens[resSkip]<self.attens[resSkip,0]):
+            #         opt_attens[resSkip] = self.attens[resSkip,0]
+            #         self.opt_iAttens = np.insert(self.opt_iAttens,resSkip,0) 
+            #     elif(opt_attens[resSkip]>self.attens[resSkip,-1]):
+            #         opt_attens[resSkip] = self.attens[resSkip,-1]
+            #         self.opt_iAttens = np.insert(self.opt_iAttens,resSkip,np.shape(self.attens)[1]-1)
+            #     else:
+            #         raise ValueError('Atten skip index error')
         else: 
             print self.PSFile, 'not found' 
             exit()

@@ -56,6 +56,7 @@ import time
 import math
 from scipy import interpolate
 from PSFitMLData import *
+# from PSFitMLData_origPSFile import *
 np.set_printoptions(threshold=np.inf)
 
 #removes visible depreciation warnings from lib.iqsweep
@@ -1204,6 +1205,7 @@ class mlClassification():
             plt.legend(loc="upper left")
             plt.show()
 
+
 def next_batch(trainImages, trainLabels, batch_size):
     '''selects a random batch of batch_size from trainImages and trainLabels'''
     perm = random.sample(range(len(trainImages)), batch_size)
@@ -1211,47 +1213,4 @@ def next_batch(trainImages, trainLabels, batch_size):
     trainLabels = np.array(trainLabels)[perm,:]
     return trainImages, trainLabels
 
-def loadPkl(filename):
-    '''load the train and test data to train and test mlClass
-
-    pkl file hirerachy is as follows:
-        -The file is split in two, one side for train data and one side for test data -These halfs are further divdided into image data and labels
-        -makeTrainData creates image data of size: xWidth * xWidth * res_nums and the label data of size: res_nums
-        -each time makeTrainData is run a new image cube and label array is created and appended to the old data
-
-    so the final size of the file is (xWidth * xWidth * res_nums * "no of train runs") + (res_nums * "no of train runs") + [the equivalent test data structure]
-
-    A more simple way would be to separate the train and test data after they were read but this did not occur to the 
-    me before most of the code was written
-
-    Input
-    pkl filename to be read.
-
-    Outputs
-    image cube and label array
-    '''
-    file =[]
-    with open(filename, 'rb') as f:
-        while 1:
-            try:
-                file.append(pickle.load(f))
-            except EOFError:
-                break
     
-    trainImages = file[0][0]
-    trainLabels = file[0][1]
-    testImages = file[1][0]
-    testLabels = file[1][1]
-
-    print np.shape(file)[0]/2 -1
-    if np.shape(file)[0]/2 > 1:
-        for i in range(1, np.shape(file)[0]/2):
-            trainImages = np.append(trainImages, file[2*i][0], axis=0)
-            trainLabels = np.append(trainLabels, file[2*i][1], axis=0)
-            testImages = np.append(testImages, file[2*i+1][0], axis=0)
-            testLabels = np.append(testLabels, file[2*i+1][1], axis=0)
-
-    print np.shape(trainLabels)
-
-    print "loaded dataset from ", filename
-    return trainImages, trainLabels, testImages, testLabels
