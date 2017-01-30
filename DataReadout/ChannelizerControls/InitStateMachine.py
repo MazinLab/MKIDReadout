@@ -8,8 +8,8 @@ import numpy as np
 from PyQt4 import QtCore
 from Queue import Queue
 from Roach2Controls import Roach2Controls
-#from autoZdokCal import loadDelayCal, findCal
-from autoZdokCal_V2 import loadDelayCal, findCal
+from autoZdokCal import loadDelayCal, findCal
+#from autoZdokCal_V2 import loadDelayCal, findCal
 from myQdr import Qdr as myQdr
 
 class InitStateMachine(QtCore.QObject):        #Extends QObject for use with QThreads
@@ -224,10 +224,10 @@ class InitStateMachine(QtCore.QObject):        #Extends QObject for use with QTh
         time.sleep(.1)
 
         nBitsRemovedInFFT = self.config.getint('Roach '+str(self.num),'nBitsRemovedInFFT')
-        if(nBitsRemovedInFFT == 0):
-            self.roachController.setAdcScale(0.9375) #Max ADC scale value
-        else:
-            self.roachController.setAdcScale(1./(2**nBitsRemovedInFFT))
+        # if(nBitsRemovedInFFT == 0):
+        #     self.roachController.setAdcScale(0.9375) #Max ADC scale value
+        # else:
+        #     self.roachController.setAdcScale(1./(2**nBitsRemovedInFFT))
 
         self.roachController.fpga.write_int('run',1)
         busDelays = [14,18,14,13]
@@ -238,7 +238,8 @@ class InitStateMachine(QtCore.QObject):        #Extends QObject for use with QTh
                 busDelays[iBus] * np.ones(busBitLength))
             loadDelayCal(self.roachController.fpga,delayLut)
 
-        calDict = findCal(self.roachController.fpga,nBitsRemovedInFFT)
+        # calDict = findCal(self.roachController.fpga,nBitsRemovedInFFT)
+        calDict = findCal(self.roachController.fpga)
         print calDict
         
         self.roachController.sendUARTCommand(0x5)

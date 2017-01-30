@@ -5,7 +5,7 @@ import os
 import sys
 import matplotlib.pyplot as plt
 
-def processData(directory,defaultFilter,filterType='matched',isVerbose=False):
+def processData(directory,filterType='matched',isVerbose=False):
     '''
     Loop through .npz files in the directory and create filter coefficient files for each
     INPUTS:
@@ -109,22 +109,7 @@ def processData(directory,defaultFilter,filterType='matched',isVerbose=False):
             #make template
             template, time , noiseSpectrumDict, _, _ = mT.makeTemplate \
             (rawData,nSigmaTrig=5.,numOffsCorrIters=3, sigPass=.05)
-            
-            if np.trapz(template[95:95+50])>-10: #or np.abs(np.trapz(np.diff(template[95:95+50])))<-3:
-                errorFlag=1
-                raise ValueError('proccessData: template not correct')
-            
-            #make filter
-            if filterType=='matched':
-                filterCoef=mF.makeMatchedFilter(template, noiseSpectrumDict['noiseSpectrum'], nTaps=50, tempOffs=95)
-            else:
-                sys.stdout.write("processData: filter type not defined")
-                sys.stdout.flush()
-                return
-            
-            #add filter coefficients to array
-            filterArray[:,index]=filterCoef
-            
+
             #add template coefficients to array
             templateArray[:,index]=template[95:95+50]
                         
@@ -135,8 +120,6 @@ def processData(directory,defaultFilter,filterType='matched',isVerbose=False):
                     logfile.write("File '{0}' filter calculation failed. Replaced with standard filter \r".format(fileName))
                 elif errorFlag==1:
                     logfile.write("File '{0}' filter template failed. Replaced with standard filter \r".format(fileName))
-            filterArray[:,index]=defaultFilter
-            templateArray[:,index]=0#-defaultFilter/np.max(np.abs(defaultFilter))
             filterFail+=1
             
         #print progress to terminal

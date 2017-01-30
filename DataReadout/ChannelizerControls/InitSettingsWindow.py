@@ -31,7 +31,7 @@ class InitSettingsWindow(QTabWidget):
     
     resetRoach = QtCore.pyqtSignal(int,int)     
     initTemplar = QtCore.pyqtSignal(int,object)
-    nBitsRemovedInFFT = QtCore.pyqtSignal(int)
+    # nBitsRemovedInFFT = QtCore.pyqtSignal(int)
     
     def __init__(self,roachNums,config,parent=None):
         """
@@ -85,7 +85,7 @@ class InitSettingsWindow(QTabWidget):
 class InitSettingsTab(QMainWindow):
     resetRoach = QtCore.pyqtSignal(int)     #Signal emmited when we change a setting so we can reload it into the ROACH2
     initTemplar = QtCore.pyqtSignal(object)
-    nBitsRemovedInFFT = QtCore.pyqtSignal() #signal emitted when we change the number of bits removed before the FFT
+    # nBitsRemovedInFFT = QtCore.pyqtSignal() #signal emitted when we change the number of bits removed before the FFT
 
     def __init__(self,roachNum,config):
         super(InitSettingsTab, self).__init__() #parent=None. This is the correct way according to the QTabWidget documentation
@@ -94,9 +94,9 @@ class InitSettingsTab(QMainWindow):
         
         self.create_main_frame()
     
-    def changedNBitsRemoved(self, nBitsRemoved):
-        self.changedSetting('nBitsRemovedInFFT',nBitsRemoved)
-        #self.nBitsRemovedInFFT.emit()
+    # def changedNBitsRemoved(self, nBitsRemoved):
+    #     self.changedSetting('nBitsRemovedInFFT',nBitsRemoved)
+    #     #self.nBitsRemovedInFFT.emit()
 
     def changedSetting(self,settingID,setting):
         """
@@ -160,14 +160,14 @@ class InitSettingsTab(QMainWindow):
         textbox_FPGAParamFile.textChanged.connect(lambda x: self.resetRoach.emit(-1))      # reset roach state if ipAddress changes
         add2layout(vbox, label_FPGAParamFile, textbox_FPGAParamFile)
         
-        nBitsRemovedInFFT = self.config.getint('Roach '+str(self.roachNum),'nBitsRemovedInFFT')
-        label_nBitsRemovedInFFT = QLabel('nBitsRemovedInFFT:')
-        label_nBitsRemovedInFFT.setMinimumWidth(110)
-        spinbox_nBitsRemovedInFFT = QSpinBox()
-        spinbox_nBitsRemovedInFFT.setRange(0,12)
-        spinbox_nBitsRemovedInFFT.setValue(nBitsRemovedInFFT)
-        spinbox_nBitsRemovedInFFT.valueChanged.connect(self.changedNBitsRemoved)
-        add2layout(vbox, label_nBitsRemovedInFFT, spinbox_nBitsRemovedInFFT)
+        # nBitsRemovedInFFT = self.config.getint('Roach '+str(self.roachNum),'nBitsRemovedInFFT')
+        # label_nBitsRemovedInFFT = QLabel('nBitsRemovedInFFT:')
+        # label_nBitsRemovedInFFT.setMinimumWidth(110)
+        # spinbox_nBitsRemovedInFFT = QSpinBox()
+        # spinbox_nBitsRemovedInFFT.setRange(0,12)
+        # spinbox_nBitsRemovedInFFT.setValue(nBitsRemovedInFFT)
+        # spinbox_nBitsRemovedInFFT.valueChanged.connect(self.changedNBitsRemoved)
+        # add2layout(vbox, label_nBitsRemovedInFFT, spinbox_nBitsRemovedInFFT)
         
         
 

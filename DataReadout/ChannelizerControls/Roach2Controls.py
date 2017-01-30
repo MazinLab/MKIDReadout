@@ -729,7 +729,7 @@ class Roach2Controls:
         self.v7_ready = 0
         self.sendUARTCommand(attenVal)
     
-    def generateDacComb(self, freqList=None, resAttenList=None, globalDacAtten = 0, phaseList=None):
+    def generateDacComb(self, freqList=None, resAttenList=None, globalDacAtten = 0, phaseList=None, iqRatioList=None, iqPhaseOffsList=None):
         """
         Creates DAC frequency comb by adding many complex frequencies together with specified amplitudes and phases.
         
@@ -793,7 +793,11 @@ class Roach2Controls:
         dacFreqList[np.where(dacFreqList<0.)] += self.params['dacSampleRate']  #For +/- freq
         
         # Generate and add up individual tone time series.
-        toneDict = self.generateTones(dacFreqList, nSamples, sampleRate, amplitudeList, phaseList)
+        if iqRatioList==None:
+            iqRatioList = np.ones(len(dacFreqList))
+        if iqPhaseOffsList==None:
+            iqPhaseOffsList = np.zeros((len(dacFreqList)))
+        toneDict = self.generateTones(dacFreqList, nSamples, sampleRate, amplitudeList, phaseList, iqRatioList, iqPhaseOffsList)
         self.dacQuantizedFreqList = toneDict['quantizedFreqList']
         self.dacPhaseList = toneDict['phaseList']
         iValues = np.array(np.round(np.sum(toneDict['I'],axis=0)),dtype=np.int)
@@ -866,7 +870,7 @@ class Roach2Controls:
         return {'I':iValues,'Q':qValues,'quantizedFreqList':self.dacQuantizedFreqList}
         
     
-    def generateTones(self, freqList, nSamples, sampleRate, amplitudeList, phaseList):
+    def generateTones(self, freqList, nSamples, sampleRate, amplitudeList, phaseList, iqRatioList=None, iqPhaseOffsList=None):
         """
         Generate a list of complex signals with amplitudes and phases specified and frequencies quantized
         
@@ -888,12 +892,17 @@ class Roach2Controls:
             amplitudeList = np.asarray([1.]*len(freqList))
         if phaseList is None:
             phaseList = np.random.uniform(0,2.*np.pi,len(freqList))
-        if len(freqList) != len(amplitudeList) or len(freqList) != len(phaseList):
-            raise ValueError("Need exactly one phase and amplitude value for each resonant frequency!")
+        if iqRatioList is None:
+            iqRatioList = np.ones(len(freqList))
+        if iqPhaseOffsList is None:
+            iqPhaseOffsList = np.zeros(len(freqList))
+        if len(freqList) != len(amplitudeList) or len(freqList) != len(phaseList) or len(freqList) != len(iqRatioList) or len(freqList) != len(iqPhaseOffsList):
+            raise ValueError("Need exactly one phase, amplitude, and IQ correction value for each resonant frequency!")
         
         # Quantize the frequencies to their closest digital value
         freqResolution = sampleRate/nSamples
         quantizedFreqList = np.round(freqList/freqResolution)*freqResolution
+        iqPhaseOffsRadList = np.pi/180*iqPhaseOffsList
         
         # generate each signal
         iValList = []
@@ -904,7 +913,7 @@ class Roach2Controls:
             phi = 2.*np.pi*quantizedFreqList[i]*t
             expValues = amplitudeList[i]*np.exp(1.j*(phi+phaseList[i]))
             #print 'Rotating ch'+str(i)+' to '+str(phaseList[i]*180./np.pi)+' deg'
-            iValList.append(np.real(expValues))
+            iValList.append(iqRatioList[i]*(np.cos(iqPhaseOffsRadList[i])*np.real(expValues)+np.sin(iqPhaseOffsRadList[i])*np.imag(expValues)))
             qValList.append(np.imag(expValues))
         
         '''
