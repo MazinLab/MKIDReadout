@@ -676,6 +676,7 @@ class Roach2Controls:
 
         if(self.v7_ready == self.params['v7Err']):
             raise Exception('MicroBlaze failed to set LO!')
+        #time.sleep(1)
 
 
     def setAdcScale(self, scale=.25):
@@ -943,9 +944,10 @@ class Roach2Controls:
         if len(np.array(freqList))>self.params['nChannels']:
             warnings.warn("Too many freqs provided. Can only accommodate "+str(self.params['nChannels'])+" resonators")
             freqList = freqList[:self.params['nChannels']]
-        self.freqList = np.unique(np.ravel(freqList))
+        self.freqList = np.ravel(freqList)
         if len(np.unique(self.freqList)) != len(self.freqList):
-            warnings.warn("Be careful, I assumed everywhere that the frequencies were unique!")
+            #warnings.warn("Be careful, I assumed everywhere that the frequencies were unique!")
+            raise ValueError
         self.freqChannels = self.freqList
         if self.verbose:
             print 'Generating Resonator Channels...'
