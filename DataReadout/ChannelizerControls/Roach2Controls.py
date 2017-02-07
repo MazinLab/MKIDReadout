@@ -912,8 +912,10 @@ class Roach2Controls:
             phi = 2.*np.pi*quantizedFreqList[i]*t
             expValues = amplitudeList[i]*np.exp(1.j*(phi+phaseList[i]))
             #print 'Rotating ch'+str(i)+' to '+str(phaseList[i]*180./np.pi)+' deg'
-            iValList.append(iqRatioList[i]*(np.cos(iqPhaseOffsRadList[i])*np.real(expValues)+np.sin(iqPhaseOffsRadList[i])*np.imag(expValues)))
-            qValList.append(np.imag(expValues))
+            iScale = np.sqrt(2)*iqRatioList[i]/np.sqrt(1+iqRatioList[i]**2)
+            qScale = np.sqrt(2)/np.sqrt(1+iqRatioList[i]**2)
+            iValList.append(iScale*(np.cos(iqPhaseOffsRadList[i])*np.real(expValues)+np.sin(iqPhaseOffsRadList[i])*np.imag(expValues)))
+            qValList.append(qScale*np.imag(expValues))
         
         '''
         if self.debug:
