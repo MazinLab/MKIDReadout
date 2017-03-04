@@ -247,23 +247,39 @@ class RoachStateMachine(QtCore.QObject):        #Extends QObject for use with QT
         if os.path.isfile(fn2): 
             fn=fn2
             print 'Loading freqs from '+fn
-        resIDs, freqs, attens = np.loadtxt(fn,unpack=True)
-        freqs = np.atleast_1d(freqs)       # If there's only 1 resonator numpy loads it in as a float.
-        attens = np.atleast_1d(attens)     # We need an array of floats
-        resIDs = np.atleast_1d(resIDs)
         
+        freqFile = np.loadtxt(fn)
+        
+        if np.shape(freqFile)[1]==3:
+            resIDs = np.atleast_1d(freqFile[:,0])       # If there's only 1 resonator numpy loads it in as a float.
+            freqs = np.atleast_1d(freqFile[:,1])     # We need an array of floats
+            attens = np.atleast_1d(freqFile[:,2])
+            phaseOffsList = np.zeros(len(freqs))
+            iqRatioList = np.ones(len(freqs))
+        
+        else:
+            resIDs = np.atleast_1d(freqFile[:,0])       # If there's only 1 resonator numpy loads it in as a float.
+            freqs = np.atleast_1d(freqFile[:,1])     # We need an array of floats
+            attens = np.atleast_1d(freqFile[:,2])
+            phaseOffsList = np.atleast_1d(freqFile[:,3])
+            iqRatioList = np.atleast_1d(freqFile[:,4])
+
         assert(len(freqs) == len(np.unique(freqs))), "Frequencies in "+fn+" need to be unique."
         assert(len(resIDs) == len(np.unique(resIDs))), "Resonator IDs in "+fn+" need to be unique."
         argsSorted = np.argsort(freqs)  # sort them by frequency (I don't think this is needed)
         freqs = freqs[argsSorted]
         resIDs = resIDs[argsSorted]
         attens = attens[argsSorted]
+        phaseOffsList = iqRatioList[argsSorted]
+        iqRatioList = iqRatioList[argsSorted]
         for i in range(len(freqs)):
-            print i, resIDs[i], freqs[i], attens[i]
+            print i, resIDs[i], freqs[i], attens[i], phaseOffsList[i], iqRatioList[i]
         
         self.roachController.generateResonatorChannels(freqs)
         self.roachController.attenList = attens
         self.roachController.resIDs = resIDs
+        self.roachController.phaseOffsList = phaseOffsList
+        self.roachController.iqRatioList = iqRatioList
         print 'new Freq: ', self.roachController.freqList
 
         return True

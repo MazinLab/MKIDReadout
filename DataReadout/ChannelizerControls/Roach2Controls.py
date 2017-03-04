@@ -104,7 +104,7 @@ class Roach2Controls:
             verbose - show print statements
             debug - Save some things to disk for debugging
         '''
-        np.random.seed(1) #Make the random phase values always the same
+        #np.random.seed(1) #Make the random phase values always the same
         self.verbose=verbose
         self.debug=debug
         
@@ -792,15 +792,21 @@ class Roach2Controls:
         dacFreqList[np.where(dacFreqList<0.)] += self.params['dacSampleRate']  #For +/- freq
         
         # Generate and add up individual tone time series.
-        if iqRatioList==None:
-            iqRatioList = np.ones(len(dacFreqList))
-        if iqPhaseOffsList==None:
-            iqPhaseOffsList = np.zeros((len(dacFreqList)))
+        if iqRatioList is None:
+            if hasattr(self, 'iqRatioList'):
+                iqRatioList = self.iqRatioList
+        if iqPhaseOffsList is None:
+            if hasattr(self, 'iqPhaseOffsList'):
+                iqPhaseOffsList = self.iqPhaseOffsList
+
         toneDict = self.generateTones(dacFreqList, nSamples, sampleRate, amplitudeList, phaseList, iqRatioList, iqPhaseOffsList)
         self.dacQuantizedFreqList = toneDict['quantizedFreqList']
         self.dacPhaseList = toneDict['phaseList']
         iValues = np.array(np.round(np.sum(toneDict['I'],axis=0)),dtype=np.int)
         qValues = np.array(np.round(np.sum(toneDict['Q'],axis=0)),dtype=np.int)
+        # plt.plot(iValues[0:1000])
+        # plt.plot(qValues[0:1000])
+        # plt.show()
         self.dacFreqComb = iValues + 1j*qValues
         
         # check that we are utilizing the dynamic range of the DAC correctly
