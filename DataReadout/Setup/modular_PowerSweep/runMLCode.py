@@ -59,9 +59,9 @@ def train_power_NN(PSFile=None):
 
     mlClass.train(**kwargs)
  
-    h5File = rawTrainFiles[0]
-    h5File = os.path.join(mdd,h5File) 
-    mlt.evaluateModel(mlClass, h5File)
+    # h5File = rawTrainFiles[0]
+    # h5File = os.path.join(mdd,h5File)
+    # mlt.evaluateModel(mlClass, h5File)
     return mlClass
     
 def eval_powers(mlClass):

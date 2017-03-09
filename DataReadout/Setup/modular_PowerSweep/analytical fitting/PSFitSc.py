@@ -12,7 +12,6 @@ from an_params import *
 
 # sys.path.append(ml_dir)
 sys.path.append('/Data/PythonProjects/MkidDigitalReadout/MkidDigitalReadout/DataReadout/Setup/modular_PowerSweep/')
-for p in sys.path: print p
 from PSFitMLData import *
 
 class PSFitSc():

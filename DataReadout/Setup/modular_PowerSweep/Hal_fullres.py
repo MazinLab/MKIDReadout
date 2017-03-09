@@ -116,9 +116,11 @@ class mlClassification():
         fully_connected = kwargs.pop('fully_connected', False)
         plot_activations = kwargs.pop('plot_activations', False)
         plot_weights = kwargs.pop('plot_weights', False)
+        recursive = kwargs.pop('recursive', False)
 
         trainImages, trainLabels, testImages, testLabels = loadPkl(self.mldir+self.trainFile)
         trainImages = np.asarray(trainImages)
+        trainLabels = np.asarray(trainLabels)
         # hist, bins = np.histogram(np.argmax(trainLabels, axis =1), range(max_nClass+1))
         # plt.plot(hist)
         # hist, bins = np.histogram(np.argmax(testLabels, axis =1), range(max_nClass+1))
@@ -423,7 +425,7 @@ class mlClassification():
             self.sess.run(init)           
 
             # Restore variables from disk.
-            saver =tf.train.import_meta_graph(self.mldir+modelName)
+            # saver =tf.train.import_meta_graph(self.mldir+modelName)
 
             saver.restore(self.sess, tf.train.latest_checkpoint(self.mldir) )
         
@@ -448,61 +450,78 @@ class mlClassification():
             # if np.shape(trainLabels)[0]< batches:
             #     batches = np.shape(trainLabels)[0]/2
 
-            score = 0
-            entropy = 1
-            train_ce =[]
-            train_acc=[]
-            test_ce = []
-            test_acc=[]
-            loop = 0
 
-            print 'Performing', trainReps, 'training repeats, using batches of', batches
-            for i in range(trainReps):  #perform the training step using random batches of images and according labels
-                            
-                learning_rate = min_learning_rate + (max_learning_rate - min_learning_rate) * math.exp(-i/decay_speed)
+            print "--- %s seconds ---" % (time.time() - start_time)
 
-                batch_xs, batch_ys = next_batch(trainImages, trainLabels, self.batches) 
+            train_ce, train_acc, test_ce, test_acc = [], [], [], []
+
+            def training_step(i, batch_xs, batch_ys):
+                learning_rate = min_learning_rate + (max_learning_rate - min_learning_rate) * math.exp(-i / decay_speed)
+
+
                 # if i % 10 == 0:  # Record summaries and test-set accuracy
                 #     summary, acc = self.sess.run([merged, accuracy], feed_dict={self.x: batch_xs, y_: batch_ys, lr: learning_rate, self.keep_prob:1, is_test: True})
                 #     test_writer.add_summary(summary, i)
 
                 if i % 100 == 0:
-                    entropy, train_score = self.sess.run([cross_entropy, accuracy], feed_dict={self.x: batch_xs, y_: batch_ys, lr: learning_rate, self.keep_prob:1, is_test: True})
-                    train_ce.append(entropy)
-                    train_acc.append(train_score)
-                    print learning_rate,
-                    print i, entropy, train_score,
+                    train_entropy, train_score = self.sess.run([cross_entropy, accuracy],
+                                                         feed_dict={self.x: batch_xs, y_: batch_ys, lr: learning_rate,
+                                                                    self.keep_prob: 1, is_test: True})
 
-                
-                # if i % 1000 ==0:
-                    entropy, test_score = self.sess.run([cross_entropy, accuracy], feed_dict={self.x: testImages, y_: testLabels, lr: learning_rate,self.keep_prob:1, is_test: False})
-                    test_ce.append(entropy)
+                    test_entropy, test_score = self.sess.run([cross_entropy, accuracy],
+                                                        feed_dict={self.x: testImages, y_: testLabels,
+                                                                   lr: learning_rate,
+                                                                   self.keep_prob: 1, is_test: False})
+                    train_ce.append(train_entropy)
+                    train_acc.append(train_score)
+                    test_ce.append(test_entropy)
                     test_acc.append(test_score)
-                    print entropy, test_score
-                    
-                    # if accuracy_plot == 'real':
-                    #     accuracyPlot(i)
+                    print i, learning_rate, train_entropy, train_score, test_entropy, test_score
 
                     # saver.save(self.sess, os.path.join(LOG_DIR, "model.ckpt"), i)
-                    plot_weights = False
-                    if plot_weights == 'real':
-                        weights = [self.sess.run(W_conv1), self.sess.run(W_conv2), self.sess.run(W_conv3)]    
-                        mlt.plotWeights(weights)
-                
+
                 # self.sess.run(train_step, feed_dict={self.x: batch_xs, y_: batch_ys, self.keep_prob:1, is_test: True}) #calculate train_step using feed_dict
-                summary, _ = self.sess.run([merged, train_step], feed_dict={self.x: batch_xs, y_: batch_ys, lr: learning_rate, self.keep_prob:0.5, is_test: True})
+                summary, _ = self.sess.run([merged, train_step],
+                                           feed_dict={self.x: batch_xs, y_: batch_ys, lr: learning_rate,
+                                                      self.keep_prob: 0.75,
+                                                      is_test: True})
                 # train_writer.add_summary(summary, i)
 
-                if entropy < 0.1:
-                    break
-                # if test_score > 85:
-                #     break
-            print "--- %s seconds ---" % (time.time() - start_time)
+            print 'Performing', trainReps, 'training repeats, using batches of', batches
+            for i in range(trainReps):  # perform the training step using random batches of images and according labels
+                batch_xs, batch_ys = next_batch(trainImages, trainLabels, self.batches)
+                training_step(i, batch_xs, batch_ys)
 
             # train_writer.close()
             # test_writer.close()
 
-            score = self.sess.run(accuracy, feed_dict={self.x: testImages, y_: testLabels,  lr: learning_rate,self.keep_prob:1, is_test: False}) * 100
+            ys_true_train = self.sess.run(tf.argmax(y_, 1), feed_dict={self.x: trainImages, y_: trainLabels})
+            ys_guess_train = self.sess.run(tf.argmax(self.y, 1),
+                                           feed_dict={self.x: trainImages, y_: trainLabels, self.keep_prob: 1})
+            print 'true train class labels: ', ys_true_train
+            print 'class train estimates:   ', ys_guess_train
+
+            missed = []
+            for i, y in enumerate(ys_true_train):
+                if ys_guess_train[i] != y:
+                    missed.append(i)
+
+            missed = np.asarray(missed)
+            print missed
+
+            if recursive:
+                # def recurrent(trainImages, trainLabels):
+
+                trainImages = trainImages[missed]
+                trainLabels = trainLabels[missed]
+
+                print 'Performing', trainReps, 'training repeats, using batches of', batches
+                for i in range(
+                        trainReps):  # perform the training step using random batches of images and according labels
+                    batch_xs, batch_ys = next_batch(trainImages, trainLabels, self.batches)
+                    training_step(i, batch_xs, batch_ys)
+
+            score = self.sess.run(accuracy, feed_dict={self.x: testImages, y_: testLabels,  lr: min_learning_rate,self.keep_prob:1, is_test: False}) * 100
             print 'Accuracy of model in testing: ', score, '%'
 
             mlt.plot_accuracy(train_ce, test_ce, train_acc, test_acc) 
@@ -525,9 +544,9 @@ class mlClassification():
         if plot_confusion:
             mlt.plot_confusion(ys_true, ys_guess)
         if plot_missed:
-            mlt.plot_missed(ys_true, ys_guess, testImages) 
-        
+            mlt.plot_missed(ys_true, ys_guess, testImages)
 
+        # recurrent(trainImages, trainLabels)
         score = self.sess.run(accuracy, feed_dict={self.x: testImages, y_: testLabels, self.keep_prob:1}) * 100
         print 'Accuracy of model in testing: ', score, '%'
         if score < 85: print 'Consider making more training images'
@@ -550,6 +569,8 @@ class mlClassification():
             mlt.plotActivations(activations)
    
         # # return sess
+
+
 
     def findPowers(self, inferenceFile, showFrames = False, plot_res= False, searchAllRes=True, res_nums=50):
         '''The trained machine learning class (mlClass) finds the optimum attenuation for each resonator using peak shapes in IQ velocity

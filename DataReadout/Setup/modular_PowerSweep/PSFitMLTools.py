@@ -574,7 +574,7 @@ def plot_missed(ys_true, ys_guess, testImages, get_true_ind=True):
     for i,y in enumerate(ys_true):
         if ys_guess[i] != y:
             missed.append(i)
-   
+
     for f in range(int(np.ceil(len(missed)/res_per_win))+1):
         reduced_missed = np.asarray(missed[f*res_per_win:(f+1)*res_per_win])
         print reduced_missed

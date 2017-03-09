@@ -9,14 +9,16 @@ force_a_trend = 3
 
 # synthetic params
 nAttens = 15
-pwr_start = -70
-num_fakes = 20
+pwr_start = 50
+num_fakes = 300
 good_res = np.asarray(
     [50, 49, 48, 47, 46, 45, 41, 40, 36, 35, 34, 28, 27, 26, 25, 24, 23, 22, 21, 18, 17, 11, 9, 7, 4, 3, 2, 1])
-wind_band_left = 3.5e5
-wind_band_right= 1.5e6
+wind_band_left = 4e5
+wind_band_right= 1e6
 min_qi = 4e4
 freq_samples = 75
+a_thresh = 0.5
+r_thresh = 1.5
 
 #
 # # span = [0,5100]

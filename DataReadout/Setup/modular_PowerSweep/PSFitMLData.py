@@ -301,6 +301,7 @@ class PSFitMLData():
         # print 'self.freqs len', len(self.freqs)
         # print self.good_res
         print type(self.good_res), type(self.resIDs)
+
         self.freqs = np.around(self.freqs[self.good_res], decimals=-4)
         self.opt_freqs = np.around(opt_freqs, decimals=-4)
         self.iq_vels = self.iq_vels[self.good_res]
@@ -392,17 +393,13 @@ class PSFitMLData():
 
         good_res = np.arange(len(self.resIDs))
 
-        # for i in range(self.nClass):
-        #     iAttens[:,i] =self.opt_iAttens + attDist[i]
-
         self.res_nums = len(good_res)
-        # self.res_nums = 400
-        # print self.good_res
 
         # select resonators uniformally distributed across the range for training and testing
         train_ind = np.array(map(int, np.linspace(0, self.res_nums - 1, self.res_nums * self.trainFrac)))
         test_ind = []
         np.array([test_ind.append(el) for el in range(self.res_nums) if el not in train_ind])
+
 
         hist, bins = np.histogram(self.opt_iAttens[train_ind], range(max_nClass + 1))
 
@@ -413,36 +410,40 @@ class PSFitMLData():
         plt.plot(hist)
         plt.show()
 
-        # this bit of code is concerned with evening out the classes with label preserving transformation duplications
-        class_prob = np.zeros((max_nClass))
-        for c in range(max_nClass):
-            diff = res_per_class - hist[c]
-            # print c, diff, hist[c]
-            try:
-                class_prob[c] = float(diff) / hist[c]
-            except ZeroDivisionError:
-                print 'class %i has no resonators' % c
-            print c, diff, class_prob[c]
+        level_train = False
+        if level_train:
+            # this bit of code is concerned with evening out the classes with label preserving transformation duplications
+            class_prob = np.zeros((max_nClass))
+            for c in range(max_nClass):
+                diff = res_per_class - hist[c]
+                # print c, diff, hist[c]
+                try:
+                    class_prob[c] = float(diff) / hist[c]
+                except ZeroDivisionError:
+                    print 'class %i has no resonators' % c
+                print c, diff, class_prob[c]
 
-        def random_angles(class_label):
-            angles_array = []
-            guaranteed = np.floor(class_prob[class_label]).astype(int)
-            for p in range(guaranteed + 1):  # +1 so at least one orientation is made for each res
-                angles_array.append(random.uniform(0, 2 * math.pi))
+            def random_angles(class_label):
+                angles_array = []
+                guaranteed = np.floor(class_prob[class_label]).astype(int)
+                for p in range(guaranteed + 1):  # +1 so at least one orientation is made for each res
+                    angles_array.append(random.uniform(0, 2 * math.pi))
 
-            rand_event_specifier = random.uniform(0, 1)
-            if rand_event_specifier < class_prob[class_label] - guaranteed:
-                angles_array.append(random.uniform(0, 2 * math.pi))
+                rand_event_specifier = random.uniform(0, 1)
+                if rand_event_specifier < class_prob[class_label] - guaranteed:
+                    angles_array.append(random.uniform(0, 2 * math.pi))
 
-            return angles_array
+                return angles_array
 
-        res_angles = []
-        for r in range(self.res_nums):
-            angles = random_angles(self.opt_iAttens[r])
-            res_angles.append(angles)
+            res_angles = []
+            for r in range(self.res_nums):
+                angles = random_angles(self.opt_iAttens[r])
+                res_angles.append(angles)
+
+        else:
+            res_angles = [[0] for i in range(len(self.opt_iAttens))]
 
         trainImages, trainLabels, testImages, testLabels = [], [], [], []
-
         for rn in train_ind:
             for angle in res_angles[rn]:
                 image = mlt.makeResImage(self, res_num=rn, angle=angle, showFrames=False)
