@@ -224,6 +224,7 @@ class InitStateMachine(QtCore.QObject):        #Extends QObject for use with QTh
         time.sleep(.1)
 
         nBitsRemovedInFFT = self.config.getint('Roach '+str(self.num),'nBitsRemovedInFFT')
+        self.roachController.fpga.write_int('adc_in_i_scale',2**7) #set relative IQ scaling to 1
         # if(nBitsRemovedInFFT == 0):
         #     self.roachController.setAdcScale(0.9375) #Max ADC scale value
         # else:
