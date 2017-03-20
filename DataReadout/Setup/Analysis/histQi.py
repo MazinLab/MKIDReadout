@@ -5,9 +5,9 @@ import os
 
 #Plots Histogram of f, Q, and Distance of f to nearest neighbor, Q vs f, Dist to neigh vs f and saves it to a pdf.  You need to change the filename and pdftitle (and possibly the text position in line 79
 
-datapath = '/home/kids/labData/20140909adr/'
-filename= 'SCI6_B140818-Force_-80dBm_FL2_postFlash-right-fits.txt'
-pdftitle=os.path.join(datapath,'SCI6_B140818-Force_-80dBm_FL2_postFlash-right-fits-hists.pdf')
+datapath = '/mnt/data0/Darkness/20170316'
+filename= 'Behemoth_FL3-autofit.log'
+pdftitle=os.path.join(datapath,'Behemoth-FL3-hists.pdf')
 filepath = os.path.join(datapath,filename)
 autofit=np.loadtxt(filepath)
 
