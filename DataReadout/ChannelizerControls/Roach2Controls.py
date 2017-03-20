@@ -1927,7 +1927,7 @@ if __name__=='__main__':
     if len(sys.argv) > 1:
         ip = sys.argv[1]
     else:
-        ip='10.0.0.113'
+        ip='10.0.0.112'
     if len(sys.argv) > 2:
         params = sys.argv[2]
     else:
@@ -1937,30 +1937,34 @@ if __name__=='__main__':
 
     #warnings.filterwarnings('error')
     #freqList = [7.32421875e9, 8.e9, 9.e9, 10.e9,11.e9,12.e9,13.e9,14.e9,15e9,16e9,17.e9,18.e9,19.e9,20.e9,21.e9,22.e9,23.e9]
-    nFreqs=17
-    loFreq = 5.e9
-    spacing = 2.e6
-    freqList = np.arange(loFreq-nFreqs/2.*spacing,loFreq+nFreqs/2.*spacing,spacing)
-    freqList+=np.random.uniform(-spacing,spacing,nFreqs)
-    freqList = np.sort(freqList)
+    # nFreqs=17
+    loFreq = 4.6873455e9
+    globalDacAtten=5
+    # spacing = 2.e6
+    # freqList = np.arange(loFreq-nFreqs/2.*spacing,loFreq+nFreqs/2.*spacing,spacing)
+    # freqList+=np.random.uniform(-spacing,spacing,nFreqs)
+    # freqList = np.sort(freqList)
     #attenList = np.random.randint(40,45,nFreqs)
     
     #freqList=np.asarray([5.2498416321e9, 5.125256256e9, 4.852323456e9, 4.69687416351e9])#,4.547846e9])
     #attenList=np.asarray([41,42,43,45])#,6])
     
-    freqList=np.asarray([4.620303e9])
-    attenList=np.asarray([0])
+    # freqList=np.asarray([4.620303e9])
+    # attenList=np.asarray([0])
     
     #attenList = attenList[np.where(freqList > loFreq)]
     #freqList = freqList[np.where(freqList > loFreq)]
     
+    resIDs, freqList, attenList = np.loadtxt('/mnt/data0/Darkness/20170227/ps_r112_FL3_a_manual.txt', unpack=True)
+    attenList = 45*np.ones(len(freqList))
+
     roach_0 = Roach2Controls(ip, params, True, False)
     roach_0.connect()
     roach_0.setLOFreq(loFreq)
     roach_0.generateResonatorChannels(freqList)
     roach_0.generateFftChanSelection()
     #roach_0.generateDacComb(resAttenList=attenList,globalDacAtten=9)
-    roach_0.generateDacComb(freqList=freqList)
+    roach_0.generateDacComb(freqList=freqList, resAttenList=attenList, globalDacAtten=globalDacAtten)
     print 'Generating DDS Tones...'
     roach_0.generateDdsTones()
     roach_0.debug=False
@@ -1979,6 +1983,9 @@ if __name__=='__main__':
     print 'Init V7'
     roach_0.initializeV7UART(waitForV7Ready=False)
     #roach_0.initV7MB()
+    roach_0.changeAtten(3, 31.75)
+    roach_0.changeAtten(1, globalDacAtten)
+    roach_0.changeAtten(2, 0)
     roach_0.loadLOFreq()
     roach_0.loadDacLUT()
 
