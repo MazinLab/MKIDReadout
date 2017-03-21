@@ -30,6 +30,8 @@
 #define XPIX 80
 #define YPIX 125
 #define NROACH 10
+#define SHAREDBUF 536870912
+
 //#define LOGPATH "/mnt/data0/logs/"
 
 // compile with gcc -o PacketMaster3 PacketMaster3.c -I. -lm -lrt
@@ -52,7 +54,7 @@ struct hdrpacket {
 struct readoutstream {
     int unread;
     char busy;               // set to 1 to disallow reads, 0 to allow reads
-    char data[524288];
+    char data[SHAREDBUF];
 };
 
 void diep(char *s)
@@ -509,9 +511,9 @@ void Reader()
   uint64_t nFrames = 0;
   
   // clean out socket before we start
-  printf("READER: clearing buffer.\n"); fflush(stdout);
-  while ( recv(s, buf, BUFLEN, 0) > 0 );
-  printf("READER: buffer clear!\n"); fflush(stdout);
+  //printf("READER: clearing buffer.\n"); fflush(stdout);
+  //while ( recv(s, buf, BUFLEN, 0) > 0 );
+  //printf("READER: buffer clear!\n"); fflush(stdout);
 
   while (access( "/mnt/ramdisk/QUIT", F_OK ) == -1)
   {
