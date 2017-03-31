@@ -201,7 +201,7 @@ def plotResListData(resList, plot_types=['IQ'], **kwargs):
 
     # color_map = kwargs.pop('color_map', 'coolwarm')
     # color_map = kwargs.pop('color_map', 'RdYlBu_r')
-    color_map = kwargs.pop('color_map', 'rainbow')
+    color_map = kwargs.pop('color_map', 'rainbow_r')
     assert color_map in plt.colormaps(), "Unknown colormap provided"
     color_gen = plt.get_cmap(color_map)
 
@@ -535,7 +535,7 @@ def plotResSweepParamsVsTemp(resSweep, plot_keys=None, ignore_keys=None, **kwarg
     force_square = kwargs.pop('force_square', False)
 
     #Set the colormap: Default to a nice red/blue thing
-    color_map = kwargs.pop('color_map', 'rainbow')
+    color_map = kwargs.pop('color_map', 'rainbow_r')
     assert color_map in plt.colormaps(), "Unknown colormap provided"
     color_gen = plt.get_cmap(color_map)
 

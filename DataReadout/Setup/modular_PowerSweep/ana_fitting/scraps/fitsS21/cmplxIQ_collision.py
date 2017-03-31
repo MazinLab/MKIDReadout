@@ -5,14 +5,6 @@ import lmfit as lf
 import getxdetune as gx
 from matplotlib import pylab as plt
 
-
-# import numpy as np
-# import scipy.signal as sps
-# import scipy.special as spc
-# import lmfit as lf
-# import getxdetune as gx
-# from matplotlib import pylab as plt
-
 def cmplxIQ_fit(paramsVec, freqs, pwr=-50, data=None, eps=None, **kwargs):
     """Return complex S21 resonance model or, if data is specified, a residual.
 
@@ -64,6 +56,7 @@ def cmplxIQ_fit(paramsVec, freqs, pwr=-50, data=None, eps=None, **kwargs):
     # Qoffset = paramsVec[10]
 
     a = paramsVec[8]
+
     # Escale = paramsVec[9]
     # Make everything referenced to the shifted, unitless, reduced frequency
     fs = f0 + df
@@ -176,15 +169,18 @@ def cmplxIQ_params(res, **kwargs):
     assert (filter_win_length % 2 == 1) and (
     filter_win_length >= 3), "Filter window length must be odd and greater than 3."
 
-    max_a = kwargs.pop('max_a',5)
+    # max_a = kwargs.pop('max_a',5)
+    # min_a = kwargs.pop('min_a',0)
+    # min_a = 0
+    # max_a = 5
+    # # if it gets too small reset
+    # if max_a <= 1e-6:
+    #     max_a =0.1
+    # # if it gets too big reset
+    # if max_a > 5:
+    #     max_a = 5
 
-    # if it gets too small reset
-    if max_a <= 1e-6:
-        max_a =0.1
-    # if it gets too big reset
-    if max_a > 5:
-        max_a = 5
-    print max_a
+    # print min_a
     # There shouldn't be any more kwargs left
     if kwargs:
         raise Exception("Unknown keyword argument supplied")
@@ -312,7 +308,12 @@ def cmplxIQ_params(res, **kwargs):
     #     params.add('Ioffset', value = 0, vary=True)
     #     params.add('Qoffset', value = 0, vary=True)
 
-    params.add('a', value=0.1, min = 0, max = max_a, vary=True)# min = 0, max = 10
+    # print min_a, max_a
+    # if min_a > 0.1:
+    #     value = min_a
+    # else:
+    #     value = 0.1
+    params.add('a', value=0.1, min = 0, max = 5, vary=True)# min = 0, max = 10
     # params.add('Escale', value=1e-8, min=1e-12, max=1e-6, vary=True)
     # params.add('scope', value=40, min=20, max=60)
     return params
@@ -358,37 +359,38 @@ def cmplxIQ_fit_cols(paramsVec, freqs, pwr=-50, data=None, eps=None, **kwargs):
     # 0th, 1st, and 2nd terms in a taylor series to handle magnitude gain different than 1
     gain0 = paramsVec[4]
     gain1 = paramsVec[5]
-    gain2 = paramsVec[6]
+    # gain2 = paramsVec[6]
 
     # 0th and 1st terms in a taylor series to handle phase gain different than 1
-    pgain0 = paramsVec[7]
-    pgain1 = paramsVec[8]
+    pgain0 = paramsVec[6]
+    pgain1 = paramsVec[7]
 
     # Voltage offset at mixer output. Not needed for VNA
     # Ioffset = paramsVec[9]
     # Qoffset = paramsVec[10]
 
-    a = paramsVec[9]
+    a = paramsVec[8]
 
-    dfd= paramsVec[10]  # frequency shift due to mismatched impedances
-    f0d = paramsVec[11]  # resonant frequency
-    qcd = paramsVec[12]  # coupling Q
-    qid = paramsVec[13]  # internal Q
+    dfd= paramsVec[9]  # frequency shift due to mismatched impedances
+    f0d = paramsVec[10]  # resonant frequency
+    qcd = paramsVec[11]  # coupling Q
+    qid = paramsVec[12]  # internal Q
 
     # 0th, 1st, and 2nd terms in a taylor series to handle magnitude gain different than 1
-    gain0d = paramsVec[14]
-    gain1d = paramsVec[15]
-    gain2d = paramsVec[16]
+    gain0d = paramsVec[13]
+    gain1d = paramsVec[14]
+    # gain2d = paramsVec[16]
 
     # 0th and 1st terms in a taylor series to handle phase gain different than 1
-    pgain0d = paramsVec[17]
-    pgain1d = paramsVec[18]
+    pgain0d = paramsVec[15]
+    pgain1d = paramsVec[16]
 
+    # print qi, qc, qid, qcd
     # Voltage offset at mixer output. Not needed for VNA
     # Ioffset2 = paramsVec[21]
     # Qoffset2 = paramsVec[22]
 
-    ad = paramsVec[19]
+    ad = paramsVec[17]
 
     # Make everything referenced to the shifted, unitless, reduced frequency
     fs = f0 + df
@@ -420,11 +422,11 @@ def cmplxIQ_fit_cols(paramsVec, freqs, pwr=-50, data=None, eps=None, **kwargs):
     # plt.show()
 
     # Calculate magnitude and phase gain
-    gain = gain0 + gain1 * ff + 0.5 * gain2 * ff ** 2
+    gain = gain0 + gain1 * ff #+ 0.5 * gain2 * ff ** 2
     pgain = np.exp(1j * (pgain0 + pgain1 * ff))
 
     # Calculate magnitude and phase gain
-    gaind = gain0d + gain1d * ffd + 0.5 * gain2d * ffd ** 2
+    gaind = gain0d + gain1d * ffd #+ 0.5 * gain2d * ffd ** 2
     pgaind = np.exp(1j * (pgain0d + pgain1d * ffd))
 
     # modelCmplx = -gain * pgain * (1 - q0 / (qc * (1 + 2j * q0 * (ff + df))))  # +offset
@@ -551,6 +553,9 @@ def cmplxIQ_params_cols(res, **kwargs):
     findex_5pc = int(len(res.freq) * 0.05)
 
     findex_center = np.round(findex_end / 2)
+    findex_first_mid = np.round(findex_end / 4)
+    findex_sec_mid = np.round(findex_end * 3/ 4)
+
     f_midpoint = res.freq[findex_center]
 
     # Set up a unitless, reduced, mipoint frequency for baselines
@@ -580,7 +585,16 @@ def cmplxIQ_params_cols(res, **kwargs):
     res.argfmin = findex_min
 
     # Update best guess with minimum
-    f0_guess = f_at_mag_min
+    # f0_guess = f_at_mag_min
+
+    # f0_guess = res.freq[findex_center]
+    f0_guess = res.freq[np.argmin(resMag[:round(len(res.freq)/2)])]
+    print f0_guess
+    f0_guess_d = res.freq[round(len(res.freq)/2) + np.argmin(resMag[round(len(res.freq)/2):])]
+    print f0_guess_d
+
+    # f0_guess = res.freq[findex_first_mid]
+    # f0_guess_d = res.freq[findex_sec_mid]
 
     # Update: now calculating against file midpoint
     # This makes sense because you don't want the baseline changing
@@ -640,19 +654,22 @@ def cmplxIQ_params_cols(res, **kwargs):
     params.add('df', value=0, vary=True)
     # params.add('f0', value = f0_guess, min = f_min, max = f_max, vary=True)
     # params.add('f0', value = f0_guess, min = f0_guess-5e-4, max = f0_guess+5e-4, vary=True)
-    print f0_guess,
-    print res.freq[fwhm_mask][0],
-    print res.freq[fwhm_mask][int(len(res.freq[fwhm_mask]) / 2)],
-    print res.freq[-1]
+    # print f0_guess,
+    # print res.freq[fwhm_mask][0],
+    # print res.freq[fwhm_mask][int(len(res.freq[fwhm_mask]) / 2)],
+    # print res.freq[-1]
 
-    params.add('f0', value=f0_guess, min=res.freq[0], max=res.freq[int(len(res.freq) / 2)], vary=True)
-    params.add('qc', value=qc_guess, min=10 ** 5, max=10 ** 8, vary=True)
-    params.add('qi', value=qi_guess, min=10 ** 5, max=10 ** 8, vary=True)
+    # print f0_guess, res.freq[0], res.freq[int(len(res.freq) / 2)]
+    params.add('f0', value=f0_guess, vary = False)
+    # params.add('f0', value=4.6135e9, vary =False) #,  min=4.6134999e9, max=4.6135001e9,
+    # params.add('f0', value=f0_guess, min=res.freq[0], max=res.freq[int(len(res.freq) / 2)], vary =True)
+    params.add('qc', value=qc_guess, min=10 ** 4, max=10 ** 9, vary=True)
+    params.add('qi', value=qi_guess, min=10 ** 5, max=10 ** 9, vary=True)
 
     # Allow for quadratic gain variation
     params.add('gain0', value=magBaseCoefs[2], min=0, vary=True)
     params.add('gain1', value=magBaseCoefs[1], vary=True)
-    params.add('gain2', value=magBaseCoefs[0], vary=True)
+    # params.add('gain2', value=magBaseCoefs[0], vary=True)
 
     # Allow for linear phase variation
     params.add('pgain0', value=phaseBaseCoefs[1], vary=True)
@@ -671,14 +688,18 @@ def cmplxIQ_params_cols(res, **kwargs):
     params.add('dfd', value=0, vary=True)
     # params.add('f02', value = f0_guess, min = f_min, max = f_max, vary=True)
     # params.add('f02', value = f0_guess, min = f0_guess-5e-4, max = f0_guess+5e-4, vary=True
-    params.add('f0d', value=f0_guess, min=res.freq[int(len(res.freq) / 2)], max=res.freq[-1], vary=True)
-    params.add('qcd', value=qc_guess, min=10 ** 5, max=10 ** 8, vary=True)
-    params.add('qid', value=qi_guess, min=10 ** 5, max=10 ** 8, vary=True)
+    # print f0_guess_d, res.freq[int(len(res.freq) / 2)], res.freq[-1], '\n'
+    params.add('f0d', value=f0_guess_d, vary = False)
+    # params.add('f0d', value=4.61365e9, vary =False)
+    # params.add('f0d', value=f0_guess_d, min=res.freq[int(len(res.freq) / 2)], max=res.freq[-1], vary =True)
+    
+    params.add('qcd', value=qc_guess, min=10 ** 4, max=10 ** 9, vary=True)
+    params.add('qid', value=qi_guess, min=10 ** 5, max=10 ** 9, vary=True)
 
     # Allow for quadratic gain variation
     params.add('gain0d', value=magBaseCoefs[2], min=0, vary=True)
     params.add('gain1d', value=magBaseCoefs[1], vary=True)
-    params.add('gain2d', value=magBaseCoefs[0], vary=True)
+    # params.add('gain2d', value=magBaseCoefs[0], vary=True)
 
     # Allow for linear phase variation
     params.add('pgain0d', value=phaseBaseCoefs[1], vary=True)

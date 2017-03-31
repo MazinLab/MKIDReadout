@@ -463,17 +463,18 @@ class mlClassification():
                 #     summary, acc = self.sess.run([merged, accuracy], feed_dict={self.x: batch_xs, y_: batch_ys, lr: learning_rate, self.keep_prob:1, is_test: True})
                 #     test_writer.add_summary(summary, i)
 
-                if i % 100 == 0:
+                if i % 10 == 0:
                     train_entropy, train_score = self.sess.run([cross_entropy, accuracy],
                                                          feed_dict={self.x: batch_xs, y_: batch_ys, lr: learning_rate,
                                                                     self.keep_prob: 1, is_test: True})
-
+                    train_ce.append(train_entropy)
+                    train_acc.append(train_score)
+                if i % 100 == 0:
                     test_entropy, test_score = self.sess.run([cross_entropy, accuracy],
                                                         feed_dict={self.x: testImages, y_: testLabels,
                                                                    lr: learning_rate,
                                                                    self.keep_prob: 1, is_test: False})
-                    train_ce.append(train_entropy)
-                    train_acc.append(train_score)
+
                     test_ce.append(test_entropy)
                     test_acc.append(test_score)
                     print i, learning_rate, train_entropy, train_score, test_entropy, test_score
@@ -483,7 +484,7 @@ class mlClassification():
                 # self.sess.run(train_step, feed_dict={self.x: batch_xs, y_: batch_ys, self.keep_prob:1, is_test: True}) #calculate train_step using feed_dict
                 summary, _ = self.sess.run([merged, train_step],
                                            feed_dict={self.x: batch_xs, y_: batch_ys, lr: learning_rate,
-                                                      self.keep_prob: 0.75,
+                                                      self.keep_prob: 1,
                                                       is_test: True})
                 # train_writer.add_summary(summary, i)
 
@@ -517,7 +518,7 @@ class mlClassification():
 
                 print 'Performing', trainReps, 'training repeats, using batches of', batches
                 for i in range(
-                        trainReps):  # perform the training step using random batches of images and according labels
+                        trainReps+1):  # perform the training step using random batches of images and according labels
                     batch_xs, batch_ys = next_batch(trainImages, trainLabels, self.batches)
                     training_step(i, batch_xs, batch_ys)
 
@@ -557,7 +558,8 @@ class mlClassification():
             # weights = self.sess.run(W_conv1)
             mlt.plotWeights(weights)
 
-        plot_activations =''
+        # plot_activations =''
+        print plot_activations
         if plot_activations == 'post':
             activations = [self.sess.run(x_image,feed_dict={self.x: testImages}),
                 self.sess.run(h_conv1, feed_dict={self.x: testImages}),

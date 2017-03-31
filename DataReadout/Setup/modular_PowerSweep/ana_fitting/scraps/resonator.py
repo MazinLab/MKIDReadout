@@ -260,7 +260,7 @@ class Resonator(object):
             ``qi_vary=False`` will set ``Resonator.params['qi'].vary = False``.
             Any parameter name can be used in this way.
         """
-        maxfev = 10000
+        maxfev = 1000
         assert self.hasParams == True, "Must load params before running a fit."
 
         #Update any of the default Parameter guesses
@@ -294,6 +294,7 @@ class Resonator(object):
         #     print '3'
         #     return True
         minObj = lf.Minimizer(fitFn, self.params, maxfev = maxfev, fcn_args=(self.freq, self.pwr, cmplxData, cmplxSigma))
+        # minObj = lf.Minimizer(fitFn, self.params, fcn_args=(self.freq, self.pwr, cmplxData, cmplxSigma))
 
         #Call the lmfit minimizer method and minimize the residual
 
@@ -387,8 +388,10 @@ class Resonator(object):
         #Create a lmfit minimizer object
         if self.hasFit:
             emcee_params = self.lmfit_result.params
+            print 'has lmfit'
         else:
             emcee_params = self.params
+            print 'does not have lmfit'
 
         minObj = lf.Minimizer(fitFn, emcee_params, fcn_args=(self.freq, cmplxData, cmplxSigma))
 

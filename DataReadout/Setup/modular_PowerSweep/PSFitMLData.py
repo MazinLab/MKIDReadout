@@ -16,6 +16,7 @@ import time
 import math
 from scipy import interpolate
 import PSFitMLTools as mlt
+from random import randint
 
 np.set_printoptions(threshold=np.inf)
 from ml_params import mldir, trainFile, testFrac, max_nClass, trainBinFile, res_per_class
@@ -300,7 +301,7 @@ class PSFitMLData():
         # print 'optfreqs len', len(opt_freqs)
         # print 'self.freqs len', len(self.freqs)
         # print self.good_res
-        print type(self.good_res), type(self.resIDs)
+        print type(self.good_res), type(self.resIDs), self.good_res, len(self.good_res)
 
         self.freqs = np.around(self.freqs[self.good_res], decimals=-4)
         self.opt_freqs = np.around(opt_freqs, decimals=-4)
@@ -400,17 +401,41 @@ class PSFitMLData():
         test_ind = []
         np.array([test_ind.append(el) for el in range(self.res_nums) if el not in train_ind])
 
-
+        print len(self.opt_iAttens)
         hist, bins = np.histogram(self.opt_iAttens[train_ind], range(max_nClass + 1))
 
         print hist, len(hist), bins, len(bins)
         print res_per_class
 
         # plot the original distribution of classes
-        plt.plot(hist)
-        plt.show()
+        # plt.bar(hist)
+        # plt.bar(hist, bins[:-1])
+        # SMALL_SIZE = 18
+        # MEDIUM_SIZE = 22
+        # BIGGER_SIZE = 26
 
-        level_train = False
+        # plt.rc('font', size=SMALL_SIZE)  # controls default text sizes
+        # plt.rc('axes', titlesize=SMALL_SIZE)  # fontsize of the axes title
+        # plt.rc('axes', labelsize=MEDIUM_SIZE)  # fontsize of the x and y labels
+        # plt.rc('xtick', labelsize=SMALL_SIZE)  # fontsize of the tick labels
+        # plt.rc('ytick', labelsize=SMALL_SIZE)  # fontsize of the tick labels
+        # plt.rc('legend', fontsize=SMALL_SIZE)  # legend fontsize
+        # #plt.rc('figure', titlesize=BIGGER_SIZE)  # fontsize of the figure title
+        # plt.figure(figsize=(8,8))
+        # plt.hist(self.opt_iAttens[train_ind], range(max_nClass + 1), facecolor='blue', alpha=0.65)
+        # plt.xlabel('Class label')
+        # plt.show()
+
+
+        # x_image = mlt.makeResImage(self, res_num=0, showFrames=False)
+        # datacube = [x_image]
+        # mlt.plot_input_cube(datacube)
+        # for r in range(4, self.res_nums):
+        #     print r
+        #     datacube = mlt.makeResImage(self, res_num=r, showFrames=False)
+        #     mlt.plot_max_ratio(datacube)
+
+        level_train = True
         if level_train:
             # this bit of code is concerned with evening out the classes with label preserving transformation duplications
             class_prob = np.zeros((max_nClass))
@@ -445,7 +470,15 @@ class PSFitMLData():
 
         trainImages, trainLabels, testImages, testLabels = [], [], [], []
         for rn in train_ind:
+            # for window in [[1,1], [5,20], [20,22]]:
+            #     print rn, window
+            #     image = mlt.makeResImage(self, res_num=rn, window=window, showFrames=False)
+            # print res_angles[rn]
+            
+
             for angle in res_angles[rn]:
+                # window = [randint(0,10), randint(0,10)] 
+                # image = mlt.makeResImage(self, res_num=rn, angle=angle, window = window, showFrames=True)
                 image = mlt.makeResImage(self, res_num=rn, angle=angle, showFrames=False)
                 trainImages.append(image)
                 one_hot = np.zeros(max_nClass)
@@ -465,6 +498,17 @@ class PSFitMLData():
         #     self.selectTrainData(train_ind,test_ind)
 
         # exit()
+        # x = [np.argmax(trainLabels, axis =1), np.argmax(testLabels, axis =1)]
+        # plt.hist(x, range(max_nClass +1), stacked =True)
+        plt.figure(figsize=(8,8))
+        plt.hist(np.argmax(trainLabels, axis =1), range(max_nClass + 1), facecolor='green', alpha=0.65)
+        plt.xlabel('Class label')
+        plt.show()
+        plt.figure(figsize=(8,8))
+        plt.hist(np.argmax(testLabels, axis =1), range(max_nClass + 1), facecolor='red', alpha=0.65)
+        plt.xlabel('Class label')
+        plt.show()
+        
         append = None
         if os.path.isfile(self.mldir + self.trainFile):
             append = raw_input('Do you want to append this training data to previous data [y/n]')
@@ -476,91 +520,91 @@ class PSFitMLData():
                 pickle.dump([trainImages, trainLabels], tf)
                 pickle.dump([testImages, testLabels], tf)
 
-    def selectTrainData(self, train_ind, test_ind):
-        '''
-        A function to allow the user to monitor the data that goes into the training and test set
-        during makeTrainData().
-        Each time a resonator appears the user can do one of six options...
+    # def selectTrainData(self, train_ind, test_ind):
+    #     '''
+    #     A function to allow the user to monitor the data that goes into the training and test set
+    #     during makeTrainData().
+    #     Each time a resonator appears the user can do one of six options...
 
-        Inputs:
-        y: the resonator matches the class allocation and should be included
-        n: res is not saturated yet (or not non-sat yet if c==1), -1 from iAtten (or +1) and display
-        o: the same as n except the next res will not be displayed and only One step can be made
-        r: do not include this resonator in the training (the sat loop will still be included if already confirmed)
-        b: remove the last loop and label in the group and reassess
-        q: stop adding to the group (train or test) before all the res have been checked
-        '''
+    #     Inputs:
+    #     y: the resonator matches the class allocation and should be included
+    #     n: res is not saturated yet (or not non-sat yet if c==1), -1 from iAtten (or +1) and display
+    #     o: the same as n except the next res will not be displayed and only One step can be made
+    #     r: do not include this resonator in the training (the sat loop will still be included if already confirmed)
+    #     b: remove the last loop and label in the group and reassess
+    #     q: stop adding to the group (train or test) before all the res have been checked
+    #     '''
 
-        trainImages, trainLabels, testImages, testLabels = [], [], [], []
-        # catagory = ['saturated', 'non-sat']
-        group = [train_ind, test_ind]
-        include = 'n'
+    #     trainImages, trainLabels, testImages, testLabels = [], [], [], []
+    #     # catagory = ['saturated', 'non-sat']
+    #     group = [train_ind, test_ind]
+    #     include = 'n'
 
-        for t in range(2):
-            print 'Should I include this resonator in the training data? [y/n (r/o/b/q)]'
-            resonators = group[t]
-            print resonators
-            ir = 0
-            while ir < len(resonators):
-                rn = resonators[ir]
-                # print self.opt_iAttens[:10], trainLabels[:10], group[t][:10]
-                # for c in range(self.nClass):
-                if include == 'r':
-                    include = 'n'
-                    break
-                if include == 'b':
-                    include = 'n'
-                    break
+    #     for t in range(2):
+    #         print 'Should I include this resonator in the training data? [y/n (r/o/b/q)]'
+    #         resonators = group[t]
+    #         print resonators
+    #         ir = 0
+    #         while ir < len(resonators):
+    #             rn = resonators[ir]
+    #             # print self.opt_iAttens[:10], trainLabels[:10], group[t][:10]
+    #             # for c in range(self.nClass):
+    #             if include == 'r':
+    #                 include = 'n'
+    #                 break
+    #             if include == 'b':
+    #                 include = 'n'
+    #                 break
 
-                include = 'n'
-                while include == 'n':
-                    # print rn, c, catagory[c], iAttens[rn,c]
-                    image = mlt.makeResImage(self, res_num=rn, showFrames=True)
-                    include = raw_input()
+    #             include = 'n'
+    #             while include == 'n':
+    #                 # print rn, c, catagory[c], iAttens[rn,c]
+    #                 image = mlt.makeResImage(self, res_num=rn, showFrames=True)
+    #                 include = raw_input()
 
-                    if include == 'q':
-                        return
-                    if include == 'r':
-                        # iAttens[rn,:] = [-1,-1]
-                        if group == 'test':
-                            self.test_ind = np.delete(self.test_ind, ir)
-                        break
-                    if include == 'n':
-                        if c == 0:
-                            iAttens[rn, c] -= 1
-                        else:
-                            iAttens[rn, c] += 1
+    #                 if include == 'q':
+    #                     return
+    #                 if include == 'r':
+    #                     # iAttens[rn,:] = [-1,-1]
+    #                     if group == 'test':
+    #                         self.test_ind = np.delete(self.test_ind, ir)
+    #                     break
+    #                 if include == 'n':
+    #                     if c == 0:
+    #                         iAttens[rn, c] -= 1
+    #                     else:
+    #                         iAttens[rn, c] += 1
 
-                    if include == 'o':
-                        if c == 0:
-                            iAttens[rn, c] -= 1
-                        else:
-                            iAttens[rn, c] += 1
-                        include = 'y'
+    #                 if include == 'o':
+    #                     if c == 0:
+    #                         iAttens[rn, c] -= 1
+    #                     else:
+    #                         iAttens[rn, c] += 1
+    #                     include = 'y'
 
-                    if include == 'b':
-                        ir -= 2
-                        print 'here'
-                        if t == 0:
-                            trainImages = trainImages[:-1]
-                            trainLabels = trainLabels[:-1]
-                        else:
-                            testImages = testImages[:-1]
-                            testLabels = testLabels[:-1]
-                        break
+    #                 if include == 'b':
+    #                     ir -= 2
+    #                     print 'here'
+    #                     if t == 0:
+    #                         trainImages = trainImages[:-1]
+    #                         trainLabels = trainLabels[:-1]
+    #                     else:
+    #                         testImages = testImages[:-1]
+    #                         testLabels = testLabels[:-1]
+    #                     break
 
-                if include == 'y':
-                    one_hot = np.zeros(self.nClass)
-                    one_hot[c] = 1
-                    if t == 0:
-                        trainImages.append(image)
-                        trainLabels.append(one_hot)
-                    else:
-                        testImages.append(image)
-                        testLabels.append(one_hot)
+    #             if include == 'y':
+    #                 one_hot = np.zeros(self.nClass)
+    #                 one_hot[c] = 1
+    #                 if t == 0:
+    #                     trainImages.append(image)
+    #                     trainLabels.append(one_hot)
+    #                 else:
+    #                     testImages.append(image)
+    #                     testLabels.append(one_hot)
 
-                ir += 1
-        return trainImages, trainLabels, testImages, testLabels
+    #             ir += 1
+    #     return trainImages, trainLabels, testImages, testLabels
 
     def savePSTxtFile(self, flag=''):
         '''
