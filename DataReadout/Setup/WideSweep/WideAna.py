@@ -300,7 +300,7 @@ class WideAna(QMainWindow):
                     #print 'for ', self.wsf.x[peaks[i]], 'chosing the one before'
                 else:
                     colls.append(peaks[i])
-                    #print 'for ', self.wsf.x[peaks[i]], 'chosing the this one'
+                    #print 'for ', self.wsf.x[peaks[i]], 'chosing this one'
         print colls
         if colls != []:
             #colls=np.array(map(int,colls))
@@ -309,12 +309,15 @@ class WideAna(QMainWindow):
         peaks = np.delete(peaks,colls) #remove collisions (peaks < 0.5MHz apart = < 9 steps apart)
         #peaks = np.delete(peaks,np.where(dist<9)) #remove collisions (peaks < 0.5MHz apart = < 9 steps apart)
         self.goodPeakMask[peaks] = True
+        self.badPeakMask[colls] = True
+        self.goodPeakMask[colls] = False
 
         self.setCountLabel()
         self.writeToGoodFile()
+        self.writeToAllFile()
 
     def setCountLabel(self):
-        self.countLabel.setText("Number of good peaks = %d"%self.goodPeakMask.sum())
+        self.countLabel.setText("Good peaks = %d, All peaks = %d" % (self.goodPeakMask.sum(), self.goodPeakMask.sum() + self.badPeakMask.sum()))
 
     def writeToGoodFile(self):
         gf = open(self.goodFile,'wb')
@@ -331,6 +334,7 @@ class WideAna(QMainWindow):
     def writeToAllFile(self):
         af = open(self.allFile,'wb')
         id = (self.flNum-1)*2000
+        print len(np.where(self.goodPeakMask==1)[0]), len(np.where(self.badPeakMask==1)[0])
         for index in range(len(self.goodPeakMask)):
             if self.goodPeakMask[index] or self.badPeakMask[index]:
                 line = "%8d %12d %16.7f\n"%(id,index,self.wsf.x[index])

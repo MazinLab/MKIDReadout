@@ -63,7 +63,7 @@ def find_peaks(S11, man_peaks, S11_test):
     # prediction_new = np.zeros_like(X_new[:, 0])
     # prediction_new[np.where(prob[:, 1] > 0.2)] = 1
 
-    peaks = find_centers(prediction, S11)
+    peaks = find_centers(prediction, S11_test)
 
     return peaks, prediction
 
@@ -85,7 +85,7 @@ def get_peaks():
     # continuum_train = ws.fitSpline(trainset[0], mag, splineS)
     # ws.check_continuum(trainset[0], mag, continuum_train)
 
-    # splineS = len(mag_test)*splineS_factor
+    # splineS = len(mag_test)*splineS_factor * 0.5
     # continuum_test = ws.fitSpline(testset[0], mag_test, splineS)
     # ws.check_continuum(testset[0], mag_test, continuum_test)
 
@@ -96,7 +96,7 @@ def get_peaks():
     S11_test = np.array([testset[0, :], 20*np.log10(mag_test)]).T  # Normalise
 
     man_peaks, _ = ws.load_man_click_locs(datadir+train_man_peak_file)
-    test_man_peaks, _ = ws.load_man_click_locs(datadir+manpeakfile)
+    # test_man_peaks, _ = ws.load_man_click_locs(datadir+manpeakfile)
 
     peaks, prediction = find_peaks(S11, man_peaks, S11_test)
     plot_peaks(testset[0], S11_test, prediction, peaks)

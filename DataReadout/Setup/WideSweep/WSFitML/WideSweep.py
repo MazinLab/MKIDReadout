@@ -5,7 +5,7 @@ from scipy.interpolate import UnivariateSpline
 # from datetime import datetime
 import WSFitSc as Sc
 import WSFitML as ML
-from params import fspan, datadir, manpeakfile, rawsweepfile, splineS_factor
+from params import *
 np.set_printoptions(threshold=np.nan)
 
 def load_raw_wide_sweep(WideSweepFile, span=-1):
@@ -66,7 +66,7 @@ def check_continuum(freqs, mag, continuum):
     plt.plot(freqs, continuum)
     # plt.plot(freqs, mag-continuum)
     plt.plot(freqs, mag)
-    plt.plot(freqs, continuum2)
+    # plt.plot(freqs, continuum2)
     plt.show()
 
 def find_nearest(array,value):
