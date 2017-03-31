@@ -660,6 +660,7 @@ class Roach2Controls:
             
             while(not(self.v7_ready)):
                 self.v7_ready = self.fpga.read_int(self.params['v7Ready_reg'])
+                time.sleep(0.01)
             
             if(self.v7_ready == self.params['v7Err']):
                 raise Exception('MicroBlaze errored out.  Try reinitializing LO.')
@@ -673,6 +674,7 @@ class Roach2Controls:
     
         while(not(self.v7_ready)):      # Wait for V7 to say it's done setting LO
             self.v7_ready = self.fpga.read_int(self.params['v7Ready_reg'])
+            time.sleep(0.01)
 
         if(self.v7_ready == self.params['v7Err']):
             raise Exception('MicroBlaze failed to set LO!')
@@ -713,19 +715,22 @@ class Roach2Controls:
         
         while(not(self.v7_ready)):
             self.v7_ready = self.fpga.read_int(self.params['v7Ready_reg'])
+            time.sleep(0.01)
             
         self.v7_ready = 0
         self.sendUARTCommand(self.params['mbChangeAtten'])
         
         while(not(self.v7_ready)):
             self.v7_ready = self.fpga.read_int(self.params['v7Ready_reg'])
+            time.sleep(0.01)
             
         self.v7_ready = 0
         self.sendUARTCommand(attenID)
         
         while(not(self.v7_ready)):
             self.v7_ready = self.fpga.read_int(self.params['v7Ready_reg'])
-            
+            time.sleep(0.01)
+
         self.v7_ready = 0
         self.sendUARTCommand(attenVal)
     
@@ -1940,7 +1945,9 @@ if __name__=='__main__':
     #warnings.filterwarnings('error')
     #freqList = [7.32421875e9, 8.e9, 9.e9, 10.e9,11.e9,12.e9,13.e9,14.e9,15e9,16e9,17.e9,18.e9,19.e9,20.e9,21.e9,22.e9,23.e9]
     # nFreqs=17
-    loFreq = 4.6873455e9
+    #loFreq = 4.6873455e9
+    #loFreq = 6.7354026e9
+    loFreq = 5.e9
     globalDacAtten=5
     # spacing = 2.e6
     # freqList = np.arange(loFreq-nFreqs/2.*spacing,loFreq+nFreqs/2.*spacing,spacing)
@@ -1957,8 +1964,10 @@ if __name__=='__main__':
     #attenList = attenList[np.where(freqList > loFreq)]
     #freqList = freqList[np.where(freqList > loFreq)]
     
+    #resIDs, freqList, attenList = np.loadtxt('/mnt/data0/Darkness/20170227/ps_r114_FL3_b_ptsi_train.txt', unpack=True)
     resIDs, freqList, attenList = np.loadtxt('/mnt/data0/Darkness/20170227/ps_r112_FL3_a_manual.txt', unpack=True)
-    attenList = 45*np.ones(len(freqList))
+    freqList = np.array([5.5e9])
+    attenList = 55*np.ones(len(freqList))
 
     roach_0 = Roach2Controls(ip, params, True, False)
     roach_0.connect()
