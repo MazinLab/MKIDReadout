@@ -5,7 +5,8 @@ import scipy.interpolate
 import scipy.signal
 from baselineIIR import IirFilter
 import matplotlib.pyplot as plt
-
+import triggerPhotons as tP
+import ipdb
 
 def makeWienerNoiseSpectrum(data, peakIndices=[], numBefore=100, numAfter=700, noiseOffsetFromPeak=200, sampleRate=1e6, template=[],isVerbose=False,baselineSubtract=True):
     nFftPoints = numBefore + numAfter
@@ -13,17 +14,15 @@ def makeWienerNoiseSpectrum(data, peakIndices=[], numBefore=100, numAfter=700, n
     
     #If no peaks, choose random indices to make spectrum 
     if len(peakIndices)==0:
-        print 'warning: makeWienerNoiseSpectrum was not passed any peakIndices. Generating random indicies now'
         peakIndices=np.array([0])
-        rate = len(data)/nFftPoints/10
+        rate = len(data)/float(nFftPoints)/100.
         while peakIndices[-1]<(len(data)-1):
             prob=np.random.rand()
             currentIndex=peakIndices[-1]
-            peakIndices=np.append(peakIndices,currentIndex+np.ceil(-np.log(prob)/rate).astype(int))
+            peakIndices=np.append(peakIndices,currentIndex+np.ceil(-np.log(prob)/rate*sampleRate).astype(int))
         peakIndices=peakIndices[:-2]      
     if len(peakIndices)==0:
         raise ValueError('makeWienerNoiseSpectrum: input data set is too short for the number of FFT points specified')
-   
     #Baseline subtract noise data
     if(baselineSubtract):
         noiseStream = np.array([])
@@ -41,14 +40,18 @@ def makeWienerNoiseSpectrum(data, peakIndices=[], numBefore=100, numAfter=700, n
             noiseSpectra[iPeak] = np.abs(np.fft.fft(data[peakIndex-nFftPoints-noiseOffsetFromPeak:peakIndex-noiseOffsetFromPeak])/nFftPoints)**2 
             if len(template)!=0:
                 filteredData=np.correlate(noiseData,template,mode='same')
-                peakDict=tP.detectPulses(filteredData, nSigmaThreshold = 3., negDerivLenience = 1, bNegativePulses=False)
+                peakDict=tP.detectPulses(filteredData, nSigmaThreshold = 2., negDerivLenience = 1, bNegativePulses=True)
                 if len(peakDict['peakIndices'])!=0:
                     rejectInd=np.append(rejectInd,iPeak)     
 
     #Remove indicies with pulses by coorelating with a template if provided
     if len(template)!=0:  
         noiseSpectra = np.delete(noiseSpectra, rejectInd, axis=0)
-    noiseFreqs = np.fft.fftfreq(nFftPoints,1./sampleRate)    
+    noiseFreqs = np.fft.fftfreq(nFftPoints,1./sampleRate)
+    if len(np.shape(noiseSpectra))==0:
+        raise ValueError('makeWienerNoiseSpectrum: not enough spectra to average')
+    if np.shape(noiseSpectra)[0]<5:
+        raise ValueError('makeWienerNoiseSpectrum: not enough spectra to average')    
     noiseSpectrum = np.median(noiseSpectra,axis=0)
     #noiseSpectrum[0] = 2.*noiseSpectrum[1] #look into this later 8/15/16
     if isVerbose:

@@ -1,7 +1,6 @@
 from matplotlib import rcParams, rc
 import numpy as np
 import sys
-from fitFunctions import gaussian
 import scipy.interpolate
 import scipy.signal
 from baselineIIR import IirFilter
@@ -9,18 +8,18 @@ import pickle
 import smooth
 
 # common setup for matplotlib
-params = {'savefig.dpi': 300, # save figures to 300 dpi
-          'axes.labelsize': 14,
-          'text.fontsize': 14,
-          'legend.fontsize': 14,
-          'xtick.labelsize': 14,
-          'ytick.major.pad': 6,
-          'xtick.major.pad': 6,
-          'ytick.labelsize': 14}
+#params = {'savefig.dpi': 300, # save figures to 300 dpi
+#          'axes.labelsize': 14,
+#          'text.fontsize': 14,
+#          'legend.fontsize': 14,
+#          'xtick.labelsize': 14,
+#          'ytick.major.pad': 6,
+#          'xtick.major.pad': 6,
+#          'ytick.labelsize': 14}
 # use of Sans Serif also in math mode
-rc('text.latex', preamble='\usepackage{sfmath}')
+#rc('text.latex', preamble='\usepackage{sfmath}')
 
-rcParams.update(params)
+#rcParams.update(params)
 
 import matplotlib.pyplot as plt
 import numpy as np

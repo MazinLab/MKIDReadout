@@ -5,6 +5,7 @@ import scipy as sp
 import makeNoiseSpectrum as noise
 import makeArtificialData as mAD
 import makeTemplate as mkt
+import ipdb
 
 def makeMatchedFilter(template, noiseSpectrum, nTaps=50, tempOffs=95):
     '''
@@ -25,9 +26,8 @@ def makeMatchedFilter(template, noiseSpectrum, nTaps=50, tempOffs=95):
     template = template[tempOffs:tempOffs+nTaps]  #shorten template to length nTaps
     filterNorm = np.dot(template, np.dot(noiseCovInv, template))
     matchedFilt = np.dot(noiseCovInv, template)/filterNorm
-    matchedFilt=matchedFilt[::-1]
     
-    return matchedFilt
+    return -matchedFilt
 
 def makeSuperMatchedFilter(template, noiseSpectrum, fallTime, nTaps=50, tempOffs=95,sampleRate=1e6):
     '''

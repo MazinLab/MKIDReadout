@@ -37,13 +37,15 @@ if True:
     #rawData=np.load('/mnt/data0/Darkness/20160723/snap_117_ch7_20161018-181127.npz')    #good file can see pulses
     #rawData=np.load('/mnt/data0/Darkness/20160723/snap_117_ch8_20161018-181139.npz')    #good file can see pulses
     #rawData=np.load('/mnt/data0/Darkness/20160723/snap_117_ch9_20161018-181151.npz')    #good file can see pulses
-    rawData=np.load('/mnt/data0/Darkness/20161107/117_data/snap_117_ch0_20161108-190956.npz')
+    #rawData=np.load('/mnt/data0/Darkness/20161107/117_data/snap_117_ch0_20161108-190956.npz')
+    rawData=np.load('/mnt/data0/Darkness/20170227/optimal_filters/112_data/snap_112_ch274_20170303-212630.npz')
     key=rawData.keys()
     rawData=rawData[key[0]]
     print "data extracted"
     
+    defaultFilter=np.loadtxt('/mnt/data0/nzobrist/MkidDigitalReadout/DataReadout/Setup/OptimalFilters/matched50_20.0us.txt')
     #make template 4,.05 works well 5,.05
-    template, time, noiseSpectrumDict, _, _ = mT.makeTemplate(rawData,nSigmaTrig=5.,numOffsCorrIters=3,isVerbose=isVerbose,isPlot=isPlot, sigPass=.05)
+    template, time, noiseSpectrumDict, _, _ = mT.makeTemplate(rawData,nSigmaTrig=5.,numOffsCorrIters=3,isVerbose=isVerbose,isPlot=isPlot,defaultFilter=defaultFilter, sigPass=.05)
     print "template made"
     
     #noiseSpectrumDict['noiseSpectrum']=np.ones(len(noiseSpectrumDict['noiseSpectrum']))
@@ -52,26 +54,26 @@ if True:
     #noiseSpectrumDict['noiseSpectrum'][np.abs(noiseSpectrumDict['noiseFreqs'])>210000]=5e-5
    
     #make matched filter
-    matchedFilter=mF.makeMatchedFilter(template, noiseSpectrumDict['noiseSpectrum'], nTaps=50, tempOffs=95)
+    #matchedFilter=mF.makeMatchedFilter(template, noiseSpectrumDict['noiseSpectrum'], nTaps=50, tempOffs=95)
     #coef, _ = opt.curve_fit(lambda x, a, t0 : a*exp(-x/t0), time[len(time)*1/5:len(time)*4/5],template[len(time)*1/5:len(time)*4/5], [-1 , 30e-6])
     #fallFit=coef[1]
     #superMatchedFilter=mF.makeSuperMatchedFilter(template, noiseSpectrumDict['noiseSpectrum'], fallFit, nTaps=50, tempOffs=75)
-    print "filters made"
+    #print "filters made"
     
     #convolve with filter
-    filteredData=np.convolve(rawData,matchedFilter,mode='same') 
+    #filteredData=np.convolve(rawData,matchedFilter,mode='same') 
     #superFilteredData=np.convolve(rawData,superMatchedFilter,mode='same')
-    print "data filtered" 
+    #print "data filtered" 
     
     #find peak indices
-    peakDict=tP.detectPulses(filteredData, nSigmaThreshold = 3., negDerivLenience = 1, bNegativePulses=False)
+    #peakDict=tP.detectPulses(filteredData, nSigmaThreshold = 3., negDerivLenience = 1, bNegativePulses=False)
     #superPeakDict=tP.detectPulses(superFilteredData, nSigmaThreshold = 3., negDerivLenience = 1, bNegativePulses=False)
-    print "peaks found"
+    #print "peaks found"
     
     #find peak amplitudes
     #amps=filteredData[peakDict['peakIndices']]
     #superAmps=superFilteredData[superPeakDict['peakIndices']]
-    print "amplitudes extracted"
+    #print "amplitudes extracted"
     
     #fig=plt.figure()
     #plt.plot(template)

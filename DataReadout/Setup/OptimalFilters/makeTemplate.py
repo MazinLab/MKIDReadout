@@ -6,8 +6,9 @@ from baselineIIR import IirFilter
 import makeNoiseSpectrum as mNS
 import makeArtificialData as mAD
 import warnings
+import ipdb
 
-def makeTemplate(rawData, numOffsCorrIters=1 , decayTime=50, nSigmaTrig=4., isVerbose=False, isPlot=False,sigPass=1):
+def makeTemplate(rawData, numOffsCorrIters=1 , decayTime=50, nSigmaTrig=4., isVerbose=False, isPlot=False,sigPass=1,defaultFilter=[]):
     '''
     Make a matched filter template using a raw phase timestream
     INPUTS:
@@ -18,6 +19,7 @@ def makeTemplate(rawData, numOffsCorrIters=1 , decayTime=50, nSigmaTrig=4., isVe
     isVerbose - print information about the template fitting process
     isPlot - plot information about Chi2 cut
     sigPass - std of data left after Chi2 cut
+    defaultFilter - default filter for testing if noise data has pulse contamination
 
     OUTPUTS:
     finalTemplate - template of pulse shape
@@ -33,17 +35,21 @@ def makeTemplate(rawData, numOffsCorrIters=1 , decayTime=50, nSigmaTrig=4., isVe
     #trigger on pulses in data 
     peakDict = sigmaTrigger(data,nSigmaTrig=nSigmaTrig, decayTime=decayTime,isVerbose=isVerbose)
     
+    #if too many triggers raise an error
+    if len(peakDict['peakIndices'])>(len(data)/400):
+        raise ValueError('makeTemplate.py: triggered on too many pulses')
+    
     #remove pulses with additional triggers in the pulse window
     peakIndices = cutPulsePileup(peakDict['peakMaxIndices'], decayTime=decayTime, isVerbose=isVerbose)
     
     #remove pulses with a large chi squared value
-    peakIndices = cutChiSquared(data,peakIndices,sigPass=sigPass, decayTime=decayTime, isVerbose=isVerbose, isPlot=isPlot)
+    #peakIndices = cutChiSquared(data,peakIndices,sigPass=sigPass, decayTime=decayTime, isVerbose=isVerbose, isPlot=isPlot)
         
     #Create rough template
     roughTemplate, time = averagePulses(data, peakIndices, decayTime=decayTime)
     
     #create noise spectrum from pre-pulse data for filter
-    noiseSpectDict = mNS.makeWienerNoiseSpectrum(data,peakIndices)
+    noiseSpectDict = mNS.makeWienerNoiseSpectrum(data,peakIndices,template=defaultFilter,isVerbose=isVerbose)
     
     #Correct for errors in peak offsets due to noise
     templateList = [roughTemplate]
@@ -53,7 +59,15 @@ def makeTemplate(rawData, numOffsCorrIters=1 , decayTime=50, nSigmaTrig=4., isVe
         roughTemplate, time = averagePulses(data, peakIndices,isoffset=True, decayTime=decayTime) 
         templateList.append(roughTemplate)
     
-    finalTemplate = roughTemplate
+    fit = lambda x, tau: -np.exp(-x/tau)
+    bounds=(1,100)
+    warnings.filterwarnings("ignore")
+    taufit=opt.curve_fit(fit , np.arange(0,50), roughTemplate[100:150] , 20. ) 
+    warnings.filterwarnings("default")
+ 
+    finalTemplate = fit(np.arange(0,50),taufit)
+    
+    finalTemplate = finalTemplate[0,:]
 
     return finalTemplate, time, noiseSpectDict, templateList, peakIndices
 
@@ -267,7 +281,7 @@ def averagePulses(data, peakIndices, isoffset=False, nPointsBefore=100, nPointsA
     if numPeaks==0:
         raise ValueError('averagePulses: No valid peaks found')
     
-    template /= numPeaks
+    template=template/np.max(np.abs(template))
     time = np.arange(0,nPointsBefore+nPointsAfter)/sampleRate
     return template, time
     
