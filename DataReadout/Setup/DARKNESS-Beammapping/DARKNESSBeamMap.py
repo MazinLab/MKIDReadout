@@ -487,6 +487,9 @@ class StartQt4(QMainWindow):
         # Iterating over all pixels
         for pixelno in range(self.maximumNumberOfPixels):
             
+            #We do multiple beam map sweeps in order to reduce the noise (something like  
+            #3 x sweeps and 3 y sweeps. Then we take the median values of the sweeps.)
+
             # Initialize median array for particular pixel and spatial dimension
             median_array = []
             # Iterating over all x sweeps
@@ -506,6 +509,11 @@ class StartQt4(QMainWindow):
 
             if np.logical_or(np.sum(self.crx_median[pixelno]) == 0, np.sum(self.cry_median[pixelno]) == 0):
                 self.flagarray[pixelno] = 1
+            
+            if np.logical_or(np.amax(self.crx_median[pixelno])-np.mean(self.crx_median[pixelno]) < 5.0*np.std(self.crx_median[pixelno]),
+               np.amax(self.cry_median[pixelno])-np.mean(self.cry_median[pixelno]) < 5.0*np.std(self.cry_median[pixelno])):
+                self.flagarray[pixelno] = 1
+
 
     def makeTemplates(self):
         ''' #As placeholder, hardcode for one pixel to test on FL5 from 20161118
@@ -528,8 +536,10 @@ class StartQt4(QMainWindow):
         print 'Fitting pixel number ' + str(self.pixelStartIndex) + ' to ' + str(self.pixelStopIndex)
 
         for pixelno in xrange(self.pixelStartIndex, self.pixelStopIndex+1):
+#        for pixelno in xrange(self.pixelStartIndex, self.pixelStartIndex+1):
             
             #self.xpeakguess=np.where(self.crx_median[pixelno][:] == self.crx_median[pixelno][:].max())[0][0]
+            
             self.xcorr = np.correlate(self.crx_median[pixelno], self.xTemp, 'full')
             self.xpeakguess = np.where(self.xcorr==self.xcorr.max())[0][0]+self.xTempLoc-len(self.xTemp)+1
 
@@ -540,8 +550,8 @@ class StartQt4(QMainWindow):
             self.peakpos[0][pixelno] = params_x[0]
             self.mypeakpos[0][pixelno] = params_x[0]
 
-
             #self.ypeakguess=np.where(self.cry_median[pixelno][:] == self.cry_median[pixelno][:].max())[0][0]
+            
             self.ycorr = np.correlate(self.cry_median[pixelno], self.yTemp, 'full')
             self.ypeakguess = np.where(self.ycorr==self.ycorr.max())[0][0]+self.yTempLoc-len(self.yTemp)+1
 

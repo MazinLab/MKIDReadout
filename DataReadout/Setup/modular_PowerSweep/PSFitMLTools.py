@@ -6,6 +6,7 @@ import PSFitMLData as mld
 import Hal_fullres as mlc
 from matplotlib import pylab as plt
 from matplotlib import cm
+from mpl_toolkits.mplot3d import Axes3D
 import matplotlib.colors
 # from params import mldir, trainFile, max_nClass, res_per_win, rawTrainFiles
 from ml_params import *
@@ -65,11 +66,15 @@ def makeBinResImage(mlData, res_num, angle=0, phase_normalise=False, showFrames=
         # Is = Is /np.amax(mlData.Is[res_num, :, :])
         # Qs = Qs /np.amax(mlData.Qs[res_num, :, :])
 
+
+
         if angle != 0:
             rotMatrix = np.array([[np.cos(angle), -np.sin(angle)], 
                                      [np.sin(angle),  np.cos(angle)]])
 
             Is,Qs = np.dot(rotMatrix,[Is,Qs])
+
+
 
         image = np.zeros((len(Is),3))
         image[:,0] = Is
@@ -89,7 +94,7 @@ def makeBinResImage(mlData, res_num, angle=0, phase_normalise=False, showFrames=
 
     return loops
 
-def makeResImage(mlData, res_num, angle=0, pert=0, scale = 1, phase_normalise=False, showFrames=False, dataObj=None):
+def makeResImage(mlData, res_num, angle=0, pert=0, scale = 1, window=None, phase_normalise=False, showFrames=False, dataObj=None):
     '''Creates a table with 3 rows: I, Q, and vel_iq for makeTrainData()
 
     inputs 
@@ -171,6 +176,14 @@ def makeResImage(mlData, res_num, angle=0, pert=0, scale = 1, phase_normalise=Fa
 
             Is,Qs = np.dot(rotMatrix,[Is,Qs])
 
+        if window != None:
+            Is[:window[0]] = Is[window[0]+1]
+            Is[-window[1]:] = Is[-window[1]-1]
+            Qs[:window[0]] = Qs[window[0]+1]
+            Qs[-window[1]:] = Qs[-window[1]-1]
+            iq_vels[:window[0]] = 0
+            iq_vels[-window[1]:] = 0
+
         image = np.zeros((len(Is),3))
         image[:,0] = Is
         image[:,1] = Qs
@@ -181,8 +194,28 @@ def makeResImage(mlData, res_num, angle=0, pert=0, scale = 1, phase_normalise=Fa
     # if max_nClass != mlData.nClass:
     #     padding = np.zeros((max_nClass-len(loops),mlData.xWidth,3))
     #     loops = np.concatenate([loops,padding],axis=0)
+    # SMALL_SIZE = 14
+    # MEDIUM_SIZE = 18
+    # BIGGER_SIZE = 22
 
-
+    # plt.rc('font', size=SMALL_SIZE)  # controls default text sizes
+    # plt.rc('axes', titlesize=SMALL_SIZE)  # fontsize of the axes title
+    # plt.rc('axes', labelsize=MEDIUM_SIZE)  # fontsize of the x and y labels
+    # plt.rc('xtick', labelsize=SMALL_SIZE)  # fontsize of the tick labels
+    # plt.rc('ytick', labelsize=SMALL_SIZE)  # fontsize of the tick labels
+    # plt.rc('legend', fontsize=SMALL_SIZE)  # legend fontsize
+    # #plt.rc('figure', titlesize=BIGGER_SIZE)  # fontsize of the figure title
+    # plt.figure(figsize=(8,8))
+    # # plt.plot(loops[3][:,0],loops[3][:,1], '-o')
+    # plt.plot(loops[3][:,0])
+    # # plt.xlabel('I')
+    # plt.ylabel('I')
+    # plt.figure(figsize=(8,8))
+    # # plt.plot(loops[3][:,0],loops[3][:,1], '-o')
+    # plt.plot(loops[3][:,1])
+    # # plt.xlabel('I')
+    # plt.ylabel('Q')
+    # plt.show()
     loops = loops * np.ones((len(loops),mlData.xWidth,3))
     if showFrames:
         plot_res(loops)
@@ -190,7 +223,7 @@ def makeResImage(mlData, res_num, angle=0, pert=0, scale = 1, phase_normalise=Fa
     return loops
 
 def plot_res(loops):
-    iAtten_view =  np.arange(0,np.shape(loops)[0],2)
+    iAtten_view =  np.arange(0,np.shape(loops)[0],5)
 
     f, axarr = plt.subplots(len(iAtten_view),3,figsize=(5.0, 8.1))
     # axarr[0,1].set_title(iAtten)
@@ -202,6 +235,68 @@ def plot_res(loops):
         axarr[i,2].plot(loops[av,:,0],loops[av,:,1])
     plt.show()
     plt.close()
+
+def plot_max_ratio(datacube):
+    print np.shape(datacube)
+    datacube = np.asarray(datacube)
+    iqv = datacube[:,:,2]
+    print np.shape(iqv)
+    max_iqv = np.max(iqv, axis =1)
+    vindx = np.argmax(iqv, axis =1)
+    print np.shape(max_iqv)
+    print vindx
+
+    max_ratio = np.zeros((max_nClass))
+    for ia in range(max_nClass):
+        if vindx[ia] == 0:
+            max_neighbor = iqv[ia,1]
+        elif vindx[ia] == len(iqv[ia,:])-1:
+            max_neighbor = iqv[ia,vindx[ia]-1]
+        else:
+            max_neighbor = np.maximum(iqv[ia,vindx[ia]-1],iqv[ia,vindx[ia]+1])
+
+        max_ratio[ia] = (iqv[ia,vindx[ia]]/ max_neighbor)
+
+    SMALL_SIZE = 14
+    MEDIUM_SIZE = 18
+    BIGGER_SIZE = 22
+
+    plt.rc('font', size=SMALL_SIZE)  # controls default text sizes
+    plt.rc('axes', titlesize=SMALL_SIZE)  # fontsize of the axes title
+    plt.rc('axes', labelsize=MEDIUM_SIZE)  # fontsize of the x and y labels
+    plt.rc('xtick', labelsize=SMALL_SIZE)  # fontsize of the tick labels
+    plt.rc('ytick', labelsize=SMALL_SIZE)  # fontsize of the tick labels
+    plt.rc('legend', fontsize=SMALL_SIZE)  # legend fontsize
+    #plt.rc('figure', titlesize=BIGGER_SIZE)  # fontsize of the figure title
+    plt.figure(figsize=(6,6))
+    # plt.plot(loops[3][:,0],loops[3][:,1], '-o')
+    # plt.xlabel('I')
+    plt.ylabel('max($v_{IQ}$)/2$^{nd}$max($v_{IQ}$)')
+    plt.xlabel('Attenuation (dB)')
+
+    guess = 1 
+    plt.plot(range(46,46+max_nClass), max_ratio,'-o', label='ratio')
+    plt.axhline(1.75, color='k', linestyle='--', label='threshold')
+    plt.plot(46+guess, max_ratio[guess], color='g', marker='o')
+    plt.grid(True)
+    
+    I = datacube[:,:,0]
+    Q = datacube[:,:,1]
+
+
+    plt.figure(figsize=(6,6))
+    for i in range(0,3):
+        plt.plot(I[i], Q[i], '-ob')
+        if i == guess:
+            plt.plot(I[i], Q[i], '-og')
+    # plt.plot(I[guess], Q[guess], '-og')
+    # plt.plot(I[guess-1], Q[guess-1], '-ob', alpha=0.8)
+    # plt.plot(I[guess-2], Q[guess-2], '-ob', alpha=0.6)
+    plt.grid(True)
+    plt.xlabel('I (A.U)')
+    plt.ylabel('Q (A.U)')
+    plt.show()
+
 
 def get_peak_idx(mlData,res_num,iAtten):
     # if dataObj is None:
@@ -244,6 +339,62 @@ def plotWeights(weights):
     plt.show()
     plt.close()
 
+def plot_input_cube(loops):
+    # print np.shape(activations)
+    SMALL_SIZE = 18
+    MEDIUM_SIZE = 22
+    BIGGER_SIZE = 26
+
+    plt.rc('font', size=SMALL_SIZE)  # controls default text sizes
+    plt.rc('axes', titlesize=SMALL_SIZE)  # fontsize of the axes title
+    plt.rc('axes', labelsize=MEDIUM_SIZE)  # fontsize of the x and y labels
+    plt.rc('xtick', labelsize=SMALL_SIZE)  # fontsize of the tick labels
+    plt.rc('ytick', labelsize=SMALL_SIZE)  # fontsize of the tick labels
+    plt.rc('legend', fontsize=SMALL_SIZE)  # legend fontsize
+    #plt.rc('figure', titlesize=BIGGER_SIZE)  # fontsize of the figure title
+    # plt.figure(figsize=(8,8))
+
+
+
+    # # create a 21 x 21 vertex mesh
+    # xx, yy = np.meshgrid(np.linspace(0,50,50), np.linspace(0,3,3))
+    xx, yy = np.meshgrid(np.arange(50), np.arange(3))
+
+    # # # create vertices for a rotated mesh (3D rotation matrix)
+    X =  xx 
+    Y =  yy
+    # Z =  10*np.ones(X.shape)
+
+    # # create some dummy data (20 x 20) for the image
+    # data = np.cos(xx) * np.cos(xx) + np.sin(yy) * np.sin(yy)
+
+    # create the figure
+    fig = plt.figure(figsize=(8,8))
+
+    # show the reference image
+
+    # for ia in range(15):
+    #     # ax1 = fig.add_subplot(111)
+    #     plt.imshow(np.rot90(loops[0][ia]), cmap=cm.coolwarm, origin ='lower', interpolation='none', aspect='auto')
+    #     plt.show()
+
+    # show the 3D rotated projection
+    ax2 = fig.add_subplot(111, projection='3d')
+    print np.shape(loops)
+    for ia in range(max_nClass):
+        print ia
+        cset = ax2.contourf(X, Y, np.rot90(loops[0][ia]), 100, zdir='z',interpolation='none', offset=ia, cmap=cm.coolwarm)
+        # plt.imshow(np.rot90(loops[0][ia]), cmap=cm.coolwarm, origin ='lower', zdir='z',interpolation='none', offset=ia * 0.2,  aspect='auto')
+        # cset = ax2.plot_surface(X, Y,  np.rot90(loops[0][ia]), rstride=1, cstride=1, facecolors=plt.cm.BrBG(np.rot90(loops[0][ia])), shade=False)
+    
+    ax2.set_zlim((0.,max_nClass))
+    ax2.set_yticks([0,1,2])
+    ax2.set_xlabel('freq samples')
+    ax2.set_ylabel('$v_{IQ}$    Q   I')
+    ax2.set_zlabel('atten samples')
+    plt.colorbar(cset)
+    plt.show()
+
 def plotActivations(activations):
     '''creates a 2d map showing the positive and negative weights for each class'''
     _,_,testImages,_ = mld.loadPkl(mldir+trainFile)
@@ -254,6 +405,14 @@ def plotActivations(activations):
     #             mlClass.sess.run(mlClass.h_conv2, feed_dict={mlClass.x: testImages}),
     #             mlClass.sess.run(mlClass.h_pool2, feed_dict={mlClass.x: testImages})]
 
+    # f, ax = plt.subplots(111)
+    plt.close()
+    print np.shape(activations[1][0,3,:,:]), np.shape(activations[1])
+    for ia in range(len(activations)):
+        plt.imshow(np.rot90(activations[ia][0,3,:,:]), cmap=cm.coolwarm,interpolation='none', aspect='auto')
+        plt.show()
+        plt.close()
+
 
     print np.shape(activations[0])
     for r in range(len(testImages)):
@@ -261,12 +420,15 @@ def plotActivations(activations):
         #     print p
         f, axarr = plt.subplots(len(activations)+1,8,figsize=(16.0, 8.1))
         p=6
+
         axarr[0,0].plot(activations[0][r,p,:,0],activations[0][r,p,:,1])
         for ir, row in enumerate(range(1, 4)):
+            axarr[0,ir].axis('off')
             axarr[0,row].plot(activations[0][r,p,:,ir])
         # print np.arange(0,max_nClass,2)
         for ir, row in enumerate(np.arange(0,max_nClass,2)):
             for i, a in enumerate(activations):
+                axarr[i+1,ir].axis('off')
                 im = axarr[i+1,ir].imshow(np.rot90(a[r,row,:,:]), cmap=cm.coolwarm,interpolation='none', aspect='auto')#aspect='auto'
             # if row==2:
             #     axarr[i+2,row].colorbar(cmap=cm.afmhot)
@@ -521,6 +683,22 @@ def checkResAtten(inferenceData, res_num, plotAngles=False, showResData=False, m
 def plot_confusion(independent, dependent):
     # def plotComparison(rawTrainData, atten_guess):
     # rawTrainData.opt_iAttens = rawTrainData.opt_iAttens[:len(atten_guess)]
+
+    SMALL_SIZE = 14
+    MEDIUM_SIZE = 18
+    BIGGER_SIZE = 22
+
+    plt.rc('font', size=SMALL_SIZE)  # controls default text sizes
+    plt.rc('axes', titlesize=SMALL_SIZE)  # fontsize of the axes title
+    plt.rc('axes', labelsize=MEDIUM_SIZE)  # fontsize of the x and y labels
+    plt.rc('xtick', labelsize=SMALL_SIZE)  # fontsize of the tick labels
+    plt.rc('ytick', labelsize=SMALL_SIZE)  # fontsize of the tick labels
+    plt.rc('legend', fontsize=SMALL_SIZE)  # legend fontsize
+    #plt.rc('figure', titlesize=BIGGER_SIZE)  # fontsize of the figure title
+    plt.figure(figsize=(6,6))
+    # plt.plot(loops[3][:,0],loops[3][:,1], '-o')
+    # plt.xlabel('I')
+
     guesses_map = np.zeros((max_nClass,max_nClass))
     for ia,ao in enumerate(independent):   
         ag = dependent[ia]
@@ -529,14 +707,19 @@ def plot_confusion(independent, dependent):
     from matplotlib import cm
     import matplotlib.colors
     plt.imshow(guesses_map,interpolation='none', origin='lower', cmap=cm.coolwarm) #,norm = matplotlib.colors.LogNorm())
-    plt.xlabel('actual')
-    plt.ylabel('estimate')
+    plt.xlabel('True Class')
+    plt.ylabel('Evaluated Class')
+
+
 
     plt.colorbar(cmap=cm.afmhot)
     # plt.show()
-    plt.figure()
-    plt.plot(np.sum(guesses_map, axis=0), label='actual')
-    plt.plot(np.sum(guesses_map, axis=1), label='estimate')
+    plt.figure(figsize=(6,6))
+    # plt.plot(np.sum(guesses_map, axis=0), label='True')
+    # plt.plot(np.sum(guesses_map, axis=1), label='Evaluated')
+    plt.hist(independent, range(max_nClass+1), label='True', facecolor='blue', alpha=0.65) 
+    plt.hist(dependent, range(max_nClass+1), label='Evaluated', facecolor='green', alpha=0.65)
+    print np.histogram(dependent, range(max_nClass + 1))
     plt.legend(loc="upper left")
     plt.show()
 
@@ -544,12 +727,13 @@ def plot_accuracy(train_ce, test_ce, train_acc, test_acc):
     # if accuracy_plot == 'post':
     fig = plt.figure(frameon=False,figsize=(15.0, 5.0))
     fig.add_subplot(121)
-    plt.plot(train_ce, label='train')
-    plt.plot(test_ce, label='test')
+    print trainReps, len(np.arange(0,trainReps,10)), len(train_ce), len(np.arange(0,trainReps,100)), len(test_ce,)
+    plt.plot(np.arange(0,trainReps,10), train_ce, label='train')
+    plt.plot(np.arange(0,trainReps,100), test_ce, label='test')
     plt.legend(loc='upper right')
     fig.add_subplot(122)
-    plt.plot(train_acc, label='train')
-    plt.plot(test_acc, label='test')
+    plt.plot(np.arange(0,trainReps,10), train_acc, label='train')
+    plt.plot(np.arange(0,trainReps,100), test_acc, label='test')
     plt.legend(loc='lower right')
     plt.show()
 
@@ -946,5 +1130,30 @@ def compare_train_data(h5File, PSFile1, PSFile2, plot_agree=True):
     print len(agreed_res)        
     return agreed_res
 
+def plot_powers_hist(a_ipwrs, ml_ipwrs, mc_ipwrs):
+    print a_ipwrs
 
+    plt.figure(figsize=(8,8))
+    plt.hist(a_ipwrs, range(max_nClass + 1), facecolor='green', alpha=0.65, label='analytical')
+    plt.hist(ml_ipwrs, range(max_nClass + 1), facecolor='blue', alpha=0.65, label='neural network')
+    plt.hist(mc_ipwrs, range(max_nClass + 1), facecolor='red', alpha=0.65, label='man inspection')
+    plt.legend()
+    plt.xlabel('Class label')
+
+    plt.figure(figsize=(8,8))
+    plt.hist((a_ipwrs, ml_ipwrs, mc_ipwrs), range(max_nClass + 1), alpha=0.65, color = ['green', 'blue', 'red'], label=('analytical', 'neural network', 'man inspection'))
+    plt.legend()
+    plt.xlabel('Class label')
+
+    plt.figure(figsize=(8,8))
+    hist, bins = np.histogram(a_ipwrs, range(max_nClass+1))
+    plt.step(bins[:-1], hist, label='analytical')
+    hist, bins = np.histogram(ml_ipwrs, range(max_nClass+1))
+    plt.step(bins[:-1], hist, label='neural network')
+    hist, bins = np.histogram(mc_ipwrs, range(max_nClass+1))
+    plt.step(bins[:-1], hist, label='man inspection')
+
+    plt.legend()
+    plt.xlabel('Class label')
+    plt.show()
 

@@ -29,6 +29,15 @@ def plotPwrGuessCompMap(mc_pwrs, a_pwrs):
     plt.colorbar(cmap=cm.afmhot)
     plt.show()
 
+def conf_histogram():
+    plt.figure(figsize=(6,6))
+    # plt.plot(np.sum(guesses_map, axis=0), label='True')
+    # plt.plot(np.sum(guesses_map, axis=1), label='Evaluated')
+    plt.hist(independent, range(max_nClass+1), label='True', facecolor='blue', alpha=0.65) 
+    plt.hist(dependent, range(max_nClass+1), label='Evaluated', facecolor='green', alpha=0.65)
+    print np.histogram(dependent, range(max_nClass + 1))
+    plt.legend(loc="upper left")
+    plt.show()
 
 def plotIndGuessCompMap(mc_ipwrs, a_ipwrs):
     min_pwr = min([min(mc_ipwrs), min(a_ipwrs)])
