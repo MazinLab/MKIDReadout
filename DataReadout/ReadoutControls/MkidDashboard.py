@@ -412,7 +412,15 @@ class MkidDashboard(QMainWindow):
         for roach in self.roachList:
             freqList = self.config.get('Roach '+str(roach.num),'freqList')
             print freqList
+                   
+            #old version for loading freqList, causing issues 3/18/17                 
             resID_roach, freqs, _ = np.loadtxt(freqList,unpack=True)
+            
+            #freqArrays = np.loadtxt(freqList)
+            #resID_roach = np.atleast_1d(freqArrays[:,0])
+            #freqs = np.atleast_1d(freqArrays[:,1])      # We need an array of floats
+            #attensJunk = np.atleast_1d(freqArrays[:,2])
+            
             print resID_roach
             roach.generateResonatorChannels(freqs)
             freqCh_roach = np.arange(0,len(resID_roach))
@@ -631,11 +639,14 @@ class MkidDashboard(QMainWindow):
         if self.checkbox_smooth.isChecked(): self.grPixMap.graphicsEffect().setEnabled(True)
         else: self.grPixMap.graphicsEffect().setEnabled(False)
         
+        # Dither image
+        # if self.checkbox_dither.isChecked(): print 'dithering'
+
         # Resize the GUI to fit whole image
-        borderSize=24   # Not sure how to get the size of the frame's border so hardcoded this for now
+        borderSize=0#24   # Not sure how to get the size of the frame's border so hardcoded this for now
         imgSize = self.grPixMap.pixmap().size()
         frameSize = QtCore.QSize(imgSize.width()+borderSize,imgSize.height()+borderSize)
-        self.centralWidget().resize(frameSize)
+        #self.centralWidget().resize(frameSize) #this automatically resizes window but causes array to move 
         self.resize(self.childrenRect().size())
         
         # Show image on screen!
@@ -1208,6 +1219,11 @@ class MkidDashboard(QMainWindow):
         self.checkbox_smooth = QCheckBox('Smooth Image')
         self.checkbox_smooth.setChecked(False)
         
+        # Checkbox for dithering image
+        # self.checkbox_dither = QCheckBox('Dither Image')
+        # self.checkbox_dither.setChecked(False)
+
+
         # Pixel info labels
         self.label_pixelInfo=QLabel('(, ) - (, ) : 0 #/s')
         self.label_pixelInfo.setMaximumWidth(250)
@@ -1310,6 +1326,7 @@ class MkidDashboard(QMainWindow):
         vbox.addWidget(self.checkbox_showAllPix)
         vbox.addWidget(self.checkbox_interpolate)
         vbox.addWidget(self.checkbox_smooth)
+        # vbox.addWidget(self.checkbox_dither)
         vbox.addWidget(self.label_selectedPixValue)
         vbox.addWidget(self.label_pixelInfo)
         vbox.addWidget(self.label_pixelID)
