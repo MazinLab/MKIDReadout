@@ -103,7 +103,7 @@ class ImageSearcher(QtCore.QObject):     #Extends QObject for use with QThreads
                     if removeOldFiles:
                         os.remove(self.path+f)
         self.finished.emit()
-    
+
     def readBinToList(self,fn):
         """
         Parses the binary image file into a numpy array
@@ -122,6 +122,46 @@ class ImageSearcher(QtCore.QObject):     #Extends QObject for use with QThreads
         #image=image.reshape((self.nRows,self.nCols))
         return image
         
+class Ditherer(QtCore.Object):
+"""
+Controls automatic dithering w/ P3K or picomotor (not yet implemented here)
+"""
+    finished = QtCore.pyqtsignal()
+    
+    def __init__(self, ditherControllerName, ditherCfgFileName, nXMoves=5, nYMoves=5, xSpacing=5, ySpacing=5, dt=3, parent=None):        
+        super(QtCore.QObject, self).__init__(parent)
+        #Setup Dither Controller
+        if ditherControllerName is 'p3k':
+            self.ditherController = P3KDitherController()
+        else:
+            self.ditherController = None
+            raise Exception('P3K is the only implemented dither controller.')
+        
+        self.ditherCfgFile = open(ditherCfgFileName, 'wb')
+
+        self.xMovesList = xSpacing*range(0, nXMoves)
+        self.yMovesList = ySpacing*range(0, nYMoves)
+        self.timeList = []
+        self.dt = dt
+
+    def ditherLoop(self):
+        for xMove in xMovesList:
+            for yMove in yMovesList:
+                self.ditherController.moveLeft(xMove)
+                self.ditherController.moveUp(yMove)
+                self.timeList.append(int(time.time()))
+                time.sleep(self.dt)
+
+        posGrid = np.meshgrid(self.yMovesList, self.xMovesList)
+        xPosList = posGrid[1].flatten()
+        yPosList = posGrid[0].flatten()
+        self.ditherCfgFile.write('x offsets: ' + str(xPosList))
+        self.ditherCfgFile.write('y offsets: ' + str(yPosList))
+        self.ditherCfgFile.write('times: ' + str(self.timeList))
+        self.ditherCfgFile.close()
+        self.finished.emit()
+        
+
 class ConvertPhotonsToRGB(QtCore.QObject):
     """
     This class takes 2D arrays of photon counts and converts them into a QImage
@@ -299,6 +339,7 @@ class MkidDashboard(QMainWindow):
         self.telescopeController = Telescope(telescopeIP,telescopePort,telescopeReceivePort)
         self.telescopeWindow = TelescopeWindow(self.telescopeController)
         
+
         #Setup GUI
         print 'Setting up GUI...'
         super(QMainWindow, self).__init__(parent)
@@ -326,6 +367,16 @@ class MkidDashboard(QMainWindow):
         darkImageSearcher.imageFound.connect(self.convertImage)
         darkImageSearcher.finished.connect(thread.quit)
         QtCore.QTimer.singleShot(10,self.threadPool[0].start) #start the thread after a second
+
+        # Setup dithering thread
+        self.darkDitherer = Ditherer(self.config.get('properties', 'ditherController'), self.config.get('properties', 'ditherCFGFile'))
+        self.workers.append(self.darkDitherer)
+        ditherThread = QtCore.QThread(parent=self)
+        self.threadPool.append(ditherThread)
+        ditherThread.setObjectName("DARKDitherer")
+        self.darkDitherer.moveToThread(self.ditherThread)
+        ditherThread.started.connect(self.darkDitherer.ditherLoop)
+        darkDitherer.finished.connect(thread.quit)
         
         # Start PacketMaster3
         print 'Starting packetmaster3...'
@@ -474,7 +525,9 @@ class MkidDashboard(QMainWindow):
                 roach.loadBeammapCoords(beammapDict = beammapDict)
         print 'nGoodBeammapped:',self.config.getint('properties','nrows')*self.config.getint('properties','ncols') - np.sum(self.beammapFailed)
         '''
-    
+
+    def startDitherThread(self):
+        QtCore.QTimer.singleShot(10,self.threadPool[1].start) #start the thread after a second
     
     def appendImage(self,image):
         """
@@ -1466,6 +1519,18 @@ class MkidDashboard(QMainWindow):
         time.sleep(1)
         
         QtCore.QCoreApplication.instance().quit()
+
+class P3KDitherControl():
+    def __init__():
+        self.p3kCom = snh.P3K_COM('P3K_COM')
+        self.p3k.getstatus()
+        self.arcsecPerPix = 0.025
+
+    def moveLeft(numPix):
+        self.p3k.sci_offset_left(numPix*arcsecPerPix)
+
+    def moveUp(numPix):
+        self.p3k.sci_offset_up(numpPix*arcsecPerPix)
 
 def main():
     app = QApplication(sys.argv)
