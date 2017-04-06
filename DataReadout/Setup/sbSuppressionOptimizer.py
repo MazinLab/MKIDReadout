@@ -134,8 +134,10 @@ class SBOptimizer:
         '''
         if sideband == 'lower':
             freqList = self.freqListLow
+            attenList = self.toneAttenListLow
         elif sideband == 'upper':
             freqList = self.freqListHigh
+            attenList = self.toneAttenListHigh
         else:
             raise Exception('Specify a valid sideband (either upper or lower)!')
 
@@ -285,8 +287,8 @@ class SBOptimizer:
             
 
         if saveNPZ:
-            np.savez('grid_search_opt_vals_'+str(len(freqList))+'_freqs_'+time.strftime("%Y%m%d-%H%M%S",time.localtime()), freqs=freqList,
-                            optPhases=finalPhaseList, optIQRatios=finalIQRatioList, maxSBSuppressions=finalSBSupList, toneAttenList=self.toneAttenList,
+            np.savez('grid_search_opt_vals_'+'r'+self.roach.ip[-3:]+'_'+str(len(freqList))+'_freqs_'+sideband+'_'+time.strftime("%Y%m%d-%H%M%S",time.localtime()), freqs=freqList,
+                            optPhases=finalPhaseList, optIQRatios=finalIQRatioList, maxSBSuppressions=finalSBSupList, toneAttenList=attenList, loFreq=self.loFreq,
                                             globalDacAtten=self.globalDacAtten, adcAtten=self.adcAtten)
 
         
@@ -298,7 +300,7 @@ class SBOptimizer:
            data[:, 2] = self.toneAttenList
            data[:, 3] = np.concatenate((self.finalPhaseListLow, self.finalPhaseListHigh))
            data[:, 4] = np.concatenate((self.finalIQRatioListLow, self.finalIQRatioListHigh))
-           np.savetxt(filename, data)
+           np.savetxt(filename, data, fmt='%4i %10.9e %4i %4i %4f')
 
         else:
            data = np.zeros((len(self.freqList), 4))
@@ -306,7 +308,7 @@ class SBOptimizer:
            data[:, 1] = self.toneAttenList
            data[:, 2] = np.concatenate((self.finalPhaseListLow, self.finalPhaseListHigh))
            data[:, 3] = np.concatenate((self.finalIQRatioListLow, self.finalIQRatioListHigh))
-           np.savetxt(filename, data)
+           np.savetxt(filename, data, fmt='%10.9e %4i %4i %4f')
 
 
     def ampScalePlotter(self, freq, phase, scaleRange=np.arange(0.5,1.5,0.02)):
@@ -431,13 +433,17 @@ def optRawGridData(filename, freqInd=10, corrLen=20, threshold=40, sbSupScale=5,
     plt.show()
       
 
-def loadOptimizedLUT(filename):
+def loadOptimizedLUT(filename, ip, loadCorrections=True):
     data = np.load(filename)
-    sbo = SBOptimizer(ip='10.0.0.112', toneAtten=data['toneAtten'], globalDacAtten=data['globalDacAtten'], adcAtten=data['adcAtten'])
+    sbo = SBOptimizer(ip=ip, freqList=data['freqs'], toneAttenList=data['toneAttenList'], globalDacAtten=data['globalDacAtten'], adcAtten=data['adcAtten'], loFreq=data['loFreq'])
     sbo.initRoach()
     print 'global dac atten', sbo.globalDacAtten
-    print 'toneAtten', sbo.toneAtten
-    sbo.loadLUT(data['freqs'], phaseList=data['optPhases'], iqRatioList=data['optIQRatios'])
+    #print 'toneAtten', sbo.toneAtten
+    if loadCorrections:
+        sbo.loadLUT(phaseList=data['optPhases'], iqRatioList=data['optIQRatios'])
+
+    else:
+        sbo.loadLUT()
     #sbo.loadLUT(data['freqs'])  
 
     nSamples = 4096.
@@ -546,7 +552,7 @@ if __name__=='__main__':
     freqFile = os.path.join(mdd, sys.argv[2])
     resIDList, freqList, attenList = np.loadtxt(freqFile, unpack=True)
 
-    sbo = SBOptimizer(ip=ip, freqList=freqList, toneAttenList=attenList, resIDList=resIDList, globalDacAtten=6, loFreq=6.7354026e9)
+    sbo = SBOptimizer(ip=ip, freqList=freqList, toneAttenList=attenList, resIDList=resIDList, globalDacAtten=6, loFreq=4.6873455e9)
     sbo.initRoach()
     sbo.gridSearchOptimizerFit(sideband='upper', saveNPZ=True)
     sbo.gridSearchOptimizerFit(sideband='lower', saveNPZ=True)
