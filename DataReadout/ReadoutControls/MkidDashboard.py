@@ -451,15 +451,20 @@ class MkidDashboard(QMainWindow):
         QtCore.QTimer.singleShot(10,self.threadPool[0].start) #start the thread after a second
 
         # Setup dithering thread
-        darkDitherer = Ditherer(self.config.get('properties', 'ditherController'), self.config.get('properties', 'ditherCFGFile'))
-        self.workers.append(darkDitherer)
-        ditherThread = QtCore.QThread(parent=self)
-        self.threadPool.append(ditherThread)
-        ditherThread.setObjectName("DARKDitherer")
-        darkDitherer.moveToThread(ditherThread)
-        ditherThread.started.connect(darkDitherer.ditherLoop)
-        darkDitherer.finished.connect(ditherThread.quit)
-        darkDitherer.finished.connect(self.stopDithering)
+        try:
+            darkDitherer = Ditherer(self.config.get('properties', 'ditherController'), self.config.get('properties', 'ditherCFGFile'))
+            self.workers.append(darkDitherer)
+            ditherThread = QtCore.QThread(parent=self)
+            self.threadPool.append(ditherThread)
+            ditherThread.setObjectName("DARKDitherer")
+            darkDitherer.moveToThread(ditherThread)
+            ditherThread.started.connect(darkDitherer.ditherLoop)
+            darkDitherer.finished.connect(ditherThread.quit)
+            darkDitherer.finished.connect(self.stopDithering)
+        except:
+            print "Could not initialize Dither thread. Disabling dithers"
+            self.button_dither.setEnabled(False)
+            
 
         ''' LASERCAL WORK IN PROGRESS
         # Setup laser cal thread
@@ -801,12 +806,8 @@ class MkidDashboard(QMainWindow):
         borderSize=0#24   # Not sure how to get the size of the frame's border so hardcoded this for now
         imgSize = self.grPixMap.pixmap().size()
         frameSize = QtCore.QSize(imgSize.width()+borderSize,imgSize.height()+borderSize)
-<<<<<<< HEAD
+
         #self.centralWidget().resize(frameSize) #this automatically resizes window but causes array to move 
-=======
-        #self.centralWidget().resize(frameSize)
->>>>>>> e665cfdec83aa53291ab567a7f45709980d04484
-        self.resize(self.childrenRect().size())
         
         # Show image on screen!
         self.grPixMap.update()
@@ -1147,11 +1148,14 @@ class MkidDashboard(QMainWindow):
             self.button_stop.setEnabled(False)
             
     def toggleFlipper(self):
+        print "Toggled flipper!"
         if self.radiobutton_flipper.isChecked(): laserStr = '1'+'0'*len(self.checkbox_laser_list)
         else: laserStr = '0'+'0'*len(self.checkbox_laser_list)
+        self.laserController.toggleLaser(laserStr, 500)
 
-    def laserCalClicked(self, logTitle = 'laserCal'):
+    def laserCalClicked(self):
 
+        logTitle = 'laserCal'
         laserTime=self.spinbox_laserTime.value()
         #style = self.config.get('properties', 'laserCalStyle')
         #eventually want to add capability with laser cal thread to do different
@@ -1170,7 +1174,7 @@ class MkidDashboard(QMainWindow):
                 if checkbox_laser.isChecked(): laserStr+='1'
                 else: laserStr+='0'
             self.laserController.toggleLaser(laserStr, laserTime)
-            self.writeLog(logTitle, utc=time.time(), time=laserTime, totalTime=totalCalTime, lasers=laserStr, style=laserCalStyle)
+            self.writeLog(target=logTitle, ts=time.time(), time=laserTime, totalTime=totalCalTime, lasers=laserStr, style=laserCalStyle)
             #if not self.observing:
             #    self.startObs()
             #    QtCore.QTimer.singleShot(laserTime*1000+1, self.stopObs)
@@ -1271,7 +1275,7 @@ class MkidDashboard(QMainWindow):
         # dithering
         self.button_dither = QPushButton("Start Dithering")
         dither_font = font.setPointSize(12)
-        self.button_dither.setFont(dither_font)
+        #self.button_dither.setFont(dither_font)
         self.button_dither.clicked.connect(self.startDitherThread)
 
         # log file
@@ -1433,11 +1437,11 @@ class MkidDashboard(QMainWindow):
             checkbox_laser = QCheckBox(laserName)
             checkbox_laser.setChecked(False)
             self.checkbox_laser_list.append(checkbox_laser)
-        
+
         button_laserCal.clicked.connect(self.laserCalClicked)
-        
+
         # Also have the pupil imager flipper controlled with laser box arduino
-        self.radiobutton_flipper = QRadioButton('Flipper')
+        self.radiobutton_flipper = QRadioButton('SBIG Flipper [0:Pupil, 1:Image]')
         self.radiobutton_flipper.setChecked(False)
         self.radiobutton_flipper.toggled.connect(self.toggleFlipper)
         
