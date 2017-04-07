@@ -6,7 +6,6 @@ import scipy.signal
 from baselineIIR import IirFilter
 import matplotlib.pyplot as plt
 import triggerPhotons as tP
-import ipdb
 
 def makeWienerNoiseSpectrum(data, peakIndices=[], numBefore=100, numAfter=700, noiseOffsetFromPeak=200, sampleRate=1e6, template=[],isVerbose=False,baselineSubtract=True):
     nFftPoints = numBefore + numAfter

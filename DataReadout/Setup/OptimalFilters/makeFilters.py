@@ -5,9 +5,8 @@ import scipy as sp
 import makeNoiseSpectrum as noise
 import makeArtificialData as mAD
 import makeTemplate as mkt
-import ipdb
 
-def makeMatchedFilter(template, noiseSpectrum, nTaps=50, tempOffs=95):
+def makeMatchedFilter(template, noiseSpectrum, nTaps=60, tempOffs=95):
     '''
     Make a matched filter using a template and noise PSD
     INPUTS:
@@ -19,15 +18,51 @@ def makeMatchedFilter(template, noiseSpectrum, nTaps=50, tempOffs=95):
     OUTPUTS
     matchedFilt - matched filter that should be convolved with the data
                   to get the pulse heights 
+    wasn't working right needs more testing 3/6/2017
     '''
     #check normalized to 1
     template/=np.abs(template[np.argmax(np.abs(template))])
-    noiseCovInv = noise.covFromPsd(noiseSpectrum, nTaps)['covMatrixInv']   
+    #noiseCovInv = noise.covFromPsd(noiseSpectrum, nTaps)['covMatrixInv']
+    noiseCov = noise.covFromPsd(noiseSpectrum, nTaps)['covMatrix']
+   
     template = template[tempOffs:tempOffs+nTaps]  #shorten template to length nTaps
-    filterNorm = np.dot(template, np.dot(noiseCovInv, template))
-    matchedFilt = np.dot(noiseCovInv, template)/filterNorm
+    #filterNorm = np.dot(template, np.dot(noiseCovInv, template))
+    #matchedFilt = np.dot(noiseCovInv, template)/filterNorm
     
-    return -matchedFilt
+    filterNorm= np.dot(template, np.linalg.solve(noiseCov,template))
+    matchedFilt=np.linalg.solve(noiseCov,template)/filterNorm
+
+    return np.abs(-matchedFilt)
+
+def makeWienerFilter(template, noiseSpectrum):
+    '''
+    Calculate acausal Wiener Filter coefficients in the frequency domain
+    
+    INPUTS:
+    noiseSpectrum - noise spectrum same length as template
+    template - template of pulse shape
+    
+    OUTPUTS:
+    wienerFilter - list of Wiener Filter coefficients
+    '''
+    template /= np.max(np.abs(template)) #should be redundant
+    templateFft = np.fft.fft(template)/len(template)
+    #phi2 = np.conj(templateFft)/noiseSpectrum
+    #wienerFilter = np.abs(np.fft.fft(np.conj(templateFft)*phi2))
+    #wienerFilter = np.abs(np.fft.ifft(phi2))
+    #filterNorm = np.abs(np.dot(template,wienerFilter))    
+    #wienerFilter /= filterNorm
+    
+    wienerFilter= np.abs(np.fft.fft(np.conj(templateFft)*templateFft/noiseSpectrum))
+    filterNorm = np.abs(np.dot(template,wienerFilter))    
+    wienerFilter /= filterNorm
+
+    #phi2=np.conj(templateFft)*templateFft/noiseSpectrum
+    #wienerFilter=np.fft.ifft(phi2);
+    #filterNorm = np.abs(np.dot(template,wienerFilter))
+    #wienerFilter /= filterNorm
+
+    return wienerFilter
 
 def makeSuperMatchedFilter(template, noiseSpectrum, fallTime, nTaps=50, tempOffs=95,sampleRate=1e6):
     '''
