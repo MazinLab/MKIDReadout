@@ -58,7 +58,6 @@ import math
 from scipy import interpolate
 from PSFitMLData import *
 import PSFitMLTools as mlt
-from ml_params import mldir, trainFile, max_nClass, trainReps, batches
 # from PSFitMLData_origPSFile import *
 np.set_printoptions(threshold=np.inf)
 from tensorflow.contrib.tensorboard.plugins import projector
@@ -68,7 +67,7 @@ import warnings
 warnings.filterwarnings("ignore")
 
 class mlClassification():
-    def __init__(self, subdir=None):
+    def __init__(self, subdir=None, **kwargs):
         '''
         Implements the machine learning pattern recognition algorithm on IQ velocity data as well as other tests to 
         choose the optimum attenuation for each resonator
@@ -81,117 +80,13 @@ class mlClassification():
             self.mldir = mldir+subdir
         else:
             self.mldir = mldir
-        self.trainFile = trainFile
-        self.batches = batches
-        self.trainReps = trainReps
-       
-    def train(self, **kwargs):       
-        # accuracy_plot='post', plot_weights='', plot_activations=''
-        '''Code adapted from the tensor flow MNIST CNN tutorial.
-        
-        Using the training inputs and labels the machine learning class (mlClass) applies a probability to an input image (I,Q,v_iq) belong to the saturated class
+        self.nClass = kwargs.pop('nClass')
+        self.xWidth = kwargs.pop('xWidth')
+        self.modelName = kwargs.pop('modelName')
+        self.fully_conneced = kwargs.pop('fully_connected', False)
+        self.initializeTFSession()
 
-        The training and test matricies are loaded from file (those made earlier if chosen to not be appended to file 
-        will not be used)
-
-        Inputs
-        learning rate: 10**learning_rate is the input for AdamOptimizer
-        accuracy plot: shows accuracy and cross entropy with training iterations for train and test data. 
-                        post - plots the graph ex post facto of the training
-                        real - plots after each 100 iterations of the model training
-                        '' - off
-        plot weights: plot the filter layers of the CNN (same arguments apply as accuracy plot)
-        plot activations: plot the 'image' layers after the activation function (same arguments apply as accuracy plot)
-        plot missed: in order to identify the loops from the training data the algorithm incorrectly predicted 
-        '''
-        assert os.path.isfile(self.mldir + self.trainFile)
-
-        batches = kwargs.pop('batches')
-        trainReps = kwargs.pop('trainReps')
-        plot_confusion = kwargs.pop('plot_confusion', True)
-        plot_missed = kwargs.pop('plot_missed', False)
-        max_learning_rate = kwargs.pop('max_learning_rate')
-        min_learning_rate = kwargs.pop('min_learning_rate')
-        decay_speed = kwargs.pop('decay_speed')
-        fully_connected = kwargs.pop('fully_connected', False)
-        plot_activations = kwargs.pop('plot_activations', False)
-        plot_weights = kwargs.pop('plot_weights', False)
-        recursive = kwargs.pop('recursive', False)
-
-        trainImages, trainLabels, testImages, testLabels = loadPkl(self.mldir+self.trainFile)
-        trainImages = np.asarray(trainImages)
-        trainLabels = np.asarray(trainLabels)
-        # hist, bins = np.histogram(np.argmax(trainLabels, axis =1), range(max_nClass+1))
-        # plt.plot(hist)
-        # hist, bins = np.histogram(np.argmax(testLabels, axis =1), range(max_nClass+1))
-        # plt.plot(hist)
-        # plt.show()
-
-        # max_iq = np.amax(trainImages[:,:,:,2], axis=2)
-        # def PCA():
-        #     LOG_DIR = '/tmp/emb_logs/'
-        #     metadata = os.path.join(LOG_DIR, 'metadata.tsv')
-
-        #     # mnist = input_data.read_data_sets('MNIST_data')
-
-        #     #Variables
-        #     images = tf.Variable(max_iq, name='images')
-
-        #     with open(metadata, 'wb') as metadata_file:
-        #         for row in trainLabels:
-        #             row = np.argmax(row)
-        #             metadata_file.write('%d\n' % row)
-
-        #     with tf.Session() as sess:
-        #         saver = tf.train.Saver([images])
-
-        #         sess.run(images.initializer)
-        #         saver.save(sess, os.path.join(LOG_DIR, 'images.ckpt'))
-
-        #         config = projector.ProjectorConfig()
-        #         # One can add multiple embeddings.
-        #         embedding = config.embeddings.add()
-        #         embedding.tensor_name = images.name
-        #         # Link this tensor to its metadata file (e.g. labels).
-        #         embedding.metadata_path = metadata
-        #         # Saves a config file that TensorBoard will read during startup.
-        #         projector.visualize_embeddings(tf.summary.FileWriter(LOG_DIR), config)
-
-        # PCA()
-        # exit()
-        self.xWidth = np.shape(trainImages)[2]
-        self.nClass = np.shape(trainImages)[1]
-        print self.xWidth, self.nClass
-        # exit()
-
-        print 'Number of training images:', np.shape(trainImages), ' Number of test images:', np.shape(testImages)
-   
-        # if self.scalexWidth != 1:
-        #     self.xWidth = int(self.xWidth/self.scalexWidth)
-        if np.shape(trainImages)[2]!=self.xWidth:
-            print 'Please make new training images of the correct size'
-            exit()
-              
-        # res_per_win = 4
-        # for f in range(int(np.ceil(len(trainLabels)/res_per_win))+1):
-        
-        #     _, axarr = plt.subplots(2*res_per_win,self.nClass, figsize=(16.0, 8.1))
-        #     for r in range(res_per_win):
-        #         print argmax(trainLabels[f+r],0)
-        #         for ia in range(self.nClass):
-        #             # print f, r, missed[f+r]
-        #             axarr[2*r,0].set_ylabel(trainLabels[f+r])
-        #             # axarr[2*r,ia].axis('off')
-        #             # axarr[(2*r)+1,ia].axis('off')
-        #             if ia != argmax(trainLabels[r+f*res_per_win],0): axarr[2*r,ia].axis('off')
-        #             if ia != argmax(trainLabels[r+f*res_per_win],0): axarr[(2*r)+1,ia].axis('off')
-        #             # print np.shape(testImages[f+r,ia,:,2])
-        #             axarr[2*r,ia].plot(trainImages[r+f*res_per_win][ia,:,2])
-        #             axarr[(2*r)+1,ia].plot(trainImages[r+f*res_per_win][ia,:,0],trainImages[r+f*res_per_win][ia,:,1], '-o')
-
-        #     plt.show()
-        #     plt.close()
-
+    def initializeTFSession(self):
         self.x = tf.placeholder(tf.float32, [None, max_nClass, self.xWidth, 3])
         
         x_image = tf.reshape(self.x, [-1, self.nClass, self.xWidth, 3])
@@ -361,7 +256,7 @@ class mlClassification():
         num_fc_filt = int(math.ceil(math.ceil(np.shape(trainImages)[2]/2)/2)  * np.shape(trainImages)[1] * 6)
 
         self.keep_prob = tf.placeholder(tf.float32)
-        if fully_connected:
+        if self.fully_connected:
             N = 200
             YY = tf.reshape(h_pool3, shape=[-1, self.nClass*num_filt3*xWidth3])
             # YY = tf.reshape(h_pool3, shape=[-1, 2652])
@@ -386,6 +281,113 @@ class mlClassification():
             h_conv_final = tf.nn.dropout(h_conv_final, self.keep_prob)
 
             self.y=tf.nn.softmax(h_conv_final) #h_fc1_drop
+        
+       
+    def train(self, **kwargs):       
+        # accuracy_plot='post', plot_weights='', plot_activations=''
+        '''Code adapted from the tensor flow MNIST CNN tutorial.
+        
+        Using the training inputs and labels the machine learning class (mlClass) applies a probability to an input image (I,Q,v_iq) belong to the saturated class
+
+        The training and test matricies are loaded from file (those made earlier if chosen to not be appended to file 
+        will not be used)
+
+        Inputs
+        learning rate: 10**learning_rate is the input for AdamOptimizer
+        accuracy plot: shows accuracy and cross entropy with training iterations for train and test data. 
+                        post - plots the graph ex post facto of the training
+                        real - plots after each 100 iterations of the model training
+                        '' - off
+        plot weights: plot the filter layers of the CNN (same arguments apply as accuracy plot)
+        plot activations: plot the 'image' layers after the activation function (same arguments apply as accuracy plot)
+        plot missed: in order to identify the loops from the training data the algorithm incorrectly predicted 
+        '''
+        assert os.path.isfile(self.mldir + self.trainFile)
+
+        batches = kwargs.pop('batches')
+        trainReps = kwargs.pop('trainReps')
+        plot_confusion = kwargs.pop('plot_confusion', True)
+        plot_missed = kwargs.pop('plot_missed', False)
+        max_learning_rate = kwargs.pop('max_learning_rate')
+        min_learning_rate = kwargs.pop('min_learning_rate')
+        decay_speed = kwargs.pop('decay_speed')
+        plot_activations = kwargs.pop('plot_activations', False)
+        plot_weights = kwargs.pop('plot_weights', False)
+        recursive = kwargs.pop('recursive', False)
+        trainFile = kwargs.pop('trainFile')
+
+        trainImages, trainLabels, testImages, testLabels = loadPkl(self.mldir+self.trainFile)
+        trainImages = np.asarray(trainImages)
+        trainLabels = np.asarray(trainLabels)
+        # hist, bins = np.histogram(np.argmax(trainLabels, axis =1), range(max_nClass+1))
+        # plt.plot(hist)
+        # hist, bins = np.histogram(np.argmax(testLabels, axis =1), range(max_nClass+1))
+        # plt.plot(hist)
+        # plt.show()
+
+        # max_iq = np.amax(trainImages[:,:,:,2], axis=2)
+        # def PCA():
+        #     LOG_DIR = '/tmp/emb_logs/'
+        #     metadata = os.path.join(LOG_DIR, 'metadata.tsv')
+
+        #     # mnist = input_data.read_data_sets('MNIST_data')
+
+        #     #Variables
+        #     images = tf.Variable(max_iq, name='images')
+
+        #     with open(metadata, 'wb') as metadata_file:
+        #         for row in trainLabels:
+        #             row = np.argmax(row)
+        #             metadata_file.write('%d\n' % row)
+
+        #     with tf.Session() as sess:
+        #         saver = tf.train.Saver([images])
+
+        #         sess.run(images.initializer)
+        #         saver.save(sess, os.path.join(LOG_DIR, 'images.ckpt'))
+
+        #         config = projector.ProjectorConfig()
+        #         # One can add multiple embeddings.
+        #         embedding = config.embeddings.add()
+        #         embedding.tensor_name = images.name
+        #         # Link this tensor to its metadata file (e.g. labels).
+        #         embedding.metadata_path = metadata
+        #         # Saves a config file that TensorBoard will read during startup.
+        #         projector.visualize_embeddings(tf.summary.FileWriter(LOG_DIR), config)
+
+        # PCA()
+        # exit()
+        # exit()
+
+        print 'Number of training images:', np.shape(trainImages), ' Number of test images:', np.shape(testImages)
+   
+        # if self.scalexWidth != 1:
+        #     self.xWidth = int(self.xWidth/self.scalexWidth)
+        if np.shape(trainImages)[2]!=self.xWidth:
+            print 'Please make new training images of the correct size'
+            exit()
+              
+        # res_per_win = 4
+        # for f in range(int(np.ceil(len(trainLabels)/res_per_win))+1):
+        
+        #     _, axarr = plt.subplots(2*res_per_win,self.nClass, figsize=(16.0, 8.1))
+        #     for r in range(res_per_win):
+        #         print argmax(trainLabels[f+r],0)
+        #         for ia in range(self.nClass):
+        #             # print f, r, missed[f+r]
+        #             axarr[2*r,0].set_ylabel(trainLabels[f+r])
+        #             # axarr[2*r,ia].axis('off')
+        #             # axarr[(2*r)+1,ia].axis('off')
+        #             if ia != argmax(trainLabels[r+f*res_per_win],0): axarr[2*r,ia].axis('off')
+        #             if ia != argmax(trainLabels[r+f*res_per_win],0): axarr[(2*r)+1,ia].axis('off')
+        #             # print np.shape(testImages[f+r,ia,:,2])
+        #             axarr[2*r,ia].plot(trainImages[r+f*res_per_win][ia,:,2])
+        #             axarr[(2*r)+1,ia].plot(trainImages[r+f*res_per_win][ia,:,0],trainImages[r+f*res_per_win][ia,:,1], '-o')
+
+        #     plt.show()
+        #     plt.close()
+
+        
 
         y_ = tf.placeholder(tf.float32, [None, self.nClass]) # true class lables identified by user 
 
@@ -412,20 +414,20 @@ class mlClassification():
         saver = tf.train.Saver()
 
         print self.trainFile
-        modelName = ('.').join(self.trainFile.split('.')[:-1]) + '.meta'
-        # modelName = 'my-model.meta'
-        print modelName
+        # self.modelName = ('.').join(self.trainFile.split('.')[:-1]) + '.meta'
+        # self.modelName = 'my-model.meta'
+        print self.modelName
 
         # init = tf.initialize_all_variables()
         init = tf.global_variables_initializer()
 
         # if os.path.isfile("%s" % ('my-model.meta')):
-        if os.path.isfile("%s%s" % (self.mldir,modelName)):
+        if os.path.isfile("%s%s" % (self.mldir,self.modelName)):
             self.sess = tf.Session()
             self.sess.run(init)           
 
             # Restore variables from disk.
-            # saver =tf.train.import_meta_graph(self.mldir+modelName)
+            # saver =tf.train.import_meta_graph(self.mldir+self.modelName)
 
             saver.restore(self.sess, tf.train.latest_checkpoint(self.mldir) )
         
@@ -527,9 +529,9 @@ class mlClassification():
 
             mlt.plot_accuracy(train_ce, test_ce, train_acc, test_acc) 
 
-            print "%s%s" % (self.mldir,modelName)
-            # save_path = saver.save(self.sess, "%s%s" % (self.mldir,modelName))
-            save_path = saver.save(self.sess, self.mldir+modelName[:-5])
+            print "%s%s" % (self.mldir,self.modelName)
+            # save_path = saver.save(self.sess, "%s%s" % (self.mldir,self.modelName))
+            save_path = saver.save(self.sess, self.mldir+self.modelName[:-5])
             print("Model saved in file: %s" % save_path)
 
         ys_true = self.sess.run(tf.argmax(y_,1), feed_dict={self.x: testImages, y_: testLabels})

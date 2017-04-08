@@ -19,7 +19,7 @@ import PSFitMLTools as mlt
 from random import randint
 
 np.set_printoptions(threshold=np.inf)
-from ml_params import mldir, trainFile, testFrac, max_nClass, trainBinFile, res_per_class
+from ml_params import mldir, trainFile, testFrac, max_nClass, trainBinFile, res_per_class, level_train
 
 # removes visible depreciation warnings from lib.iqsweep
 import warnings
@@ -181,6 +181,7 @@ class PSFitMLData():
         self.trainBinFile = trainBinFile
         self.testFrac = testFrac
         self.trainFrac = 1 - self.testFrac
+        self.level_train = level_train
         # self.mldir = os.environ['MLDIR'] #'./cache/'
         # self.trainFile = os.environ['TRAINFILE']# 'ps_train.pkl'
         # self.trainFrac = 0.9
@@ -435,8 +436,7 @@ class PSFitMLData():
         #     datacube = mlt.makeResImage(self, res_num=r, showFrames=False)
         #     mlt.plot_max_ratio(datacube)
 
-        level_train = True
-        if level_train:
+        if self.level_train:
             # this bit of code is concerned with evening out the classes with label preserving transformation duplications
             class_prob = np.zeros((max_nClass))
             for c in range(max_nClass):

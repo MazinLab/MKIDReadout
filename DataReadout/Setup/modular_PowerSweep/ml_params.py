@@ -2,7 +2,8 @@ import os
 
 # data files
 mdd = os.environ['MKID_DATA_DIR']
-mldir = './cache/' 
+mldir = './Hal_fullres'
+trainDir = '../PowerSweep/mlTrainingData'
 trainFile = 'ps_train.pkl'
 trainBinFile = 'ps_bin_train.pkl'
 rawTrainFiles = ['20170406/ps_r112_FL3_a_20170406-144424.h5']
@@ -15,21 +16,27 @@ rawTrainFiles = ['20170406/ps_r112_FL3_a_20170406-144424.h5']
 evalFile = ['20170406/ps_r112_FL3_a_20170406-144424.h5']
 
 
-# neural network hyperparameters
+# training parameters
+res_per_class = 50
+level_train = True
 trainReps = 1000
 batches = 50
 testFrac = 0.1
-max_nClass = 31
-res_per_class = 50
 max_learning_rate = 0.005
 min_learning_rate = 0.0005#0.0001
 decay_speed = 200
 
-# script actions
-do_bin_class = True
-do_power_class = False
+# neural network hyperparameters
+max_nClass = 15
 fully_connected = False
 recursive = False
+
+# script actions
+do_bin_class = False
+do_power_class = True
+fully_connected = False
+recursive = False
+
 
 # debug
 plot_missed = False

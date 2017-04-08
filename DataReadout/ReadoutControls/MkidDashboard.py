@@ -36,6 +36,7 @@ from Telescope import *
 import casperfpga
 from Roach2Controls import Roach2Controls
 from lib.utils import interpolateImage
+import sn_hardware as snh
 #from initialBeammap import xyPack,xyUnpack
 
 class ImageSearcher(QtCore.QObject):     #Extends QObject for use with QThreads
@@ -103,7 +104,7 @@ class ImageSearcher(QtCore.QObject):     #Extends QObject for use with QThreads
                     if removeOldFiles:
                         os.remove(self.path+f)
         self.finished.emit()
-    
+
     def readBinToList(self,fn):
         """
         Parses the binary image file into a numpy array
@@ -122,6 +123,127 @@ class ImageSearcher(QtCore.QObject):     #Extends QObject for use with QThreads
         #image=image.reshape((self.nRows,self.nCols))
         return image
         
+class Ditherer(QtCore.QObject):
+    """
+    Controls automatic dithering w/ P3K or picomotor (not yet implemented here)
+    """
+    finished = QtCore.pyqtSignal()
+    
+    def __init__(self, ditherControllerName, ditherCfgFileName, parent=None):        
+        super(QtCore.QObject, self).__init__(parent)
+        #Setup Dither Controller
+        print 'dither controller', ditherControllerName, ditherControllerName == 'p3k'
+        if ditherControllerName == 'p3k':
+            self.ditherController = P3KDitherControl()
+        else:
+            self.ditherController = None
+            raise Exception('P3K is the only implemented dither controller.')
+       
+        self.ditherCfgFileName = ditherCfgFileName
+
+    def ditherLoop(self, nXMoves=3, nYMoves=2, xSpacing=2, ySpacing=2, dt=5):
+        self.ditherCfgFile = open(self.ditherCfgFileName, 'a')
+        self.ditherCfgFile.write('\n')
+        timeList = [int(time.time())]
+        xPosList = [0]
+        yPosList = [0]
+        curXPos = 0
+        curYPos = 0
+        yMoveSign = 1
+        for i in range(nXMoves):
+            self.ditherController.moveLeft(xSpacing)
+            curXPos += xSpacing
+            timelist.append(int(time.time()))
+            xPosList.append(curXPos)
+            yPosList.append(curYPos)
+            time.sleep(dt)
+            
+            for j in range(nYMoves):
+                self.ditherController.moveUp(yMoveSign*ySpacing)
+                curYPos += yMoveSign*ySpacing
+                timeList.append(int(time.time()))
+                xPosList.append(curXPos)
+                yPosList.append(curYPos)
+                time.sleep(dt)
+            yMoveSign*=-1
+        
+        if yMoveSign == -1:
+            self.ditherController.moveUp(-ySpacing*nYMoves)
+            time.sleep(dt)
+
+        self.ditherController.moveLeft(-xSpacing*nXMoves)
+
+        self.ditherCfgFile.write('x offsets: ' + str(xPosList) + '\n')
+        self.ditherCfgFile.write('y offsets: ' + str(yPosList) + '\n')
+        self.ditherCfgFile.write('times: ' + str(timeList) + '\n')
+        self.ditherCfgFile.close()
+        
+        self.ditherController.moveLeft(-xSpacing*nXMoves)
+        self.ditherController.moveUp(-ySpacing*nYMoves)
+        self.finished.emit()
+
+''' LASERTHREAD WORK IN PROGRESS     
+class LaserCal(QtCore.QObject):
+    """
+    Controls laser cal in separate thread
+    """
+    finished = QtCore.pyqtSignal()
+    
+    def __init__(self, calCfgFileName, parent=None):        
+        super(QtCore.QObject, self).__init__(parent)
+        #Setup Laser Controller
+        self.calCfgFileName = calCfgFileName
+
+    def laserLoop(self, calStyle, laserString, laserTime):
+        # if style is simultaneous turn on all 3 lasers at once
+        # if style is individual, turn them on one at at time
+        # keep track of start and stop timestamp when each laser was on
+        # write lists of lasers, start, and stop times to cfg file
+        
+
+
+    def ditherLoop(self, nXMoves=3, nYMoves=2, xSpacing=2, ySpacing=2, dt=5):
+        self.ditherCfgFile = open(self.ditherCfgFileName, 'a')
+        self.ditherCfgFile.write('\n')
+        timeList = [int(time.time())]
+        xPosList = [0]
+        yPosList = [0]
+        curXPos = 0
+        curYPos = 0
+        yMoveSign = 1
+        for i in range(nXMoves):
+            self.ditherController.moveLeft(xSpacing)
+            curXPos += xSpacing
+            timelist.append(int(time.time()))
+            xPosList.append(curXPos)
+            yPosList.append(curYPos)
+            time.sleep(dt)
+            
+            for j in range(nYMoves):
+                self.ditherController.moveUp(yMoveSign*ySpacing)
+                curYPos += yMoveSign*ySpacing
+                timeList.append(int(time.time()))
+                xPosList.append(curXPos)
+                yPosList.append(curYPos)
+                time.sleep(dt)
+            yMoveSign*=-1
+        
+        if yMoveSign == -1:
+            self.ditherController.moveUp(-ySpacing*nYMoves)
+            time.sleep(dt)
+
+        self.ditherController.moveLeft(-xSpacing*nXMoves)
+
+        self.ditherCfgFile.write('x offsets: ' + str(xPosList) + '\n')
+        self.ditherCfgFile.write('y offsets: ' + str(yPosList) + '\n')
+        self.ditherCfgFile.write('times: ' + str(timeList) + '\n')
+        self.ditherCfgFile.close()
+        
+        self.ditherController.moveLeft(-xSpacing*nXMoves)
+        self.ditherController.moveUp(-ySpacing*nYMoves)
+        self.finished.emit()
+'''
+
 class ConvertPhotonsToRGB(QtCore.QObject):
     """
     This class takes 2D arrays of photon counts and converts them into a QImage
@@ -299,6 +421,7 @@ class MkidDashboard(QMainWindow):
         self.telescopeController = Telescope(telescopeIP,telescopePort,telescopeReceivePort)
         self.telescopeWindow = TelescopeWindow(self.telescopeController)
         
+
         #Setup GUI
         print 'Setting up GUI...'
         super(QMainWindow, self).__init__(parent)
@@ -326,7 +449,37 @@ class MkidDashboard(QMainWindow):
         darkImageSearcher.imageFound.connect(self.convertImage)
         darkImageSearcher.finished.connect(thread.quit)
         QtCore.QTimer.singleShot(10,self.threadPool[0].start) #start the thread after a second
-        
+
+        # Setup dithering thread
+        try:
+            darkDitherer = Ditherer(self.config.get('properties', 'ditherController'), self.config.get('properties', 'ditherCFGFile'))
+            self.workers.append(darkDitherer)
+            ditherThread = QtCore.QThread(parent=self)
+            self.threadPool.append(ditherThread)
+            ditherThread.setObjectName("DARKDitherer")
+            darkDitherer.moveToThread(ditherThread)
+            ditherThread.started.connect(darkDitherer.ditherLoop)
+            darkDitherer.finished.connect(ditherThread.quit)
+            darkDitherer.finished.connect(self.stopDithering)
+        except:
+            print "Could not initialize Dither thread. Disabling dithers"
+            self.button_dither.setEnabled(False)
+            
+
+        ''' LASERCAL WORK IN PROGRESS
+        # Setup laser cal thread
+        laserCalibrator = LaserCal()
+        self.workers.append(laserCalibrator)
+        laserThread = QtCore.QThread(parent=self)
+        self.threadPool.append(laserThread)
+        laserThread.setObjectName("LaserCalibrator")
+        laserCalibrator.moveToThread(laserThread)
+        laserThread.started.connect(laserCalibrator.doLaserCal)
+        laserCalibrator.finished.connect(laserThread.quit)
+        laserCalibrator.finished.connect(self.enableFlipper)
+        '''
+
+
         # Start PacketMaster3
         print 'Starting packetmaster3...'
         packetMaster_path=self.config.get('properties','packetMaster_path')
@@ -412,7 +565,15 @@ class MkidDashboard(QMainWindow):
         for roach in self.roachList:
             freqList = self.config.get('Roach '+str(roach.num),'freqList')
             print freqList
+                   
+            #old version for loading freqList, causing issues 3/18/17                 
             resID_roach, freqs, _ = np.loadtxt(freqList,unpack=True)
+            
+            #freqArrays = np.loadtxt(freqList)
+            #resID_roach = np.atleast_1d(freqArrays[:,0])
+            #freqs = np.atleast_1d(freqArrays[:,1])      # We need an array of floats
+            #attensJunk = np.atleast_1d(freqArrays[:,2])
+            
             print resID_roach
             roach.generateResonatorChannels(freqs)
             freqCh_roach = np.arange(0,len(resID_roach))
@@ -474,8 +635,15 @@ class MkidDashboard(QMainWindow):
                 roach.loadBeammapCoords(beammapDict = beammapDict)
         print 'nGoodBeammapped:',self.config.getint('properties','nrows')*self.config.getint('properties','ncols') - np.sum(self.beammapFailed)
         '''
+
+    def startDitherThread(self):
+        self.button_dither.setEnabled(False)
+        QtCore.QTimer.singleShot(10,self.threadPool[1].start) #start the thread after a second
     
-    
+    def stopDithering(self):
+        self.button_dither.setEnabled(True)
+
+
     def appendImage(self,image):
         """
         Save image data to memory so we can look at a timestream
@@ -631,12 +799,15 @@ class MkidDashboard(QMainWindow):
         if self.checkbox_smooth.isChecked(): self.grPixMap.graphicsEffect().setEnabled(True)
         else: self.grPixMap.graphicsEffect().setEnabled(False)
         
+        # Dither image
+        # if self.checkbox_dither.isChecked(): print 'dithering'
+
         # Resize the GUI to fit whole image
-        borderSize=24   # Not sure how to get the size of the frame's border so hardcoded this for now
+        borderSize=0#24   # Not sure how to get the size of the frame's border so hardcoded this for now
         imgSize = self.grPixMap.pixmap().size()
         frameSize = QtCore.QSize(imgSize.width()+borderSize,imgSize.height()+borderSize)
-        self.centralWidget().resize(frameSize)
-        self.resize(self.childrenRect().size())
+
+        #self.centralWidget().resize(frameSize) #this automatically resizes window but causes array to move 
         
         # Show image on screen!
         self.grPixMap.update()
@@ -881,9 +1052,6 @@ class MkidDashboard(QMainWindow):
                                        str(freqCh))
             
             
-            
-            
-        
     def showContextMenu(self, point):
         """
         This function is called on a right click
@@ -979,20 +1147,43 @@ class MkidDashboard(QMainWindow):
             self.button_obs.setEnabled(True)
             self.button_stop.setEnabled(False)
             
+    def toggleFlipper(self):
+        print "Toggled flipper!"
+        if self.radiobutton_flipper.isChecked(): laserStr = '1'+'0'*len(self.checkbox_laser_list)
+        else: laserStr = '0'+'0'*len(self.checkbox_laser_list)
+        self.laserController.toggleLaser(laserStr, 500)
 
-    def laserCalClicked(self, logTitle = 'laserCal'):
-        if self.radiobutton_flipper.isChecked(): laserStr = '1'
-        else: laserStr = '0'
-        
-        for checkbox_laser in self.checkbox_laser_list:
-            if checkbox_laser.isChecked(): laserStr+='1'
-            else: laserStr+='0'
+    def laserCalClicked(self):
+
+        logTitle = 'laserCal'
         laserTime=self.spinbox_laserTime.value()
-        self.laserController.toggleLaser(laserStr, laserTime)
-        self.writeLog(logTitle, utc=time.time(), time=laserTime, lasers=laserStr)
-        #if not self.observing:
-        #    self.startObs()
-        #    QtCore.QTimer.singleShot(laserTime*1000+1, self.stopObs)
+        #style = self.config.get('properties', 'laserCalStyle')
+        #eventually want to add capability with laser cal thread to do different
+        #styles of laser cal. hard code to simultaneous for now
+        laserCalStyle = "simultaneous"
+
+        #simultaneous is classic laser cal style, with all desired lasers at once
+        if laserCalStyle == "simultaneous":
+            totalCalTime= laserTime
+            if self.radiobutton_flipper.isChecked(): laserStr = '1'
+            else: laserStr = '0'
+            #turn off flipper control until laser cal is done
+            self.radiobutton_flipper.setEnabled(False)
+        
+            for checkbox_laser in self.checkbox_laser_list:
+                if checkbox_laser.isChecked(): laserStr+='1'
+                else: laserStr+='0'
+            self.laserController.toggleLaser(laserStr, laserTime)
+            self.writeLog(target=logTitle, ts=time.time(), time=laserTime, totalTime=totalCalTime, lasers=laserStr, style=laserCalStyle)
+            #if not self.observing:
+            #    self.startObs()
+            #    QtCore.QTimer.singleShot(laserTime*1000+1, self.stopObs)
+        
+        #re-enable flipper when laser cal is done
+        QtCore.QTimer.singleShot(totalCalTime*1000+1, self.enableFlipper)
+
+    def enableFlipper(self):
+        self.radiobutton_flipper.setEnabled(True)
             
     def writeTelescopeLog(self):
         telescopeDict = self.telescopeController.getAllTelescopeInfo(self.textbox_target.text())
@@ -1080,7 +1271,13 @@ class MkidDashboard(QMainWindow):
         self.button_stop = QPushButton("Stop Observing")
         self.button_stop.setEnabled(self.observing)
         self.button_stop.clicked.connect(self.stopObs)
-        
+
+        # dithering
+        self.button_dither = QPushButton("Start Dithering")
+        dither_font = font.setPointSize(12)
+        #self.button_dither.setFont(dither_font)
+        self.button_dither.clicked.connect(self.startDitherThread)
+
         # log file
         label_target = QLabel("Target: ")
         self.textbox_target = QLineEdit()
@@ -1208,6 +1405,11 @@ class MkidDashboard(QMainWindow):
         self.checkbox_smooth = QCheckBox('Smooth Image')
         self.checkbox_smooth.setChecked(False)
         
+        # Checkbox for dithering image
+        # self.checkbox_dither = QCheckBox('Dither Image')
+        # self.checkbox_dither.setChecked(False)
+
+
         # Pixel info labels
         self.label_pixelInfo=QLabel('(, ) - (, ) : 0 #/s')
         self.label_pixelInfo.setMaximumWidth(250)
@@ -1235,13 +1437,13 @@ class MkidDashboard(QMainWindow):
             checkbox_laser = QCheckBox(laserName)
             checkbox_laser.setChecked(False)
             self.checkbox_laser_list.append(checkbox_laser)
-        
+
         button_laserCal.clicked.connect(self.laserCalClicked)
-        
+
         # Also have the pupil imager flipper controlled with laser box arduino
-        self.radiobutton_flipper = QRadioButton('Flipper')
+        self.radiobutton_flipper = QRadioButton('SBIG Flipper [0:Pupil, 1:Image]')
         self.radiobutton_flipper.setChecked(False)
-        self.radiobutton_flipper.toggled.connect(partial(self.laserCalClicked,'flipper'))
+        self.radiobutton_flipper.toggled.connect(self.toggleFlipper)
         
         
         #================================================
@@ -1270,6 +1472,8 @@ class MkidDashboard(QMainWindow):
         hbox_log.addStretch()
         hbox_log.addWidget(button_log)
         vbox.addLayout(hbox_log)
+
+        hbox_log.addWidget(self.button_dither)
 
         vbox.addStretch()
         
@@ -1310,6 +1514,7 @@ class MkidDashboard(QMainWindow):
         vbox.addWidget(self.checkbox_showAllPix)
         vbox.addWidget(self.checkbox_interpolate)
         vbox.addWidget(self.checkbox_smooth)
+        # vbox.addWidget(self.checkbox_dither)
         vbox.addWidget(self.label_selectedPixValue)
         vbox.addWidget(self.label_pixelInfo)
         vbox.addWidget(self.label_pixelID)
@@ -1466,6 +1671,23 @@ class MkidDashboard(QMainWindow):
         time.sleep(1)
         
         QtCore.QCoreApplication.instance().quit()
+
+class P3KDitherControl():
+    def __init__(self):
+        self.p3kCom = snh.P3K_COM('P3K_COM', configfile='/mnt/data0/speckle_nulling/speckle_instruments.ini')
+        self.p3kCom.getstatus()
+        self.arcsecPerPix = 0.025
+
+    def moveLeft(self, numPix):
+        self.p3kCom.sci_offset_left(numPix*self.arcsecPerPix)
+
+    def moveUp(self, numPix):
+        self.p3kCom.sci_offset_up(numPix*self.arcsecPerPix)
+
+
+#class picoDitherControl():
+#    ''' To be implemented'''
+
 
 def main():
     app = QApplication(sys.argv)

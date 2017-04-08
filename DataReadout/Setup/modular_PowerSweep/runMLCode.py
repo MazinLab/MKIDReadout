@@ -47,13 +47,23 @@ def train_bin_NN():
 
 def train_power_NN(PSFile=None):
 
-    if not os.path.isfile(mldir + trainFile):
+    if not os.path.isfile(os.path.join(trainDir, trainFile)):
         print 'Could not find train file. Making new training images from initial h5File'
 
-        for h5File in [rawTrainFiles[0]]:
+        for h5File in rawTrainFiles #[rawTrainFiles[0]]:
             h5File = os.path.join(mdd,h5File)
             mlData = mld.PSFitMLData(h5File = h5File, PSFile=PSFile)
             mlData.makeTrainData(res_per_class)
+        
+        logFileName = trainFile[:-4] + '.log'
+        logFile = open(os.path.join(trainDir, logFileName), 'w')
+        logFile.write('Training data made using:')
+        for h5File in rawTrainFiles:
+            logFile.write(h5File)
+        
+        logFile.write('res_per_class ' + str(res_per_class))
+        logFile.write('level_train ' + str(level_train))
+        logFile.close()
 
     mlClass = mlc.mlClassification()
 
