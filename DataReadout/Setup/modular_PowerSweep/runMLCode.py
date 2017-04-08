@@ -12,7 +12,6 @@ import PSFitMLTools as mlt
 from PCA import PCA
 from ml_params import *
 sys.path.insert(0, '/home/rupert/PythonProjects/MkidDigitalReadout/DataReadout/Setup/modular_PowerSweep/ana_fitting')
-for p in sys.path: print p
 import PSFitSc as PSFitSc
 import PSFitTools as pt
 from an_params import *
@@ -38,10 +37,13 @@ def train_bin_NN():
         h5File = rawTrainFiles[0]
         h5File = os.path.join(mdd,h5File)
         mlData = mld.PSFitMLData(h5File = h5File)
-        mlData.makeBinTrainData()
+        # mlData.makeBinTrainData()
 
     mlClass = mlb.mlClassification()
     mlClass.train()
+
+    return mlClass
+
 
 def train_power_NN(PSFile=None):
 
@@ -86,6 +88,7 @@ def eval_powers(mlClass):
     # mlData.savePSTxtFile(flag='x')  
 
     return mlClass.atten_guess
+    
 def power_PCA(mlData):
     PCA(mlData)
 
@@ -125,8 +128,9 @@ def compare_ana_NN():
     mlt.plot_powers_hist(a_ipwrs, ml_ipwrs, mc_ipwrs)
 
 if __name__ == "__main__":
-    # if do_bin_class:
-    #     train_bin_NN()
+    if do_bin_class:
+        mlClass = train_bin_NN()
+        eval_powers(mlClass)
 
     if do_power_class:
         # h5File = rawTrainFiles[1]

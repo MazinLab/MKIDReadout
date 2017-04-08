@@ -62,6 +62,55 @@ def fitSpline(freqs, mag, splineS=200, splineK=2):
 
     return baseline
 
+def get_continuum2(mag):
+    nodes = []
+    print type(mag)
+    # mag = mag[:1000]
+    # plt.plot(mag)
+    imax = mag.argsort()[::-1]
+    print imax[:25]
+    # imax.append( np.argmax(mag) )
+    nodes.append(imax[0])
+    nodes.append(imax[1])
+    print nodes
+    for i in range(2, len(imax)):
+        # print imax[i], continuum
+        if imax[i] < nodes[0] or imax[i] > nodes[-1]: #or nearest neighbour > 100 samples away 
+            nodes.append(imax[i])
+            nodes.sort()
+
+    print nodes
+    continuum=[]
+    for n in range(len(nodes)-1):
+        # print n, nodes[n], nodes[n+1], mag[nodes[n]], mag[nodes[n+1]], np.linspace(mag[nodes[n]], mag[nodes[n+1]], nodes[n+1]-nodes[n])
+        continuum = np.concatenate((continuum, np.linspace(mag[nodes[n]],mag[nodes[n+1]],nodes[n+1]-nodes[n])))
+
+    print np.shape(continuum)
+    # plt.plot(continuum)
+    # plt.show()
+    return continuum
+
+def get_continuum(mag, frac):
+    imax = mag.argsort()[::-1]
+    imax = imax[:int(len(mag)*frac)]
+    imax.sort()
+    print imax[0], np.min(imax),  imax[-1], np.min(imax), mag[np.argmin(imax)]
+    imax[0]=0#mag[np.argmin(imax)] #np.min(imax)
+    imax[-1]=len(mag)-1#mag[np.argmin(imax)]
+    # imax[-1]=np.min(imax)
+    continuum=[]
+    for n in range(len(imax)-1):
+        # print np.linspace(mag[imax[n]], mag[imax[n+1]], imax[n+1]-imax[n])
+        # print n, imax[n], imax[n+1], mag[imax[n]], mag[imax[n+1]], np.linspace(mag[imax[n]], mag[imax[n+1]], imax[n+1]-imax[n])
+        continuum = np.concatenate((continuum, np.linspace(mag[imax[n]],mag[imax[n+1]],imax[n+1]-imax[n])))
+
+    continuum = np.concatenate((continuum,[continuum[-1]]), axis=0)
+    plt.plot(mag)
+    plt.plot(continuum)
+    plt.show()
+    return continuum
+
+
 def check_continuum(freqs, mag, continuum):
     plt.plot(freqs, continuum)
     # plt.plot(freqs, mag-continuum)
