@@ -76,22 +76,23 @@ class mlClassification():
         # self.inferenceFile = inferenceFile
         # self.baseFile = ('.').join(inferenceFile.split('.')[:-1])
         # self.PSFile = self.baseFile[:-16] + '.txt'#os.environ['MKID_DATA_DIR']+'20160712/ps_FL1_1.txt' # power sweep fit, .txt 
-        if subdir != None:
-            self.mldir = mldir+subdir
-        else:
-            self.mldir = mldir
+
+        # if subdir != None:
+        #     self.mldir = mldir+subdir
+        # else:
+        #     self.mldir = mldir
         self.nClass = kwargs.pop('nClass')
         self.xWidth = kwargs.pop('xWidth')
-        self.modelName = kwargs.pop('modelName')
-        self.fully_conneced = kwargs.pop('fully_connected', False)
+        self.modelDir = kwargs.pop('modelDir')
+        self.fully_connected = kwargs.pop('fully_connected', False)
         self.initializeTFSession()
 
     def initializeTFSession(self):
         self.x = tf.placeholder(tf.float32, [None, max_nClass, self.xWidth, 3])
         
         x_image = tf.reshape(self.x, [-1, self.nClass, self.xWidth, 3])
-        is_test = tf.placeholder(tf.bool)
-        lr = tf.placeholder(tf.float32)
+        self.is_test = tf.placeholder(tf.bool)
+        self.lr = tf.placeholder(tf.float32)
 
         def weight_variable(shape):
             #initial = tf.Variable(tf.zeros(shape))
@@ -128,7 +129,7 @@ class mlClassification():
             # v = variance
 
             # mean, var = tf.cond(is_test, mean_var_with_update, lambda: (ema.average(mean), ema.average(var)))   
-            print is_test  
+
             # v = tf.cond(is_test, lambda: exp_moving_avg(variance), lambda: variance)
             Ybn = tf.nn.batch_normalization(Ylogits, mean, var, beta, scale, variance_epsilon=1e-5)
             return Ybn
@@ -253,10 +254,9 @@ class mlClassification():
         #                                         is_test= is_test)
         #                                         # is_training =True)
 
-        num_fc_filt = int(math.ceil(math.ceil(np.shape(trainImages)[2]/2)/2)  * np.shape(trainImages)[1] * 6)
-
         self.keep_prob = tf.placeholder(tf.float32)
         if self.fully_connected:
+            num_fc_filt = int(math.ceil(math.ceil(np.shape(self.trainImages)[2]/2)/2)  * np.shape(self.trainImages)[1] * 6)
             N = 200
             YY = tf.reshape(h_pool3, shape=[-1, self.nClass*num_filt3*xWidth3])
             # YY = tf.reshape(h_pool3, shape=[-1, 2652])
@@ -282,8 +282,161 @@ class mlClassification():
 
             self.y=tf.nn.softmax(h_conv_final) #h_fc1_drop
         
+
+        self.y_ = tf.placeholder(tf.float32, [None, self.nClass]) # true class lables identified by user 
+
+        with tf.name_scope('cross_entropy'):
+            self.cross_entropy = tf.reduce_mean(-tf.reduce_sum(self.y_ * tf.log(self.y+ 1e-10), reduction_indices=[1])) # find optimum solution by minimizing error
+        tf.summary.scalar('cross_entropy', self.cross_entropy)
+
+        with tf.name_scope('train'):
+            self.train_step = tf.train.AdamOptimizer(self.lr).minimize(self.cross_entropy) # the best result is when the wrongness is minimal
+
+        # saver = tf.train.Saver(write_version=tf.train.SaverDef.V1)
+
+        with tf.name_scope('accuracy'):
+            with tf.name_scope('correct_prediction'):
+                correct_prediction = tf.equal(tf.argmax(self.y,1), tf.argmax(self.y_,1)) #which ones did it get right?
+            with tf.name_scope('accuracy'):
+                self.accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
+        tf.summary.scalar('accuracy', self.accuracy)
+
+            # return (x, self.y_), self.train_step, self.accuracy, y, saver
+
+        # (x, self.y_), self.train_step, self.accuracy, _, saver = build_graph(is_training=True)
+
+        self.saver = tf.train.Saver()
+
+        print trainFile
+        # self.modelDir = ('.').join(self.trainFile.split('.')[:-1]) + '.meta'
+        # self.modelDir = 'my-model.meta'
+        print self.modelDir
+
+        # init = tf.initialize_all_variables()
+        init = tf.global_variables_initializer()
+        self.sess = tf.Session()
+        self.sess.run(init)
+
+    def load(self):
+        # if os.path.isfile("%s%s.meta" % (self.mldir,self.modelDir)):
+            # ---------------------load ------------------
+            # self.sess = tf.Session()
+            # self.sess.run(self.init)           
+
+            # Restore variables from disk.
+            # saver =tf.train.import_meta_graph(self.mldir+self.modelDir)
+        self.saver.restore(self.sess, tf.train.latest_checkpoint( "%s/%s/" % (trainDir,modelDir)) )
+        
+        # else:
+
+    def train(self):
+        # ------------------- train -------------------
+        # self.sess = tf.Session()
+        # # print is_test, self.keep_prob
+        # self.sess.run(self.init) 
+
+
+        # Merge all the summaries and write them out to /tmp/mnist_logs (by default)
+        merged = tf.summary.merge_all()
+        # train_writer = tf.summary.FileWriter(mdd + '/train',
+        #                                       self.sess.graph)
+        # test_writer = tf.summary.FileWriter(mdd + '/test')
+        # tf.global_variables_initializer().run()
+
+
+        start_time = time.time()
+
+        # self.trainReps = 2000
+        # self.batches = 50
+
+        # if np.shape(self.trainLabels)[0]< batches:
+        #     batches = np.shape(self.trainLabels)[0]/2
+
+
+        print "--- %s seconds ---" % (time.time() - start_time)
+
+        train_ce, train_acc, test_ce, test_acc = [], [], [], []
+
+        def training_step(i, batch_xs, batch_ys):
+            learning_rate = min_learning_rate + (max_learning_rate - min_learning_rate) * math.exp(-i / decay_speed)
+
+
+            # if i % 10 == 0:  # Record summaries and test-set accuracy
+            #     summary, acc = self.sess.run([merged, accuracy], feed_dict={self.x: batch_xs, y_: batch_ys, lr: learning_rate, self.keep_prob:1, is_test: True})
+            #     test_writer.add_summary(summary, i)
+
+            if i % 10 == 0:
+                train_entropy, train_score = self.sess.run([self.cross_entropy, self.accuracy],
+                                                     feed_dict={self.x: batch_xs, self.y_: batch_ys, self.lr: learning_rate,
+                                                                self.keep_prob: 1, self.is_test: True})
+                train_ce.append(train_entropy)
+                train_acc.append(train_score)
+            if i % 100 == 0:
+                test_entropy, test_score = self.sess.run([self.cross_entropy, self.accuracy],
+                                                    feed_dict={self.x: self.testImages, self.y_: self.testLabels,
+                                                               self.lr: learning_rate,
+                                                               self.keep_prob: 1, self.is_test: False})
+
+                test_ce.append(test_entropy)
+                test_acc.append(test_score)
+                print i, learning_rate, train_entropy, train_score, test_entropy, test_score
+
+                # saver.save(self.sess, os.path.join(LOG_DIR, "model.ckpt"), i)
+
+            # self.sess.run(self.train_step, feed_dict={self.x: batch_xs, self.y_: batch_ys, self.keep_prob:1, is_test: True}) #calculate self.train_step using feed_dict
+            summary, _ = self.sess.run([merged, self.train_step],
+                                       feed_dict={self.x: batch_xs, self.y_: batch_ys, self.lr: learning_rate,
+                                                  self.keep_prob: 1,
+                                                  self.is_test: True})
+            # train_writer.add_summary(summary, i)
+
+        print 'Performing', trainReps, 'training repeats, using batches of', batches
+        for i in range(trainReps):  # perform the training step using random batches of images and according labels
+            batch_xs, batch_ys = next_batch(self.trainImages, self.trainLabels, batches)
+            training_step(i, batch_xs, batch_ys)
+
+        # train_writer.close()
+        # test_writer.close()
+
+        ys_true_train = self.sess.run(tf.argmax(self.y_, 1), feed_dict={self.x: self.trainImages, self.y_: self.trainLabels})
+        ys_guess_train = self.sess.run(tf.argmax(self.y, 1),
+                                       feed_dict={self.x: self.trainImages, self.y_: self.trainLabels, self.keep_prob: 1})
+        print 'true train class labels: ', ys_true_train
+        print 'class train estimates:   ', ys_guess_train
+
+        missed = []
+        for i, y in enumerate(ys_true_train):
+            if ys_guess_train[i] != y:
+                missed.append(i)
+
+        missed = np.asarray(missed)
+        print missed
+
+        if recursive:
+            # def recurrent(self.trainImages, self.trainLabels):
+
+            self.trainImages = self.trainImages[missed]
+            self.trainLabels = self.trainLabels[missed]
+
+            print 'Performing', trainReps, 'training repeats, using batches of', batches
+            for i in range(
+                    trainReps+1):  # perform the training step using random batches of images and according labels
+                batch_xs, batch_ys = next_batch(self.trainImages, self.trainLabels, self.batches)
+                training_step(i, batch_xs, batch_ys)
+
+        score = self.sess.run(self.accuracy, feed_dict={self.x: self.testImages, self.y_: self.testLabels,  self.lr: min_learning_rate,self.keep_prob:1, self.is_test: False}) * 100
+        print 'Accuracy of model in testing: ', score, '%'
+
+        mlt.plot_accuracy(train_ce, test_ce, train_acc, test_acc) 
+
+        print "%s/%s" % (trainDir,modelDir)
+        # save_path = saver.save(self.sess, "%s%s" % (self.mldir,self.modelDir))
+        save_path = self.saver.save(self.sess, "%s/%s/ps_train" % (trainDir, modelDir))
+        print("Model saved in file: %s" % save_path)
+
+
        
-    def train(self, **kwargs):       
+    def getModel(self, **kwargs):       
         # accuracy_plot='post', plot_weights='', plot_activations=''
         '''Code adapted from the tensor flow MNIST CNN tutorial.
         
@@ -302,8 +455,6 @@ class mlClassification():
         plot activations: plot the 'image' layers after the activation function (same arguments apply as accuracy plot)
         plot missed: in order to identify the loops from the training data the algorithm incorrectly predicted 
         '''
-        assert os.path.isfile(self.mldir + self.trainFile)
-
         batches = kwargs.pop('batches')
         trainReps = kwargs.pop('trainReps')
         plot_confusion = kwargs.pop('plot_confusion', True)
@@ -315,242 +466,65 @@ class mlClassification():
         plot_weights = kwargs.pop('plot_weights', False)
         recursive = kwargs.pop('recursive', False)
         trainFile = kwargs.pop('trainFile')
+        view_train = kwargs.pop('view_train', False)
+        do_PCA = kwargs.pop('do_PCA', False)
+        view_train_hist = kwargs.pop('view_train_hist', False)
 
-        trainImages, trainLabels, testImages, testLabels = loadPkl(self.mldir+self.trainFile)
-        trainImages = np.asarray(trainImages)
-        trainLabels = np.asarray(trainLabels)
-        # hist, bins = np.histogram(np.argmax(trainLabels, axis =1), range(max_nClass+1))
-        # plt.plot(hist)
-        # hist, bins = np.histogram(np.argmax(testLabels, axis =1), range(max_nClass+1))
-        # plt.plot(hist)
-        # plt.show()
+        print '%s/%s/%s' % (trainDir, modelDir, trainFile)
+        assert os.path.isfile('%s/%s/%s' % (trainDir, modelDir, trainFile))        
+        
+        self.trainImages, self.trainLabels, self.testImages, self.testLabels = loadPkl('%s/%s/%s' % (trainDir, modelDir, trainFile))
+        self.trainImages = np.asarray(self.trainImages)
+        self.trainLabels = np.asarray(self.trainLabels)
 
-        # max_iq = np.amax(trainImages[:,:,:,2], axis=2)
-        # def PCA():
-        #     LOG_DIR = '/tmp/emb_logs/'
-        #     metadata = os.path.join(LOG_DIR, 'metadata.tsv')
+        print 'Number of training images:', np.shape(self.trainImages), ' Number of test images:', np.shape(self.testImages)
 
-        #     # mnist = input_data.read_data_sets('MNIST_data')
+        # if np.shape(self.trainImages)[2]!=self.xWidth:
+        #     print 'Please make new training images of the correct size'
+        #     exit()
 
-        #     #Variables
-        #     images = tf.Variable(max_iq, name='images')
+        if view_train_hist:
+            hist, bins = np.histogram(np.argmax(self.trainLabels, axis =1), range(max_nClass+1))
+            plt.plot(hist)
+            hist, bins = np.histogram(np.argmax(self.testLabels, axis =1), range(max_nClass+1))
+            plt.plot(hist)
+            plt.show()
 
-        #     with open(metadata, 'wb') as metadata_file:
-        #         for row in trainLabels:
-        #             row = np.argmax(row)
-        #             metadata_file.write('%d\n' % row)
-
-        #     with tf.Session() as sess:
-        #         saver = tf.train.Saver([images])
-
-        #         sess.run(images.initializer)
-        #         saver.save(sess, os.path.join(LOG_DIR, 'images.ckpt'))
-
-        #         config = projector.ProjectorConfig()
-        #         # One can add multiple embeddings.
-        #         embedding = config.embeddings.add()
-        #         embedding.tensor_name = images.name
-        #         # Link this tensor to its metadata file (e.g. labels).
-        #         embedding.metadata_path = metadata
-        #         # Saves a config file that TensorBoard will read during startup.
-        #         projector.visualize_embeddings(tf.summary.FileWriter(LOG_DIR), config)
-
-        # PCA()
-        # exit()
-        # exit()
-
-        print 'Number of training images:', np.shape(trainImages), ' Number of test images:', np.shape(testImages)
-   
-        # if self.scalexWidth != 1:
-        #     self.xWidth = int(self.xWidth/self.scalexWidth)
-        if np.shape(trainImages)[2]!=self.xWidth:
-            print 'Please make new training images of the correct size'
-            exit()
+        if do_PCA:
+            mlt.PCA(self.trainImages, self.trainLabels, max_iq)
               
-        # res_per_win = 4
-        # for f in range(int(np.ceil(len(trainLabels)/res_per_win))+1):
-        
-        #     _, axarr = plt.subplots(2*res_per_win,self.nClass, figsize=(16.0, 8.1))
-        #     for r in range(res_per_win):
-        #         print argmax(trainLabels[f+r],0)
-        #         for ia in range(self.nClass):
-        #             # print f, r, missed[f+r]
-        #             axarr[2*r,0].set_ylabel(trainLabels[f+r])
-        #             # axarr[2*r,ia].axis('off')
-        #             # axarr[(2*r)+1,ia].axis('off')
-        #             if ia != argmax(trainLabels[r+f*res_per_win],0): axarr[2*r,ia].axis('off')
-        #             if ia != argmax(trainLabels[r+f*res_per_win],0): axarr[(2*r)+1,ia].axis('off')
-        #             # print np.shape(testImages[f+r,ia,:,2])
-        #             axarr[2*r,ia].plot(trainImages[r+f*res_per_win][ia,:,2])
-        #             axarr[(2*r)+1,ia].plot(trainImages[r+f*res_per_win][ia,:,0],trainImages[r+f*res_per_win][ia,:,1], '-o')
-
-        #     plt.show()
-        #     plt.close()
-
-        
-
-        y_ = tf.placeholder(tf.float32, [None, self.nClass]) # true class lables identified by user 
-
-        with tf.name_scope('cross_entropy'):
-            cross_entropy = tf.reduce_mean(-tf.reduce_sum(y_ * tf.log(self.y+ 1e-10), reduction_indices=[1])) # find optimum solution by minimizing error
-        tf.summary.scalar('cross_entropy', cross_entropy)
-
-        with tf.name_scope('train'):
-            train_step = tf.train.AdamOptimizer(lr).minimize(cross_entropy) # the best result is when the wrongness is minimal
-
-        # saver = tf.train.Saver(write_version=tf.train.SaverDef.V1)
-
-        with tf.name_scope('accuracy'):
-            with tf.name_scope('correct_prediction'):
-                correct_prediction = tf.equal(tf.argmax(self.y,1), tf.argmax(y_,1)) #which ones did it get right?
-            with tf.name_scope('accuracy'):
-                accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
-        tf.summary.scalar('accuracy', accuracy)
-
-            # return (x, y_), train_step, accuracy, y, saver
-
-        # (x, y_), train_step, accuracy, _, saver = build_graph(is_training=True)
-
-        saver = tf.train.Saver()
-
-        print self.trainFile
-        # self.modelName = ('.').join(self.trainFile.split('.')[:-1]) + '.meta'
-        # self.modelName = 'my-model.meta'
-        print self.modelName
-
-        # init = tf.initialize_all_variables()
-        init = tf.global_variables_initializer()
+        if view_train:
+            mlt.view_train(self.trainImages, self.trainLabels, nClass)
 
         # if os.path.isfile("%s" % ('my-model.meta')):
-        if os.path.isfile("%s%s" % (self.mldir,self.modelName)):
-            self.sess = tf.Session()
-            self.sess.run(init)           
+        # print self.mldir, self.modelDir, os.path.isfile("%s%s.meta" % (self.mldir,self.modelDir))
 
-            # Restore variables from disk.
-            # saver =tf.train.import_meta_graph(self.mldir+self.modelName)
-
-            saver.restore(self.sess, tf.train.latest_checkpoint(self.mldir) )
+        print os.path.isfile("%s/%s/ps_train.meta" % (trainDir,modelDir)), "%s/%s/ps_train.meta" % (trainDir,modelDir)
+        if os.path.isfile("%s/%s/ps_train.meta" % (trainDir,modelDir)):
+            self.load()
         
         else:
-            self.sess = tf.Session()
-            # print is_test, self.keep_prob
-            self.sess.run(init) 
+            self.train()
 
-            # Merge all the summaries and write them out to /tmp/mnist_logs (by default)
-            merged = tf.summary.merge_all()
-            # train_writer = tf.summary.FileWriter(mdd + '/train',
-            #                                       self.sess.graph)
-            # test_writer = tf.summary.FileWriter(mdd + '/test')
-            # tf.global_variables_initializer().run()
+    def evalModel(self):
 
-
-            start_time = time.time()
-
-            # self.trainReps = 2000
-            # self.batches = 50
-
-            # if np.shape(trainLabels)[0]< batches:
-            #     batches = np.shape(trainLabels)[0]/2
-
-
-            print "--- %s seconds ---" % (time.time() - start_time)
-
-            train_ce, train_acc, test_ce, test_acc = [], [], [], []
-
-            def training_step(i, batch_xs, batch_ys):
-                learning_rate = min_learning_rate + (max_learning_rate - min_learning_rate) * math.exp(-i / decay_speed)
-
-
-                # if i % 10 == 0:  # Record summaries and test-set accuracy
-                #     summary, acc = self.sess.run([merged, accuracy], feed_dict={self.x: batch_xs, y_: batch_ys, lr: learning_rate, self.keep_prob:1, is_test: True})
-                #     test_writer.add_summary(summary, i)
-
-                if i % 10 == 0:
-                    train_entropy, train_score = self.sess.run([cross_entropy, accuracy],
-                                                         feed_dict={self.x: batch_xs, y_: batch_ys, lr: learning_rate,
-                                                                    self.keep_prob: 1, is_test: True})
-                    train_ce.append(train_entropy)
-                    train_acc.append(train_score)
-                if i % 100 == 0:
-                    test_entropy, test_score = self.sess.run([cross_entropy, accuracy],
-                                                        feed_dict={self.x: testImages, y_: testLabels,
-                                                                   lr: learning_rate,
-                                                                   self.keep_prob: 1, is_test: False})
-
-                    test_ce.append(test_entropy)
-                    test_acc.append(test_score)
-                    print i, learning_rate, train_entropy, train_score, test_entropy, test_score
-
-                    # saver.save(self.sess, os.path.join(LOG_DIR, "model.ckpt"), i)
-
-                # self.sess.run(train_step, feed_dict={self.x: batch_xs, y_: batch_ys, self.keep_prob:1, is_test: True}) #calculate train_step using feed_dict
-                summary, _ = self.sess.run([merged, train_step],
-                                           feed_dict={self.x: batch_xs, y_: batch_ys, lr: learning_rate,
-                                                      self.keep_prob: 1,
-                                                      is_test: True})
-                # train_writer.add_summary(summary, i)
-
-            print 'Performing', trainReps, 'training repeats, using batches of', batches
-            for i in range(trainReps):  # perform the training step using random batches of images and according labels
-                batch_xs, batch_ys = next_batch(trainImages, trainLabels, self.batches)
-                training_step(i, batch_xs, batch_ys)
-
-            # train_writer.close()
-            # test_writer.close()
-
-            ys_true_train = self.sess.run(tf.argmax(y_, 1), feed_dict={self.x: trainImages, y_: trainLabels})
-            ys_guess_train = self.sess.run(tf.argmax(self.y, 1),
-                                           feed_dict={self.x: trainImages, y_: trainLabels, self.keep_prob: 1})
-            print 'true train class labels: ', ys_true_train
-            print 'class train estimates:   ', ys_guess_train
-
-            missed = []
-            for i, y in enumerate(ys_true_train):
-                if ys_guess_train[i] != y:
-                    missed.append(i)
-
-            missed = np.asarray(missed)
-            print missed
-
-            if recursive:
-                # def recurrent(trainImages, trainLabels):
-
-                trainImages = trainImages[missed]
-                trainLabels = trainLabels[missed]
-
-                print 'Performing', trainReps, 'training repeats, using batches of', batches
-                for i in range(
-                        trainReps+1):  # perform the training step using random batches of images and according labels
-                    batch_xs, batch_ys = next_batch(trainImages, trainLabels, self.batches)
-                    training_step(i, batch_xs, batch_ys)
-
-            score = self.sess.run(accuracy, feed_dict={self.x: testImages, y_: testLabels,  lr: min_learning_rate,self.keep_prob:1, is_test: False}) * 100
-            print 'Accuracy of model in testing: ', score, '%'
-
-            mlt.plot_accuracy(train_ce, test_ce, train_acc, test_acc) 
-
-            print "%s%s" % (self.mldir,self.modelName)
-            # save_path = saver.save(self.sess, "%s%s" % (self.mldir,self.modelName))
-            save_path = saver.save(self.sess, self.mldir+self.modelName[:-5])
-            print("Model saved in file: %s" % save_path)
-
-        ys_true = self.sess.run(tf.argmax(y_,1), feed_dict={self.x: testImages, y_: testLabels})
-        ys_guess = self.sess.run(tf.argmax(self.y,1), feed_dict={self.x: testImages, y_: testLabels, self.keep_prob:1})
+        ys_true = self.sess.run(tf.argmax(self.y_,1), feed_dict={self.x: self.testImages, self.y_: self.testLabels})
+        ys_guess = self.sess.run(tf.argmax(self.y,1), feed_dict={self.x: self.testImages, self.y_: self.testLabels, self.keep_prob:1})
 
         print 'true class labels: ', ys_true
         print 'class estimates:   ', ys_guess
 
-        print np.sum(self.sess.run(self.y, feed_dict={self.x: testImages, y_: testLabels, self.keep_prob:1}),axis=0)
+        print np.sum(self.sess.run(self.y, feed_dict={self.x: self.testImages, self.y_: self.testLabels, self.keep_prob:1}),axis=0)
 
         print 'within 1dB:', float(len(np.where(abs(ys_true-ys_guess) <= 1)[0]))/len(ys_guess)
         
         if plot_confusion:
             mlt.plot_confusion(ys_true, ys_guess)
         if plot_missed:
-            mlt.plot_missed(ys_true, ys_guess, testImages)
+            mlt.plot_missed(ys_true, ys_guess, self.testImages)
 
-        # recurrent(trainImages, trainLabels)
-        score = self.sess.run(accuracy, feed_dict={self.x: testImages, y_: testLabels, self.keep_prob:1}) * 100
+        # recurrent(self.trainImages, self.trainLabels)
+        score = self.sess.run(self.accuracy, feed_dict={self.x: self.testImages, self.y_: self.testLabels, self.keep_prob:1}) * 100
         print 'Accuracy of model in testing: ', score, '%'
         if score < 85: print 'Consider making more training images'
 
@@ -563,13 +537,12 @@ class mlClassification():
         # plot_activations =''
         print plot_activations
         if plot_activations == 'post':
-            activations = [self.sess.run(x_image,feed_dict={self.x: testImages}),
-                self.sess.run(h_conv1, feed_dict={self.x: testImages}),
-                self.sess.run(h_norm1, feed_dict={self.x: testImages}),
-                self.sess.run(h_actv1, feed_dict={self.x: testImages}),
-                self.sess.run(h_pool1, feed_dict={self.x: testImages}),
-                self.sess.run(h_actv2, feed_dict={self.x: testImages}),
-                self.sess.run(h_actv3, feed_dict={self.x: testImages}),]
+            activations = [self.sess.run(h_conv1, feed_dict={self.x: self.testImages}),
+                self.sess.run(h_norm1, feed_dict={self.x: self.testImages}),
+                self.sess.run(h_actv1, feed_dict={self.x: self.testImages}),
+                self.sess.run(h_pool1, feed_dict={self.x: self.testImages}),
+                self.sess.run(h_actv2, feed_dict={self.x: self.testImages}),
+                self.sess.run(h_actv3, feed_dict={self.x: self.testImages}),]
             mlt.plotActivations(activations)
    
         # # return sess
@@ -601,6 +574,7 @@ class mlClassification():
             print 'Inference File:', inferenceFile
             inferenceData = PSFitMLData(h5File = inferenceFile, useAllAttens = True)
 
+        
         if searchAllRes:
             res_nums = np.shape(inferenceData.freqs)[0]
 
@@ -753,7 +727,7 @@ class mlClassification():
             # print inferenceLabels[r]
 
 def next_batch(trainImages, trainLabels, batch_size):
-    '''selects a random batch of batch_size from trainImages and trainLabels'''
+    '''selects a random batch of batch_size from self.trainImages and self.trainLabels'''
     perm = random.sample(range(len(trainImages)), batch_size)
     trainImages = np.array(trainImages)[perm,:]
     trainLabels = np.array(trainLabels)[perm,:]

@@ -17,7 +17,7 @@ import math
 from scipy import interpolate
 from PSFitMLData import *
 import PSFitMLTools as mlt
-from ml_params import mldir, trainFile, max_nClass, trainReps, batches, trainBinFile
+from ml_params import  trainFile, max_nClass, trainReps, batches, trainBinFile
 # from PSFitMLData_origPSFile import *
 np.set_printoptions(threshold=np.inf)
 from tensorflow.contrib.tensorboard.plugins import projector
@@ -639,7 +639,7 @@ class mlClassification():
             print r, self.atten_guess[r]
             # print inferenceLabels[r]
 
-        
+
 
 def next_batch(trainImages, trainLabels, batch_size):
     '''selects a random batch of batch_size from trainImages and trainLabels'''

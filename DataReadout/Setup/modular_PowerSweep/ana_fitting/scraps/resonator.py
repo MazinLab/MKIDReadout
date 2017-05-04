@@ -188,6 +188,10 @@ class Resonator(object):
         self.mag = np.abs(self.S21) #Units are volts.
         self.logmag = 20*np.log(self.mag) #Units are dB (20 because V->Pwr) -5 -> 0.56, -9 -> 0.35
 
+        self.vIQ = np.zeros((len(self.freq)-1))
+        for f in range(1,len(self.freq)):
+            self.vIQ[f-1] = np.sqrt((self.I[f]-self.I[f-1])**2 + (self.Q[f]-self.Q[f-1])**2)
+
 
         #Find the frequency at magnitude minimum (this can, and should, be
         #overwritten by a custom params function)

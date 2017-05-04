@@ -407,6 +407,8 @@ def plotActivations(activations):
 
     # f, ax = plt.subplots(111)
     plt.close()
+
+    # self.sess.run(x_image,feed_dict={self.x: testImages}),
     print np.shape(activations[1][0,3,:,:]), np.shape(activations[1])
     for ia in range(len(activations)):
         plt.imshow(np.rot90(activations[ia][0,3,:,:]), cmap=cm.coolwarm,interpolation='none', aspect='auto')
@@ -680,7 +682,66 @@ def checkResAtten(inferenceData, res_num, plotAngles=False, showResData=False, m
     return [angles_nonsat,ratio_nonsat, ratio, running_ratio, bad_res, angles_mean_center, angles_std_center]
 
 # def normalise_train():
-def plot_confusion(independent, dependent):
+
+def plot_agree_prof(guesses_map):
+    def kth_diag_indices(a, k):
+        rows, cols = np.diag_indices_from(a)
+        if k < 0:
+            return rows[-k:], cols[:k]
+        elif k > 0:
+            return rows[:-k], cols[k:]
+        else:
+            return rows, cols
+
+    diags = []
+    red_vars = np.zeros((-1 + max_nClass*2))
+    diag_correction = np.concatenate([np.arange(max_nClass-1, 0, -1), np.arange(0, max_nClass, 1)])
+    # print diag_correction
+    diag_form = np.zeros((max_nClass*2)-1)
+    for ik, k in enumerate(range(-max_nClass+1, max_nClass)):
+        # print k
+        z = kth_diag_indices(np.rot90(guesses_map),k)
+        diags.append( np.rot90(guesses_map)[z] )
+        
+        mean = (float(len(diags[ik]))-1)/2
+        # print mean
+        # print diags[ik]
+        var = diags[ik]*(np.arange(len(diags[ik])) - mean)**2
+        # print var, sum(var)
+        red_vars[ik] = sum(var)/len(var)
+        # plt.plot(diags[ik])
+        # plt.show()
+        # print diag_correction[ik], len(diags[ik]),
+        diag_ind = np.arange(diag_correction[ik], diag_correction[ik] + 2*len(diags[ik]), 2)
+        # print diag_ind
+        # diag_form[diag_correction[ik]:diag_correction[ik]+len(diags[ik])] += diags[ik]
+        diag_form[diag_ind] += diags[ik]
+        # print diag_form
+        # plt.plot(diag_form)
+
+        # plt.show()
+
+    # diag_form = diag_form/(-1 + max_nClass*2)
+    diag_form = diag_form[::-1]
+
+    # plt.figure()
+    # plt.plot(red_vars)
+    av_red_vars = sum(red_vars)/len(red_vars)
+    print 'av red vars: ', av_red_vars
+
+    plt.figure(figsize=(7,7))
+
+    match_disp = np.arange(-float(max_nClass)/2 +0.75, float(max_nClass)/2 + 0.25, 0.5)
+
+    plt.step(match_disp, diag_form, 'k')
+    plt.axvline(0, linestyle='--')
+    plt.xlabel('Match Displacement') # Agreemement profile
+    # plt.text(5, max(diag_form), '$\sigma^{2}=$%.3f' % av_red_vars)
+    plt.figtext(0.73, 0.83, '$\sigma^{2}=$%.3f' % av_red_vars)
+    # plt.show()
+    
+
+def plot_confusion(independent, dependent, xlabel='True Class', ylabel='Evaluated Class'):
     # def plotComparison(rawTrainData, atten_guess):
     # rawTrainData.opt_iAttens = rawTrainData.opt_iAttens[:len(atten_guess)]
 
@@ -695,9 +756,11 @@ def plot_confusion(independent, dependent):
     plt.rc('ytick', labelsize=SMALL_SIZE)  # fontsize of the tick labels
     plt.rc('legend', fontsize=SMALL_SIZE)  # legend fontsize
     #plt.rc('figure', titlesize=BIGGER_SIZE)  # fontsize of the figure title
-    plt.figure(figsize=(6,6))
+    plt.figure(figsize=(10,10))
     # plt.plot(loops[3][:,0],loops[3][:,1], '-o')
     # plt.xlabel('I')
+
+    # print np.shape(dependent), np.shape(independent), dependent[:10], independent[:10]
 
     guesses_map = np.zeros((max_nClass,max_nClass))
     for ia,ao in enumerate(independent):   
@@ -706,21 +769,24 @@ def plot_confusion(independent, dependent):
 
     from matplotlib import cm
     import matplotlib.colors
-    plt.imshow(guesses_map,interpolation='none', origin='lower', cmap=cm.coolwarm) #,norm = matplotlib.colors.LogNorm())
-    plt.xlabel('True Class')
-    plt.ylabel('Evaluated Class')
-
-
-
+    plt.imshow(guesses_map, interpolation='none', origin='lower', cmap=cm.coolwarm) #,norm = matplotlib.colors.LogNorm())
+    plt.xlabel(xlabel)
+    plt.ylabel(ylabel)
+    plt.xlim([-0.5,19.5])
+    plt.ylim([-0.5,19.5])
     plt.colorbar(cmap=cm.afmhot)
-    # plt.show()
-    plt.figure(figsize=(6,6))
-    # plt.plot(np.sum(guesses_map, axis=0), label='True')
-    # plt.plot(np.sum(guesses_map, axis=1), label='Evaluated')
-    plt.hist(independent, range(max_nClass+1), label='True', facecolor='blue', alpha=0.65) 
-    plt.hist(dependent, range(max_nClass+1), label='Evaluated', facecolor='green', alpha=0.65)
-    print np.histogram(dependent, range(max_nClass + 1))
-    plt.legend(loc="upper left")
+
+    plt.plot(range(max_nClass), linestyle='--')
+
+    plot_agree_prof(guesses_map)
+
+    # plt.figure(figsize=(6,6))
+    # # plt.plot(np.sum(guesses_map, axis=0), label='True')
+    # # plt.plot(np.sum(guesses_map, axis=1), label='Evaluated')
+    # plt.hist(independent, range(max_nClass+1), label='True', facecolor='blue', alpha=0.65) 
+    # plt.hist(dependent, range(max_nClass+1), label='Evaluated', facecolor='green', alpha=0.65)
+    # print np.histogram(dependent, range(max_nClass + 1))
+    # plt.legend(loc="upper left")
     plt.show()
 
 def plot_accuracy(train_ce, test_ce, train_acc, test_acc):
@@ -795,6 +861,49 @@ def plot_missed(ys_true, ys_guess, testImages, get_true_ind=True):
         plt.show()
         plt.close()
 
+def view_train(trainImages, trainLabels, nClass):
+    res_per_win = 4
+    for f in range(int(np.ceil(len(trainLabels)/res_per_win))+1):
+    
+        _, axarr = plt.subplots(2*res_per_win,nClass, figsize=(16.0, 8.1))
+        for r in range(res_per_win):
+            print np.argmax(trainLabels[f+r],0)
+            for ia in range(nClass):
+                try:
+                    # print f, r, missed[f+r]
+                    axarr[2*r,0].set_ylabel(trainLabels[f+r])
+                    # axarr[2*r,ia].axis('off')
+                    # axarr[(2*r)+1,ia].axis('off')
+                    if ia != np.argmax(trainLabels[r+f*res_per_win],0): axarr[2*r,ia].axis('off')
+                    if ia != np.argmax(trainLabels[r+f*res_per_win],0): axarr[(2*r)+1,ia].axis('off')
+                    # print np.shape(testImages[f+r,ia,:,2])
+                    axarr[2*r,ia].plot(trainImages[r+f*res_per_win][ia,:,2])
+                    axarr[(2*r)+1,ia].plot(trainImages[r+f*res_per_win][ia,:,0],trainImages[r+f*res_per_win][ia,:,1], '-o')
+                except:
+                    pass
+
+        plt.show()
+        plt.close()
+
+def PCA(trainImages, trainLabels, max_iq):
+    max_iq = np.amax(trainImages[:,:,:,2], axis=2)
+    LOG_DIR = '/tmp/emb_logs/'
+    metadata = os.path.join(LOG_DIR, 'metadata.tsv')
+    images = tf.Variable(max_iq, name='images')
+    with open(metadata, 'wb') as metadata_file:
+        for row in trainLabels:
+            row = np.argmax(row)
+            metadata_file.write('%d\n' % row)
+    with tf.Session() as sess:
+        saver = tf.train.Saver([images])
+        sess.run(images.initializer)
+        saver.save(sess, os.path.join(LOG_DIR, 'images.ckpt'))
+        config = projector.ProjectorConfig()
+        embedding = config.embeddings.add()
+        embedding.tensor_name = images.name
+        embedding.metadata_path = metadata
+        projector.visualize_embeddings(tf.summary.FileWriter(LOG_DIR), config)
+
 def get_opt_atten_from_ind(mlData, atten_guess):
     # for i in range(12):
     #     print i, mlData.attens_orig[i], atten_guess[i]
@@ -832,6 +941,25 @@ def reduce_PSFile(PSFile, good_res):
 
     return new_PSFile
 
+def eval_vIQ_attens(mlData):
+    ratio_guesses = np.zeros((len(mlData.good_res)))
+    for r, _ in enumerate(mlData.good_res):
+        _, _, ratio, _, _, _, _ = checkResAtten(mlData, res_num=r)
+
+        # plt.plot(ratio)
+        # print r, ratio,
+        try:
+            ratio_guesses[r] = np.where(ratio>3.5)[0][-1] + 2
+        except IndexError:
+            ratio_guesses[r] = np.argmin(ratio) + 2
+
+        if ratio_guesses[r] >= len(ratio)-1:
+            ratio_guesses[r] = len(ratio)- 2
+
+        # print ratio_guesses[r]
+        # plt.show()
+    return ratio_guesses
+
 def evaluateModel(mlClass, initialFile, showFrames=False, plot_missed=False, res_nums=50):
     '''
     The loopTrain() function evaluates true performance by running findAtten on the training dataset. The predictions 
@@ -839,6 +967,7 @@ def evaluateModel(mlClass, initialFile, showFrames=False, plot_missed=False, res
     models accuracy and if their are any trends in the resonators it's missing
     '''
     print 'running model on test input data'
+
     mlClass.findPowers(inferenceFile=initialFile, searchAllRes=True, res_nums=res_nums)
 
     rawTrainData = mld.PSFitMLData(h5File = initialFile)
@@ -914,34 +1043,7 @@ def evaluateModel(mlClass, initialFile, showFrames=False, plot_missed=False, res
 
     # plotMissed(mlClass, man_mask, wrong_guesses, rawTrainData,)
 
-    def plotComparison(rawTrainData, atten_guess):
-        rawTrainData.opt_iAttens = rawTrainData.opt_iAttens[:len(atten_guess)]
-        # guesses_map = np.zeros((np.shape(rawTrainData.attens)[1],np.shape(rawTrainData.attens)[1]))
-        print rawTrainData.opt_iAttens,
-
-        guesses_map = np.zeros((max_nClass,max_nClass))
-        for ia,ao in enumerate(rawTrainData.opt_iAttens):   
-            ag = np.int_(atten_guess[ia])
-            print ag, ao
-            guesses_map[ag,ao] += 1
-
-        from matplotlib import cm
-        import matplotlib.colors
-        plt.imshow(guesses_map,interpolation='none', origin='lower', cmap=cm.coolwarm) #,norm = matplotlib.colors.LogNorm())
-        plt.xlabel('actual')
-        plt.ylabel('estimate')
-
-        plt.colorbar(cmap=cm.afmhot)
-        # plt.show()
-        plt.figure()
-        plt.plot(np.sum(guesses_map, axis=0), label='actual')
-        plt.plot(np.sum(guesses_map, axis=1), label='estimate')
-        plt.legend(loc="upper left")
-        plt.show()
-
-    plotComparison(rawTrainData, atten_guess)
-    # plotComparison(rawTrainData, atten_guess_mean)
-    # plotComparison(rawTrainData, atten_guess_med)
+    plot_confusion(rawTrainData.opt_iAttens, atten_guess, 'Manual Inspection', 'Neural Network')
 
     def plotBinComparison(rawTrainData, atten_guess):
         good_res = rawTrainData.good_res[:len(atten_guess)-1]
@@ -972,6 +1074,9 @@ def evaluateModel(mlClass, initialFile, showFrames=False, plot_missed=False, res
         plt.legend(loc="upper left")
         plt.show()
     # plotBinComparison(rawTrainData, atten_guess)
+
+    return matches
+    
 def plotRes(mlClass, man_mask, res=0, rawTrainData=None):
     # print res, man_mask[res], mlClass.atten_guess[man_mask[res]], '\t', rawTrainData.opt_iAttens[res], '\t', mlClass.low_stds[man_mask[res]] 
     fig, ax1 = plt.subplots()
@@ -998,13 +1103,7 @@ def plotRes(mlClass, man_mask, res=0, rawTrainData=None):
 
     plt.show()  
 
-def compare_train_data(h5File, PSFile1, PSFile2, plot_agree=True):
-    mlData1 = mld.PSFitMLData(h5File = h5File, PSFile = PSFile1)
-    mlData1.loadRawTrainData()
-
-    mlData2 = mld.PSFitMLData(h5File = h5File, PSFile = PSFile2)
-    mlData2.loadRawTrainData()
-
+def get_common_good_res(mlData1, mlData2):
     print np.shape(mlData1.opt_iAttens), np.shape(mlData2.opt_iAttens)
     print mlData1.resIDs, mlData2.resIDs
     final_res = min([max(mlData1.resIDs), max(mlData2.resIDs)])
@@ -1023,7 +1122,128 @@ def compare_train_data(h5File, PSFile1, PSFile2, plot_agree=True):
             good_res.append(r)
 
     print good_res, len(good_res)
+
+    return good_res
+
+def plot_agree_acc(**kwargs):#good_res, get_power_NN, var, opt_attens1):
+    good_res = kwargs.pop('good_res')
+    get_power_NN = kwargs.pop('get_power_NN')
+    # var = kwargs.pop('var')
+    opt_attens1 = kwargs.pop('opt_attens1')
+    opt_attens2 = kwargs.pop('opt_attens2')
+    h5File = kwargs.pop('h5File')
+    
+    mlClass = get_power_NN() 
+    mlClass.findPowers(inferenceFile=h5File)
+    
+    # print mlClass.inferenceLabels[:,5], np.shape(mlClass.inferenceLabels)
+    # mlClass.inferenceLabels = mlClass.inferenceLabels[good_res]
+
+
+    mean = (opt_attens1 + opt_attens2)/2
+    print mean[:10]
+    var = np.sqrt(((opt_attens1-mean)**2 + (opt_attens2-mean)**2)/2)
+    print var[:10]
+    print argmax(var)
+    def get_accuracies(opt_attens):
+
+
+        # hist, bins = np.histogram(var)
+        # plt.plot(hist, bins[:-1])
+        # plt.show()
+        def acc_from_int(inferenceLabel, opt_atten):
+            '''accuracy from the integration method'''
+            # print inferenceLabel, opt_atten
+            accuracy = 0
+            for ia, a in enumerate(inferenceLabel):
+                # print ia,a, ia-opt_atten, len(inferenceLabel),
+                accuracy += a*(1-abs(ia-opt_atten)/len(inferenceLabel))
+                # print (1-abs(ia-opt_atten)/len(inferenceLabel)), accuracy
+            return accuracy
+
+        accuracies = np.zeros((len(good_res)))
+        for ir, r in enumerate(good_res):
+            # accuracies[ir] = mlClass.inferenceLabels[r,opt_attens[ir]]
+            accuracies[ir] = acc_from_int(mlClass.inferenceLabels[r], opt_attens[ir])
+
+        # print accuracies
+        var_bins = np.unique(var)
+        print var_bins
+        sum_accuracies = np.zeros((len(var_bins)))
+        amount_accuracies = np.zeros((len(var_bins)))
+        acc_binned = [[] for i in range(len(var_bins))]
+        print acc_binned, np.shape(acc_binned)
+
+        for ia, a in enumerate(accuracies):
+            for ivb, vb in enumerate(var_bins):
+                if var[ia] == vb:            
+                    sum_accuracies[ivb] += a
+                    amount_accuracies[ivb] += 1
+                    acc_binned[ivb].append(a)
+        av_accuracies = sum_accuracies/amount_accuracies
+
+        std_acc_bin = np.zeros((len(var_bins))) # standard deviation of all the accuracies for that manual inspection agreement bin 
+        for ivb, vb in enumerate(var_bins):
+            for iab,ab in enumerate(acc_binned[ivb]):
+                std_acc_bin[ivb] += (ab - av_accuracies[ivb])**2
+            std_acc_bin[ivb] = np.sqrt(std_acc_bin[ivb]/len(acc_binned[ivb]))
+
+        print std_acc_bin, len(var_bins), amount_accuracies
+        # plt.plot(var, accuracies, 'o')
+        agg_bins = 1-var_bins/max(var_bins)
+
+        return agg_bins, av_accuracies, amount_accuracies, std_acc_bin
+
+    # plt.errorbar(var_bins, av_accuracies, yerr=std_acc_bin)
+    # plt.scatter(var_bins, av_accuracies, s=amount_accuracies)
+    SMALL_SIZE = 14
+    MEDIUM_SIZE = 18
+    BIGGER_SIZE = 22
+
+    plt.rc('font', size=SMALL_SIZE)  # controls default text sizes
+    plt.rc('axes', titlesize=SMALL_SIZE)  # fontsize of the axes title
+    plt.rc('axes', labelsize=MEDIUM_SIZE)  # fontsize of the x and y labels
+    plt.rc('xtick', labelsize=SMALL_SIZE)  # fontsize of the tick labels
+    plt.rc('ytick', labelsize=SMALL_SIZE)  # fontsize of the tick labels
+    plt.rc('legend', fontsize=SMALL_SIZE)  # legend fontsize
+    #plt.rc('figure', titlesize=BIGGER_SIZE)  # fontsize of the figure title
+
+    plt.figure(figsize=(7, 6))
+
+    # plt.scatter(agg_bins, av_accuracies, c='m', marker='s', s=10*amount_accuracies)
+    cm = plt.cm.get_cmap('RdYlBu')
+
+    agg_bins, av_accuracies, amount_accuracies, std_acc_bin = get_accuracies(opt_attens1)
+    sing_ind = np.where(amount_accuracies==1)[0]
+    doub_ind = np.where(amount_accuracies!=1)[0]
+    sc = plt.scatter(agg_bins[doub_ind], av_accuracies[doub_ind], c=amount_accuracies[doub_ind], s=50, marker='s', cmap=cm)
+    plt.errorbar(agg_bins, av_accuracies,c='m', yerr=std_acc_bin)
+    plt.scatter(agg_bins[sing_ind], av_accuracies[sing_ind], c=amount_accuracies[sing_ind], s=50, marker='o', cmap=cm)
+
+    _, av_accuracies, _, std_acc_bin = get_accuracies(opt_attens2)
+    sc = plt.scatter(agg_bins[doub_ind], av_accuracies[doub_ind], c=amount_accuracies[doub_ind], s=50, marker='s', cmap=cm)
+    plt.errorbar(agg_bins, av_accuracies,c='g', yerr=std_acc_bin)
+    plt.scatter(agg_bins[sing_ind], av_accuracies[sing_ind], c=amount_accuracies[sing_ind], s=50, marker='o', cmap=cm)
+    
+    # plt.axhline(0.68,linestyle='--')
+    # plt.axhline(0.88,linestyle='--')
+    plt.xlabel('Manual Agreement')
+    plt.xlim([-0.1, 1.1])
+    plt.ylabel('Model Accuracy')
+    plt.colorbar(sc)
+    # plt.plot(var_bins, std_acc_bin)
+    plt.show()
+
+def compare_train_data(h5File, PSFile1, PSFile2, get_power_NN, plot_agree=True):
+    mlData1 = mld.PSFitMLData(h5File = h5File, PSFile = PSFile1)
+    mlData1.loadRawTrainData()
+
+    mlData2 = mld.PSFitMLData(h5File = h5File, PSFile = PSFile2)
+    mlData2.loadRawTrainData()
+    
+    good_res = get_common_good_res(mlData1, mlData2)
     # mlData1.resIDs = mlData1.resIDs[np.where(mlData1.resIDs == final_res)]
+
     opt_attens1 = np.zeros((len(good_res)))
     opt_attens2 = np.zeros((len(good_res)))
     
@@ -1040,87 +1260,21 @@ def compare_train_data(h5File, PSFile1, PSFile2, plot_agree=True):
     # print np.shape(mlData1.opt_iAttens), np.shape(mlData2.opt_iAttens)
     # print mlData1.resIDs, mlData2.resIDs
 
+    kwargs = {'good_res': good_res,
+    'get_power_NN' : get_power_NN,
+    # 'var': var,
+    'opt_attens1': opt_attens1,
+    'opt_attens2': opt_attens2,
+    'h5File': h5File}
+    # 'PSFile1': PSFile1,
+    # 'PSFile2': PSFile2}
+
+    if plot_agree:
+        plot_agree_acc(**kwargs)#, good_res, get_power_NN, var, opt_attens1, h5File, PSFile1, PSFile2)#plot_agree_acc()
+
     print opt_attens1, opt_attens2
     diff = abs(opt_attens1 - opt_attens2)
     print diff[:10]
-    mean = (opt_attens1 + opt_attens2)/2
-    print mean[:10]
-    var = np.sqrt(((opt_attens1-mean)**2 + (opt_attens2-mean)**2)/2)
-    print var[:10]
-    print argmax(var)
-
-    # hist, bins = np.histogram(var)
-    # plt.plot(hist, bins[:-1])
-    # plt.show()
-
-    def plot_agree_acc():
-        # if not os.path.isfile(mldir + trainFile):
-        #     print 'Could not find train file. Making new training images from initial h5File'
-        #     mlData1.makeTrainData(res_per_class)
-
-        mlClass = mlc.mlClassification(subdir='trained on x-reduced/')
-
-        plot_missed = False
-        kwargs = {'batches': batches, 
-        'trainReps': trainReps, 
-        'plot_missed': plot_missed,
-        'plot_confusion': plot_confusion,
-        'max_learning_rate': max_learning_rate, 
-        'min_learning_rate': min_learning_rate, 
-        'decay_speed': decay_speed}
-
-        mlClass.train(**kwargs)
-        mlClass.findPowers(inferenceFile=h5File)
-
-        # print mlClass.inferenceLabels[:,5], np.shape(mlClass.inferenceLabels)
-        # mlClass.inferenceLabels = mlClass.inferenceLabels[good_res]
-        accuracies = np.zeros((len(good_res)))
-        for ir, r in enumerate(good_res):
-            accuracies[ir] = mlClass.inferenceLabels[r,opt_attens1[ir]]
-
-        print accuracies
-        var_bins = np.unique(var)
-        print var_bins
-        sum_accuracies = np.zeros((len(var_bins)))
-        amount_accuracies = np.zeros((len(var_bins)))
-        acc_binned = [[] for i in range(len(var_bins))]
-        print acc_binned, np.shape(acc_binned)
-
-        for ia, a in enumerate(accuracies):
-            for ivb, vb in enumerate(var_bins):
-                if var[ia] == vb:            
-                    sum_accuracies[ivb] += a
-                    amount_accuracies[ivb] += 1
-                    acc_binned[ivb].append(a)
-
-        av_accuracies = sum_accuracies/amount_accuracies
-        std_acc_bin = np.zeros((len(var_bins)))
-        for ivb, vb in enumerate(var_bins):
-            for iab,ab in enumerate(acc_binned[ivb]):
-                std_acc_bin[ivb] += (ab - av_accuracies[ivb])**2
-            std_acc_bin[ivb] = np.sqrt(std_acc_bin[ivb]/len(acc_binned[ivb]))
-
-        print len(std_acc_bin), len(var_bins), len(amount_accuracies)
-        # plt.plot(var, accuracies, 'o')
-        agg_bins = 1-var_bins/max(var_bins)
-        # plt.errorbar(var_bins, av_accuracies, yerr=std_acc_bin)
-        # plt.scatter(var_bins, av_accuracies, s=amount_accuracies)
-        plt.figure(figsize=(6, 5))
-
-        # plt.scatter(agg_bins, av_accuracies, c='m', marker='s', s=10*amount_accuracies)
-        cm = plt.cm.get_cmap('RdYlBu')
-        sc = plt.scatter(agg_bins, av_accuracies, c=amount_accuracies, s=50, marker='s', cmap=cm)
-        plt.errorbar(agg_bins, av_accuracies,c='k', yerr=std_acc_bin)
-        plt.axhline(0.68,linestyle='--')
-        plt.axhline(0.88,linestyle='--')
-        plt.xlabel('Manual Agreement')
-        plt.ylabel('Model Accuracy')
-        plt.colorbar(sc)
-        # plt.plot(var_bins, std_acc_bin)
-        plt.show()
-
-    if plot_agree:
-        plot_agree_acc()
 
     agreed_res=[]
     for ir, r in enumerate(good_res):
@@ -1128,32 +1282,54 @@ def compare_train_data(h5File, PSFile1, PSFile2, plot_agree=True):
             agreed_res.append(r)
 
     print len(agreed_res)        
-    return agreed_res
+    return agreed_res, opt_attens1, opt_attens2
 
 def plot_powers_hist(a_ipwrs, ml_ipwrs, mc_ipwrs):
-    print a_ipwrs
+    print 'probably want to do something like this: http://stackoverflow.com/questions/35308812/histtype-stepfilled-option-using-bar-function'
+    print 'or this http://matplotlib.org/users/prev_whats_new/whats_new_1.5.html'
+
+    # print a_ipwrs
+    # from filled_step import filled_hist
+    # fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(9, 4.5), tight_layout=True)
+    # hist, bins = np.histogram(ml_ipwrs, range(max_nClass+1))
+    # filled_hist(ax1, bins, hist)
+    # plt.show()
+    # plt.figure(figsize=(8,8))
+    # plt.fill_between(a_ipwrs, range(max_nClass), color="none", hatch="X", edgecolor="b", linewidth=0.0)
+    # plt.hist(a_ipwrs, range(max_nClass + 1), facecolor='green', alpha=0.65, linewidth=0, label='analytical')
+    # plt.hist(ml_ipwrs, range(max_nClass + 1), facecolor='blue', alpha=0.65, linewidth=0, label='neural network')
+    # plt.hist(mc_ipwrs, range(max_nClass + 1), facecolor='red', alpha=0.65, linewidth=0, label='man inspection')
+    # plt.legend()
+    # plt.xlabel('Class label')
+
+    # plt.figure(figsize=(8,8))
+    # plt.hist((a_ipwrs, ml_ipwrs, mc_ipwrs), range(max_nClass + 1), alpha=0.65, color = ['green', 'blue', 'red'], label=('analytical', 'neural network', 'man inspection'))
+    # plt.legend()
+    # plt.xlabel('Class label')
+    SMALL_SIZE = 14
+    MEDIUM_SIZE = 18
+    BIGGER_SIZE = 22
+
+    plt.rc('font', size=SMALL_SIZE)  # controls default text sizes
+    plt.rc('axes', titlesize=SMALL_SIZE)  # fontsize of the axes title
+    plt.rc('axes', labelsize=MEDIUM_SIZE)  # fontsize of the x and y labels
+    plt.rc('xtick', labelsize=SMALL_SIZE)  # fontsize of the tick labels
+    plt.rc('ytick', labelsize=SMALL_SIZE)  # fontsize of the tick labels
+    plt.rc('legend', fontsize=SMALL_SIZE)  # legend fontsize
+    #plt.rc('figure', titlesize=BIGGER_SIZE)  # fontsize of the figure title
 
     plt.figure(figsize=(8,8))
-    plt.hist(a_ipwrs, range(max_nClass + 1), facecolor='green', alpha=0.65, label='analytical')
-    plt.hist(ml_ipwrs, range(max_nClass + 1), facecolor='blue', alpha=0.65, label='neural network')
-    plt.hist(mc_ipwrs, range(max_nClass + 1), facecolor='red', alpha=0.65, label='man inspection')
-    plt.legend()
-    plt.xlabel('Class label')
 
-    plt.figure(figsize=(8,8))
-    plt.hist((a_ipwrs, ml_ipwrs, mc_ipwrs), range(max_nClass + 1), alpha=0.65, color = ['green', 'blue', 'red'], label=('analytical', 'neural network', 'man inspection'))
+    hist, bins = np.histogram((ml_ipwrs+mc_ipwrs)/2 - a_ipwrs, range(max_nClass+1))
+    plt.step(bins[:-1]+1, hist, 'g', linestyle='-',linewidth=2, label='analytical')
+    plt.fill_between(bins[:-1], hist, color="none", hatch="/", edgecolor="g", linewidth=2, step='post')
+    hist, bins = np.histogram((a_ipwrs+mc_ipwrs)/2 - ml_ipwrs, range(max_nClass+1))
+    plt.step(bins[:-1]+1, hist, 'b', linestyle='--',linewidth=2, label='neural network')
+    plt.fill_between(bins[:-1], hist, color="none", hatch='\\', edgecolor="b", linewidth=2, step='post')
+    hist, bins = np.histogram((ml_ipwrs+a_ipwrs)/2 - mc_ipwrs, range(max_nClass+1))
+    plt.step(bins[:-1]+1, hist, 'r', linestyle='-.',linewidth=2, label='man inspection')
+    plt.fill_between(bins[:-1], hist, color="none", hatch="|", edgecolor="r", linewidth=2, step='post')
     plt.legend()
-    plt.xlabel('Class label')
-
-    plt.figure(figsize=(8,8))
-    hist, bins = np.histogram(a_ipwrs, range(max_nClass+1))
-    plt.step(bins[:-1], hist, label='analytical')
-    hist, bins = np.histogram(ml_ipwrs, range(max_nClass+1))
-    plt.step(bins[:-1], hist, label='neural network')
-    hist, bins = np.histogram(mc_ipwrs, range(max_nClass+1))
-    plt.step(bins[:-1], hist, label='man inspection')
-
-    plt.legend()
-    plt.xlabel('Class label')
+    plt.xlabel('Prediction Displacement')
     plt.show()
 
