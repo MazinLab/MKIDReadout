@@ -13,6 +13,7 @@ import time, struct, sys, os
 import matplotlib.pyplot as plt
 import random
 import scipy.optimize as spo
+import threading
 
 class SBOptimizer:
     def __init__(self, ip='10.0.0.112', params='/mnt/data0/neelay/MkidDigitalReadout/DataReadout/ChannelizerControls/DarknessFpga_V2.param', freqList=None,
@@ -210,11 +211,17 @@ class SBOptimizer:
         while np.any(foundMaxList==0):
             nFailedFits = 0
             for j in range(len(freqList)):
-                flatInd = np.random.choice(flatInds, p=normWeights[j,:].flatten())
-                sbSupInd = np.unravel_index(flatInd, np.shape(sampledSBSups[j]))
-                phaseList[j] = phases[sbSupInd[0]]
-                iqRatioList[j] = iqRatios[sbSupInd[1]]
-                sbSupIndList[j] = np.asarray(sbSupInd)
+                if foundMaxList[j]==1:
+                    phaseList[j] = finalPhaseList[j]
+                    iqRatioList[j] = finalIQRatioList[j]
+                    sbSupIndList[j] = np.array([np.where(phases==finalPhaseList[j])[0][0], np.where(iqRatios==finalIQRatioList[j])[0][0]])
+
+                else:
+                    flatInd = np.random.choice(flatInds, p=normWeights[j,:].flatten())
+                    sbSupInd = np.unravel_index(flatInd, np.shape(sampledSBSups[j]))
+                    phaseList[j] = phases[sbSupInd[0]]
+                    iqRatioList[j] = iqRatios[sbSupInd[1]]
+                    sbSupIndList[j] = np.asarray(sbSupInd)
 
                 
             self.loadLUT(sideband, phaseList, iqRatioList)
@@ -337,6 +344,23 @@ class SBOptimizer:
         self.globalDacAtten=globalDacAtten 
         self.roach.changeAtten(1,np.floor(self.globalDacAtten/31.75)*31.75)
         self.roach.changeAtten(2,self.globalDacAtten%31.75)
+
+    def checkSBSuppression(self):        
+        nSamples = 4096.
+        sampleRate = 2000. #MHz
+        freqs = self.freqList
+        quantFreqsMHz = np.array(freqs/1.e6-sbo.loFreq/1.e6)
+        quantFreqsMHz = np.round(quantFreqsMHz*nSamples/sampleRate)*sampleRate/nSamples
+        snapDict = sbo.takeAdcSnap()
+        specDict = adcSnap.streamSpectrum(snapDict['iVals'], snapDict['qVals'])        
+        findFreq = lambda freq: np.where(specDict['freqsMHz']==freq)[0][0]
+        print 'quantFreqsMHz', quantFreqsMHz
+        print 'spectDictFreqs', specDict['freqsMHz']
+        print 'nSamples', specDict['nSamples']
+        freqLocs = np.asarray(map(findFreq, quantFreqsMHz))
+        sbLocs = -1*freqLocs + len(specDict['freqsMHz'])
+        sbSuppressions = specDict['spectrumDb'][freqLocs]-specDict['spectrumDb'][sbLocs]
+        return sbSuppressions
                
 def loadGridTable(fileName):
     '''
@@ -543,18 +567,61 @@ def optRawGridDataFit(filename, freqInd=40, threshold=32, weightDecayDist=1):
     plt.colorbar()
     plt.show()
 
+class sbOptThread(threading.Thread):
+    def __init__(self, **kwargs):
+        threading.Thread.__init__(self)
+        self.ip = kwargs.pop('ip', '10.0.0.112')
+        self.adcAtten = kwargs.pop('adcAtten', 31.75)
+        self.globalDacAtten = kwargs.pop('globalDacAtten', 12)
+        self.loFreq = kwargs.pop('loFreq')
+        self.freqFileName = kwargs.pop('freqFile')
+        self.mdd = os.environ['MKID_DATA_DIR']
+
+    def run(self):
+        print 'Starting optimization for ROACH ' + self.ip
+        freqFile = os.path.join(self.mdd, self.freqFileName)
+        resIDList, freqList, attenList = np.loadtxt(freqFile, unpack=True)
+        sbo = SBOptimizer(ip=self.ip, freqList=freqList, toneAttenList=attenList, resIDList=resIDList, adcAtten=self.adcAtten, globalDacAtten=self.globalDacAtten, loFreq=self.loFreq)
+        sbo.initRoach()
+        sbo.gridSearchOptimizerFit(sideband='upper', saveNPZ=True)
+        sbo.gridSearchOptimizerFit(sideband='lower', saveNPZ=True)
+        sbo.saveGridSearchOptFreqList(freqFile.split('.')[0] + '_sbOpt_v2.txt')
+
 
 if __name__=='__main__':
-    if len(sys.argv)<3:
-        raise Exception('Must specify IP address and frequency file in MKID_DATA_DIR')
-    ip = '10.0.0.' + str(sys.argv[1])
-    mdd = os.environ['MKID_DATA_DIR']
-    freqFile = os.path.join(mdd, sys.argv[2])
-    resIDList, freqList, attenList = np.loadtxt(freqFile, unpack=True)
+    #if len(sys.argv)<3:
+    #    raise Exception('Must specify IP address and frequency file in MKID_DATA_DIR')
+    #ip = '10.0.0.' + str(sys.argv[1])
+    
+    ipList = ['10.0.0.115'] #['10.0.0.117', '10.0.0.118', '10.0.0.119', '10.0.0.120', '10.0.0.121', '10.0.0.122']
+    globalDacAttenList = [14] #[14, 9, 30, 9, 14, 9]
+    adcAttenList = [23.75] #[31.75, 20.75, 31.75, 31.75, 21.75, 31.75]
+    loFreqList = [5.1010551e9] #[5.0744638e9, 7.1894689e9, 5.1426105e9, 7.2609906e9, 5.1385403e9, 7.2416148e9]
+    freqFileList = ['ps_r112_FL3_a_faceless_lf_train.txt']#['ps_r117_FL1_a_faceless_lf_train_rm_doubles.txt', 'ps_r118_FL1_b_faceless_hf_train_rm_doubles.txt', 'ps_r119_FL5_a_faceless_lf_train_rm_doubles.txt',
+        #'ps_r120_FL5_b_faceless_hf_train_rm_doubles.txt', 'ps_r121_FL4_a_faceless_lf_train_rm_doubles.txt', 'ps_r122_FL4_b_faceless_hf_train_rm_doubles.txt']
 
-    sbo = SBOptimizer(ip=ip, freqList=freqList, toneAttenList=attenList, resIDList=resIDList, globalDacAtten=6, loFreq=4.6873455e9)
-    sbo.initRoach()
-    sbo.gridSearchOptimizerFit(sideband='upper', saveNPZ=True)
-    sbo.gridSearchOptimizerFit(sideband='lower', saveNPZ=True)
-    sbo.saveGridSearchOptFreqList(freqFile.split('.')[0] + '_sbOpt.txt')
+    threadpool = []
+
+    for i in range(len(ipList)):
+        sbThread = sbOptThread(ip=ipList[i], globalDacAtten=globalDacAttenList[i], adcAtten=adcAttenList[i], loFreq=loFreqList[i], freqFile=freqFileList[i])
+        threadpool.append(sbThread)
+
+    for thread in threadpool:
+        thread.start()
+
+
+    # ip = '10.0.0.122'
+    # freqFileName = 'ps_r122_FL4_b_faceless_hf_train_rm_doubles.txt'
+    # 
+    # freqFile = os.path.join(mdd, 'truncatedAttens', freqFileName)
+    # resIDList, freqList, attenList = np.loadtxt(freqFile, unpack=True)
+    # 
+    # adcAtten=31.75
+    # globalDacAtten=9
+    # loFreq=7.2416148e9
+    # sbo = SBOptimizer(ip=ip, freqList=freqList, toneAttenList=attenList, resIDList=resIDList, adcAtten=adcAtten, globalDacAtten=globalDacAtten, loFreq=loFreq)
+    # sbo.initRoach()
+    # sbo.gridSearchOptimizerFit(sideband='upper', saveNPZ=True)
+    # sbo.gridSearchOptimizerFit(sideband='lower', saveNPZ=True)
+    # sbo.saveGridSearchOptFreqList(freqFile.split('.')[0] + '_sbOpt.txt')
             
