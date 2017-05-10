@@ -16,6 +16,20 @@ import scipy.optimize as spo
 import threading
 
 class SBOptimizer:
+    '''
+    Class for optimizing ADC sideband suppression, by generating phase and amplitude offsets between 
+    DAC I and Q signals.
+
+    Functions:
+        initRoach: initializes communication with ROACH2 and ADCDAC boards
+        loadLUT: loads DAC LUT
+        takeAdcSnap: takes a snapshot of ADC signal
+        gridSearchOptimizerFit: "main" function; implements the optimization algorithm
+        saveGridSearchOptFreqList: saves a frequency file containing phase and I/Q corrections
+
+
+    '''
+            
     def __init__(self, ip='10.0.0.112', params='/mnt/data0/neelay/MkidDigitalReadout/DataReadout/ChannelizerControls/DarknessFpga_V2.param', freqList=None,
         toneAttenList=None, resIDList=None, loFreq=5.e9, adcAtten=31.75, globalDacAtten=9):
         '''
@@ -24,9 +38,10 @@ class SBOptimizer:
             params: Roach2Controls parameter file
             loFreq: LO Frequency in Hz
             adcAtten: attenuation value (dB) of IF board ADC attenuator
-            toneAtten: total resonator attenuation
             global Dac Atten: physical DAC attenuation
-            frequencty: tone frequency (optional)
+            freqList: list of tone frequencies in frequency comb to optimize (should be entire comb; no need to divide into separate sidebands
+            resIDList: list of corresponding resonator IDs
+            toneAttenList: list of corresponding resonator attenuation values
         '''
         if freqList is None or toneAttenList is None:
             raise Exception('Must specify frequencies and attenuations')
@@ -69,9 +84,13 @@ class SBOptimizer:
         '''
         Loads DAC LUT
         INPUTS:
-            freq: tone frequency in Hz
-            phaseDelay: IQ phase offset (degrees)
-            iqRatio: IAmp/QAmp
+            sideband: specifies which sideband to load:
+                    all: full LUT
+                    lower: frequencies below LO
+                    upper: frequencies above LO
+            phaseList: list of phase offsets at each frequency
+            iqRatioList: list of I/Q amplitude ratios at each frequency
+            No offsets are loaded if the above two parameters are 'None'
         '''
         if sideband=='all':
             freqList = self.freqList
@@ -157,23 +176,28 @@ class SBOptimizer:
         print 'nSamples', specDict['nSamples']
         freqLocs = np.asarray(map(findFreq, quantFreqsMHz))
         sbLocs = -1*freqLocs + len(specDict['freqsMHz'])
+        
+        #specifies the probability distribution from which to sample points in phase, IQ ratio, search space
+        weights = np.ones((len(freqList), len(phases), len(iqRatios))) 
 
-        weights = np.ones((len(freqList), len(phases), len(iqRatios)))
         print 'weightShape', np.shape(weights)
+
+        #normalize weights within each frequency
         normWeights = np.transpose(np.transpose(np.reshape(weights,(len(freqList),-1)))/np.sum(weights, axis=(1,2)))
         normWeights = np.reshape(normWeights, np.shape(weights))
         
-        sbSupIndList = np.zeros((len(freqList), 2))
+        sbSupIndList = np.zeros((len(freqList), 2)) #points currently being sampled at each frequency (in I/Q ratio, phase search space
         flatInds = np.arange(len(phases)*len(iqRatios))
-        curSupList = np.zeros(len(freqList))
-        phaseList = np.zeros(len(freqList))
-        iqRatioList = np.ones(len(freqList))
-        finalPhaseList = np.zeros(len(freqList))
-        finalIQRatioList = np.ones(len(freqList))
-        finalSBSupList = np.zeros(len(freqList))
-        foundMaxList = np.zeros(len(freqList))
+        curSupList = np.zeros(len(freqList)) #list of last-sampled SB suppression at each frequency
+        phaseList = np.zeros(len(freqList)) #list of phase offsets being sampled at each frequency
+        iqRatioList = np.ones(len(freqList)) #list of I/Q offsets being sampled at each frequency
+        finalPhaseList = np.zeros(len(freqList)) #list of optimal phase offsets
+        finalIQRatioList = np.ones(len(freqList)) #list of optimal I/Q amplitude offsets
+        finalSBSupList = np.zeros(len(freqList)) #list of SB suppressions at optimal values
+        foundMaxList = np.zeros(len(freqList)) #list of booleans indicating whether above-threshold value has been found
         counter = 0
-
+        
+        #functions used for fitting
         def gaussian(x, x0r, x0c, scale, width):
             return scale*np.exp(-((x[0]-x0r)**2+(x[1]-x0c)**2)/width**2)
 
@@ -210,6 +234,7 @@ class SBOptimizer:
 
         while np.any(foundMaxList==0):
             nFailedFits = 0
+            # choose points to sample, based on probability distribution specified by 'weights'
             for j in range(len(freqList)):
                 if foundMaxList[j]==1:
                     phaseList[j] = finalPhaseList[j]
@@ -223,7 +248,7 @@ class SBOptimizer:
                     iqRatioList[j] = iqRatios[sbSupInd[1]]
                     sbSupIndList[j] = np.asarray(sbSupInd)
 
-                
+            # load in new offsets and take ADC snap 
             self.loadLUT(sideband, phaseList, iqRatioList)
             snapDict = self.takeAdcSnap()
             specDict = adcSnap.streamSpectrum(snapDict['iVals'], snapDict['qVals'])
@@ -232,6 +257,7 @@ class SBOptimizer:
             for j in range(len(freqList)):
                 sampledSBSups[j, sbSupIndList[j,0], sbSupIndList[j,1]] = curSupList[j]
                 
+                # determine whether any sampled SB suppressions are above threshold
                 if(np.any(sampledSBSups[j]>=threshold)):
                     foundMaxList[j]=1
                     optSBSupIndFlat = np.nanargmax(sampledSBSups[j])
@@ -248,6 +274,7 @@ class SBOptimizer:
                 # print 'xdata', xdata
                 # print 'ydata', ydata
                 
+                # fit exponential decay to all sampled points
                 try:
                     fitParams, pcov = spo.curve_fit(expDecay, xdata, ydata, fitParams, 
                         bounds=([0, 0, 30, 2], [np.shape(sampledSBSups[0])[0], np.shape(sampledSBSups[0])[1], 50, 20]), method='trf')
@@ -257,14 +284,14 @@ class SBOptimizer:
 
                     rowDist = rowCoords - fitParams[0]
                     colDist = colCoords - fitParams[1]
-                    weightDecay = np.random.choice([25,weightDecayDist])
+                    weightDecay = np.random.choice([25,weightDecayDist]) #choose whether to sample close to or far away from fit center
                     weights[j] = np.exp(-(rowDist**2+colDist**2)/weightDecay**2)
 
                 except RuntimeError:
                     nFailedFits += 1
                     pass
                 
-                weights[j, validSBLocs]=0
+                weights[j, validSBLocs]=0 #set weights to 0 at previously sampled points
             
             normWeights = np.transpose(np.transpose(np.reshape(weights,(len(freqList),-1)))/np.sum(weights, axis=(1,2)))
             normWeights = np.reshape(normWeights, np.shape(weights))
@@ -300,6 +327,15 @@ class SBOptimizer:
 
         
     def saveGridSearchOptFreqList(self, filename, useResID=True):
+        '''
+        Saves new frequency list containing optimal phase and I/Q offsets. 
+        Compatible with HighTemplar
+        
+        INPUTS:
+            filename: name (including location) of new frequency file
+            useResID: should be true if resIDs were initially supplied
+
+        '''
         if useResID:
            data = np.zeros((len(self.freqList), 5))
            data[:, 0] = self.resIDList
@@ -568,6 +604,9 @@ def optRawGridDataFit(filename, freqInd=40, threshold=32, weightDecayDist=1):
     plt.show()
 
 class sbOptThread(threading.Thread):
+    '''
+    Multithreads optimization code to make it easy to run with multiple boards simultaneously
+    '''
     def __init__(self, **kwargs):
         threading.Thread.__init__(self)
         self.ip = kwargs.pop('ip', '10.0.0.112')
