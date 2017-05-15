@@ -381,10 +381,15 @@ class SBOptimizer:
         self.roach.changeAtten(1,np.floor(self.globalDacAtten/31.75)*31.75)
         self.roach.changeAtten(2,self.globalDacAtten%31.75)
 
-    def checkSBSuppression(self):        
+    def checkSBSuppression(self, sideband):        
         nSamples = 4096.
         sampleRate = 2000. #MHz
-        freqs = self.freqList
+        if sideband=='upper':
+            freqs = self.freqListHigh
+        elif sideband=='lower':
+            freqs = self.freqListLow
+        else:
+            raise ValueError
         quantFreqsMHz = np.array(freqs/1.e6-sbo.loFreq/1.e6)
         quantFreqsMHz = np.round(quantFreqsMHz*nSamples/sampleRate)*sampleRate/nSamples
         snapDict = sbo.takeAdcSnap()
@@ -523,6 +528,7 @@ def loadOptimizedLUT(filename, ip, loadCorrections=True):
     plt.plot(data['freqs'], curSupList)
     plt.plot(data['freqs'], data['maxSBSuppressions'])
     plt.show()
+    return sbo
         
 def optRawGridDataFit(filename, freqInd=40, threshold=32, weightDecayDist=1):
     data = np.load(filename)
