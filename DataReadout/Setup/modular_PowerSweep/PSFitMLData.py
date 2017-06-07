@@ -19,7 +19,7 @@ import PSFitMLTools as mlt
 from random import randint
 
 np.set_printoptions(threshold=np.inf)
-from ml_params import mldir, trainFile, testFrac, max_nClass, trainBinFile, res_per_class
+from ml_params import mldir, trainFile, testFrac, max_nClass, trainBinFile, res_per_class, trainDir
 
 # removes visible depreciation warnings from lib.iqsweep
 import warnings
@@ -161,10 +161,10 @@ class PSFitMLData():
         # self.useResID=useResID
         self.h5File = h5File
         if PSFile == None:
-            self.PSFile = self.h5File[:-19] + '.txt'  # 'x-reduced.txt'
+            self.PSFile = self.h5File[:-3] + '.txt'  # 'x-reduced.txt'
         else:
             self.PSFile = PSFile
-        self.PSPFile = self.h5File[:-19] + '.pkl'
+        self.PSPFile = self.h5File[:-3] + '.pkl'
         self.baseFile = self.h5File[:-19]
 
         self.freqs, self.iq_vels, self.Is, self.Qs, self.attens, self.resIDs = self.get_PS_data()
@@ -177,6 +177,7 @@ class PSFitMLData():
 
         # self.trainFile = 'ps_peaks_train_iqv_allres_c%i.pkl' % (self.nClass)
         self.mldir = mldir
+        self.trainDir = trainDir
         self.trainFile = trainFile
         self.trainBinFile = trainBinFile
         self.testFrac = testFrac
@@ -371,14 +372,14 @@ class PSFitMLData():
                 testLabels.append(one_hot)
 
         append = None
-        if os.path.isfile(self.mldir + self.trainBinFile):
+        if os.path.isfile(self.trainDir + self.trainBinFile):
             append = raw_input('Do you want to append this training data to previous data [y/n]')
         if (append == 'n'):
             self.trainBinFile = self.trainBinFile.split('-')[0] + time.strftime("-%Y-%m-%d-%H-%M-%S")
         if (append == 'y') or (os.path.isfile(self.trainFile) == False):
             print 'saving %s to %s' % (
-            self.mldir + self.trainBinFile, os.path.dirname(os.path.abspath(self.trainBinFile)))
-            with open(self.mldir + self.trainBinFile, 'ab') as tf:
+            self.trainDir + self.trainBinFile, os.path.dirname(os.path.abspath(self.trainBinFile)))
+            with open(self.trainDir + self.trainBinFile, 'ab') as tf:
                 pickle.dump([trainImages, trainLabels], tf)
                 pickle.dump([testImages, testLabels], tf)
 
@@ -510,13 +511,13 @@ class PSFitMLData():
         plt.show()
         
         append = None
-        if os.path.isfile(self.mldir + self.trainFile):
+        if os.path.isfile(self.trainDir + self.trainFile):
             append = raw_input('Do you want to append this training data to previous data [y/n]')
         if (append == 'n'):
             self.trainFile = self.trainFile.split('-')[0] + time.strftime("-%Y-%m-%d-%H-%M-%S")
         if (append == 'y') or (os.path.isfile(self.trainFile) == False):
-            print 'saving %s to %s' % (self.mldir + self.trainFile, os.path.dirname(os.path.abspath(self.trainFile)))
-            with open(self.mldir + self.trainFile, 'ab') as tf:
+            print 'saving %s to %s' % (self.trainDir + self.trainFile, os.path.dirname(os.path.abspath(self.trainFile)))
+            with open(self.trainDir + self.trainFile, 'ab') as tf:
                 pickle.dump([trainImages, trainLabels], tf)
                 pickle.dump([testImages, testLabels], tf)
 
