@@ -111,6 +111,9 @@ class PSFitting():
         else:
             guess_atten_idx = self.NAttens/2
 
+        print 'file', self.initialFile
+        # print 'atten1s', self.Res1.atten1s
+
         if useResID:            
             return {'freq': self.Res1.freq,
                     'resID': self.Res1.resID,
@@ -221,7 +224,7 @@ class PSFitMLData():
             line = "%4i \t %10.9e \t %4i \n" % (self.resIDs[r], self.opt_freqs[r], 
                                          self.opt_attens[r])
             sf.write(line)
-            print line
+            #print line
         sf.close()        
 
     def get_PS_data(self, searchAllRes=True, res_nums=50):
@@ -299,8 +302,12 @@ class PSFitMLData():
                 pickle.dump(Qs, f)
                 pickle.dump(attens, f)
 
+        #print 'prekill attens', attens
         if not(self.useAllAttens):
             attens = attens[0,:]
+
+        print 'h5 data file', self.h5File
+        print 'h5 attens', attens
         return  freqs, iq_vels, Is, Qs, attens, resIDs
 
 def loadPkl(filename):

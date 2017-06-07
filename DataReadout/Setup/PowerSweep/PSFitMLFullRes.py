@@ -86,11 +86,11 @@ class mlClassification():
         Implements the machine learning pattern recognition algorithm on IQ velocity data as well as other tests to 
         choose the optimum attenuation for each resonator
         '''
-        self.xWidth = 49#np.shape(res1_freqs[1])
+        self.xWidth = 99#np.shape(res1_freqs[1])
         self.scalexWidth = 1
         self.oAttDist = -1 # rule of thumb attenuation steps to reach the overpowered peak
         #self.uAttDist = +2 # rule of thumb attenuation steps to reach the underpowed peak
-        self.nAttens = 26
+        self.nAttens = 31
         self.nClass = self.nAttens
 
         self.initialFile = initialFile
@@ -98,18 +98,18 @@ class mlClassification():
         self.PSFile = self.baseFile[:-16] + '.txt'#os.environ['MKID_DATA_DIR']+'20160712/ps_FL1_1.txt' # power sweep fit, .txt 
         self.mldir = './machine_learning_metadata/' 
 
-        self.trainFile = 'ps_peaks_train_3layer_img_cube_2d_kp1r3.pkl'
+        self.trainFile = 'ps_peaks_train_faceless_hf_img_cube_normed.pkl'
         print self.trainFile
         self.trainFrac = 0.9
         self.testFrac=1 - self.trainFrac
-        self.attenWinBelow = 2
+        self.attenWinBelow = 2 
         self.attenWinAbove = 2 
         
         if not inferenceFile is None:
             print 'Inference File:', inferenceFile
-            self.inferenceData = PSFitMLData(h5File = inferenceFile, useAllAttens = False)
+            self.inferenceData = PSFitMLData(h5File = inferenceFile, useAllAttens = False, useResID=True)
 
-    def makeResImage(self, res_num, angle=0,  phase_normalise=False, showFrames=False, test_if_noisy=False, dataObj=None):
+    def makeResImage(self, res_num, angle=0, center_loop=False,  phase_normalise=False, showFrames=False, test_if_noisy=False, dataObj=None):
         '''Creates a table with 2 rows, I and Q for makeTrainData(mag_data=True)
 
         inputs 
@@ -143,8 +143,14 @@ class mlClassification():
         iq_vels = dataObj.iq_vels[res_num, :, start:end]
         Is = dataObj.Is[res_num,:,start:end]
         Qs = dataObj.Qs[res_num,:,start:end]
+        
+        if center_loop:
+            Is = np.transpose(np.transpose(Is) - np.mean(Is,1))
+            print 'Is shape', np.shape(Is)
+            print 'mean shape', np.shape(np.mean(Qs,1))
+            Qs = np.transpose(np.transpose(Qs) - np.mean(Qs,1))
         #iq_vels = np.round(iq_vels * xWidth / max(dataObj.iq_vels[res_num, iAtten, :]) )
-        iq_vels = iq_vels / np.amax(dataObj.iq_vels[res_num, :, :])
+        iq_vels = np.transpose(np.transpose(iq_vels) / np.amax(iq_vels, axis=1))
 
 
                 # interpolate iq_vels onto a finer grid
@@ -160,9 +166,9 @@ class mlClassification():
         #     if (peak_iqv/nonpeak_iqv < noise_condition):
         #         return None 
 
-        res_mag = math.sqrt(np.amax(dataObj.Is[res_num, :, :]**2 + dataObj.Qs[res_num, :, :]**2))
-        Is = Is / res_mag
-        Qs = Qs / res_mag
+        res_mag = np.sqrt(np.amax(Is**2 + Qs**2, axis=1))
+        Is = np.transpose(np.transpose(Is) / res_mag)
+        Qs = np.transpose(np.transpose(Qs) / res_mag)
 
         # Is = Is /np.amax(dataObj.iq_vels[res_num, :, :])
         # Qs = Qs /np.amax(dataObj.iq_vels[res_num, :, :])
@@ -227,12 +233,15 @@ class mlClassification():
 
         return singleFrameImage
 
-    def get_peak_idx(self,res_num,iAtten,dataObj=None):
+    def get_peak_idx(self,res_num,iAtten,dataObj=None,smooth=False):
         if dataObj is None:
             if self.inferenceData is None:
                 raise ValueError('Initialize dataObj first!')
             dataObj = self.inferenceData
-        return argmax(dataObj.iq_vels[res_num,iAtten,:])
+            iq_vels = dataObj.iq_vels[res_num,iAtten,:]
+            if smooth:
+                iq_vels = np.correlate(iq_vels, np.ones(15), mode='same')
+        return argmax(iq_vels)
 
     def makeTrainData(self, trimAttens=False):                
         '''creates 1d arrays using makeWindowImage of each class with associated labels and saves to pkl file
@@ -263,7 +272,7 @@ class mlClassification():
 
         '''
         
-        rawTrainData = PSFitMLData(h5File = self.initialFile, useResID=False)
+        rawTrainData = PSFitMLData(h5File = self.initialFile, useResID=True)
         rawTrainData.loadTrainData()
         
         a=0 # index to remove values from all_freqs
@@ -453,17 +462,29 @@ class mlClassification():
             cWidth2 = num_filt2
 
         num_filt3 = 2
-        n_pool3 = 1
+        n_pool3 = 1 
         self.num_filt3 = num_filt3
         W_conv3 = weight_variable([1, 4, cWidth2, num_filt3])
         b_conv3 = bias_variable([num_filt3])
         h_conv3 = tf.nn.relu(conv2d(h_pool2, W_conv3) + b_conv3)
         with tf.control_dependencies([tf.assert_equal(tf.shape(h_pool2),(numImg,self.nAttens,xWidth2,cWidth2),message='hpool2 assertion')]):
             h_pool3 = max_pool_nx1(h_conv3, n_pool3)
+            h_pool3_dropout = tf.nn.dropout(h_pool3, self.keep_prob)
             xWidth3 = int(math.ceil(xWidth2/float(n_pool3)))
             cWidth3 = num_filt3
 
-        h_pool3_dropout = tf.nn.dropout(h_pool3, self.keep_prob)
+        # num_filt4 = 2
+        # n_pool4 = 2
+        # self.num_filt4 = num_filt4
+        # W_conv4 = weight_variable([1, 3, cWidth3, num_filt4])
+        # b_conv4 = bias_variable([num_filt4])
+        # h_conv4 = tf.nn.relu(conv2d(h_pool3, W_conv4) + b_conv4)
+        # with tf.control_dependencies([tf.assert_equal(tf.shape(h_pool3),(numImg,self.nAttens,xWidth3,cWidth3),message='hpool3 assertion')]):
+        #     h_pool4 = max_pool_nx1(h_conv4, n_pool4)
+        #     h_pool4_dropout = tf.nn.dropout(h_pool4, self.keep_prob)
+        #     xWidth4 = int(math.ceil(xWidth3/float(n_pool4)))
+        #     cWidth4 = num_filt4
+        
         h_pool3_flat = tf.reshape(h_pool3_dropout,[-1,self.nAttens,cWidth3*xWidth3,1])        
         W_final = weight_variable([1, cWidth3*xWidth3, 1, 1])
         b_final = bias_variable([1])     
@@ -479,10 +500,11 @@ class mlClassification():
         y_ = tf.placeholder(tf.float32, [None, self.nAttens]) # true class lables identified by user 
         cross_entropy = tf.reduce_mean(-tf.reduce_sum(y_ * tf.log(self.y+ 1e-10), reduction_indices=[1])) # find optimum solution by minimizing error
         #cross_entropy = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(self.y,y_))
-        #yInd = tf.argmax(self.y, 1)
-        #y_Ind = tf.argmax(y_, 1)
+        yWeighted = tf.mul(self.y, tf.to_float(tf.range(tf.shape(self.y)[1])))
+        yInd = tf.reduce_sum(yWeighted, reduction_indices=1)
+        y_Ind = tf.to_float(tf.argmax(y_, 1))
         
-        #squared_loss = tf.to_float(tf.square(yInd-y_Ind))
+        squared_loss = tf.reduce_mean(tf.to_float(tf.square(yInd-y_Ind)))
 
         train_step = tf.train.AdamOptimizer(10**-3).minimize(cross_entropy) # the best result is when the wrongness is minimal
 
@@ -493,7 +515,7 @@ class mlClassification():
         correct_prediction = tf.equal(tf.argmax(self.y,1), tf.argmax(y_,1)) #which ones did it get right?
         accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
 
-        modelName = ('.').join(self.trainFile.split('.')[:-1]) + '3layer.ckpt'
+        modelName = ('.').join(self.trainFile.split('.')[:-1]) + '_3layer_img_cube.ckpt'
         print modelName
         if os.path.isfile("%s%s" % (self.mldir,modelName)):
             #with tf.Session() as sess:
@@ -514,7 +536,7 @@ class mlClassification():
             #         plt.show()
             
             start_time = time.time()
-            trainReps = 5000
+            trainReps = 10000
             batches = 50
             if np.shape(trainLabels)[0]< batches:
                 batches = np.shape(trainLabels)[0]/2
@@ -603,45 +625,46 @@ class mlClassification():
 
             print "%s%s" % (self.mldir,modelName)
             save_path = saver.save(self.sess, "%s%s" % (self.mldir,modelName))
-        print 'true class labels: ', self.sess.run(tf.argmax(y_,1), 
-                                                   feed_dict={self.x: testImages, y_: testLabels, self.keep_prob: 1})
-        print 'class estimates:   ', self.sess.run(tf.argmax(self.y,1), 
-                                                   feed_dict={self.x: testImages, y_: testLabels, self.keep_prob: 1}) #1st 25 printed
+            print 'true class labels: ', self.sess.run(tf.argmax(y_,1), 
+                                                       feed_dict={self.x: testImages, y_: testLabels, self.keep_prob: 1})
+            print 'class estimates:   ', self.sess.run(tf.argmax(self.y,1), 
+                                                       feed_dict={self.x: testImages, y_: testLabels, self.keep_prob: 1}) #1st 25 printed
         #print self.sess.run(self.y, feed_dict={self.x: testImages, y_: testLabels})[:100]  # print the scores for each class
-        ys_true = self.sess.run(tf.argmax(y_,1), feed_dict={self.x: testImages, y_: testLabels, self.keep_prob: 1})
-        ys_guess = self.sess.run(tf.argmax(self.y,1), feed_dict={self.x: testImages, y_: testLabels, self.keep_prob: 1})
-        print np.sum(self.sess.run(self.y, feed_dict={self.x: testImages, y_: testLabels, self.keep_prob: 1}),axis=0)
-        right = []
-        within1dB = []
-        for i,y in enumerate(ys_true):
-            #print i, y, ys_guess[i] 
-            if ys_guess[i] == y: # or ys_guess[i] == y-1 or ys_guess[i] == y+1:
-                #print i, 'guessed right'
-                right.append(i)
-            if np.abs(ys_guess[i]-y) <= 1:
-                within1dB.append(i)
+            ys_true = self.sess.run(tf.argmax(y_,1), feed_dict={self.x: testImages, y_: testLabels, self.keep_prob: 1})
+            ys_guess = self.sess.run(tf.argmax(self.y,1), feed_dict={self.x: testImages, y_: testLabels, self.keep_prob: 1})
+            print np.sum(self.sess.run(self.y, feed_dict={self.x: testImages, y_: testLabels, self.keep_prob: 1}),axis=0)
+            right = []
+            within1dB = []
+            for i,y in enumerate(ys_true):
+                #print i, y, ys_guess[i] 
+                if ys_guess[i] == y: # or ys_guess[i] == y-1 or ys_guess[i] == y+1:
+                    #print i, 'guessed right'
+                    right.append(i)
+                if np.abs(ys_guess[i]-y) <= 1:
+                    within1dB.append(i)
 
-        print len(right), len(ys_true), float(len(right))/len(ys_true)
+            print len(right), len(ys_true), float(len(right))/len(ys_true)
 
-        score = self.sess.run(accuracy, feed_dict={self.x: testImages, y_: testLabels, self.keep_prob: 1}) * 100
-        print 'Accuracy of model in testing: ', score, '%'
-        if score < 85: print 'Consider making more training images'
-        print 'Testing accuracy within 1 dB: ', float(len(within1dB))/len(ys_true)*100, '%' 
-        #acc_log.append(score)
-        train_log = np.array([['score ', score], ['keep_prob', 1], ['num_filt1', self.num_filt1], ['num_filt2', self.num_filt2], ['num_filt3', self.num_filt3]])
-        print train_log
-        np.savetxt(self.trainFile[:-4]+'.log', train_log, ('%10s', '%10s'))
-        plt.hist(ys_guess[right])
-        plt.title('correct guesses')
-        plt.show()
-        plt.hist(ys_guess)
-        plt.title('all guesses')
-        plt.show()
-        plt.hist(ys_true)
-        plt.title('correct attens')
-        plt.show()
+            score = self.sess.run(accuracy, feed_dict={self.x: testImages, y_: testLabels, self.keep_prob: 1}) * 100
+            print 'Accuracy of model in testing: ', score, '%'
+            if score < 85: print 'Consider making more training images'
+            print 'Testing accuracy within 1 dB: ', float(len(within1dB))/len(ys_true)*100, '%' 
+            #acc_log.append(score)
+            train_log = np.array([['score ', score], ['keep_prob', 1], ['num_filt1', self.num_filt1], ['num_filt2', self.num_filt2], ['num_filt3', self.num_filt3],
+                ['num_filt4', 0], ['n_pool1', n_pool1], ['n_pool2', n_pool2], ['n_pool3', n_pool3], ['n_pool4', 0]])
+            print train_log
+            np.savetxt(modelName[:-4]+'.log', train_log, ('%10s', '%10s'))
+            plt.hist(ys_guess[right])
+            plt.title('correct guesses')
+            plt.show()
+            plt.hist(ys_guess)
+            plt.title('all guesses')
+            plt.show()
+            plt.hist(ys_true)
+            plt.title('correct attens')
+            plt.show()
 
-        del trainImages, trainLabels, testImages, testLabels
+            del trainImages, trainLabels, testImages, testLabels
 
     def plotW_fc2(self, weights):
         s = np.shape(weights)
@@ -794,6 +817,8 @@ class mlClassification():
         self.inferenceData.opt_attens=numpy.zeros((res_nums))
         self.inferenceData.opt_freqs=numpy.zeros((res_nums))
 
+        print 'inferenceAttens', self.inferenceData.attens
+
         self.inferenceLabels = np.zeros((res_nums, self.nAttens))
         print 'Using trained algorithm on images on each resonator'
         skip = []
@@ -806,7 +831,7 @@ class mlClassification():
             self.inferenceLabels[rn,:] = self.sess.run(self.y, feed_dict={self.x: inferenceImage, self.keep_prob: 1})
             iAtt = np.argmax(self.inferenceLabels[rn,:])
             self.inferenceData.opt_attens[rn] = self.inferenceData.attens[iAtt]
-            self.inferenceData.opt_freqs[rn] = self.inferenceData.freqs[rn,self.get_peak_idx(rn,iAtt)]
+            self.inferenceData.opt_freqs[rn] = self.inferenceData.freqs[rn,self.get_peak_idx(rn,iAtt,smooth=True)]
             del inferenceImage
             del image
                 

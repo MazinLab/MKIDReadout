@@ -123,6 +123,8 @@ class StartQt4(QMainWindow):
         self.res1_max2_vels /= numpy.max(self.res1_max2_vels)
         #self.res1_relative_max_vels /= numpy.max(self.res1_relative_max_vels)
         self.ui.plot_1.canvas.ax.clear()
+        print 'file', self.openfile
+        print 'attens', self.Res1.atten1s
         self.ui.plot_1.canvas.ax.plot(self.Res1.atten1s,self.res1_max_vels,'b.-',label='Max IQ velocity')
         #self.ui.plot_1.canvas.ax.plot(self.Res1.atten1s,max_neighbors,'r.-')
         self.ui.plot_1.canvas.ax.plot(self.Res1.atten1s,self.res1_max_ratio,'k.-',label='Ratio (Max Vel)/(2nd Max Vel)')
