@@ -32,19 +32,20 @@ if __name__ == "__main__":
     mc_mask, mc_ipwrs, mc_pwrs = pt.loadManualClickFile(ps.inferenceData,cutoff)
 
     # reduce the a-fits to just those that have click counterparts
-    a_pwrs=np.asarray(a_pwrs)[mc_mask]
-    a_ipwrs=np.asarray(a_ipwrs)[mc_mask]
-    ps.nonlin_params=np.asarray(ps.nonlin_params)[mc_mask]
+    # if not already
+    # a_pwrs=np.asarray(a_pwrs)[mc_mask]
+    # a_ipwrs=np.asarray(a_ipwrs)[mc_mask]
+    # ps.nonlin_params=np.asarray(ps.nonlin_params)[mc_mask]
 
     # compare the values
     # pt.getMatch(mc_ipwrs, a_ipwrs)
     # pt.plotcumAccuracy(mc_pwrs, a_pwrs)
-    # pt.plotPwrGuessCompMap(mc_pwrs, a_pwrs)
 
     # plot confusion matrix
     pt.plotIndGuessCompMap(mc_ipwrs, a_ipwrs)
-    # wrong_guesses = pt.getMissed(a_ipwrs, mc_ipwrs)
-    # pt.plotMissed(ps, wrong_guesses, a_ipwrs, mc_ipwrs)
+    # print len(mc_ipwrs), len(a_ipwrs)
+    wrong_guesses = pt.getMissed(a_ipwrs[:-1], mc_ipwrs)
+    pt.plotMissed(ps, wrong_guesses, a_ipwrs, mc_ipwrs)
 
  
     # plt.hist(independent, range(max_nClass+1), label='True', facecolor='blue', alpha=0.65) 

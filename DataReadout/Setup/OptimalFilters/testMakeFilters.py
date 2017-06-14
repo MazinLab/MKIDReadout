@@ -9,7 +9,6 @@ import makeTemplate as mT
 import makeFilters as mF
 import struct
 
-import extractRawData as eRD
 import triggerPhotons as tP
 import os
 
@@ -38,14 +37,17 @@ if True:
     #rawData=np.load('/mnt/data0/Darkness/20160723/snap_117_ch8_20161018-181139.npz')    #good file can see pulses
     #rawData=np.load('/mnt/data0/Darkness/20160723/snap_117_ch9_20161018-181151.npz')    #good file can see pulses
     #rawData=np.load('/mnt/data0/Darkness/20161107/117_data/snap_117_ch0_20161108-190956.npz')
-    rawData=np.load('/mnt/data0/Darkness/20170227/optimal_filters/112_data/snap_112_ch274_20170303-212630.npz')
+    #rawData=np.load('/mnt/data0/Darkness/20170227/optimal_filters/112_data/snap_112_ch274_20170303-212630.npz')
+    #rawData=np.load('/mnt/data0/Darkness/20170403/optimal_filters/112_data/snap_112_ch282_20170403-050343.npz')
+    rawData=np.load('/mnt/data0/Darkness/20170403/optimal_filters/112_data/snap_112_ch2_20170403-024920.npz')
+
     key=rawData.keys()
     rawData=rawData[key[0]]
     print "data extracted"
     
     defaultFilter=np.loadtxt('/mnt/data0/nzobrist/MkidDigitalReadout/DataReadout/Setup/OptimalFilters/matched50_20.0us.txt')
     #make template 4,.05 works well 5,.05
-    template, time, noiseSpectrumDict, _, _ = mT.makeTemplate(rawData,nSigmaTrig=5.,numOffsCorrIters=3,isVerbose=isVerbose,isPlot=isPlot,defaultFilter=defaultFilter, sigPass=.05)
+    template, time, noiseSpectrumDict, templateList, _ = mT.makeTemplate(rawData,nSigmaTrig=5.,numOffsCorrIters=3,isVerbose=isVerbose,isPlot=isPlot,defaultFilter=defaultFilter, sigPass=.05)
     print "template made"
     
     #noiseSpectrumDict['noiseSpectrum']=np.ones(len(noiseSpectrumDict['noiseSpectrum']))
@@ -54,11 +56,12 @@ if True:
     #noiseSpectrumDict['noiseSpectrum'][np.abs(noiseSpectrumDict['noiseFreqs'])>210000]=5e-5
    
     #make matched filter
-    #matchedFilter=mF.makeMatchedFilter(template, noiseSpectrumDict['noiseSpectrum'], nTaps=50, tempOffs=95)
+    matchedFilter=mF.makeMatchedFilter(template, noiseSpectrumDict['noiseSpectrum'], nTaps=60, tempOffs=0)
+    wienerFilter=mF.makeWienerFilter(template,noiseSpectrumDict['noiseSpectrum'])
     #coef, _ = opt.curve_fit(lambda x, a, t0 : a*exp(-x/t0), time[len(time)*1/5:len(time)*4/5],template[len(time)*1/5:len(time)*4/5], [-1 , 30e-6])
     #fallFit=coef[1]
     #superMatchedFilter=mF.makeSuperMatchedFilter(template, noiseSpectrumDict['noiseSpectrum'], fallFit, nTaps=50, tempOffs=75)
-    #print "filters made"
+    print "filters made"
     
     #convolve with filter
     #filteredData=np.convolve(rawData,matchedFilter,mode='same') 
@@ -91,7 +94,7 @@ if False:
     rawData, rawTime = mAD.makePoissonData(totalTime=2*131.072e-3,amplitudes='random',maxSignalToNoise=10,isVerbose=isVerbose)
     rawData*=2
     #make template
-    finalTemplate, time , noiseSpectrumDict, _ , _ = mT.makeTemplate(rawData,nSigmaTrig=4.,numOffsCorrIters=2,isVerbose=isVerbose,isPlot=isPlot)
+    finalTemplate, time , noiseSpectrumDict, _ , _ = mT.makeTemplate(rawData,nSigmaTrig=5.,numOffsCorrIters=2,isVerbose=isVerbose,isPlot=isPlot)
     #fit to arbitrary pulse shape
     fittedTemplate, startFit, riseFit, fallFit = mT.makeFittedTemplate(finalTemplate,time,riseGuess=3.e-6,fallGuess=55.e-6)
     #make matched filter

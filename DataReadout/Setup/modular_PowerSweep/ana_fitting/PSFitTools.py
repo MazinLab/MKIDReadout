@@ -87,9 +87,13 @@ def loadManualClickFile(inferenceData, cutoff=-1):
     # mc_pwrs = MCFile[:,2]*-1
 
     mc_mask = inferenceData.good_res
+    print inferenceData.good_res
+
     if cutoff != -1:
         cutoff = np.where(mc_mask <= cutoff)[0][-1]
-
+    else:
+        cutoff = len(mc_mask)
+    
     mc_mask = mc_mask[:cutoff]
     mc_ipwrs = inferenceData.opt_iAttens[:cutoff]
     mc_pwrs = inferenceData.opt_attens[:cutoff]
@@ -100,6 +104,8 @@ def loadManualClickFile(inferenceData, cutoff=-1):
 
 def getMissed(a_pwrs, mc_pwrs):
     wrong_guesses = []
+    print a_pwrs, len(a_pwrs), a_pwrs[-1]
+    print len(a_pwrs), len(mc_pwrs)
     for ig, _ in enumerate(a_pwrs):
         if abs(a_pwrs[ig] - mc_pwrs[ig]) > 0:
             wrong_guesses.append(ig)

@@ -17,7 +17,7 @@ import math
 from scipy import interpolate
 from PSFitMLData import *
 import PSFitMLTools as mlt
-from ml_params import mldir, trainFile, max_nClass, trainReps, batches, trainBinFile
+from ml_params import  trainFile, max_nClass, trainReps, batches, trainBinFile
 # from PSFitMLData_origPSFile import *
 np.set_printoptions(threshold=np.inf)
 from tensorflow.contrib.tensorboard.plugins import projector
@@ -211,11 +211,11 @@ class mlClassification():
         self.keep_prob = tf.placeholder(tf.float32)
         # h_conv_final = tf.nn.dropout(h_conv_final, self.keep_prob)
         N = 200
-        W4 = tf.Variable(tf.truncated_normal([26 * 17 * 3, N], stddev=0.1))
+        W4 = tf.Variable(tf.truncated_normal([max_nClass * 17 * 3, N], stddev=0.1))
         W5 = tf.Variable(tf.truncated_normal([N, 2], stddev=0.1))
         B5 = tf.Variable(tf.constant(0.1, tf.float32, [2]))
         print 'h_pool1', h_pool1
-        YY = tf.reshape(h_pool1, shape=[-1, 26 * 17 * 3])
+        YY = tf.reshape(h_pool1, shape=[-1, max_nClass * 17 * 3])
 
         Y4l = tf.matmul(YY, W4)
         # Y4bn, update_ema4 = batchnorm(Y4l, tst, iter, B4)
@@ -485,159 +485,161 @@ class mlClassification():
    
         # # return sess
 
-    # def findPowers(self, inferenceFile, showFrames = False, plot_res= False, searchAllRes=True, res_nums=50):
-    #     '''The trained machine learning class (mlClass) finds the optimum attenuation for each resonator using peak shapes in IQ velocity
+    def findPowers(self, inferenceFile, showFrames = False, plot_res= False, searchAllRes=True, res_nums=50):
+        '''The trained machine learning class (mlClass) finds the optimum attenuation for each resonator using peak shapes in IQ velocity
 
-    #     Inputs
-    #     inferenceFile: widesweep data file to be used
-    #     searchAllRes: if only a few resonator attenuations need to be identified set to False
-    #     res_nums: if searchAllRes is False, the number of resonators the atteunation value will be estimated for
-    #     usePSFit: if true once all the resonator attenuations have been estimated these values are fed into PSFit which opens
-    #               the window where the user can manually check all the peaks have been found and make corrections if neccessary
+        Inputs
+        inferenceFile: widesweep data file to be used
+        searchAllRes: if only a few resonator attenuations need to be identified set to False
+        res_nums: if searchAllRes is False, the number of resonators the atteunation value will be estimated for
+        usePSFit: if true once all the resonator attenuations have been estimated these values are fed into PSFit which opens
+                  the window where the user can manually check all the peaks have been found and make corrections if neccessary
 
-    #     Outputs
-    #     Goodfile: either immediately after the peaks have been located or through WideAna if useWideAna =True
-    #     mlFile: temporary file read in to PSFit.py containing an attenuation estimate for each resonator
-    #     '''
+        Outputs
+        Goodfile: either immediately after the peaks have been located or through WideAna if useWideAna =True
+        mlFile: temporary file read in to PSFit.py containing an attenuation estimate for each resonator
+        '''
 
-    #     try:
-    #         self.sess
-    #     except AttributeError:
-    #         print 'You have to train the model first'
-    #         exit()
+        try:
+            self.sess
+        except AttributeError:
+            print 'You have to train the model first'
+            exit()
 
-    #     if not inferenceFile is None:
-    #         print 'Inference File:', inferenceFile
-    #         inferenceData = PSFitMLData(h5File = inferenceFile, useAllAttens = True)
+        if not inferenceFile is None:
+            print 'Inference File:', inferenceFile
+            inferenceData = PSFitMLData(h5File = inferenceFile, useAllAttens = True)
+            inferenceData.loadRawTrainData()
+        if searchAllRes:
+            res_nums = np.shape(inferenceData.freqs)[0]
 
-    #     if searchAllRes:
-    #         res_nums = np.shape(inferenceData.freqs)[0]
+        print 'res nums',  res_nums
+        resonators = range(res_nums)
+        nattens = np.shape(inferenceData.attens)[1]
+        # nattens = max_nClass
 
-    #     print 'res nums',  res_nums
-    #     resonators = range(res_nums)
-    #     nattens = np.shape(inferenceData.attens)[1]
-    #     # nattens = max_nClass
+        self.inferenceLabels = np.zeros((res_nums,2))
+        # self.low_stds = np.zeros((res_nums))
+        # self.ang_means = np.zeros((res_nums,max_nClass))
+        # self.ang_stds = np.zeros((res_nums,max_nClass))
+        # self.max_ratios = np.zeros((res_nums,max_nClass))
+        # self.running_ratios = np.zeros((res_nums,max_nClass))
+        # self.ratio_guesses = np.zeros((res_nums))
 
-    #     self.inferenceLabels = np.zeros((res_nums,2))
-    #     self.low_stds = np.zeros((res_nums))
-    #     self.ang_means = np.zeros((res_nums,max_nClass))
-    #     self.ang_stds = np.zeros((res_nums,max_nClass))
-    #     self.max_ratios = np.zeros((res_nums,max_nClass))
-    #     self.running_ratios = np.zeros((res_nums,max_nClass))
-    #     self.ratio_guesses = np.zeros((res_nums))
+        print 'Using trained algorithm on images on each resonator'
+        self.bad_res = []
+        for i,rn in enumerate(resonators): 
+            sys.stdout.write("\r%d of %i" % (i+1,res_nums) )
+            sys.stdout.flush()
 
-    #     print 'Using trained algorithm on images on each resonator'
-    #     self.bad_res = []
-    #     for i,rn in enumerate(resonators): 
-    #         sys.stdout.write("\r%d of %i" % (i+1,res_nums) )
-    #         sys.stdout.flush()
+            # indx=[]
+            # for ia in range(nattens):
+            #     indx.append(argmax(iq_vels[rn,ia,:]))
+            # plt.plot(attens,freqs[rn,indx]/1e9)
+            # plt.show()
 
-    #         # indx=[]
-    #         # for ia in range(nattens):
-    #         #     indx.append(argmax(iq_vels[rn,ia,:]))
-    #         # plt.plot(attens,freqs[rn,indx]/1e9)
-    #         # plt.show()
+            # showFrames =True
+            # if rn < 5: showFrames=True
 
-    #         # showFrames =True
-    #         # if rn < 5: showFrames=True
+            # angles_nonsat, ratio_nonsat, ratio, running_ratio, bad_res, ang_mean, ang_std = mlt.checkResAtten(inferenceData, res_num=rn)
+            # noisy_res = 0
+            # low_std = np.argmax(ang_mean/ang_std)
+            # # low_std = np.argmax(ang_mean)
+            # # low_std = np.argmin(ang_std)
 
-    #         angles_nonsat, ratio_nonsat, ratio, running_ratio, bad_res, ang_mean, ang_std = mlt.checkResAtten(inferenceData, res_num=rn)
-    #         # noisy_res = 0
-    #         low_std = np.argmax(ang_mean/ang_std)
-    #         # low_std = np.argmax(ang_mean)
-    #         # low_std = np.argmin(ang_std)
-
-    #         self.low_stds[rn] = low_std
-    #         self.ang_means[rn,:inferenceData.nClass] = ang_mean
-    #         self.ang_stds[rn, :inferenceData.nClass] = ang_std
-    #         self.max_ratios[rn, :inferenceData.nClass] = ratio
-    #         self.running_ratios[rn, :inferenceData.nClass] = running_ratio
-    #         # self.ratio_guess = np.where(running_ratio/max(running_ratio)<0.4)[0][0]
-    #         ratio_guess = np.where(running_ratio<2.5)[0][0]
+            # self.low_stds[rn] = low_std
+            # self.ang_means[rn,:inferenceData.nClass] = ang_mean
+            # self.ang_stds[rn, :inferenceData.nClass] = ang_std
+            # self.max_ratios[rn, :inferenceData.nClass] = ratio
+            # self.running_ratios[rn, :inferenceData.nClass] = running_ratio
+            # # self.ratio_guess = np.where(running_ratio/max(running_ratio)<0.4)[0][0]
+            # ratio_guess = np.where(running_ratio<2.5)[0][0]
             
-    #         # print ratio_guess
-    #         if ratio_guess<nattens-1:
-    #             while (running_ratio[ratio_guess] - running_ratio[ratio_guess+1] > 0.1) and (ratio_guess<nattens-2):
-    #                 ratio_guess +=1
-    #                 # print ratio_guess, nattens-2
-    #         if type(ratio_guess) ==np.int64:
-    #             self.ratio_guesses[rn] = ratio_guess
+            # print ratio_guess
+            # if ratio_guess<nattens-1:
+            #     while (running_ratio[ratio_guess] - running_ratio[ratio_guess+1] > 0.1) and (ratio_guess<nattens-2):
+            #         ratio_guess +=1
+            #         # print ratio_guess, nattens-2
+            # if type(ratio_guess) ==np.int64:
+            #     self.ratio_guesses[rn] = ratio_guess
 
-    #         bad_res = False
-    #         if not bad_res:
-    #             # for ia in range(nattens-1):                
-    #             # first check the loop for saturation           
+            bad_res = False
+            if not bad_res:
+                # for ia in range(nattens-1):                
+                # first check the loop for saturation           
                
-    #             # nonsaturated_loop = angles_nonsat[ia] and ratio_nonsat[ia]
-    #             # nonsaturated_loop = True
-    #             # if nonsaturated_loop:
-    #             # each image is formatted into a single element of a list so sess.run can receive a single values dictionary 
-    #             image = mlt.makeResImage(inferenceData, res_num = rn, phase_normalise=True,showFrames=False)
-    #             inferenceImage=[]
-    #             inferenceImage.append(image)            # inferenceImage is just reformatted image
-    #             self.inferenceLabels[rn,:] = self.sess.run(self.y, feed_dict={self.x: inferenceImage,self.keep_prob:1} )
+                # nonsaturated_loop = angles_nonsat[ia] and ratio_nonsat[ia]
+                # nonsaturated_loop = True
+                # if nonsaturated_loop:
+                # each image is formatted into a single element of a list so sess.run can receive a single values dictionary 
+                image = mlt.makeBinResImage(inferenceData, res_num = rn, phase_normalise=True,showFrames=False)
+                inferenceImage=[]
+                inferenceImage.append(image)            # inferenceImage is just reformatted image
+                self.inferenceLabels[rn,:] = self.sess.run(self.y, feed_dict={self.x: inferenceImage,self.keep_prob:1} )
 
-    #             del inferenceImage
-    #             del image
+                del inferenceImage
+                del image
 
                
-    #             # inferenceLabels[rn,0,0]= inferenceLabels[rn,1,0] # since 0th term is skipped (and therefore 0)
-    #         # else:
-    #         #     inferenceLabels[rn,:] = [1,0]
-    #         else:
-    #             self.bad_res.append(rn)
-    #             self.inferenceLabels[rn,:] = np.zeros((nattens)) # removed later anyway
+                # inferenceLabels[rn,0,0]= inferenceLabels[rn,1,0] # since 0th term is skipped (and therefore 0)
+            # else:
+            #     inferenceLabels[rn,:] = [1,0]
+            else:
+                self.bad_res.append(rn)
+                self.inferenceLabels[rn,:] = np.zeros((nattens)) # removed later anyway
 
-    #             # print np.shape(inferenceLabels), rn
-    #             # inferenceLabels = np.delete(inferenceLabels,rn,0)
-    #             # inferenceLabels = inferenceLabels[:-1] 
+                # print np.shape(inferenceLabels), rn
+                # inferenceLabels = np.delete(inferenceLabels,rn,0)
+                # inferenceLabels = inferenceLabels[:-1] 
         
-    #     # print inferenceLabels[:,19,0]
-    #     # inferenceLabels = np.delete(inferenceLabels,bad_res,0)
-    #     # print inferenceLabels[:,19,0] 
+        # print inferenceLabels[:,19,0]
+        # inferenceLabels = np.delete(inferenceLabels,bad_res,0)
+        # print inferenceLabels[:,19,0] 
 
-    #         # if np.all(inferenceLabels[rn,:,1] ==0): # if all loops appear saturated for resonator then set attenuation to highest
-    #         #     #best_guess = argmax(inferenceLabels[rn,:,1])
-    #         #     #print best_guess
-    #         #     # print inferenceLabels[rn,:,1]
-    #         #     # print rn
+            # if np.all(inferenceLabels[rn,:,1] ==0): # if all loops appear saturated for resonator then set attenuation to highest
+            #     #best_guess = argmax(inferenceLabels[rn,:,1])
+            #     #print best_guess
+            #     # print inferenceLabels[rn,:,1]
+            #     # print rn
 
-    #         #     best_guess = 20#int(np.random.normal(nattens*2/5, 3, 1))
-    #         #     if best_guess > nattens: best_guess = nattens
-    #         #     inferenceLabels[rn,best_guess,:] = [0,1]  # or omit from list
+            #     best_guess = 20#int(np.random.normal(nattens*2/5, 3, 1))
+            #     if best_guess > nattens: best_guess = nattens
+            #     inferenceLabels[rn,best_guess,:] = [0,1]  # or omit from list
 
-    #         # if noisy_res >= 15:#nattens:
-    #         #     inferenceLabels[rn,:] = [0,0,0]
-    #         #     inferenceLabels[rn,5] = [0,1,0]
-    #         #     skip.append(rn)
-    #     print '\n'
+            # if noisy_res >= 15:#nattens:
+            #     inferenceLabels[rn,:] = [0,0,0]
+            #     inferenceLabels[rn,5] = [0,1,0]
+            #     skip.append(rn)
+        print '\n'
 
-    #     # res_nums = res_nums - len(bad_res)
-    #     self.max_2nd_vels = np.zeros((res_nums,nattens))
-    #     for r in range(res_nums):
-    #         for iAtten in range(nattens):
-    #             vindx = (-inferenceData.iq_vels[r,iAtten,:]).argsort()[:2]
-    #             self.max_2nd_vels[r,iAtten] = inferenceData.iq_vels[r,iAtten,vindx[1]]
+        # # res_nums = res_nums - len(bad_res)
+        # self.max_2nd_vels = np.zeros((res_nums,nattens))
+        # for r in range(res_nums):
+        #     for iAtten in range(nattens):
+        #         vindx = (-inferenceData.iq_vels[r,iAtten,:]).argsort()[:2]
+        #         self.max_2nd_vels[r,iAtten] = inferenceData.iq_vels[r,iAtten,vindx[1]]
 
-    #     self.atten_guess=numpy.zeros((res_nums))
-    #     # # choose attenuation where there is the maximum in the 2nd highest IQ velocity
-    #     # bad=0
-    #     # inferenceLabels[:,-1,1] = 1
-    #     for r in range(res_nums):
-    #         # print inferenceLabels[r]
-    #         # print ratio_guess[r]
-    #         # print inferenceLabels[r][int(ratio_guess[r]):]
-    #         # print argmax(inferenceLabels[r][int(ratio_guess[r]):])
-    #         # print argmax(inferenceLabels[r][int(ratio_guess[r]):])+int(ratio_guess[r])
-    #         # print r, self.inferenceLabels[r], self.ratio_guesses[r], self.inferenceLabels[r][int(self.ratio_guesses[r]):-1]
+        self.atten_guess=np.zeros((res_nums))
+        # # choose attenuation where there is the maximum in the 2nd highest IQ velocity
+        # bad=0
+        # inferenceLabels[:,-1,1] = 1
+        for r in range(res_nums):
+            # print inferenceLabels[r]
+            # print ratio_guess[r]
+            # print inferenceLabels[r][int(ratio_guess[r]):]
+            # print argmax(inferenceLabels[r][int(ratio_guess[r]):])
+            # print argmax(inferenceLabels[r][int(ratio_guess[r]):])+int(ratio_guess[r])
+            # print r, self.inferenceLabels[r], self.ratio_guesses[r], self.inferenceLabels[r][int(self.ratio_guesses[r]):-1]
 
-    #         # if self.ratio_guesses[r] >= nattens -1:
-    #         #     self.atten_guess[r] = nattens
-    #         # else:
-    #         #     self.atten_guess[r] = argmax(self.inferenceLabels[r][int(self.ratio_guesses[r]):-1])+ int(self.ratio_guesses[r])
-    #         self.atten_guess[r] = argmax(self.inferenceLabels[r])
-    #         print self.atten_guess[r]
-    #         # print inferenceLabels[r]
+            # if self.ratio_guesses[r] >= nattens -1:
+            #     self.atten_guess[r] = nattens
+            # else:
+            #     self.atten_guess[r] = argmax(self.inferenceLabels[r][int(self.ratio_guesses[r]):-1])+ int(self.ratio_guesses[r])
+            self.atten_guess[r] = np.argmax(self.inferenceLabels[r])
+            print r, self.atten_guess[r]
+            # print inferenceLabels[r]
+
+
 
 def next_batch(trainImages, trainLabels, batch_size):
     '''selects a random batch of batch_size from trainImages and trainLabels'''

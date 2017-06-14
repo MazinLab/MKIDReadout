@@ -3,13 +3,21 @@ import numpy as np
 saveDir = '/home/rupert/Documents/Widesweep_data/20161016/'
 inferenceFile = 'ps_r7_100mK_a_20161016-155917'
 
+# saveDir = '/home/rupert/Documents/Hal_train_data/20160719/'
+# inferenceFile = 'ps_r119_FL2_a_pos_20160719-214142'
+
+# saveDir = '/home/rupert/Documents/Widesweep_data/20160407/'
+# inferenceFile = ''
+
 cutoff = -1
 ml_dir = '/home/rupert/PythonProjects/MkidDigitalReadout/MkidDigitalReadout/DataReadout/Setup/modular_PowerSweep/'
 cacheDir = saveDir + 'ana_cache/'
 force_a_trend = 100
 
+bifur_thresh = 0.5
+
 # synthetic params
-nAttens = 15
+nAttens = 20 #15
 pwr_start = 50
 num_fakes = 300
 good_res = np.asarray(

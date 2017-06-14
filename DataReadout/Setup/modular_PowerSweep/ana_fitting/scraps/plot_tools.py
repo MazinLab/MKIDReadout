@@ -140,7 +140,7 @@ def plotResListData(resList, plot_types=['IQ'], **kwargs):
     #need to add the ability to waterfall the mag and phase plots.
     supported_types = ['IQ', 'rIQ', 'LogMag', 'LinMag', 'rMag',
                         'Phase', 'rPhase', 'uPhase', 'ruPhase',
-                        'I', 'rI', 'Q', 'rQ']
+                        'I', 'rI', 'Q', 'rQ', 'vIQ']
     assert all(plt_key in supported_types for plt_key in plot_types), "Unsupported plotType requested!"
 
     #Get a list of unique temps and powers
@@ -216,7 +216,7 @@ def plotResListData(resList, plot_types=['IQ'], **kwargs):
 
 
     #Set up the figure
-    figS = plt.figure(figsize=(8,7))
+    figS = plt.figure(figsize=(16.5,7))
 
     SMALL_SIZE = 14
     MEDIUM_SIZE = 18
@@ -239,10 +239,11 @@ def plotResListData(resList, plot_types=['IQ'], **kwargs):
     #15:1 is the ratio of axis width for regular axes to colorbar axis
     if show_colorbar:
         # figS.set_size_inches(fig_size*(num_cols+0.1)*1.6, fig_size*num_rows)
-        figS.set_size_inches(fig_size * num_cols, fig_size * (num_rows+0.1)* 1.6)
+        figS.set_size_inches(fig_size*(num_cols+0.1)*1.6, fig_size*num_rows)
+        # figS.set_size_inches(fig_size * num_cols, fig_size * (num_rows+0.1)* 1.6)
         #Initialize the grid for plotting
         # plt_grid = gs.GridSpec(num_rows+1, num_cols, height_ratios= [15,1])#, width_ratios=[15]*num_cols+[1])
-        plt_grid = gs.GridSpec(num_rows, num_cols+1, width_ratios=[15]*num_cols+[1])#, width_ratios=[15]*num_cols+[1])
+        plt_grid = gs.GridSpec(num_rows, num_cols+1, width_ratios=[20]*num_cols+[1])#, width_ratios=[15]*num_cols+[1])
     else:
         figS.set_size_inches(fig_size*(num_cols)*1.2, fig_size*num_rows)
 
@@ -269,7 +270,7 @@ def plotResListData(resList, plot_types=['IQ'], **kwargs):
             ax.set_ylabel('Residual of Q / $\sigma_\mathrm{Q}$')
 
         if key in ['LogMag', 'LinMag', 'rMag', 'Phase', 'rPhase', 'uPhase',
-                    'ruPhase', 'I', 'Q', 'rQ', 'rI']:
+                    'ruPhase', 'I', 'Q', 'rQ', 'rI', 'vIQ']:
             ax.set_xlabel('Frequency (' + freq_units + ')')
 
         if key == 'LinMag':
@@ -304,6 +305,9 @@ def plotResListData(resList, plot_types=['IQ'], **kwargs):
 
         if key == 'rQ':
             ax.set_ylabel('Residual of Q / $\sigma_\mathrm{Q}$')
+
+        if key == 'vIQ':
+            ax.set_ylabel('IQ Velocity (Volts)')
 
         #Stuff the axis into the axis dictionary
         axDict[key] = ax
@@ -397,16 +401,33 @@ def plotResListData(resList, plot_types=['IQ'], **kwargs):
                     if key == 'rQ':
                         ax.plot(scaled_freq, res.residualQ, color=plt_color, linestyle='', marker='.',**plot_kwargs)
 
+                    if key == 'vIQ':
+                        ax.plot(scaled_freq[1:], res.vIQ, color=plt_color, **plot_kwargs)
+                        # #Make the plot a square
+                        # x1, x2 = ax.get_xlim()
+                        # y1, y2 = ax.get_ylim()
+
+                        # #Explicitly passing a float to avoid a warning in matplotlib
+                        # #when it gets a numpy.float64
+                        # print float((x2-x1)/(y2-y1))
+                        # ax.set_aspect(float((x2-x1)/(y2-y1)))
+                        ax.set_yscale('log')
+
+
+
+
+
                     ax.set_xticklabels(ax.get_xticks(),rotation=45)
 
-                    if force_square:
-                        #Make the plot a square
-                        x1, x2 = ax.get_xlim()
-                        y1, y2 = ax.get_ylim()
+                    # if force_square:
+                    #     #Make the plot a square
+                    #     x1, x2 = ax.get_xlim()
+                    #     y1, y2 = ax.get_ylim()
 
-                        #Explicitly passing a float to avoid a warning in matplotlib
-                        #when it gets a numpy.float64
-                        ax.set_aspect(float((x2-x1)/(y2-y1)))
+                    #     #Explicitly passing a float to avoid a warning in matplotlib
+                    #     #when it gets a numpy.float64
+                    #     ax.set_aspect(float((x2-x1)/(y2-y1)))
+
 
     #Add the colorbar
     if show_colorbar:

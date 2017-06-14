@@ -19,7 +19,11 @@ import PSFitMLTools as mlt
 from random import randint
 
 np.set_printoptions(threshold=np.inf)
+<<<<<<< HEAD
 from ml_params import mldir, trainFile, testFrac, max_nClass, trainBinFile, res_per_class, trainDir
+=======
+from ml_params import *#trainFile, testFrac, max_nClass, trainBinFile, res_per_class, level_train
+>>>>>>> a8581aac94b1876ee2faf16c1407c37d20740a9d
 
 # removes visible depreciation warnings from lib.iqsweep
 import warnings
@@ -156,32 +160,42 @@ class PSFitting():
 
 class PSFitMLData():
     # def __init__(self, h5File=None, useAllAttens=True, useResID=True):
-    def __init__(self, h5File=None, PSFile=None, useAllAttens=True):
+    def __init__(self, h5File=None, PSFile=None, useAllAttens=True, auto_append=False):
         self.useAllAttens = useAllAttens
         # self.useResID=useResID
         self.h5File = h5File
+        print self.h5File
+
         if PSFile == None:
             self.PSFile = self.h5File[:-3] + '.txt'  # 'x-reduced.txt'
         else:
             self.PSFile = PSFile
         self.PSPFile = self.h5File[:-3] + '.pkl'
         self.baseFile = self.h5File[:-19]
+        print self.PSPFile
 
+        self.auto_append = auto_append
+        # exit()
         self.freqs, self.iq_vels, self.Is, self.Qs, self.attens, self.resIDs = self.get_PS_data()
 
         self.opt_attens = None
         self.opt_freqs = None
-        self.nClass = np.shape(self.attens)[1]
+        self.nClass = 20 # np.shape(self.attens)[1]
         # self.nClass = max_nClass
         self.xWidth = 50
 
         # self.trainFile = 'ps_peaks_train_iqv_allres_c%i.pkl' % (self.nClass)
+<<<<<<< HEAD
         self.mldir = mldir
         self.trainDir = trainDir
+=======
+        self.mldir = modelDir
+>>>>>>> a8581aac94b1876ee2faf16c1407c37d20740a9d
         self.trainFile = trainFile
         self.trainBinFile = trainBinFile
         self.testFrac = testFrac
         self.trainFrac = 1 - self.testFrac
+        self.level_train = level_train
         # self.mldir = os.environ['MLDIR'] #'./cache/'
         # self.trainFile = os.environ['TRAINFILE']# 'ps_train.pkl'
         # self.trainFrac = 0.9
@@ -194,33 +208,46 @@ class PSFitMLData():
         '''
         PSFile = np.loadtxt(self.PSFile, skiprows=1)
 
-        print np.shape(PSFile)
+        # print np.shape(PSFile)
         if np.shape(PSFile)[1] > 3:
             print 'This train file is in the old format'
             print 'loading peak location data from %s' % self.PSFile
             # PSFile = np.loadtxt(self.PSFile, skiprows=1)
             opt_freqs = PSFile[:, 0]
-            self.opt_attens = PSFile[:, 3] + 1
+            self.opt_attens = PSFile[:, 3] # + 1 old files appear to choose powers closer to bifurcation
             # print self.opt_attens[95:105]
-            self.opt_attens[99] = 40
+            # self.opt_attens[99] = 40
             # print self.opt_attens[95:105]
-            print 'adding one'
-            # exit()
             # print 'psfile shape', np.shape(PSFile)
+            if opt_freqs[1] < 10:
+                print 'frequencies in GHz'
+                round_val = 5
+            else:
+                print 'frequencies in Hz'
+                round_val = -5
 
-            all_freqs = np.around(self.freqs, decimals=-4)
-            opt_freqs = np.around(opt_freqs, decimals=-4)
+            # all_freqs = np.around(self.freqs, decimals=round_val)
+            # opt_freqs = np.around(opt_freqs, decimals=round_val)
+            all_freqs = self.freqs
+            opt_freqs = opt_freqs
             good_res = np.arange(len(self.freqs))
             a, b = 0, 0
 
-            for g in range(len(opt_freqs) - 2):
+            try:
+                assert np.all(opt_freqs - np.roll(opt_freqs, 1) > 0)
+            except AssertionError:
+                print 'lower adjacent frequencies to remove: ', np.where(opt_freqs - np.roll(opt_freqs, 1) <= 0)
+
+            for g in range(len(opt_freqs)):
                 # print g, a, opt_freqs[g], [all_freqs[a,0], all_freqs[a,-1]]
-                while opt_freqs[g] not in all_freqs[a, :]:
+                while (opt_freqs[g] < all_freqs[a, 0]) or (opt_freqs[g] > all_freqs[a, -1]):
+                #while opt_freqs[g] not in all_freqs[a, :]:
                     good_res = np.delete(good_res,
                                          g + b)  # identify this value of all_freqs as bad by removing from list
                     a += 1  # keep incrementing until opt_freqs matches good_freqs
                 a += 1  # as g increments so does a
-            iFinTrainRes = np.where(opt_freqs[-1] == np.around(self.freqs[good_res], decimals=-4))[0][0] + 1
+            # iFinTrainRes = np.where(opt_freqs[-1] == np.around(self.freqs[good_res], decimals=round_val))[0][0] + 1
+            iFinTrainRes = np.where(np.around(opt_freqs[-1], decimals=round_val) == np.around(self.freqs[good_res], decimals=round_val))[0][0] + 1
             self.good_res = good_res[:iFinTrainRes]
 
         else:
@@ -248,20 +275,26 @@ class PSFitMLData():
         self.res_nums = len(self.good_res)
         self.attens_orig = self.attens
 
+        # print self.attens, np.shape(self.attens)
         self.attens = self.attens[self.good_res, :]
+        # print np.shape(self.attens)[0], np.shape(self.opt_attens), len(self.good_res)
 
-        optAttenLocs = np.where(np.transpose(
-            np.transpose(np.array(self.attens)) == np.array(self.opt_attens)))  # find optimal atten indices
-        print np.shape(optAttenLocs)
+        assert np.shape(self.attens)[0] == np.shape(self.opt_attens)[0]
+
+        # exit()
+
+        optAttenLocs = np.where(np.transpose(np.transpose(np.array(self.attens)) == np.array(self.opt_attens[:])))  # find optimal atten indices
+
         optAttenExists = optAttenLocs[0]
         self.opt_iAttens = optAttenLocs[1]
+        # print self.opt_iAttens
 
         # print optAttenLocs
-        print self.attens[:11], self.opt_attens[:11]
+        # print self.attens[:11], self.opt_attens[:100]
         attenSkips = optAttenLocs[0] - np.arange(len(optAttenLocs[0]))
         attenSkips = np.where(np.diff(attenSkips))[0] + 1  # indices where opt atten was not found
 
-        print attenSkips
+        print 'attenSkips', attenSkips
         for resSkip in attenSkips:
             print 'resSkip', resSkip
             print self.opt_attens[resSkip], self.attens[resSkip, 0], self.attens[resSkip, -1]
@@ -293,6 +326,7 @@ class PSFitMLData():
         #         print ia, a
         #         self.good_res = np.delete(self.good_res, np.where(self.good_res ==ia)[0])
 
+
         self.good_res = np.delete(self.good_res, np.where(self.opt_iAttens >= max_nClass)[0])
         # self.attens = np.delete(self.attens, np.where(self.opt_iAttens>=max_nClass))
         self.opt_iAttens = np.delete(self.opt_iAttens, np.where(self.opt_iAttens >= max_nClass)[0])
@@ -302,9 +336,10 @@ class PSFitMLData():
         # print 'optfreqs len', len(opt_freqs)
         # print 'self.freqs len', len(self.freqs)
         # print self.good_res
-        print type(self.good_res), type(self.resIDs), self.good_res, len(self.good_res)
+        # print type(self.good_res), type(self.resIDs), self.good_res, len(self.good_res)
 
-        self.freqs = np.around(self.freqs[self.good_res], decimals=-4)
+        print '** do the freqs still need to be rounded? **'
+        self.freqs = np.around(self.freqs[self.good_res], decimals=-4) 
         self.opt_freqs = np.around(opt_freqs, decimals=-4)
         self.iq_vels = self.iq_vels[self.good_res]
         self.Is = self.Is[self.good_res]
@@ -436,8 +471,7 @@ class PSFitMLData():
         #     datacube = mlt.makeResImage(self, res_num=r, showFrames=False)
         #     mlt.plot_max_ratio(datacube)
 
-        level_train = True
-        if level_train:
+        if self.level_train:
             # this bit of code is concerned with evening out the classes with label preserving transformation duplications
             class_prob = np.zeros((max_nClass))
             for c in range(max_nClass):
@@ -501,6 +535,7 @@ class PSFitMLData():
         # exit()
         # x = [np.argmax(trainLabels, axis =1), np.argmax(testLabels, axis =1)]
         # plt.hist(x, range(max_nClass +1), stacked =True)
+<<<<<<< HEAD
         plt.figure(figsize=(8,8))
         plt.hist(np.argmax(trainLabels, axis =1), range(max_nClass + 1), facecolor='green', alpha=0.65)
         plt.xlabel('Class label')
@@ -512,12 +547,34 @@ class PSFitMLData():
         
         append = None
         if os.path.isfile(self.trainDir + self.trainFile):
+=======
+
+        # ** move to mlt **
+        # plt.figure(figsize=(8,8))
+        # plt.hist(np.argmax(trainLabels, axis =1), range(max_nClass + 1), facecolor='green', alpha=0.65)
+        # plt.xlabel('Class label')
+        # plt.show()
+        # plt.figure(figsize=(8,8))
+        # plt.hist(np.argmax(testLabels, axis =1), range(max_nClass + 1), facecolor='red', alpha=0.65)
+        # plt.xlabel('Class label')
+        # plt.show()
+        print self.auto_append
+
+        append = None #"%s/%s" % (trainDir,modelDir)
+        print os.path.join(trainDir, self.mldir, self.trainFile)
+        if os.path.isfile(os.path.join(trainDir, self.mldir, self.trainFile)) and self.auto_append:
+>>>>>>> a8581aac94b1876ee2faf16c1407c37d20740a9d
             append = raw_input('Do you want to append this training data to previous data [y/n]')
         if (append == 'n'):
             self.trainFile = self.trainFile.split('-')[0] + time.strftime("-%Y-%m-%d-%H-%M-%S")
         if (append == 'y') or (os.path.isfile(self.trainFile) == False):
+<<<<<<< HEAD
             print 'saving %s to %s' % (self.trainDir + self.trainFile, os.path.dirname(os.path.abspath(self.trainFile)))
             with open(self.trainDir + self.trainFile, 'ab') as tf:
+=======
+            print 'saving %s to %s' % (os.path.join(trainDir, self.mldir, self.trainFile), os.path.dirname(os.path.abspath(self.trainFile)))
+            with open(os.path.join(trainDir, self.mldir, self.trainFile), 'ab') as tf:
+>>>>>>> a8581aac94b1876ee2faf16c1407c37d20740a9d
                 pickle.dump([trainImages, trainLabels], tf)
                 pickle.dump([testImages, testLabels], tf)
 
@@ -695,7 +752,7 @@ class PSFitMLData():
                 except KeyError:
                     useResID = False
 
-                print useResID
+                # print useResID
                 # exit()
                 if useResID:
                     resIDs[r] = res['resID']
@@ -703,7 +760,7 @@ class PSFitMLData():
                     resIDs[r] = r
 
                 freqs[r, :] = res['freq']
-                print np.shape(iq_vels), np.shape(res['iq_vels'])
+                # print np.shape(iq_vels), np.shape(res['iq_vels'])
                 iq_vels[r, :, :] = res['iq_vels']
                 Is[r, :, :] = res['Is']
                 Qs[r, :, :] = res['Qs']

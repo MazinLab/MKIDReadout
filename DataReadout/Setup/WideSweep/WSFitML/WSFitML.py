@@ -69,7 +69,13 @@ def find_peaks(S11, man_peaks, S11_test):
 
 def get_peaks():
     # Import data
-    trainset = np.asarray(ws.load_raw_wide_sweep(datadir+train_raw_sweep_file))
+    trainset=[[],[],[]]
+    end_value = np.zeros((len(train_raw_sweep_files)+1))  
+    for t in range(len(train_raw_sweep_files)):
+        single_trainset = np.asarray(ws.load_raw_wide_sweep(datadir+train_raw_sweep_files[t]))
+        end_value[t+1] = len(single_trainset[0]) + end_value[t]
+        trainset = np.concatenate((trainset,single_trainset), axis=1)
+        print t, np.shape(trainset), np.shape(single_trainset)
     testset = np.asarray(ws.load_raw_wide_sweep(datadir+rawsweepfile))
 
     start_ind = ws.find_nearest(testset[0], fspan[0])
@@ -83,20 +89,44 @@ def get_peaks():
 
     # splineS = len(mag)*splineS_factor
     # continuum_train = ws.fitSpline(trainset[0], mag, splineS)
+    continuum_train = ws.get_continuum(mag, 0.6)
     # ws.check_continuum(trainset[0], mag, continuum_train)
 
     # splineS = len(mag_test)*splineS_factor * 0.5
     # continuum_test = ws.fitSpline(testset[0], mag_test, splineS)
+    continuum_test = ws.get_continuum(mag_test, 0.4)
     # ws.check_continuum(testset[0], mag_test, continuum_test)
+    plt.plot(mag)
+    plt.plot(continuum_train)
+    mag = mag - continuum_train
+    plt.plot(mag)
+    mag = mag - 2*np.min(mag)
+    plt.plot(mag)    
+    plt.show()
 
-    # mag = mag - continuum_train
-    # mag_test = mag_test - continuum_test
+    # plt.plot(mag_test)
+    # plt.plot(continuum_test)
+    mag_test = mag_test - continuum_test
+    mag_test = mag_test - 2*np.min(mag_test)
+    plt.plot(mag_test)
+    plt.show()
+
 
     S11 = np.array([trainset[0, :], 20*np.log10(mag)]).T  # Normalise
     S11_test = np.array([testset[0, :], 20*np.log10(mag_test)]).T  # Normalise
-
-    man_peaks, _ = ws.load_man_click_locs(datadir+train_man_peak_file)
+    print np.shape(S11), np.shape(mag)
+    man_peaks=[]
+  
+    for t in range(len(train_raw_sweep_files)):
+        single_man_peaks, _ = ws.load_man_click_locs(datadir+train_man_peak_files[t])
+        print single_man_peaks[-1], end_value[t]
+        man_peaks = np.concatenate((man_peaks,single_man_peaks+end_value[t]))
+        print t, np.shape(man_peaks), np.shape(single_man_peaks) 
+    # man_peaks, _ = ws.load_man_click_locs(datadir+train_man_peak_file)
     # test_man_peaks, _ = ws.load_man_click_locs(datadir+manpeakfile)
+    # for mp in man_peaks:
+    #     plt.axvline(mp)
+    # plt.show()
 
     peaks, prediction = find_peaks(S11, man_peaks, S11_test)
     plot_peaks(testset[0], S11_test, prediction, peaks)

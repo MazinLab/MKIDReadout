@@ -407,7 +407,7 @@ class WideAna(QMainWindow):
             
             self.axes.set_xlim((self.xMin,self.xMax))
             self.axes.set_title("segment=%.1f/%.1f"%(self.segment,self.segmentMax))
-            self.axes.legend().get_frame().set_alpha(0.5)
+            #self.axes.legend().get_frame().set_alpha(0.5)
             self.draw()
 
     def yDisplayClicked(self, value):

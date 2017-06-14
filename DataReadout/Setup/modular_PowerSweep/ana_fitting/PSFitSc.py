@@ -18,6 +18,7 @@ import synthetic as sn
 # sys.path.append(ml_dir)
 sys.path.append('/home/rupert/PythonProjects/MkidDigitalReadout/DataReadout/Setup/modular_PowerSweep')
 from PSFitMLData import *
+# import PSFitMLTools as mlt
 
 
 class PSFitSc():
@@ -31,6 +32,7 @@ class PSFitSc():
         # plotResListData(resList)
         # resSweep = self.fitresSweep(resList)
         # plotresSweepParamsVsPwr(resSweep)
+        # mlt.makeResImage(self.inferenceData, 0, showFrames = True)
 
         # cacheDir = saveDir + 'cache/' # used to tf_meta_data
         self.resListsFile = cacheDir + 'resLists_' + inferenceFile + '.pkl'
@@ -501,7 +503,7 @@ class PSFitSc():
                 # print self.nonlin_params[irl]
             try:
 
-                pwr = np.where(self.nonlin_params[irl]<0.5)[0][0]
+                pwr = np.where(self.nonlin_params[irl]>0.7698)[0][-1]
                 # print pwr
             except:
                 # pwr = len(resLists[0])-1
@@ -560,7 +562,8 @@ class PSFitSc():
     def plotResListData(self, resList, plot_types=None, plot_fits=True):
         if plot_types == None:
             plot_types= ['IQ',
-                        'LogMag']
+                        'LogMag',
+                        'vIQ']
         if plot_fits:
             plot_fits = [True] * np.ones((len(plot_types)))
         else:
@@ -570,7 +573,7 @@ class PSFitSc():
                                     plot_types=plot_types,
                                     color_by='pwrs',
                                     fig_size=4,
-                                    num_cols = 2,
+                                    num_cols = 3,
                                     force_square=True,
                                     plot_fits = plot_fits) #<-- change this to true to overplot the best fits
 
@@ -602,7 +605,15 @@ class PSFitSc():
             pass
         plt.show()  
 
+    def add_post_vIQ(self, resList):
+        updated_resList = []
+        for res in resList:
+            res.vIQ = np.zeros((len(res.freq)-1))
+            for f in range(1,len(res.freq)):
+                res.vIQ[f-1] = np.sqrt((res.I[f]-res.I[f-1])**2 + (res.Q[f]-res.Q[f-1])**2)
+            updated_resList.append(res)
 
+        return updated_resList
 
 if __name__ == "__main__":
     # saveDir = 'ExampleData/PowerSweep/'
@@ -628,13 +639,15 @@ if __name__ == "__main__":
     # res = ps.fitres_wfit(r=0,p=15)
     # ps.fit_with_emcee(res)
 
-    # resLists = ps.fitresLists(num_res=50)
+    # resLists = ps.fitresLists(num_res=-1)
+    # resLists = ps.fitresLists(num_res=1)
 
     # resList = ps.fit_double_split(18)
 
     resLists = ps.loadresLists()
-    # for resList in resLists:
-    #     ps.plotResListData(resList)
+
+    for resList in resLists:
+        ps.plotResListData(resList)
     #     resSweep = ps.fitresSweep(resList)
     #     ps.plotresSweepParamsVsPwr(resSweep)
     #     plt.show()
@@ -661,15 +674,17 @@ if __name__ == "__main__":
     # # plt.show()
     # ps.save_resLists(resLists)
 
-    resses = [0,4, 5,14,15,33]
+    resses = [0, 3, 4, 5,10, 13, 19]
 
-    for r in range(3, 9):
+    for r in resses:#range(3, 9):
         print r
         # resList = ps.comp_double(r=r)
-        resList = ps.fitresList(r=r)
+        # resList = ps.fitresList(r=r)
+        resList = resLists[r]
 
-        for res in resList:
-            print res.lmfit_vals
+        # for res in resList:
+        #     print res.lmfit_vals
+        resList = ps.add_post_vIQ(resList)
         ps.plotResListData(resList)
         resSweep = ps.fitresSweep(resList)
         ps.plotresSweepParamsVsPwr(resSweep)
