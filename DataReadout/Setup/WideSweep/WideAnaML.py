@@ -52,6 +52,7 @@ from scipy.signal import filter_design as fd
 from scipy.interpolate import UnivariateSpline
 #import Peaks as Peaks
 from WideSweepFile import WideSweepFile
+# from WSFitML import find_peaks
 
 class WideAna(QMainWindow):
     def __init__(self, parent=None,plotFunc=None,title='',separateProcess=False, image=None,showMe=True, initialFile=None, flNum=None):
@@ -276,9 +277,12 @@ class WideAna(QMainWindow):
         self.badPeakMask = np.zeros(len(self.wsf.x),dtype=np.bool)
         self.collMask = np.zeros(len(self.wsf.x),dtype=np.bool)
         if os.path.isfile(self.baseFile+"-ml.txt"):             # update: use machine learning peak loacations if they've been made
-            print 'loading peak location predictions from', self.baseFile+"-ml.txt"
-            peaks = np.loadtxt(self.baseFile+"-ml.txt")
+            print 'loading peak location predictions from', self.baseFile+"-ml-good.txt"
+            peaks = np.loadtxt(self.baseFile+"-ml-good.txt")
+            badPeaks = np.loadtxt(self.baseFile+"-ml-bad.txt")
             peaks = map(int,peaks)
+            badPeaks = map(int, badPeaks)
+            self.badPeakMask[badPeaks] = True
         else:
             peaks = self.wsf.peaks
         
@@ -300,7 +304,7 @@ class WideAna(QMainWindow):
                     #print 'for ', self.wsf.x[peaks[i]], 'chosing the one before'
                 else:
                     colls.append(peaks[i])
-                    #print 'for ', self.wsf.x[peaks[i]], 'chosing this one'
+                    #print 'for ', self.wsf.x[peaks[i]], 'chosing the this one'
         print colls
         if colls != []:
             #colls=np.array(map(int,colls))
@@ -309,15 +313,12 @@ class WideAna(QMainWindow):
         peaks = np.delete(peaks,colls) #remove collisions (peaks < 0.5MHz apart = < 9 steps apart)
         #peaks = np.delete(peaks,np.where(dist<9)) #remove collisions (peaks < 0.5MHz apart = < 9 steps apart)
         self.goodPeakMask[peaks] = True
-        self.badPeakMask[colls] = True
-        self.goodPeakMask[colls] = False
 
         self.setCountLabel()
         self.writeToGoodFile()
-        self.writeToAllFile()
 
     def setCountLabel(self):
-        self.countLabel.setText("Good peaks = %d, All peaks = %d" % (self.goodPeakMask.sum(), self.goodPeakMask.sum() + self.badPeakMask.sum()))
+        self.countLabel.setText("Number of good peaks = %d"%self.goodPeakMask.sum())
 
     def writeToGoodFile(self):
         gf = open(self.goodFile,'wb')
@@ -334,7 +335,6 @@ class WideAna(QMainWindow):
     def writeToAllFile(self):
         af = open(self.allFile,'wb')
         id = (self.flNum-1)*2000
-        print len(np.where(self.goodPeakMask==1)[0]), len(np.where(self.badPeakMask==1)[0])
         for index in range(len(self.goodPeakMask)):
             if self.goodPeakMask[index] or self.badPeakMask[index]:
                 line = "%8d %12d %16.7f\n"%(id,index,self.wsf.x[index])

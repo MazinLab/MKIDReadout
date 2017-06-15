@@ -19,7 +19,11 @@ import PSFitMLTools as mlt
 from random import randint
 
 np.set_printoptions(threshold=np.inf)
+<<<<<<< HEAD
+from ml_params import mldir, trainFile, testFrac, max_nClass, trainBinFile, res_per_class, trainDir
+=======
 from ml_params import *#trainFile, testFrac, max_nClass, trainBinFile, res_per_class, level_train
+>>>>>>> a8581aac94b1876ee2faf16c1407c37d20740a9d
 
 # removes visible depreciation warnings from lib.iqsweep
 import warnings
@@ -163,10 +167,10 @@ class PSFitMLData():
         print self.h5File
 
         if PSFile == None:
-            self.PSFile = self.h5File[:-19] + '.txt'  # 'x-reduced.txt'
+            self.PSFile = self.h5File[:-3] + '.txt'  # 'x-reduced.txt'
         else:
             self.PSFile = PSFile
-        self.PSPFile = self.h5File[:-19] + '.pkl'
+        self.PSPFile = self.h5File[:-3] + '.pkl'
         self.baseFile = self.h5File[:-19]
         print self.PSPFile
 
@@ -181,7 +185,12 @@ class PSFitMLData():
         self.xWidth = 50
 
         # self.trainFile = 'ps_peaks_train_iqv_allres_c%i.pkl' % (self.nClass)
+<<<<<<< HEAD
+        self.mldir = mldir
+        self.trainDir = trainDir
+=======
         self.mldir = modelDir
+>>>>>>> a8581aac94b1876ee2faf16c1407c37d20740a9d
         self.trainFile = trainFile
         self.trainBinFile = trainBinFile
         self.testFrac = testFrac
@@ -398,14 +407,14 @@ class PSFitMLData():
                 testLabels.append(one_hot)
 
         append = None
-        if os.path.isfile(self.mldir + self.trainBinFile):
+        if os.path.isfile(self.trainDir + self.trainBinFile):
             append = raw_input('Do you want to append this training data to previous data [y/n]')
         if (append == 'n'):
             self.trainBinFile = self.trainBinFile.split('-')[0] + time.strftime("-%Y-%m-%d-%H-%M-%S")
         if (append == 'y') or (os.path.isfile(self.trainFile) == False):
             print 'saving %s to %s' % (
-            self.mldir + self.trainBinFile, os.path.dirname(os.path.abspath(self.trainBinFile)))
-            with open(self.mldir + self.trainBinFile, 'ab') as tf:
+            self.trainDir + self.trainBinFile, os.path.dirname(os.path.abspath(self.trainBinFile)))
+            with open(self.trainDir + self.trainBinFile, 'ab') as tf:
                 pickle.dump([trainImages, trainLabels], tf)
                 pickle.dump([testImages, testLabels], tf)
 
@@ -526,6 +535,19 @@ class PSFitMLData():
         # exit()
         # x = [np.argmax(trainLabels, axis =1), np.argmax(testLabels, axis =1)]
         # plt.hist(x, range(max_nClass +1), stacked =True)
+<<<<<<< HEAD
+        plt.figure(figsize=(8,8))
+        plt.hist(np.argmax(trainLabels, axis =1), range(max_nClass + 1), facecolor='green', alpha=0.65)
+        plt.xlabel('Class label')
+        plt.show()
+        plt.figure(figsize=(8,8))
+        plt.hist(np.argmax(testLabels, axis =1), range(max_nClass + 1), facecolor='red', alpha=0.65)
+        plt.xlabel('Class label')
+        plt.show()
+        
+        append = None
+        if os.path.isfile(self.trainDir + self.trainFile):
+=======
 
         # ** move to mlt **
         # plt.figure(figsize=(8,8))
@@ -541,12 +563,18 @@ class PSFitMLData():
         append = None #"%s/%s" % (trainDir,modelDir)
         print os.path.join(trainDir, self.mldir, self.trainFile)
         if os.path.isfile(os.path.join(trainDir, self.mldir, self.trainFile)) and self.auto_append:
+>>>>>>> a8581aac94b1876ee2faf16c1407c37d20740a9d
             append = raw_input('Do you want to append this training data to previous data [y/n]')
         if (append == 'n'):
             self.trainFile = self.trainFile.split('-')[0] + time.strftime("-%Y-%m-%d-%H-%M-%S")
         if (append == 'y') or (os.path.isfile(self.trainFile) == False):
+<<<<<<< HEAD
+            print 'saving %s to %s' % (self.trainDir + self.trainFile, os.path.dirname(os.path.abspath(self.trainFile)))
+            with open(self.trainDir + self.trainFile, 'ab') as tf:
+=======
             print 'saving %s to %s' % (os.path.join(trainDir, self.mldir, self.trainFile), os.path.dirname(os.path.abspath(self.trainFile)))
             with open(os.path.join(trainDir, self.mldir, self.trainFile), 'ab') as tf:
+>>>>>>> a8581aac94b1876ee2faf16c1407c37d20740a9d
                 pickle.dump([trainImages, trainLabels], tf)
                 pickle.dump([testImages, testLabels], tf)
 
