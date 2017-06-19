@@ -32,6 +32,12 @@ class WSTemplateFilt:
     def loadTemplate(self, filename):
         self.template = np.loadtxt(filename)
 
+    def setWinSize(self, winSize):
+        self.winSize = winSize
+        if not self.template is None:
+            if winSize>len(self.template):
+                raise Exception('Existing template is too small')
+
     def inferPeaks(self, inferenceFile, sigThresh=0.75, nDerivChecks=7, nDerivSlack=0):
         if self.template is None:
             raise Exception('Train or load template first!')
@@ -39,7 +45,13 @@ class WSTemplateFilt:
         self.inferenceData = WSFitMLData([inferenceFile])
         self.inferenceFile = inferenceFile
         filtMagsDB = self.inferenceData.filterMags(self.inferenceData.magsdb)
-        tempFiltMagsDB = np.correlate(filtMagsDB, self.template, mode='same')
+        if not self.winSize==len(self.template):
+            winSizeDiff = len(self.template) - self.winSize
+            template = self.template[int(winSizeDiff/2):int(-winSizeDiff/2)]
+        else:
+            template = self.template
+
+        tempFiltMagsDB = np.correlate(filtMagsDB, template, mode='same')
 
         threshold = sigThresh*np.std(tempFiltMagsDB)
         triggerBooleans = tempFiltMagsDB[nDerivChecks:-nDerivChecks-1] > threshold
@@ -74,6 +86,28 @@ class WSTemplateFilt:
         self.badPeakIndices = self.peakIndices[collisionInds]
         self.goodPeakIndices = self.peakIndices[goodPeakInds]
 
+    def findLocalMinima(self):
+        if self.peakIndices is None:
+            raise Exception('Infer peak locations first!')
+        foundMinima = np.zeros(len(self.peakIndices))
+        # print (len(foundMinima))
+        peakVals = self.inferenceData.magsdb
+        while np.any(foundMinima==0):
+            peakValsRight = np.roll(peakVals, -1)
+            peakValsLeft = np.roll(peakVals, 1)
+            peakValsRightLess = np.less_equal(peakVals[self.peakIndices], peakValsRight[self.peakIndices])
+            peakValsLeftLess = np.less_equal(peakVals[self.peakIndices], peakValsLeft[self.peakIndices])
+            foundMinima = np.logical_and(peakValsLeftLess, peakValsRightLess)
+            
+            peakValsRightGreater = np.logical_not(peakValsRightLess)
+            peakValsLeftGreater = np.logical_and(peakValsRightLess, np.logical_not(foundMinima)) #not greater, but not a minimum
+            peakValsRightGreaterInd = np.where(peakValsRightGreater)[0]
+            peakValsLeftGreaterInd = np.where(peakValsLeftGreater)[0]
+
+            self.peakIndices[peakValsRightGreaterInd] += 1
+            self.peakIndices[peakValsLeftGreaterInd] -= 1
+            # print sum(foundMinima)
+
     def saveInferenceFile(self):
         goodSaveFile = self.inferenceFile.split('.')[0]
         badSaveFile = self.inferenceFile.split('.')[0]
@@ -95,6 +129,7 @@ if __name__=='__main__':
     wsFilt = WSTemplateFilt()
     wsFilt.loadTemplate(templateFile)
     wsFilt.inferPeaks(wsFile)
+    wsFilt.findLocalMinima()
     wsFilt.markCollisions()
     wsFilt.saveInferenceFile()
 
