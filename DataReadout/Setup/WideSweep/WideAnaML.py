@@ -276,7 +276,7 @@ class WideAna(QMainWindow):
         self.goodPeakMask = np.zeros(len(self.wsf.x),dtype=np.bool)
         self.badPeakMask = np.zeros(len(self.wsf.x),dtype=np.bool)
         self.collMask = np.zeros(len(self.wsf.x),dtype=np.bool)
-        if os.path.isfile(self.baseFile+"-ml.txt"):             # update: use machine learning peak loacations if they've been made
+        if os.path.isfile(self.baseFile+"-ml-good.txt"):             # update: use machine learning peak loacations if they've been made
             print 'loading peak location predictions from', self.baseFile+"-ml-good.txt"
             peaks = np.loadtxt(self.baseFile+"-ml-good.txt")
             badPeaks = np.loadtxt(self.baseFile+"-ml-bad.txt")
@@ -318,7 +318,7 @@ class WideAna(QMainWindow):
         self.writeToGoodFile()
 
     def setCountLabel(self):
-        self.countLabel.setText("Number of good peaks = %d"%self.goodPeakMask.sum())
+        self.countLabel.setText("Good peaks = %d, All peaks = %d" % (self.goodPeakMask.sum(), self.goodPeakMask.sum() + self.badPeakMask.sum()))
 
     def writeToGoodFile(self):
         gf = open(self.goodFile,'wb')
