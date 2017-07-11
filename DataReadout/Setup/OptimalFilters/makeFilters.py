@@ -46,21 +46,15 @@ def makeWienerFilter(template, noiseSpectrum):
     wienerFilter - list of Wiener Filter coefficients
     '''
     template /= np.max(np.abs(template)) #should be redundant
-    templateFft = np.fft.fft(template)/len(template)
-    #phi2 = np.conj(templateFft)/noiseSpectrum
-    #wienerFilter = np.abs(np.fft.fft(np.conj(templateFft)*phi2))
-    #wienerFilter = np.abs(np.fft.ifft(phi2))
-    #filterNorm = np.abs(np.dot(template,wienerFilter))    
-    #wienerFilter /= filterNorm
-    
-    wienerFilter= np.abs(np.fft.fft(np.conj(templateFft)*templateFft/noiseSpectrum))
-    filterNorm = np.abs(np.dot(template,wienerFilter))    
+    templateFft = np.fft.fft(template)
+
+    #set up so that filter works with a coorelation, not a convolution. 
+    #Take the conjugate of templateFft for the other case
+    wienerFilter= np.abs(np.fft.ifft(templateFft/noiseSpectrum)) 
+
+    filterNorm = np.abs(np.dot(template,wienerFilter)) 
     wienerFilter /= filterNorm
 
-    #phi2=np.conj(templateFft)*templateFft/noiseSpectrum
-    #wienerFilter=np.fft.ifft(phi2);
-    #filterNorm = np.abs(np.dot(template,wienerFilter))
-    #wienerFilter /= filterNorm
 
     return wienerFilter
 

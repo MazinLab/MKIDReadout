@@ -33,8 +33,12 @@ class Window(QtGui.QDialog):
         self.check=QtGui.QCheckBox("Plot Data Used to Fit Template")
         self.check.stateChanged.connect(lambda:self.plot())
         
+        #make third checkbox
+        self.check3=QtGui.QCheckBox("Plot Zero Noise Filter")
+        self.check3.stateChanged.connect(lambda:self.plot())
+        
         #make second checkbox
-        self.check2=QtGui.QCheckBox("Plot Fourier Transform of Filter")
+        self.check2=QtGui.QCheckBox("Plot Scaled Fourier Transform of Filter")
         self.check2.stateChanged.connect(lambda:self.plot())
 
         #make the slider and pixel input
@@ -73,6 +77,10 @@ class Window(QtGui.QDialog):
         checkbox = QtGui.QHBoxLayout()
         checkbox.addWidget(self.check)
         checkbox.addStretch()
+        
+        checkbox3=QtGui.QHBoxLayout()
+        checkbox3.addWidget(self.check3)
+        checkbox3.addStretch()
 
         checkbox2=QtGui.QHBoxLayout()
         checkbox2.addWidget(self.check2)
@@ -97,6 +105,7 @@ class Window(QtGui.QDialog):
         self.options = QtGui.QVBoxLayout()
         self.options.addLayout(filebox)
         self.options.addLayout(checkbox)
+        self.options.addLayout(checkbox3)
         self.options.addLayout(checkbox2)
         self.options.addLayout(labelbox1)
         self.options.addLayout(sliderbox)
@@ -172,9 +181,19 @@ class Window(QtGui.QDialog):
             self.file_list = pickle.load(fp)
         with open(self.f_log,'rU') as f:
             self.log_file=f.readlines()
-
+        
+        #calculate filter that would be used there was no noise won't work if only one set
+        try:
+            self.template_filter=-self.template_coefficients/(np.dot(np.atleast_2d(np.einsum('ij,ij->i', self.template_coefficients, self.template_coefficients)).transpose(),np.ones((1,np.shape(self.template_coefficients)[1]))))
+            self.template_fft=np.abs(np.fft.fft(self.template_filter))**2
+        except:
+            pass
         #reformat arrays if 1D
         if len(np.shape(self.template_coefficients))==1:
+            #recalculate filter
+            self.template_filter=np.row_stack((-self.template_coefficients/(np.dot(self.template_coefficients,self.template_coefficients)),np.zeros(len(self.filter_coefficients))))            
+            self.template_fft=np.row_stack((np.abs(np.fft.fft(self.template_filter))**2,np.zeros(len(self.filter_coefficients))))
+
             self.template_coefficients=np.row_stack((self.template_coefficients,np.zeros(len(self.template_coefficients))))
             self.filter_coefficients=np.row_stack((self.filter_coefficients,np.zeros(len(self.filter_coefficients))))
             self.noise_data=np.row_stack((self.noise_data,np.zeros(len(self.noise_data))))
@@ -201,16 +220,29 @@ class Window(QtGui.QDialog):
         self.ax2.cla()        
         self.ax3.cla()
 
-        self.ax1.plot(self.template_coefficients[self.pixel,:],'b')
+        self.ax1.plot(self.template_coefficients[self.pixel,:],'b',label='final template')
         if self.check.isChecked() == True:
-            self.ax1.plot(self.rough_templates[self.pixel,:],'r')
-        self.ax1.plot(self.template_coefficients[self.pixel,:],'b')
-        self.ax2.plot(self.filter_coefficients[self.pixel,:],'b')    
-        if np.sum(self.noise_data[self.pixel,:]>0)>0:       
-                self.ax3.loglog(self.noise_freq,self.noise_data[self.pixel,:],'b')
+            self.ax1.plot(self.rough_templates[self.pixel,:],'r',label='data fitted')
 
-        if self.check2.isChecked() == True:
-            self.ax3.loglog(self.filters_freq,self.filters_fourier[self.pixel,:],'r')
+        self.ax2.plot(self.filter_coefficients[self.pixel,:],'b',label='final filter')  
+
+        if self.check3.isChecked()==True:
+            self.ax2.plot(self.template_filter[self.pixel,],'k',label='zero noise filter')
+  
+        if np.sum(self.noise_data[self.pixel,:]>0)>0:       
+                self.ax3.loglog(self.noise_freq,self.noise_data[self.pixel,:],'b',label='noise PSD')
+                self.ax3.legend(fontsize=10,loc='upper center', bbox_to_anchor=(0.5, 1.13))
+        if self.check2.isChecked() == True and np.sum(self.filters_fourier[self.pixel,:]>0)>0 and np.sum(self.template_fft[self.pixel,:]>0)>0:
+            scale=self.noise_data[self.pixel,:][-1]/self.template_fft[self.pixel,:][-1]
+            if scale==0:
+                scale=1
+            self.ax3.loglog(self.filters_freq,self.filters_fourier[self.pixel,:]*scale,'r',label='final filter fft squared')
+            self.ax3.loglog(self.filters_freq,self.template_fft[self.pixel,:]*scale,'k',label='zero noise filter fft squared')
+            self.ax3.legend(fontsize=10,loc='upper center', bbox_to_anchor=(0.5, 1.13))
+
+        self.ax1.legend(loc='right',fontsize=10)
+        self.ax2.legend(loc='upper right',fontsize=10)
+
 
         self.check_type()
         self.canvas1.draw()
@@ -261,7 +293,7 @@ class Window(QtGui.QDialog):
 
         
  
-def main():
+def main(*args, **kwargs):
     app = QtGui.QApplication(sys.argv)
     ex = Window()
     sys.exit(app.exec_())

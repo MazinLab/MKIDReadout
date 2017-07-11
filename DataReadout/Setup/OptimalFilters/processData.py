@@ -6,27 +6,35 @@ import os
 import sys
 import matplotlib.pyplot as plt
 import pickle
+import time
+reload(mT)
+reload(mF)
+reload(mNS)
 
-def processData(directory,defaultFilter,filterType='matched',isVerbose=False):
+def processData(directory,defaultFilter,isVerbose=False,GUI=False,progress_callback=[],dataset=[],mainDirectory=[],continuing=False):
     '''
     Loop through .npz files in the directory and create filter coefficient files for each
     INPUTS:
     directory - path for the folder containing the data
-    filterType - type of filter to export 
+    defaultFilter - numpy array with filter coefficients
+    isVerbose - prints progress to terminal
+    GUI - True if using in optimalFilterGUI 
+    progress_callback - percent complete callback for GUI, ignored if GUI=False
+    dataset - index of data folder being run on, ignored if GUI = False
+    mainDirectory - directory containing folders, ignored if GUI=False
+    continuing - flag for if continuing from a previous calculation, ignored if GUI=False
     '''
-    
+    #start time
+    startTime=time.time()
     #make default Template (renormalize and flip)
     defaultTemplate=-defaultFilter/np.max(np.abs(defaultFilter))
 
-    #set flag for log file output
+    #set flag for log file output when unexpected files in the directory
     logFileFlag=0
-    
-    #set counter for number of times filter failed
-    filterFail=0
     
     #check before deleting files
     continuingFlag=0
-    if os.path.isfile(os.path.join(directory,"log_file.txt")):
+    if os.path.isfile(os.path.join(directory,"log_file.txt")) and not GUI:
         answer=query_yes_no("Are you continuing a stopped calculation?")
         if answer is True:
             continuingFlag=1
@@ -34,6 +42,8 @@ def processData(directory,defaultFilter,filterType='matched',isVerbose=False):
             answer=query_yes_no("Are you sure that you want to delete previous filter calculations?")
             if answer is False:
                 return
+    if GUI:
+        continuingFlag=continuing
 
     #delete old log and filter coefficients if exists if told to do so
     if not continuingFlag:
@@ -54,7 +64,7 @@ def processData(directory,defaultFilter,filterType='matched',isVerbose=False):
         if os.path.isfile(os.path.join(directory,'filters_fourier.txt')):
             os.remove(os.path.join(directory,'filters_fourier.txt'))
         
-    #get .dat files into list
+    #get .npz files into list
     fileList=[]
     for item in os.listdir(directory):
         if os.path.isfile(os.path.join(directory,item)) and item.endswith('.npz'):
@@ -120,43 +130,54 @@ def processData(directory,defaultFilter,filterType='matched',isVerbose=False):
             
     
     #print progress to terminal
-    if isVerbose:
+    if isVerbose and not GUI:
         sys.stdout.write("Percent of filters created: 0.0%  \r")
         sys.stdout.flush()
+    if GUI:
+        progress_callback.emit((0.0,dataset))
             
     #pick filenames removing duplicate channel numbers
     fileList=[fileList[i] for i in goodIndicies] 
     
-    #fileList=fileList[0:2]
-    #fileList=[fileList[2]] #uncomment this line for debugging particular files
+    #indicies=range(0,11)
+    #fileList=[fileList[i] for i in indicies] #uncomment these lines for debugging particular files
 
     #start at a particular file if continuing calculation
     if continuingFlag: 
         filters=np.loadtxt(os.path.join(directory,"filter_coefficients.txt"))
         num=filters.shape[0]
-        try:
+        if num==len(fileList):
+            print 'No more files to itterate over'
+            if GUI:
+                return dataset, float(time.time()-startTime), True ,100
+            else:            
+                return  
+        else:
             fileListOriginal=fileList
             fileList=fileList[num:]
             with open(os.path.join(directory,'file_list.txt'), 'wb') as fp:
                 pickle.dump(fileListOriginal, fp)
-        except: 
-            print 'No more files to itterate over'
-            return
+
     else:
         #save file list if not continuing from previous calculation
         with open(os.path.join(directory,'file_list.txt'), 'wb') as fp:
             pickle.dump(fileList, fp)
     
     #initialize arrays
-    filterArray=np.zeros((len(fileList),50))
-    templateArray=np.zeros((len(fileList),50))
-    roughTemplateArray=np.zeros((len(fileList),50))
-    typeArray=np.zeros(len(fileList)) 
-    noiseArray=np.zeros((len(fileList),60)) 
-    filterNoiseArray=np.zeros((len(fileList),60))
-            
+    filterArray=np.zeros((1,50))
+    templateArray=np.zeros((1,50))
+    roughTemplateArray=np.zeros((1,50))
+    typeArray=np.zeros(1) 
+    noiseArray=np.zeros((1,50)) 
+    filterNoiseArray=np.zeros((1,50))
+
     #loop through all the phase stream data files in the directories
     for index, fileName in enumerate(fileList):
+        startLoop=time.time()
+        finishedLoad=startLoop
+        finishedTemp=startLoop
+        finishedFilt=startLoop
+
         #reinitialize noise flag
         noiseFlag=0
 
@@ -169,103 +190,110 @@ def processData(directory,defaultFilter,filterType='matched',isVerbose=False):
             rawData=rawData[key[0]]
         except:
             with open(os.path.join(directory,"log_file.txt"),'a') as logfile:
-                logfile.write("{1}: File '{0}' data failed to load. Using default template as filter \r".format(fileName,index))
+                logfile.write("{1}: File '{0}' data failed to load. Using default template and filter \r".format(fileName,index))
             #use default filter and templates
-            templateArray[index,:]=defaultTemplate
-            filterArray[index,:]=defaultFilter
+            templateArray=defaultTemplate
+            filterArray=defaultFilter
+            #find fourier transform of filter for comparison
+            filterNoiseArray=np.abs(np.fft.fft(filterArray))**2
             
             #save data 
             with open(os.path.join(directory,'filter_coefficients.txt'),'a') as filters:
-                np.savetxt(filters,np.atleast_2d(filterArray[index,:]))
+                np.savetxt(filters,np.atleast_2d(filterArray))
             with open(os.path.join(directory,'template_coefficients.txt'),'a') as templates:
-                np.savetxt(templates,np.atleast_2d(templateArray[index,:]))
+                np.savetxt(templates,np.atleast_2d(templateArray))
             with open(os.path.join(directory,'rough_templates.txt'),'a') as rough:
-                np.savetxt(rough,np.atleast_2d(roughTemplateArray[index,:]))
+                np.savetxt(rough,np.atleast_2d(roughTemplateArray))
             with open(os.path.join(directory,'filter_type.txt'),'a') as types:
-                np.savetxt(types,np.atleast_1d(typeArray[index]))
+                np.savetxt(types,np.atleast_1d(typeArray))
             with open(os.path.join(directory,'noise_data.txt'),'a') as noise:
-                np.savetxt(noise,np.atleast_2d(noiseArray[index,:]))
+                np.savetxt(noise,np.atleast_2d(noiseArray))
             with open(os.path.join(directory,'filters_fourier.txt'),'a') as noise:
-                np.savetxt(noise,np.atleast_2d(filterNoiseArray[index,:]))
+                np.savetxt(noise,np.atleast_2d(filterNoiseArray))
 
             continue    
-
+        finishedLoad=time.time()
         #make template    
         try:
-            template, time , noiseSpectrumDict, templateList, _ = mT.makeTemplate \
+            template, _ , noiseSpectrumDict, templateList, _ = mT.makeTemplate \
             (rawData,nSigmaTrig=5.,numOffsCorrIters=3, sigPass=.05,defaultFilter=defaultFilter)  
-            roughTemplateArray[index,:]=templateList[-1][0:50]   
+            roughTemplateArray=templateList[-1][0:50]   
             noiseFlag=1          
             #check for bad template (fall times greater than 7 and less than 50 .. assuming 50 points given)
-            if np.trapz(template[0:50])>-5 or np.trapz(template[0:50])<-31.6 or templateList[-1][0]!=-1:
+            if np.trapz(template[5:50])>-5 or np.trapz(template[5:50])<-31.6 or templateList[-1][5]!=-1:
                 errorFlag=1
                 raise ValueError('proccessData: template not correct')
             #add template coefficients to array    
-            templateArray[index,:]=template[0:50]  
+            templateArray=template[0:50]  
             templateFlag=1;              
         except:
             #add template coefficients to array
-            templateArray[index,:]=defaultTemplate
+            templateArray=defaultTemplate
+            roughTemplateArray=np.zeros(np.shape(defaultTemplate))
             templateFlag=0;      
+        finishedTemp=time.time()
 
-        #make filter    
+        #make filter   
         try:    
             if templateFlag:
                 filterCoef=mF.makeWienerFilter(template, noiseSpectrumDict['noiseSpectrum'])
             elif noiseFlag:
-                filterCoef=mF.makeWienerFilter(np.concatenate((defaultTemplate,np.zeros(10))), noiseSpectrumDict['noiseSpectrum'])
+                filterCoef=mF.makeWienerFilter(defaultTemplate, noiseSpectrumDict['noiseSpectrum'])
             else:
                 data = mT.hpFilter(rawData)
-                noiseSpectrumDict = mNS.makeWienerNoiseSpectrum(data,numBefore=60,numAfter=0,template=defaultFilter)
-                filterCoef=mF.makeWienerFilter(np.concatenate((defaultTemplate,np.zeros(10))),noiseSpectrumDict['noiseSpectrum'])
+                noiseSpectrumDict = mNS.makeWienerNoiseSpectrum(data,numBefore=50,numAfter=0, template=defaultFilter)
+                filterCoef=mF.makeWienerFilter(defaultTemplate,noiseSpectrumDict['noiseSpectrum'])
 
             #add filter coefficients to array 
-            filterArray[index,:]=filterCoef[0:50]
-            noiseArray[index,:]=noiseSpectrumDict['noiseSpectrum']
+            filterArray=filterCoef[0:50]
+            noiseArray=noiseSpectrumDict['noiseSpectrum']
+            #find fourier transform of filter for comparison
+            filterNoiseArray=np.abs(np.fft.fft(filterArray))**2
             filterFlag=1;
         except:
             #add filter coefficients to array
             if templateFlag:
-                filterArray[index,:]=-template/np.dot(template,template)
+                filterArray=-template/np.dot(template,template)
             else:
-                filterArray[index,:]=defaultFilter
-            noiseArray[index,:]=np.zeros(60)
+                filterArray=defaultFilter
+            noiseArray=np.zeros(50)
+            #find fourier transform of filter for comparison
+            filterNoiseArray=np.abs(np.fft.fft(filterArray))**2
             filterFlag=0;     
-        
+        finishedFilt=time.time()
+
         #log results and categorize them in the type array
         with open(os.path.join(directory,"log_file.txt"),'a') as logfile:
             if templateFlag==0 and filterFlag==0:
-                logfile.write("{1}: File '{0}' template and filter calculation failed. Using default template as filter \r".format(fileName,index))
-                typeArray[index]=0            
+                logfile.write("{1}: File '{0}' template and filter calculation failed. Using default template as filter: {2}, {3}, {4} \r".format(fileName,index,finishedLoad-startLoop,finishedTemp-finishedLoad,finishedFilt-finishedTemp))
+                typeArray=0            
             elif templateFlag==1 and filterFlag==0:
-                logfile.write("{1}: File '{0}' filter calculation failed. Using calculated template as filter \r".format(fileName,index))
-                typeArray[index]=1
+                logfile.write("{1}: File '{0}' filter calculation failed. Using calculated template as filter: {2}, {3}, {4} \r".format(fileName,index,finishedLoad-startLoop,finishedTemp-finishedLoad,finishedFilt-finishedTemp))
+                typeArray=1
             elif templateFlag==0 and filterFlag==1:
-                logfile.write("{1}: File '{0}' template calculation failed. Using default template with noise as filter \r".format(fileName,index))
-                typeArray[index]=2
+                logfile.write("{1}: File '{0}' template calculation failed. Using default template with noise as filter: {2}, {3}, {4} \r".format(fileName,index,finishedLoad-startLoop,finishedTemp-finishedLoad,finishedFilt-finishedTemp))
+                typeArray=2
             else:
-                logfile.write("{1}: File '{0}' calculation successful \r".format(fileName,index))
-                typeArray[index]=3                                
-        
-        if filterFlag:
-            filterNoiseArray[index,:]=np.abs(np.fft.fft(filterCoef))**2  
+                logfile.write("{1}: File '{0}' calculation successful: {2}, {3}, {4} \r".format(fileName,index,finishedLoad-startLoop,finishedTemp-finishedLoad,finishedFilt-finishedTemp))
+                typeArray=3                                
+          
                
         #write new data to file 
         with open(os.path.join(directory,'filter_coefficients.txt'),'a') as filters:
-            np.savetxt(filters,np.atleast_2d(filterArray[index,:]))
+            np.savetxt(filters,np.atleast_2d(filterArray))
         with open(os.path.join(directory,'template_coefficients.txt'),'a') as templates:
-            np.savetxt(templates,np.atleast_2d(templateArray[index,:]))
+            np.savetxt(templates,np.atleast_2d(templateArray))
         with open(os.path.join(directory,'rough_templates.txt'),'a') as rough:
-            np.savetxt(rough,np.atleast_2d(roughTemplateArray[index,:]))
+            np.savetxt(rough,np.atleast_2d(roughTemplateArray))
         with open(os.path.join(directory,'filter_type.txt'),'a') as types:
-            np.savetxt(types,np.atleast_1d(typeArray[index]))
+            np.savetxt(types,np.atleast_1d(typeArray))
         with open(os.path.join(directory,'noise_data.txt'),'a') as noise:
-            np.savetxt(noise,np.atleast_2d(noiseArray[index,:]))
+            np.savetxt(noise,np.atleast_2d(noiseArray))
         with open(os.path.join(directory,'filters_fourier.txt'),'a') as noise:
-            np.savetxt(noise,np.atleast_2d(filterNoiseArray[index,:]))  
+            np.savetxt(noise,np.atleast_2d(filterNoiseArray))  
           
         #print progress to terminal
-        if isVerbose:
+        if isVerbose and not GUI:
             if index!=len(fileList)-1:
                 if continuingFlag:
                     index0=index+len(fileListOriginal)-len(fileList)
@@ -273,13 +301,35 @@ def processData(directory,defaultFilter,filterType='matched',isVerbose=False):
                 else:
                     index0=index
                     fileList0=fileList
-                perc=round(float(index0+1)/(len(fileList0))*100)
+                perc=round(float(index0+1)/(len(fileList0))*100,1)
                 sys.stdout.write("Percent of filters created: %.1f%%  \r" % (perc) )
                 sys.stdout.flush()
+            elif len(fileList)==1:
+                fileList0=fileList            
             else:
                 print "Percent of filters created: 100%    "    
-    
-    #count number of each type of filter    
+        #if GUI is running check to see if program should end and display progress
+        if GUI:
+            if continuingFlag:
+                index0=index+len(fileListOriginal)-len(fileList)
+                fileList0=fileListOriginal
+            else:
+                index0=index
+                fileList0=fileList
+            perc=round(float(index0+1)/(len(fileList0))*100,1)
+            progress_callback.emit((perc,dataset))
+            working=False
+            while not working:
+                try:
+                    killArray=np.loadtxt(os.path.join(mainDirectory,'kill_processes'+str(dataset)+'.txt'))
+                    if killArray:
+                        return dataset, float((time.time()-startTime)), False, perc
+                    working=True
+                except:
+                    time.sleep(0.5)
+
+    #count number of each type of filter        
+    typeArray=np.loadtxt(os.path.join(directory,'filter_type.txt'))
     unique, counts = np.unique(typeArray,return_counts=True)
     countdict=dict(zip(unique, counts))
     if 0 not in countdict.keys():
@@ -292,20 +342,27 @@ def processData(directory,defaultFilter,filterType='matched',isVerbose=False):
         countdict[3]=0   
 
     #print final results 
-    print "{0}% of pixels using optimal filters".format(round(countdict[3]/float(len(fileList))*100,2))
-    print "{0}% of pixels using default template with noise as filter".format(round(countdict[2]/float(len(fileList))*100,2))   
-    print "{0}% of pixels using calculated template as filter".format(round(countdict[1]/float(len(fileList))*100,2))
-    print "{0}% of pixels using default template as filter".format(round(countdict[0]/float(len(fileList))*100,2))
+    if not GUI:
+        print "{0}% of pixels using optimal filters".format(round(countdict[3]/float(len(fileList))*100,2))
+        print "{0}% of pixels using default template with noise as filter".format(round(countdict[2]/float(len(fileList))*100,2))   
+        print "{0}% of pixels using calculated template as filter".format(round(countdict[1]/float(len(fileList))*100,2))
+        print "{0}% of pixels using default template as filter".format(round(countdict[0]/float(len(fileList))*100,2))
     
+    endTime=time.time()
     #log final results
     with open(os.path.join(directory,"log_file.txt"),'a') as logfile:
         logfile.write("\rFile list that was itterated over: \r")
-        for fileName in fileListOriginal:
+        for fileName in fileList0:
             logfile.write("{0} \r".format(fileName))
+        logfile.write("\r computation time: {0} minutes".format((endTime-startTime)/60.))
         logfile.write("\r{0}% of pixels using optimal filters \r".format(round(countdict[3]/float(len(fileList))*100,2)))
         logfile.write("{0}% of pixels using default template with noise as filter \r".format(round(countdict[2]/float(len(fileList))*100,2)))
         logfile.write("{0}% of pixels using calculated template as filter \r".format(round(countdict[1]/float(len(fileList))*100,2)))
-        logfile.write("{0}% of pixels using default template as filter \r".format(round(countdict[0]/float(len(fileList))*100,2)))    
+        logfile.write("{0}% of pixels using default template as filter \r".format(round(countdict[0]/float(len(fileList))*100,2)))  
+
+    #return some stuff if GUI is running
+    if GUI:
+        return dataset, float((endTime-startTime)), True ,100  
 
 def query_yes_no(question, default="no"):
     """Ask a yes/no question via raw_input() and return their answer.

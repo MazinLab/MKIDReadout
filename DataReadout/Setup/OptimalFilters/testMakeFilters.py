@@ -8,9 +8,13 @@ import makeArtificialData as mAD
 import makeTemplate as mT
 import makeFilters as mF
 import struct
-
+import time
+from scipy.stats import norm
+import matplotlib.mlab as mlab
 import triggerPhotons as tP
 import os
+from astropy.modeling import models, fitting
+
 
 reload(mNS)
 reload(mAD)
@@ -19,7 +23,7 @@ reload(mF)
 reload(tP)
 
 ##### Test on real data #####
-if True:
+if False:
     isPlot=False
     isVerbose=True
     #get data        
@@ -39,30 +43,51 @@ if True:
     #rawData=np.load('/mnt/data0/Darkness/20161107/117_data/snap_117_ch0_20161108-190956.npz')
     #rawData=np.load('/mnt/data0/Darkness/20170227/optimal_filters/112_data/snap_112_ch274_20170303-212630.npz')
     #rawData=np.load('/mnt/data0/Darkness/20170403/optimal_filters/112_data/snap_112_ch282_20170403-050343.npz')
-    rawData=np.load('/mnt/data0/Darkness/20170403/optimal_filters/112_data/snap_112_ch2_20170403-024920.npz')
-
+    #rawData=np.load('/mnt/data0/Darkness/20170403/optimal_filters/112_data/snap_112_ch2_20170403-024920.npz')
+    #rawData=np.load('/mnt/data0/Darkness/20170403/optimal_filters/115_data/snap_115_ch17_20170403-025614.npz')
+    #rawData=np.load('/mnt/data0/Darkness/20170403/optimal_filters/115_data/snap_115_ch11_20170403-025347.npz')
+    start=time.time()    
+    rawData=np.load('/mnt/data0/Darkness/20170403/optimal_filters/119_data/snap_119_ch0_20170403-025058.npz')
     key=rawData.keys()
     rawData=rawData[key[0]]
-    print "data extracted"
-    
-    defaultFilter=np.loadtxt('/mnt/data0/nzobrist/MkidDigitalReadout/DataReadout/Setup/OptimalFilters/matched50_20.0us.txt')
+    print "data extracted",time.time()-start
+ 
+    defaultFilter=np.loadtxt('/mnt/data0/nzobrist/MkidDigitalReadout/DataReadout/Setup/OptimalFilters/matched50_15.0us_2.txt')
     #make template 4,.05 works well 5,.05
-    template, time, noiseSpectrumDict, templateList, _ = mT.makeTemplate(rawData,nSigmaTrig=5.,numOffsCorrIters=3,isVerbose=isVerbose,isPlot=isPlot,defaultFilter=defaultFilter, sigPass=.05)
+    template, time , noiseSpectrumDict, templateList, _ = mT.makeTemplate(rawData,nSigmaTrig=5.,numOffsCorrIters=3, sigPass=.05,defaultFilter=defaultFilter,isVerbose=True)
     print "template made"
     
     #noiseSpectrumDict['noiseSpectrum']=np.ones(len(noiseSpectrumDict['noiseSpectrum']))
-    #noiseSpectrumDict['noiseSpectrum']=np.ones(len(noiseSpectrumDict['noiseSpectrum']))*3e3/np.abs(noiseSpectrumDict['noiseFreqs'])
+    #noiseSpectrumDict['noiseSpectrum'][[5,15]]=10
+    #noiseSpectrumDict['noiseSpectrum']=np.ones(len(noiseSpectrumDict['noiseSpectrum']))*3e3/(np.abs(noiseSpectrumDict['noiseFreqs'])+1e5)
+    #noiseSpectrumDict['noiseSpectrum'][[15]]=10
     #noiseSpectrumDict['noiseSpectrum'][0]=2*noiseSpectrumDict['noiseSpectrum'][1]
-    #noiseSpectrumDict['noiseSpectrum'][np.abs(noiseSpectrumDict['noiseFreqs'])>210000]=5e-5
+    #noiseSpectrumDict['noiseSpectrum'][np.abs(noiseSpectrumDict['noiseFreqs'])>210000]=5e-1
    
     #make matched filter
-    matchedFilter=mF.makeMatchedFilter(template, noiseSpectrumDict['noiseSpectrum'], nTaps=60, tempOffs=0)
-    wienerFilter=mF.makeWienerFilter(template,noiseSpectrumDict['noiseSpectrum'])
+    templateFilter=-template/np.dot(template,template)
+    filterCoef=mF.makeWienerFilter(template, noiseSpectrumDict['noiseSpectrum'])
+    #matchedFilter=mF.makeMatchedFilter(template, noiseSpectrumDict['noiseSpectrum'], nTaps=60, tempOffs=0)
+    #wienerFilter=mF.makeWienerFilter(template,noiseSpectrumDict['noiseSpectrum'])
     #coef, _ = opt.curve_fit(lambda x, a, t0 : a*exp(-x/t0), time[len(time)*1/5:len(time)*4/5],template[len(time)*1/5:len(time)*4/5], [-1 , 30e-6])
     #fallFit=coef[1]
     #superMatchedFilter=mF.makeSuperMatchedFilter(template, noiseSpectrumDict['noiseSpectrum'], fallFit, nTaps=50, tempOffs=75)
     print "filters made"
-    
+    filterFft=np.abs(np.fft.fft(filterCoef))
+    filters_freq=np.fft.fftfreq(np.size(filterFft),d=1e-6)
+    templateFilterFft=np.abs(np.fft.fft(templateFilter))
+
+    fig1=plt.figure()
+    ax1=fig1.add_subplot(111)    
+    ax1.loglog(filters_freq,templateFilterFft)
+    ax1.loglog(filters_freq,filterFft)
+    ax1.loglog(filters_freq,noiseSpectrumDict['noiseSpectrum']/noiseSpectrumDict['noiseSpectrum'][-1]*templateFilterFft[-1])
+    plt.show()
+    fig2=plt.figure()
+    ax2=fig2.add_subplot(111)
+    ax2.plot(templateFilter)
+    ax2.plot(filterCoef)
+    plt.show()
     #convolve with filter
     #filteredData=np.convolve(rawData,matchedFilter,mode='same') 
     #superFilteredData=np.convolve(rawData,superMatchedFilter,mode='same')
@@ -83,7 +108,104 @@ if True:
     #plt.hist(amps,100,alpha=.7)
     #plt.hist(superAmps,100,alpha=.7)
     #plt.show()
+
+##### Test filters made by processData.py #####
+if True:
+    #rawData=np.load('/mnt/data0/Darkness/20170403/optimal_filters/112_data/snap_112_ch8_20170403-025121.npz')
+    #rawData=np.load('/mnt/data0/Darkness/20170403/optimal_filters/112_data/snap_112_ch41_20170403-030700.npz')
+    rawData=np.load('/mnt/data0/Darkness/20170403/optimal_filters/112_data/snap_112_ch46_20170403-030913.npz')
+    #rawData=np.load('/mnt/data0/Darkness/20170403/optimal_filters/112_data/snap_112_ch54_20170403-031227.npz')
+    index=46;
+    key=rawData.keys()
+    rawData=rawData[key[0]]
+
+    peakDict=tP.detectPulses(rawData, nSigmaThreshold = 2., negDerivLenience = 1, bNegativePulses=True)
+    amps1=peakDict['peakHeights']
+
+    defaultFilter=np.loadtxt('/mnt/data0/nzobrist/MkidDigitalReadout/DataReadout/Setup/OptimalFilters/matched50_15.0us_2.txt')
+    filters=np.loadtxt('/mnt/data0/Darkness/20170403/optimal_filters/112_data/filter_coefficients.txt')
     
+    defaultFilteredData=np.convolve(rawData,defaultFilter,mode='same')
+    filteredData=np.convolve(rawData,filters[index,:],mode='same')
+
+    defaultPeaks=tP.detectPulses(defaultFilteredData, nSigmaThreshold = 2., negDerivLenience = 1, bNegativePulses=True)
+    amps2=defaultPeaks['peakHeights']
+
+    filteredPeaks=tP.detectPulses(filteredData, nSigmaThreshold = 2., negDerivLenience = 1, bNegativePulses=True)
+    amps3=filteredPeaks['peakHeights']
+            
+    bins=np.arange(-3,0,.1)
+    plt.figure()
+    plt.hist(amps1,bins,alpha=.5)
+    plt.hist(amps2,bins,alpha=.5)
+    plt.hist(amps3,bins,alpha=.5)
+    n1, bins1 = np.histogram(amps1,bins=bins)
+    n2, bins2 = np.histogram(amps2,bins=bins)
+    n3, bins3 = np.histogram(amps3,bins=bins)
+
+    peak1Ind=np.argmax(n1[bins1[1:]<-0.5])
+    peak2Ind=np.argmax(n2[bins2[1:]<-0.5])
+    peak3Ind=np.argmax(n3[bins3[1:]<-0.5])
+    
+    peak1=bins1[peak1Ind]+.05
+    peak2=bins2[peak2Ind]+.05
+    peak3=bins3[peak3Ind]+.05
+    
+    ampsMod1=-amps1[np.logical_and(-amps1/peak1>-1.5,-amps1/peak1<-.5)]/peak1
+    ampsMod2=-amps2[np.logical_and(-amps2/peak2>-1.5,-amps2/peak2<-.3)]/peak2
+    ampsMod3=-amps3[np.logical_and(-amps3/peak3>-1.5,-amps3/peak3<-.5)]/peak3
+    
+    amps1=amps1[np.logical_and(-amps1/peak1>-1.5,-amps1/peak1<-.5)]
+    amps2=amps2[np.logical_and(-amps2/peak2>-1.5,-amps2/peak2<-.3)]
+    amps3=amps3[np.logical_and(-amps3/peak3>-1.5,-amps3/peak3<-.3)]
+    n1, bins1 = np.histogram(amps1,bins=bins)
+    n2, bins2 = np.histogram(amps2,bins=bins)
+    n3, bins3 = np.histogram(amps3,bins=bins)
+
+    #n1, bins1 = np.histogram(ampsMod1,bins=bins)
+    #n2, bins2 = np.histogram(ampsMod2,bins=bins)
+    #n3, bins3 = np.histogram(ampsMod3,bins=bins)
+
+    fitter=fitting.LevMarLSQFitter()
+
+    xx=(bins[1:]+bins[:-1])/2
+    init1 = models.Gaussian1D(amplitude=1., mean=-1, stddev=1.)
+    fit1=fitter(init1,xx,n1)
+    init2 = models.Gaussian1D(amplitude=1., mean=-1, stddev=1.)
+    fit2=fitter(init2,xx,n2)
+    init3 = models.Gaussian1D(amplitude=1., mean=-1, stddev=1.)
+    fit3=fitter(init3,xx,n3)
+
+    mu1, sigma1 = fit1.mean, fit1.stddev
+    mu2, sigma2 = fit2.mean, fit2.stddev
+    mu3, sigma3 = fit3.mean, fit3.stddev  
+    
+    xx=np.arange(-3,0,.001)
+    pdf1=np.exp(-(xx-mu1)**2/(2*sigma1**2))*fit1.amplitude
+    pdf2=np.exp(-(xx-mu2)**2/(2*sigma2**2))*fit2.amplitude
+    pdf3=np.exp(-(xx-mu3)**2/(2*sigma3**2))*fit3.amplitude
+
+
+    fig=plt.figure()
+    #plt.plot(xx,pdf1,label='no filter, R='+str(round(np.abs(mu1/sigma1),2)),color='b')
+    plt.plot(xx,pdf2,label='default filter, R='+str(round(np.abs(mu2/sigma2),2)),color='g')
+    plt.plot(xx,pdf3,label='optimal filter, R='+str(round(np.abs(mu3/sigma3),2)),color='r')
+    plt.legend(loc=2)
+    #plt.show()
+
+    #fig=plt.figure()
+    #plt.hist(ampsMod1,bins=bins,label='no filter',alpha=.5,color='b')
+    #plt.hist(amps1,bins=bins,label='no filter',alpha=.5,color='b')
+    #plt.legend(loc=0)
+    #plt.figure()
+    #plt.hist(ampsMod3,bins=bins,label='optimal filter',alpha=.5,color='r')
+    plt.hist(amps3,bins=bins,label='no filter',alpha=.5,color='r')
+    #plt.legend(loc=0)
+    #plt.figure()
+    #plt.hist(ampsMod2,bins=bins,label='default filter',alpha=.5,color='g')
+    plt.hist(amps2,bins=bins,label='no filter',alpha=.5,color='g')
+    #plt.legend(loc=2)
+    plt.show()        
     
 ##### Find expected energy resolution of different filters #####
 if False:

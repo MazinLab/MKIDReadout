@@ -28,13 +28,13 @@ def makeTemplate(rawData, numOffsCorrIters=1 , decayTime=50, nSigmaTrig=4., isVe
     templateList - list of template itterations by correcting offsets
     peakIndices - list of peak indicies from rawData used for template
     '''
-
     #hipass filter data to remove any baseline
     data = hpFilter(rawData)
 
     #make filtered data set with default filter
+    #filteredData=np.correlate(data,defaultFilter,mode='same')
     filteredData=np.convolve(data,defaultFilter,mode='same')
-    filteredData=data
+    #filteredData=data
 
     #trigger on pulses in data 
     peakDict = sigmaTrigger(filteredData,nSigmaTrig=nSigmaTrig, decayTime=decayTime,isVerbose=isVerbose)
@@ -42,12 +42,15 @@ def makeTemplate(rawData, numOffsCorrIters=1 , decayTime=50, nSigmaTrig=4., isVe
     #if too many triggers raise an error
     if len(peakDict['peakIndices'])>(len(data)/400):
         raise ValueError('makeTemplate.py: triggered on too many pulses')
+    if len(peakDict['peakIndices'])>500:
+        peakDict['peakIndices']=peakDict['peakIndices'][:500]
+        peakDict['peakMaxIndices']=peakDict['peakMaxIndices'][:500]    
     
     #remove pulses with additional triggers in the pulse window
     peakIndices = cutPulsePileup(peakDict['peakMaxIndices'], decayTime=decayTime, isVerbose=isVerbose)
     
     #back to non filtered data
-    #peakIndices = findNearestMax(data,peakIndices)
+    peakIndices = findNearestMax(data,peakIndices)
 
     #remove pulses with a large chi squared value
     #peakIndices = cutChiSquared(data,peakIndices,sigPass=sigPass, decayTime=decayTime, isVerbose=isVerbose, isPlot=isPlot)
@@ -56,7 +59,7 @@ def makeTemplate(rawData, numOffsCorrIters=1 , decayTime=50, nSigmaTrig=4., isVe
     roughTemplate, time = averagePulses(data, peakIndices, decayTime=decayTime)
     
     #create noise spectrum from pre-pulse data for filter
-    noiseSpectDict = mNS.makeWienerNoiseSpectrum(rawData,peakIndices,numBefore=60,numAfter=0,template=defaultFilter,isVerbose=isVerbose)
+    noiseSpectDict = mNS.makeWienerNoiseSpectrum(rawData,peakIndices,numBefore=50,numAfter=0,template=defaultFilter,isVerbose=isVerbose)
 
     #Correct for errors in peak offsets due to noise
     templateList = [roughTemplate]
@@ -70,10 +73,10 @@ def makeTemplate(rawData, numOffsCorrIters=1 , decayTime=50, nSigmaTrig=4., isVe
     fit = lambda x ,tau1, tau2: -(np.exp(-x/tau1)+np.exp(-x/tau2))/2.    
     bounds=(1,[100,100])
     warnings.filterwarnings("ignore")
-    taufit=opt.curve_fit(fit , np.arange(0,60), roughTemplate , [20.,20.] ) 
+    taufit=opt.curve_fit(fit , np.arange(0,45), roughTemplate[5:] , [20.,20.] ) 
     warnings.filterwarnings("default")
  
-    finalTemplate = fit(np.arange(0,60),taufit[0][0],taufit[0][1])
+    finalTemplate = np.concatenate((np.zeros(5),fit(np.arange(0,45),taufit[0][0],taufit[0][1])))
 
     return finalTemplate, time, noiseSpectDict, templateList, peakIndices
 
@@ -113,7 +116,8 @@ def sigmaTrigger(data,nSigmaTrig=5.,deadTime=200,decayTime=30,isVerbose=False):
     data = np.array(data)
     med = np.median(data)
     #print 'sdev',np.std(data),'med',med,'max',np.max(data)
-    trigMask = np.logical_or( data > (med + np.std(data)*nSigmaTrig) , data < (med - np.std(data)*nSigmaTrig) )
+    #trigMask = np.logical_or( data > (med + np.std(data)*nSigmaTrig) , data < (med - np.std(data)*nSigmaTrig) )
+    trigMask=data < (med - np.std(data)*nSigmaTrig)
     if np.sum(trigMask) > 0:
         peakIndices = np.where(trigMask)[0]
         i = 0
@@ -125,7 +129,8 @@ def sigmaTrigger(data,nSigmaTrig=5.,deadTime=200,decayTime=30,isVerbose=False):
                 peakData = data[p:p+decayTime]
             else:
                 peakData = data[p:]
-            peakMaxIndices = np.append(peakMaxIndices, np.argmax(np.abs(peakData))+int(p))
+            #peakMaxIndices = np.append(peakMaxIndices, np.argmax(np.abs(peakData))+int(p))
+            peakMaxIndices = np.append(peakMaxIndices, np.argmin(peakData)+int(p))
                             
             i+=1
             if i < len(peakIndices):
@@ -140,26 +145,26 @@ def sigmaTrigger(data,nSigmaTrig=5.,deadTime=200,decayTime=30,isVerbose=False):
     if isVerbose:
         print 'triggered on', len(peakIndices), 'pulses'    
     
-    peakDict={'peakIndices':peakIndices, 'peakMaxIndices':peakMaxIndices.astype(int)}
+    peakDict={'peakIndices':np.array(peakIndices), 'peakMaxIndices':np.array(peakMaxIndices).astype(int)}
     return peakDict
 
 def findNearestMax(data,peakIndices):
     newIndices=[]
     for iPeak, peakIndex in enumerate(peakIndices):
         peakIndex=int(peakIndex)
-        if peakIndex>=15 and peakIndex<=len(data)-15:
-            arg=np.argmax(np.abs(data[peakIndex:peakIndex+15]))
+        if peakIndex>=20 and peakIndex<=len(data)-20:
+            arg=np.argmax(np.abs(data[peakIndex:peakIndex+20]))
             arg=peakIndex+arg
-        elif peakIndex<15:
-            arg=np.argmax(np.abs(data[peakIndex:peakIndex+15]))
+        elif peakIndex<20:
+            arg=np.argmax(np.abs(data[peakIndex:peakIndex+20]))
         else:
-            arg=np.argmax(np.abs(data[peakIndex-15:]))
+            arg=np.argmax(np.abs(data[peakIndex-20:]))
             arg=peakIndex+arg
         newIndices=np.append(newIndices,arg)
 
     return newIndices
 
-def cutPulsePileup(peakIndices, nPointsBefore= 0, nPointsAfter = 60 , decayTime=50, isVerbose=False):
+def cutPulsePileup(peakIndices, nPointsBefore= 5, nPointsAfter = 45 , decayTime=50, isVerbose=False):
     '''
     Removes any pulses that have another pulse within 'window' (in ticks) This is
     to ensure that template data is not contaminated by extraneous pulses.
@@ -194,7 +199,7 @@ def cutPulsePileup(peakIndices, nPointsBefore= 0, nPointsAfter = 60 , decayTime=
     
     return newPeakIndices
 
-def cutChiSquared(data,peakIndices,sigPass=1, decayTime=50, nPointsBefore= 0, nPointsAfter=60, isVerbose=False, isPlot=False):   
+def cutChiSquared(data,peakIndices,sigPass=1, decayTime=50, nPointsBefore= 5, nPointsAfter=45, isVerbose=False, isPlot=False):   
     '''
     Removes a fraction of pulses with the worst Chi Squared fit to 
     the exponential tail. This should remove any triggers that don't look like 
@@ -267,7 +272,7 @@ def cutChiSquared(data,peakIndices,sigPass=1, decayTime=50, nPointsBefore= 0, nP
     return newPeakIndices
     
     
-def averagePulses(data, peakIndices, isoffset=False, nPointsBefore=0, nPointsAfter=60, decayTime=30, sampleRate=1e6):
+def averagePulses(data, peakIndices, isoffset=False, nPointsBefore=5, nPointsAfter=45, decayTime=30, sampleRate=1e6):
     '''
     Average together pulse data to make a template
     
@@ -289,10 +294,9 @@ def averagePulses(data, peakIndices, isoffset=False, nPointsBefore=0, nPointsAft
     template=np.zeros(nPointsBefore+nPointsAfter)
     for iPeak,peakIndex in enumerate(peakIndices):
         peakIndex=int(peakIndex)
-        if peakIndex >= nPointsBefore and peakIndex < len(data)-nPointsAfter:
+        if peakIndex >= max(nPointsBefore,decayTime) and peakIndex < min(len(data)-nPointsAfter,len(data)-decayTime):
             peakRecord = data[int(peakIndex-nPointsBefore):int(peakIndex+nPointsAfter)]
             peakData = data[int(peakIndex-decayTime):int(peakIndex+decayTime)]
-            
             if isoffset:
                 peakRecord/=np.abs(data[int(peakIndex)])
             else:
@@ -307,7 +311,7 @@ def averagePulses(data, peakIndices, isoffset=False, nPointsBefore=0, nPointsAft
     time = np.arange(0,nPointsBefore+nPointsAfter)/sampleRate
     return template, time
     
-def correctPeakOffs(data, peakIndices, noiseSpectDict, template, filterType, offsets=np.arange(-20,21), nPointsBefore=0, nPointsAfter=60):
+def correctPeakOffs(data, peakIndices, noiseSpectDict, template, filterType, offsets=np.arange(-20,21), nPointsBefore=5, nPointsAfter=45):
     '''
     Correct the list of peak indices to improve the alignment of photon pulses.  
 

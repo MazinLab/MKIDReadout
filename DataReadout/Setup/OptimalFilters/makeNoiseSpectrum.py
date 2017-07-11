@@ -6,6 +6,7 @@ import scipy.signal
 from baselineIIR import IirFilter
 import matplotlib.pyplot as plt
 import triggerPhotons as tP
+import ipdb
 
 def makeWienerNoiseSpectrum(data, peakIndices=[], numBefore=100, numAfter=700, noiseOffsetFromPeak=200, sampleRate=1e6, template=[],isVerbose=False,baselineSubtract=True):
     nFftPoints = numBefore + numAfter
@@ -14,7 +15,7 @@ def makeWienerNoiseSpectrum(data, peakIndices=[], numBefore=100, numAfter=700, n
     #If no peaks, choose random indices to make spectrum 
     if len(peakIndices)==0:
         peakIndices=np.array([0])
-        rate = len(data)/float(nFftPoints)/100.
+        rate = len(data)/float(nFftPoints)/1000.
         while peakIndices[-1]<(len(data)-1):
             prob=np.random.rand()
             currentIndex=peakIndices[-1]
@@ -31,28 +32,38 @@ def makeWienerNoiseSpectrum(data, peakIndices=[], numBefore=100, numAfter=700, n
         data = data - np.mean(noiseStream)
     
     #Calculate noise spectra for the defined area before each pulse
-    noiseSpectra = np.zeros((len(peakIndices), nFftPoints))
+    if len(peakIndices)>1000:
+        noiseSpectra = np.zeros((len(peakIndices), nFftPoints))
+    else:
+        noiseSpectra = np.zeros((len(peakIndices), nFftPoints))
     rejectInd=np.array([])
+    counter=0
     for iPeak,peakIndex in enumerate(peakIndices):
         if peakIndex > nFftPoints+noiseOffsetFromPeak and peakIndex < len(data)-numAfter:
             noiseData = data[peakIndex-nFftPoints-noiseOffsetFromPeak:peakIndex-noiseOffsetFromPeak]
-            noiseSpectra[iPeak] = np.abs(np.fft.fft(data[peakIndex-nFftPoints-noiseOffsetFromPeak:peakIndex-noiseOffsetFromPeak])/nFftPoints)**2 
+            noiseSpectra[counter] = np.abs(np.fft.fft(data[peakIndex-nFftPoints-noiseOffsetFromPeak:peakIndex-noiseOffsetFromPeak])/nFftPoints)**2 
+            counter+=1
             if len(template)!=0:
                 filteredData=np.correlate(noiseData,template,mode='same')
                 peakDict=tP.detectPulses(filteredData, nSigmaThreshold = 2., negDerivLenience = 1, bNegativePulses=True)
                 if len(peakDict['peakIndices'])!=0:
-                    rejectInd=np.append(rejectInd,iPeak)     
-
+                    rejectInd=np.append(rejectInd,counter-1)  
+        if counter==500:
+            break   
+    noiseSpectra=noiseSpectra[0:counter]
     #Remove indicies with pulses by coorelating with a template if provided
-    if len(template)!=0:  
-        noiseSpectra = np.delete(noiseSpectra, rejectInd, axis=0)
+    if len(template)!=0: 
+        noiseSpectra = np.delete(noiseSpectra, rejectInd.astype(int), axis=0) 
     noiseFreqs = np.fft.fftfreq(nFftPoints,1./sampleRate)
     if len(np.shape(noiseSpectra))==0:
         raise ValueError('makeWienerNoiseSpectrum: not enough spectra to average')
     if np.shape(noiseSpectra)[0]<5:
-        raise ValueError('makeWienerNoiseSpectrum: not enough spectra to average')    
+        raise ValueError('makeWienerNoiseSpectrum: not enough spectra to average') 
+           
     noiseSpectrum = np.median(noiseSpectra,axis=0)
     #noiseSpectrum[0] = 2.*noiseSpectrum[1] #look into this later 8/15/16
+    if not np.all(noiseSpectrum>0):
+        raise ValueError('makeWienerNoiseSpectrum: not all noise data >0')
     if isVerbose:
         print len(noiseSpectra[:,0]),'traces used to make noise spectrum', len(rejectInd), 'cut for pulse contamination'
 
