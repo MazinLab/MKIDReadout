@@ -192,11 +192,11 @@ class StartQt4(QMainWindow):
     def loadps(self):
         #### IN HERE NEED TO ADD LOADING OF ID FIELD FROM PS
     
-        hd5file=openFile(str(self.openfile),mode='r')
-        group = hd5file.getNode('/','r0')
+        hd5file=open_file(str(self.openfile),mode='r')
+        group = hd5file.get_node('/','r0')
         self.freq=empty(0,dtype='float32')
         self.idList=empty(0,dtype='int32')
-        for sweep in group._f_walkNodes('Leaf'):
+        for sweep in group._f_walknodes('Leaf'):
             k=sweep.read()
             self.scale = k['scale'][0]
             #print "Scale factor is ", self.scale

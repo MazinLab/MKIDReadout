@@ -23,12 +23,18 @@ class WSFitMLData:
         self.magsdb = 20*np.log10(self.mags)
     
     def loadPeaks(self, flag='good'):
-        self.peakLocs = np.empty(0)
+        if flag=='good':
+            self.peakLocs = np.empty(0)
+        else:
+            self.allPeakLocs = np.empty(0)
         for fn in self.filenameList:
             fn = fn.split('.')[0]
             fn += '-freqs-' +  flag + '.txt'
             _, peakLocs, _ = np.loadtxt(fn, unpack=True)
-            self.peakLocs = np.append(self.peakLocs, peakLocs)
+            if flag=='good':
+                self.peakLocs = np.append(self.peakLocs, peakLocs)
+            else:
+                self.allPeakLocs = np.append(self.allPeakLocs, peakLocs)
     
     def filterMags(self, mags, order=4, rs=40, wn=0.005):
         b, a = signal.cheby2(order, rs, wn, btype='high', analog=False)
