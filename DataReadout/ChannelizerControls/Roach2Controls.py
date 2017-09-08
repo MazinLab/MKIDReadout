@@ -178,6 +178,24 @@ class Roach2Controls:
         if self.verbose:
             print 'dds lag: ',ddsShift
         return ddsShift
+
+    def loadBoardNum(self, boardNum=None):
+        '''
+        Loads the board number (conventionally the last 3 digits of roach IP)
+
+        INPUTS
+            boardNum - board number
+        '''
+        if boardNum is None:
+            boardNum = int(self.ip.split('.')[3])
+        self.fpga.write_int(self.params['boardNum_reg'], boardNum)
+
+    def loadCurTimestamp(self)
+        '''
+        Loads current time
+        '''
+        timestamp = int(time.time())
+        self.fpga.write_int(self.params['timestamp_reg'], timestamp)
     
     def initializeV7UART(self, waitForV7Ready = True, baud_rate = None, lut_dump_buffer_size = None):
         '''
