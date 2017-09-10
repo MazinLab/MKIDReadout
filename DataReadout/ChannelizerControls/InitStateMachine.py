@@ -204,6 +204,8 @@ class InitStateMachine(QtCore.QObject):        #Extends QObject for use with QTh
         fpgPath = self.config.get('Roach '+str(self.num),'fpgPath')
         self.roachController.fpga.upload_to_ram_and_program(fpgPath)
         print 'Fpga Clock Rate:',self.roachController.fpga.estimate_fpga_clock()
+        self.roachController.loadBoardNum(self.num)
+        self.roachController.loadCurTimestamp()
         return True
         
     def initV7(self):
