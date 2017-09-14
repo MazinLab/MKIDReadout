@@ -1292,6 +1292,7 @@ class Roach2Controls:
         # grab FIR coeff from file
         firCoeffs = np.transpose(np.loadtxt(coeffFile))
         if firCoeffs.ndim==1: firCoeffs = np.tile(firCoeffs, (len(freqChans),1))    # if using the same filter for every pixel
+        else: firCoeffs = np.transpose(firCoeffs)
         firBinPt=self.params['firBinPt']
         firInts=np.asarray(firCoeffs*(2**firBinPt),dtype=np.int32)
         zeroWriteStr = struct.pack('>{}{}'.format(len(firInts[0]),'l'), *np.zeros(len(firInts[0])))     # write zeros for channels without resonators
