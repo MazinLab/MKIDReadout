@@ -82,7 +82,7 @@ BUGS:
     This should be fixed with some indexing tricks which don't rely on np.where
 """
 
-import sys,os,time,datetime,struct,math
+import sys,os,time,datetime,struct,math,calendar
 import warnings, inspect
 import matplotlib.pyplot as plt
 import numpy as np
@@ -190,11 +190,15 @@ class Roach2Controls:
             boardNum = int(self.ip.split('.')[3])
         self.fpga.write_int(self.params['boardNum_reg'], boardNum)
 
-    def loadCurTimestamp(self)
+    def loadCurTimestamp(self):
         '''
-        Loads current time
+        Loads current time, in seconds since Jan 1 00:00 UTC this year
         '''
         timestamp = int(time.time())
+        curYr = datetime.datetime.utcnow().year
+        yrStart = datetime.date(curYr, 1, 1)
+        tsOffs = calendar.timegm(yrStart.timetuple())
+        timestamp -= tsOffs
         self.fpga.write_int(self.params['timestamp_reg'], timestamp)
     
     def initializeV7UART(self, waitForV7Ready = True, baud_rate = None, lut_dump_buffer_size = None):
