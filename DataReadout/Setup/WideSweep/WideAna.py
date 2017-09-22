@@ -393,8 +393,8 @@ class WideAna(QMainWindow):
             for x in self.wsf.x[self.goodPeakMask]:
                 if x > self.xMin and x < self.xMax:
                     self.axes.axvline(x=x,color='g')
-                    self.axes.axvline(x=x+0.00025,color='g',linestyle='-.',linewidth=0.5)
-                    self.axes.axvline(x=x-0.00025,color='g',linestyle='-.',linewidth=0.5)
+                    self.axes.axvline(x=x+0.00010,color='g',linestyle='-.',linewidth=0.5)
+                    self.axes.axvline(x=x-0.00010,color='g',linestyle='-.',linewidth=0.5)
             for c in self.wsf.x[self.collMask]:
                 if c > self.xMin and c < self.xMax:
                     self.axes.axvline(x=c,color='g')
@@ -402,8 +402,8 @@ class WideAna(QMainWindow):
             for x in self.wsf.x[self.badPeakMask]:
                 if x > self.xMin and x < self.xMax:
                     self.axes.axvline(x=x,color='r')
-                    self.axes.axvline(x=x+0.00025,color='r',linestyle='-.',linewidth=0.5)
-                    self.axes.axvline(x=x-0.00025,color='r',linestyle='-.',linewidth=0.5)
+                    self.axes.axvline(x=x+0.00010,color='r',linestyle='-.',linewidth=0.5)
+                    self.axes.axvline(x=x-0.00010,color='r',linestyle='-.',linewidth=0.5)
             
             self.axes.set_xlim((self.xMin,self.xMax))
             self.axes.set_title("segment=%.1f/%.1f"%(self.segment,self.segmentMax))
