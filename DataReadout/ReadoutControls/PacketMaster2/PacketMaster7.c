@@ -31,9 +31,10 @@
 #define PORT 50000
 #define XPIX 80
 #define YPIX 125
-#define NROACH 1
+#define NROACH 8
 #define SHAREDBUF 536870912
-#define SNINTTIME 200
+#define SNINTTIME 2000
+#define TSOFFS 1483228800 
 
 
 #define handle_error_en(en, msg) \
@@ -241,7 +242,11 @@ void Nuller()
     char *olddata;
     char packet[808*16];
     time_t s,olds;  // Seconds
-    struct timespec spec;
+    struct timespec startSpec;
+    struct timespec stopSpec;
+    struct timeval tv;
+    unsigned long long sysTs;
+    uint64_t nsElapsed;
     FILE *wp;
     char outfile[160];
     uint64_t oldbr = 0;     // number of bytes of unparsed data sitting in olddata
@@ -252,14 +257,15 @@ void Nuller()
     struct readoutstream *rptr;
     uint64_t pstart;
 
-    char *takeImgSemName = "/speckNullTakeImg";
-    char *doneImgSemName = "/speckNullDoneImg";
+    char *takeImgSemName = "/speckNullTakeImg1";
+    char *doneImgSemName = "/speckNullDoneImg1";
     sem_t *takeImgSem;
     sem_t *doneImgSem;
     char *imgShmName = "/speckNullImgBuff";
     char *tsShmName = "/speckNullTimestamp";
     uint16_t *imgBuffPtr;
     uint64_t *startTsPtr;
+    uint64_t startTimestamp;
     uint64_t curTs;
     uint8_t curRoachInd;
     uint32_t doneIntegrating;
@@ -280,12 +286,14 @@ void Nuller()
     memset(data, 0, sizeof(data[0]) * 1024);    // zero out array
     memset(packet, 0, sizeof(packet[0]) * 808 * 2);    // zero out array
     memset(frame,0,sizeof(frame[0])*NROACH);
+
+    //FILE *timeFile = fopen("timetest.txt", "w");
     
     sem_unlink(takeImgSemName);
     sem_unlink(doneImgSemName);
     
-    takeImgSem = sem_open(takeImgSemName, O_CREAT, S_IWUSR|S_IRUSR, 0);
-    doneImgSem = sem_open(doneImgSemName, O_CREAT, S_IWUSR|S_IRUSR, 0);
+    takeImgSem = sem_open(takeImgSemName, O_CREAT, S_IRUSR|S_IWUSR, 0);
+    doneImgSem = sem_open(doneImgSemName, O_CREAT, S_IRUSR|S_IWUSR, 0);
     
     if((takeImgSem==SEM_FAILED)||(doneImgSem==SEM_FAILED))
         printf("Semaphore creation failed: %s\n", strerror(errno));
@@ -296,10 +304,7 @@ void Nuller()
         printf("Init takeImgSem Value: %d\n", semVal);
 
     }
-    while(sem_trywait(doneImgSem)==0);
-    
-    clock_gettime(CLOCK_REALTIME, &spec);   
-    olds  = spec.tv_sec;
+    while(sem_trywait(doneImgSem)==0); 
     
     fd = shm_open(imgShmName, O_CREAT | O_RDWR, S_IRUSR | S_IWUSR);
     if (fd == -1) { 
@@ -341,9 +346,11 @@ void Nuller()
     
     printf("Nuller done initializing\n");
 
+    int whileLoopIters = 0;
     while (access( "/mnt/ramdisk/QUIT", F_OK ) == -1)
     {
-       
+       if(takingImg)
+          whileLoopIters++;
        // ead in new data and parse it
        sem_wait(&sem[2]);        
        br = rptr->unread;
@@ -376,6 +383,7 @@ void Nuller()
 
        // if there is data waiting, process it
        pstart = 0;
+       int forLoopIters = 0;
        if( oldbr >= 808*10 ) {       
           // search the available data for a packet boundary
           //printf("oldbr %d\n", oldbr); fflush(stdout);
@@ -387,8 +395,14 @@ void Nuller()
                 takingImg = 1;
                 doneIntegrating = 0;   
                 memset(imgBuffPtr, 0, sizeof(*imgBuffPtr) * XPIX * YPIX);    // zero out array
+                startTimestamp = *startTsPtr;
+                if(startTimestamp==0)
+                    startTimestamp = curTs;
+                printf("TSDiff: %d\n", startTimestamp-curTs);
               
              }
+             if(takingImg)
+                forLoopIters++;
              sem_getvalue(takeImgSem, &semVal);
              //printf("takeImgSemVal %d: \n", semVal);
 
@@ -400,13 +414,18 @@ void Nuller()
                 // fill packet and parse
                 // printf("Found Header at %d\n",i*8); fflush(stdout);
                 memmove(packet,&olddata[pstart],i*8 - pstart);
-                pcount++;
                 curRoachInd = 0;
+
                 curTs = (uint64_t)hdr->timestamp;
+                //gettimeofday(&tv, NULL);
+                //sysTs = (unsigned long long)(tv.tv_sec)*1000 + (unsigned long long)(tv.tv_usec)/1000 - (unsigned long long)TSOFFS*1000;
+                //sysTs = sysTs*2;
+
+                //fprintf(timeFile, "%llu %llu\n", curTs, sysTs);
                 
                 //Figure out index corresponding to roach number (index of roachNum in boardNums)
                 //If this doesn't exist, assign it
-                /*for(j=0; j<NROACH; j++)
+                for(j=0; j<NROACH; j++)
                 {
                     if(boardNums[j]==hdr->roach)
                     {
@@ -422,22 +441,39 @@ void Nuller()
 
                     }
 
-                }*/
+                }
 
                 if(takingImg)
                 {
-                    if((curTs>(*startTsPtr))&&(curTs<=((*startTsPtr)+SNINTTIME)))
+                    //printf("curRoachTs: %lld\n", curTs);
+                    if((curTs>startTimestamp)&&(curTs<=(startTimestamp+SNINTTIME)))
                         ParsePacketSN(imgBuffPtr,packet,i*8 - pstart,frame); 
-                    else if(curTs>((*startTsPtr)+SNINTTIME))
+                    else if(curTs>(startTimestamp+SNINTTIME))
+                    {
                         doneIntegrating |= (1<<curRoachInd);
+                        //printf("Nuller: Roach %d done Integrating\n", boardNums[curRoachInd]);
+
+                    }
 
                     //printf("Nuller: curTs %lld\n", curTs);
+                    pcount++;
 
                     if(doneIntegrating==doneIntMask) //check to see if all boards are done integrating
                     {
                         takingImg = 0;
+                        clock_gettime(CLOCK_REALTIME, &stopSpec);
+                        //nsElapsed = stopSpec.tv_nsec - startSpec.tv_nsec;
                         sem_post(doneImgSem);
                         printf("Nuller: done image at %lld\n", curTs);
+                        printf("Nuller: int time %d\n", curTs-startTimestamp);
+                        //printf("Nuller: real time %d ms\n", (nsElapsed)/1000000);
+                        printf("Nuller: Parse rate = %d pkts/img. Data in buffer = %d\n",pcount,oldbr); fflush(stdout);
+                        //printf("Nuller: forLoopIters %d\n", forLoopIters);
+                        //printf("Nuller: whileLoopIters %d\n", whileLoopIters);
+                        printf("Nuller: oldbr: %d\n", oldbr);
+                        pcount = 0;
+                        forLoopIters = 0;
+                        whileLoopIters = 0;
 
                     }
                 
@@ -454,13 +490,23 @@ void Nuller()
     }
 
     free(olddata);
+    printf("Nuller: Closing semaphores\n");
+    //sem_close(takeImgSem);
+    //sem_close(doneImgSem);
+    sem_unlink(takeImgSemName);
+    sem_unlink(doneImgSemName);
+    printf("Nuller: semaphores unlinked\n");
+
+    /*
+    printf("Nuller: Umapping Shm\n");
+    munmap(imgBuffPtr, sizeof(uint16_t)*XPIX*YPIX);
+    munmap(startTsPtr, sizeof(uint64_t));
+    printf("Nuller: Unlinking Shm\n");
+    shm_unlink(imgShmName);
+    shm_unlink(tsShmName);
+    */
+    //fclose(timeFile);
     printf("Nuller: Closing\n");
-    printf("Closing semaphores\n");
-    sem_close(takeImgSem);
-    sem_close(doneImgSem);
-    printf("Unlinking Shm\n");
-    //shm_unlink(imgShmName);
-    //shm_unlink(tsShmName);
     return;
 }
 void Cuber()
@@ -943,12 +989,25 @@ int main(void)
     sem_wait(&sem[1]);      
     sem_wait(&sem[2]);    
     
+    printf("Killing Reader, Cuber, and Nuller\n");
     pthread_cancel(threads[0]);  // kill Reader
     pthread_cancel(threads[2]);  // kill Cuber
+    pthread_cancel(threads[3]); //kill Nuller
+
+    printf("Unmapping Shm\n");
+    munmap(rptr1, sizeof(struct readoutstream));
+    munmap(rptr2, sizeof(struct readoutstream));
+    munmap(rptr3, sizeof(struct readoutstream));
     
+    printf("Unlinking Shm\n");
     shm_unlink("/roachstream1");   
-    shm_unlink("/roachstream2");   
+    printf("Unlinked stream 1");
+    shm_unlink("/roachstream2");
+    printf(" 2");
     shm_unlink("/roachstream3");   
+    printf(" 3\n");
+
+    printf("Closing semaphores\n");
     sem_close(&sem[0]);
     sem_close(&sem[1]);
     sem_close(&sem[2]);

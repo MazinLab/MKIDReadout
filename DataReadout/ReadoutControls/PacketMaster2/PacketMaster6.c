@@ -33,6 +33,7 @@
 #define YPIX 125
 #define NROACH 10
 #define SHAREDBUF 536870912
+#define TSOFFS 1483228800
 
 
 #define handle_error_en(en, msg) \
@@ -201,6 +202,9 @@ void Cuber()
     uint64_t swp,swp1;
     struct readoutstream *rptr;
     uint64_t pstart;
+    struct timeval tv;
+    unsigned long long sysTs;
+    uint64_t roachTs;
 
     ret = MaximizePriority(6);
     printf("Fear the wrath of CUBER!\n");
@@ -217,6 +221,8 @@ void Cuber()
 
     clock_gettime(CLOCK_REALTIME, &spec);   
     olds  = spec.tv_sec;
+    
+    //FILE *timeFile = fopen("timetestPk6.txt", "w");
 
     while (access( "/mnt/ramdisk/QUIT", F_OK ) == -1)
     {
@@ -290,6 +296,12 @@ void Cuber()
              if (hdr->start == 0b11111111) {        // found new packet header!
                 // fill packet and parse
                 // printf("Found Header at %d\n",i*8); fflush(stdout);
+                roachTs = (uint64_t)hdr->timestamp;
+                gettimeofday(&tv, NULL);
+                sysTs = (unsigned long long)(tv.tv_sec)*1000 + (unsigned long long)(tv.tv_usec)/1000 - (unsigned long long)TSOFFS*1000;
+                sysTs = sysTs*2;
+                //fprintf(timeFile, "%llu %llu\n", roachTs, sysTs);
+
                 memmove(packet,&olddata[pstart],i*8 - pstart);
                 pcount++;                
                 ParsePacket(image,packet,i*8 - pstart,frame); 
@@ -640,9 +652,11 @@ int main(void)
     }
                        
     // close shared memory
+    printf("Closing shared memory");
     sem_wait(&sem[0]);  // stop messing with memory 
     sem_wait(&sem[1]);      
     
+    printf("Killing Cuber and Reader");
     pthread_cancel(threads[0]);  // kill Reader
     pthread_cancel(threads[2]);  // kill Cuber
     
