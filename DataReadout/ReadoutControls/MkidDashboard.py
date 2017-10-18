@@ -116,8 +116,9 @@ class ImageSearcher(QtCore.QObject):     #Extends QObject for use with QThreads
         #data = fin.read()
         #fmt = 'H'*(len(data)/2)   # 2 bytes per each unsigned 16 bit integer
         #fin.close()
-        
+         
         image=np.fromfile(open(fn, mode='rb'),dtype=np.uint16)
+        
         image = np.transpose(np.reshape(image, (self.nCols, self.nRows)))
         #image = np.asarray(struct.unpack(fmt,data), dtype=np.int)
         #image=image.reshape((self.nRows,self.nCols))
@@ -406,6 +407,7 @@ class MkidDashboard(QMainWindow):
         self.takingDark = -1                        # Flag for taking dark image. Indicates number of images we still need for darkField image. Negative means not taking a dark
         self.takingFlat = -1                        # Flag for taking flat image. Indicates number of images we still need for flatField image
         
+
         #Laser Controller
         print 'Setting up laser control...'
         laserIP=self.config.get('properties','laserIPaddress')
@@ -676,12 +678,17 @@ class MkidDashboard(QMainWindow):
     
     def addFlatImage(self, photonImage):
         if self.checkbox_darkImage.isChecked() and self.darkField is not None:
-            photonImage -= self.darkField
+            photonImage = np.array(photonImage, dtype=np.float) - self.darkField
         self.spinbox_flatImage.setEnabled(False)
-        if self.flatField is not None: self.flatField+=photonImage
-        else: self.flatField=photonImage
+        
+        if self.flatField is not None: 
+           self.flatField+=photonImage
+        
+        else:
+            self.flatField=photonImage
         self.takingFlat-=1
         if self.takingFlat ==0:
+            print "calculating weights"
             self.takingFlat=-1
             self.flatField=self.flatField/(self.config.getint('properties','num_images_for_flat')*self.config.getfloat('properties','packetmaster_image_inttime'))
             flatAvg=np.mean(self.flatField[np.where(self.flatField>0)])
@@ -691,13 +698,20 @@ class MkidDashboard(QMainWindow):
             self.flatField[np.where(self.flatField<minFlat)]=minFlat
             self.flatField[np.where(self.flatField>maxFlat)]=maxFlat
             self.flatField[zeros]=1
-            self.flatField = 1./self.flatField
+            ###Takes the median cutting out the high frequency boards (0<=x<=20 or 60<=x<=79)
+            flatToCalculateMedian=np.copy(self.flatField)
+            flatToCalculateMedian[np.where(np.logical_and(self.beammapFailed!=0, flatToCalculateMedian<=100))]=0
+            flatToCalculateMedian=flatToCalculateMedian[:,20:60]
+            flatMedian=np.median(flatToCalculateMedian[flatToCalculateMedian!=0])
             
-            #self.flatField[np.where(self.flatField >0)] = 1.*self.config.getint('properties','num_images_for_flat')/self.flatField[np.where(self.flatField >0)]
+            #flatMedian=np.median(self.flatField[np.where(np.logical_and(self.beammapFailed==0, self.flatField!=1))][:,20:60] )
+            #flatMedian=np.median(self.flatField[np.where(np.logical_and(self.beammapFailed==0, self.flatField!=1))])
+            
+            self.flatField = 1./self.flatField*flatMedian
             self.checkbox_flatImage.setChecked(True)
             self.spinbox_flatImage.setEnabled(True)
             flatFN = self.config.get('properties','flatFieldFN')
-            np.save(flatFN, self.flatField)
+            #np.save(flatFN, self.flatField)
             
         
     
@@ -745,7 +759,9 @@ class MkidDashboard(QMainWindow):
         if self.checkbox_flatImage.isChecked():
             if self.flatField is None:
                 flatFN = self.config.get('properties','flatFieldFN')
-                try: self.flatField = np.load(flatFN)
+                try: 
+                    flatDict = np.load(flatFN)
+                    self.flatField = flatDict['weights']
                 except IOError: pass
             if self.flatField is not None:
                 image[np.where(image>0)]=image[np.where(image>0)]*self.flatField[np.where(image>0)]
@@ -1341,6 +1357,7 @@ class MkidDashboard(QMainWindow):
         self.spinbox_darkImage.valueChanged.connect(partial(self.changedSetting,'num_images_for_dark'))    # change in config file
         button_darkImage = QPushButton('Take Dark')
         def takeDark():
+            self.darkField=None
             self.takingDark=self.spinbox_darkImage.value()
         button_darkImage.clicked.connect(takeDark)
         self.checkbox_darkImage = QCheckBox()
@@ -1357,6 +1374,7 @@ class MkidDashboard(QMainWindow):
         self.spinbox_flatImage.valueChanged.connect(partial(self.changedSetting,'num_images_for_flat'))    # change in config file
         button_flatImage = QPushButton('Take Flat')
         def takeFlat():
+            self.flatField=None
             self.takingFlat=self.spinbox_flatImage.value()
         button_flatImage.clicked.connect(takeFlat)
         self.checkbox_flatImage = QCheckBox()
@@ -1391,7 +1409,7 @@ class MkidDashboard(QMainWindow):
         #Drop down menu for choosing image stretch
         label_stretch = QLabel("Image Stretch:")
         self.combobox_stretch = QComboBox()
-        self.combobox_stretch.addItems(['logarithmic', 'linear', 'histogram equalization'])
+        self.combobox_stretch.addItems(['linear', 'logarithmic', 'histogram equalization'])
         
         
         # Checkbox for showing unbeammaped pixels
@@ -1652,8 +1670,6 @@ class MkidDashboard(QMainWindow):
         if self.observing:
             self.stopObs()
         quit_file_loc = self.config.get('properties','cuber_ramdisk')
-        f=open(quit_file_loc+'/QUIT','w')   # tell packetmaster to end
-        f.close()
         self.workers[0].search=False    # stop searching for new images
         del self.grPixMap               # Get segfault if we don't delete this. Something about signals in the queue trying to access deleted objects...
         for thread in self.threadPool:  # They should all be done at this point, but just in case
@@ -1669,6 +1685,8 @@ class MkidDashboard(QMainWindow):
         self.moveLogFiles()             # Move any log files in the ramdisk to the hard drive
         self.hide()
         time.sleep(1)
+        f=open(quit_file_loc+'/QUIT','w')   # tell packetmaster to end
+        f.close()
         
         QtCore.QCoreApplication.instance().quit()
 
