@@ -60,6 +60,7 @@ class HighTemplar(QMainWindow):
         super(HighTemplar, self).__init__()
         self.create_main_frame()
         self.setWindowTitle('High Templar Resonator Setup')
+        QtGui.QApplication.setStyle(QtGui.QStyleFactory.create('plastique'))
         #self.create_status_bar()
         
         #Setup Settings window

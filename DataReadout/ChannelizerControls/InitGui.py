@@ -56,6 +56,7 @@ class InitGui(QMainWindow):
         self.settingsWindow = InitSettingsWindow(self.roachNums, self.config, parent=None) # keep parent None for now
         self.settingsWindow.resetRoach.connect(self.resetRoachState)
         self.settingsWindow.initTemplar.connect(self.initTemplar)
+        QtGui.QApplication.setStyle(QtGui.QStyleFactory.create('plastique'))
         
         #Setup RoachStateMachine and threads for each roach
         self.roaches = []
