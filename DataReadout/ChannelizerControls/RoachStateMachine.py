@@ -730,8 +730,11 @@ class RoachStateMachine(QtCore.QObject):        #Extends QObject for use with QT
         INPUTS:
             adcAtten - dB
         '''
-        self.roachController.changeAtten(3,adcAtten)
-        print 'r'+str(self.num)+'Changed ADCAtten to '+str(adcAtten)
+        adcAtten1 = np.floor(adcAtten*2)/4.
+        adcAtten2 = np.ceil(adcAtten*2)/4.
+        self.roachController.changeAtten(3,adcAtten1)
+        self.roachController.changeAtten(4,adcAtten2)
+        print 'r'+str(self.num)+'Changed ADCAtten to '+str(adcAtten1)+'+'+str(adcAtten2)
         self.finished.emit()
     
     @QtCore.pyqtSlot(float)
