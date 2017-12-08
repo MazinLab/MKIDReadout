@@ -1027,7 +1027,7 @@ class RoachSweepWindow(QMainWindow):
         spinbox_adcAtten = QDoubleSpinBox()
         spinbox_adcAtten.setValue(adcAtten)
         spinbox_adcAtten.setSuffix(' dB')
-        spinbox_adcAtten.setRange(0,31.75)
+        spinbox_adcAtten.setRange(0,63.5)
         spinbox_adcAtten.setToolTip("Rounded to the nearest 1/4 dB")
         spinbox_adcAtten.setSingleStep(1.)
         spinbox_adcAtten.setWrapping(False)
