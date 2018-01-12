@@ -312,6 +312,8 @@ class RoachStateMachine(QtCore.QObject):        #Extends QObject for use with QT
         dacAtten = self.config.getfloat('Roach '+str(self.num),'dacatten_start')
         dacAtten1 = np.floor(dacAtten*2)/4.
         dacAtten2 = np.ceil(dacAtten*2)/4.
+        adcAtten1 = np.floor(adcAtten*2)/4.
+        adcAtten2 = np.ceil(adcAtten*2)/4.
 
         self.roachController.generateDacComb(globalDacAtten=dacAtten)
         
@@ -320,7 +322,8 @@ class RoachStateMachine(QtCore.QObject):        #Extends QObject for use with QT
         print "Setting Attenuators"
         self.roachController.changeAtten(1,dacAtten1)
         self.roachController.changeAtten(2,dacAtten2)
-        self.roachController.changeAtten(3,adcAtten)
+        self.roachController.changeAtten(3,adcAtten1)
+        self.roachController.changeAtten(4,adcAtten2)
         print "Setting LO Freq"
         self.roachController.loadLOFreq()
         print "Loading DAC LUT"
@@ -735,6 +738,8 @@ class RoachStateMachine(QtCore.QObject):        #Extends QObject for use with QT
         self.roachController.changeAtten(3,adcAtten1)
         self.roachController.changeAtten(4,adcAtten2)
         print 'r'+str(self.num)+'Changed ADCAtten to '+str(adcAtten1)+'+'+str(adcAtten2)
+        # self.roachController.changeAtten(3, adcAtten)
+        # print 'r'+str(self.num)+'Changed ADCAtten to '+str(adcAtten)
         self.finished.emit()
     
     @QtCore.pyqtSlot(float)
