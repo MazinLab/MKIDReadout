@@ -1236,6 +1236,7 @@ class Roach2Controls:
         #thresholdRad = thresholdDeg * np.pi/180.
 
         #format it as a fix16_13 to be placed in a register
+        thresholdRad = max(thresholdRad, -3.8) #overflow if threshold is less than -4
         binThreshold = castBin(thresholdRad,quantization='Round',nBits=16,binaryPoint=13,format='uint')
         sampleRate = 1.e6
 
