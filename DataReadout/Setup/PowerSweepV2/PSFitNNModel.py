@@ -1,63 +1,18 @@
 ''' 
-90'%' accuracy sometimes and 50'%' exact attenuation choice
-
-4 hidden layers. 2 pools
-3 classes (like the original)
-
-To do:
-Could try just overpower and normal seeing as that's all you care about and then use the 2nd max to find optimal
-Have it plot missed resonators to dientify why it's missing them
-Read up on CNN if you have to
-Make it do loop test automatically without having to do 2012 2012 in command line
-
-Author Rupert Dodkins
+Author Rupert Dodkins, Neelay Fruitwala
 
 A script to automate the identification of resonator attenuations normally performed by PSFit.py. This is accomplished 
-using Google's Tensor Flow machine learning package which implements a pattern recognition algorithm on the IQ velocity
-spectrum. The code implements a 2D image classification algorithm similar to the MNIST test. This code creates a 2D 
-image from a 1D variable by populating a matrix of zeros with ones at the y location of each datapoint
+using Google's Tensor Flow machine learning package which implements a pattern recognition convolution neural network 
+algorithm and classification algorithm on power and frequency sweep data saved in h5 format.
 
-Usage:  python PSFit_ml.py 20160712/ps_r115_FL1_1_20160712-225809.h5 20160720/ps_r118_FL1_b_pos_20160720-231653.h5
-
-Inputs:
-20160712/ps_r115_FL1_1.txt:                    list of resonator frequencies and correct attenuations
-20160712/ps_r115_FL1_1_20160712-225809.h5:     corresponding powersweep file
-20160720/ps_r118_FL1_b_pos_20160720-231653.h5: powersweep file the user wishes to infer attenuations for
-
-Intermediaries:
-SDR/Setup/ps_peaks_train_w<x>_s<y>.pkl:        images and corresponding labels used to train the algorithm
-
-Outputs: 
-20160712/ps_r115_FL1_1.pkl:                        frequencies, IQ velocities, Is, Qs, attenuations formatted for quick use
-20160720/ps_r118_FL1_b_pos_20160720-231653-ml.txt: to be used with PSFit.py (temporary)
-20160720/ps_r118_FL1_b_pos.txt:                    final list of frequencies and attenuations
+Usage: train using cfg file specifying model parameters and training data (see FlemingLFV1.cfg), with trainModel.py.
+For inference, use findPowers.py.
 
 How it works:
-For each resonator and attenuation the script first assesses if the IQ loop appears saturated. If the unstaurated IQ 
-velocity spectrum for that attenuation is compared with the pattern recognition machine. A list of attenuations for each 
-resonator, where the loop is not saturated and the IQ velocity peak looks the correct shape, and the attenuation value 
-is chosen which has the highest 2nd largest IQ velocity. This identifier was chosen because the optimum attenuation 
-value has a high max IQ velocity and a low ratio of max IQ velocity to 2nd max IQ velocity which is equivalent to 
-choosing the highest 2nd max IQ velocity.
+For every resonator an "image" of it's power sweep is made, with axes of frequency and attenuation. The image has three 
+"color" channels, corresponding to I, Q, and IQ Velocity. This image is used by the CNN to find the optimal attenuation.
 
-This list of attenuation values and frequencies are either fed PSFit.py to checked manually or dumped to 
-ps_r118_FL1_b_pos.txt
-
-The machine learning algorithm requires a series of images to train and test the algorithm with. If they exist the image 
-data will be loaded from a train pkl file
-
-Alternatively, if the user does not have a train pkl file but does have a powersweep file and corresponding list of 
-resonator attenuations this should be used as the initial file and training data will be made. The 3 classes are an 
-overpowered peak (saturated), peak with the correct amount of power, or an underpowered peak. 
-
-These new image data will be saved as pkl files (or appened to existing pkl files) and reloaded
-
-The machine is then trained and its ability to predict the type of image is validated
-
-The weights used to make predictions for each class can be displayed using the plotWeights function
-
-to do:
-change training txt file freq comparison function so its able to match all frequencies
+mlClassification defines the graph structure, trains the model, and saves it so it can be used for inference.
 
 '''
 import os,sys,inspect
@@ -298,10 +253,10 @@ class mlClassification():
         
         self.keep_prob = tf.placeholder(tf.float32, name='keepProb')
 
-        num_filt1 = 3
-        n_pool1 = 3
+        num_filt1 = self.mlDict['num_filt1']
+        n_pool1 = self.mlDict['n_pool1']
         self.num_filt1 = num_filt1
-        W_conv1 = weight_variable([attenWin, 5, 3, num_filt1])
+        W_conv1 = weight_variable([attenWin, self.mlDict['conv_win1'], 3, num_filt1])
         b_conv1 = bias_variable([num_filt1])
         h_conv1 = tf.nn.relu(conv2d(x_image, W_conv1) + b_conv1)
         h_pool1 = max_pool_nx1(h_conv1,n_pool1)
@@ -309,10 +264,10 @@ class mlClassification():
         xWidth1 = int(math.ceil(self.mlDict['xWidth']/float(n_pool1)))
         cWidth1 = num_filt1
         
-        num_filt2 = 3 
-        n_pool2 = 1 
+        num_filt2 = self.mlDict['num_filt2']
+        n_pool2 = self.mlDict['n_pool2']
         self.num_filt2 = num_filt2
-        W_conv2 = weight_variable([1, 5, cWidth1, num_filt2])
+        W_conv2 = weight_variable([1, self.mlDict['conv_win2'], cWidth1, num_filt2])
         b_conv2 = bias_variable([num_filt2])
         h_conv2 = tf.nn.relu(conv2d(h_pool1_dropout, W_conv2) + b_conv2)
         with tf.control_dependencies([tf.assert_equal(tf.shape(h_pool1),(numImg,self.mlDict['nAttens'],xWidth1,cWidth1),message='hpool1 assertion')]):
@@ -321,10 +276,10 @@ class mlClassification():
             xWidth2 = int(math.ceil(xWidth1/float(n_pool2)))
             cWidth2 = num_filt2
 
-        num_filt3 = 2
-        n_pool3 = 1 
+        num_filt3 = self.mlDict['num_filt3']
+        n_pool3 = self.mlDict['n_pool3']
         self.num_filt3 = num_filt3
-        W_conv3 = weight_variable([1, 4, cWidth2, num_filt3])
+        W_conv3 = weight_variable([1, self.mlDict['conv_win3'], cWidth2, num_filt3])
         b_conv3 = bias_variable([num_filt3])
         h_conv3 = tf.nn.relu(conv2d(h_pool2, W_conv3) + b_conv3)
         with tf.control_dependencies([tf.assert_equal(tf.shape(h_pool2),(numImg,self.mlDict['nAttens'],xWidth2,cWidth2),message='hpool2 assertion')]):
@@ -366,7 +321,7 @@ class mlClassification():
         
         #squared_loss = tf.reduce_mean(tf.to_float(tf.square(yInd-y_Ind)))
 
-        train_step = tf.train.AdamOptimizer(10**-3).minimize(cross_entropy) # the best result is when the wrongness is minimal
+        train_step = tf.train.AdamOptimizer(self.mlDict['learning_rate']).minimize(cross_entropy) # the best result is when the wrongness is minimal
 
         init = tf.initialize_all_variables()
 
@@ -398,8 +353,8 @@ class mlClassification():
         #         plt.show()
         
         start_time = time.time()
-        trainReps = 10000
-        batches = 50
+        trainReps = self.mlDict['trainReps']
+        batches = self.mlDict['batches']
         if np.shape(trainLabels)[0]< batches:
             batches = np.shape(trainLabels)[0]/2
         
