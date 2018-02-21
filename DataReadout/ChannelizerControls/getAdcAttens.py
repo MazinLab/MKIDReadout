@@ -1,4 +1,9 @@
+import os, sys
+import numpy as np
+import matplotlib.pyplot as plt
 from Roach2Controls import Roach2Controls
+
+#TODO: error check threshold on max to 3.5 RMS at a low RMS value
 
 def snapZdok(fpga,nRolls=0):
     snapshotNames = fpga.snapshots.names()
@@ -75,10 +80,10 @@ def streamSpectrum(iVals,qVals):
     peakFreq = freqsMHz[np.argmax(spectrumDb)]
     peakFreqPower = spectrumDb[np.argmax(spectrumDb)]
     times = np.arange(nSamples)/sampleRate * MHz
-    print 'peak at',peakFreq,'MHz',peakFreqPower,'dB'
+    #print 'peak at',peakFreq,'MHz',peakFreqPower,'dB'
     return {'spectrumDb':spectrumDb,'freqsMHz':freqsMHz,'spectrum':spectrum,'peakFreq':peakFreq,'times':times,'signal':signal,'nSamples':nSamples}
 
-def checkErrorsAndSetAtten(roach, startAtten=40, iqBalRange=[0.7, 1.3], rmsRange=[0.6,0.8]):
+def checkErrorsAndSetAtten(roach, startAtten=40, iqBalRange=[0.7, 1.3], rmsRange=[0.2,0.3], verbose=False):
     adcFullScale = 2.**11
     curAtten=startAtten
     rmsTarget = np.mean(rmsRange)
@@ -88,8 +93,11 @@ def checkErrorsAndSetAtten(roach, startAtten=40, iqBalRange=[0.7, 1.3], rmsRange
     while True:
         atten3 = np.floor(curAtten*2)/4.
         atten4 = np.ceil(curAtten*2)/4.
-        print 'atten3', atten3
-        print 'atten4', atten4
+
+        if verbose:
+            print 'atten3', atten3
+            print 'atten4', atten4
+            
         roach.changeAtten(3, atten3)
         roach.changeAtten(4, atten4)
         snapDict = roach.snapZdok(nRolls=0)
@@ -98,9 +106,12 @@ def checkErrorsAndSetAtten(roach, startAtten=40, iqBalRange=[0.7, 1.3], rmsRange
         qVals = snapDict['qVals']/adcFullScale
         iRms = np.sqrt(np.mean(iVals**2))
         qRms = np.sqrt(np.mean(qVals**2))
-        print 'iRms', iRms
-        print 'qRms', qRms
+        
+        if verbose:
+            print 'iRms', iRms
+            print 'qRms', qRms
         iqRatio = iRms/qRms
+
         if iqRatio<iqBalRange[0] or iqRatio>iqBalRange[1]:
             raise Exception('IQ balance out of range!')
 
@@ -112,6 +123,7 @@ def checkErrorsAndSetAtten(roach, startAtten=40, iqBalRange=[0.7, 1.3], rmsRange
             qDBOffs = 20*np.log10(rmsTarget/qRms)
             dbOffs = (iDBOffs + qDBOffs)/2
             curAtten -= dbOffs
+            curAtten = 4*np.round(curAtten)/4.
 
     return curAtten 
 
@@ -132,19 +144,19 @@ if __name__=='__main__':
     plotSnaps = True
     startAtten = 40
 
-    for arg in sys.argv:
+    for arg in sys.argv[1:]:
         ip = '10.0.0.'+arg
         roach = Roach2Controls(ip, 'DarknessFpga_V2.param', True)
         roach.connect()
         roach.initializeV7UART()
         roachList.append(roach)
     
-    for roach in RoachList:
+    for roach in roachList:
         atten = checkErrorsAndSetAtten(roach, startAtten)
-        print 'Roach' + roach.ip + 'atten =', atten
+        print 'Roach', roach.ip[-3:], 'atten =', atten
         
     print 'Checking for spikes in ADC Spectrum...'
-    for roach in RoachList:
+    for roach in roachList:
         snapDict = roach.snapZdok()
         specDict = streamSpectrum(snapDict['iVals'], snapDict['qVals'])
         specDictList.append(specDict)
@@ -161,9 +173,13 @@ if __name__=='__main__':
         for specDict in specDictList:
             fig,ax = plt.subplots(1, 1)
             ax.plot(specDict['times'], specDict['signal'].real, color='b', label='I')
-            ax.plot(specDict['times'], specDict['signal'].imag, color='b', label='Q')
+            ax.plot(specDict['times'], specDict['signal'].imag, color='g', label='Q')
             ax.set_title('Roach ' + roach.ip + ' Timestream')
             ax.set_xlabel('Time (us)')
+            ax.set_xlim([0,0.5])
+            ax.legend()
+
+        plt.show()
 
      
     
