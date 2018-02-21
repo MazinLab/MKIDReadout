@@ -813,10 +813,10 @@ class Roach2Controls:
         delayLut1 = zip(np.arange(14,26),np.ones(12)*18)
         delayLut2 = zip(np.arange(28,40),np.ones(12)*14)
         delayLut3 = zip(np.arange(42,54),np.ones(12)*13)
-        self.loadDelayCal(delayLut0)
-        self.loadDelayCal(delayLut1)
-        self.loadDelayCal(delayLut2)
-        self.loadDelayCal(delayLut3)            
+        self.loadDelayLut(delayLut0)
+        self.loadDelayLut(delayLut1)
+        self.loadDelayLut(delayLut2)
+        self.loadDelayLut(delayLut3)            
     
     def generateDacComb(self, freqList=None, resAttenList=None, globalDacAtten = 0, phaseList=None, iqRatioList=None, iqPhaseOffsList=None):
         """
