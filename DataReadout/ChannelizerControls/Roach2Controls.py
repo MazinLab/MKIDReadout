@@ -755,6 +755,68 @@ class Roach2Controls:
 
         self.v7_ready = 0
         self.sendUARTCommand(attenVal)
+        
+    def snapZdok(self,nRolls=0):
+        snapshotNames = self.fpga.snapshots.names()
+
+        #self.fpga.write_int('trig_qdr',0)#initialize trigger
+        self.fpga.write_int('adc_in_trig',0)
+        for name in snapshotNames:
+            self.fpga.snapshots[name].arm(man_valid=False,man_trig=False)
+
+        time.sleep(.1)
+        #self.fpga.write_int('trig_qdr',1)#trigger snapshots
+        self.fpga.write_int('adc_in_trig',1)
+        time.sleep(.1) #wait for other trigger conditions to be met, and fill buffers
+        #self.fpga.write_int('trig_qdr',0)#release trigger
+        self.fpga.write_int('adc_in_trig',0)
+        
+        adcData0 = self.fpga.snapshots['adc_in_snp_cal0_ss'].read(timeout=5,arm=False)['data']
+        adcData1 = self.fpga.snapshots['adc_in_snp_cal1_ss'].read(timeout=5,arm=False)['data']
+        adcData2 = self.fpga.snapshots['adc_in_snp_cal2_ss'].read(timeout=5,arm=False)['data']
+        adcData3 = self.fpga.snapshots['adc_in_snp_cal3_ss'].read(timeout=5,arm=False)['data']
+        bus0 = np.array([adcData0['data_i0'],adcData0['data_i1'],adcData1['data_i2'],adcData1['data_i3']]).flatten('F')
+        bus1 = np.array([adcData2['data_i4'],adcData2['data_i5'],adcData3['data_i6'],adcData3['data_i7']]).flatten('F')
+        bus2 = np.array([adcData0['data_q0'],adcData0['data_q1'],adcData1['data_q2'],adcData1['data_q3']]).flatten('F')
+        bus3 = np.array([adcData2['data_q4'],adcData2['data_q5'],adcData3['data_q6'],adcData3['data_q7']]).flatten('F')
+
+        adcData = dict()
+        adcData.update(adcData0)
+        adcData.update(adcData1)
+        adcData.update(adcData2)
+        adcData.update(adcData3)
+        iDataKeys = ['data_i0','data_i1','data_i2','data_i3','data_i4','data_i5','data_i6','data_i7']
+        iDataKeys = np.roll(iDataKeys,nRolls)
+        #collate
+        iValList = np.array([adcData[key] for key in iDataKeys])
+        iVals = iValList.flatten('F')
+        qDataKeys = ['data_q0','data_q1','data_q2','data_q3','data_q4','data_q5','data_q6','data_q7']
+        qDataKeys = np.roll(qDataKeys,nRolls)
+        #collate
+        qValList = np.array([adcData[key] for key in qDataKeys])
+        qVals = qValList.flatten('F')
+
+        return {'bus0':bus0,'bus1':bus1,'bus2':bus2,'bus3':bus3,'adcData':adcData,'iVals':iVals,'qVals':qVals}
+        
+    def loadDelayLut(self, delayLut):  
+        nLoadDlyRegBits = 6
+        notLoadVal = int('1'*nLoadDlyRegBits,2) #when load_dly is this val, no bit delays are loaded
+        self.fpga.write_int('adc_in_load_dly',notLoadVal)
+        for iRow,(bit,delay) in enumerate(delayLut):
+            self.fpga.write_int('adc_in_dly_val',delay)
+            self.fpga.write_int('adc_in_load_dly',bit)
+            time.sleep(.01)
+            self.fpga.write_int('adc_in_load_dly',notLoadVal)
+            
+    def loadFullDelayCal(self):
+        delayLut0 = zip(np.arange(0,12),np.ones(12)*14)
+        delayLut1 = zip(np.arange(14,26),np.ones(12)*18)
+        delayLut2 = zip(np.arange(28,40),np.ones(12)*14)
+        delayLut3 = zip(np.arange(42,54),np.ones(12)*13)
+        self.loadDelayCal(delayLut0)
+        self.loadDelayCal(delayLut1)
+        self.loadDelayCal(delayLut2)
+        self.loadDelayCal(delayLut3)            
     
     def generateDacComb(self, freqList=None, resAttenList=None, globalDacAtten = 0, phaseList=None, iqRatioList=None, iqPhaseOffsList=None):
         """
