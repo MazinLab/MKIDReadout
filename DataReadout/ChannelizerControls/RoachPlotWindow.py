@@ -149,12 +149,14 @@ class RoachPhaseStreamWindow(QMainWindow):
     def appendPhaseNoiseData(self, ch, data):
         fftlen = self.config.getint('Roach '+str(self.roachNum),'nLongsnapFftSamples')
         nFftAvg = int(np.floor(len(data)/fftlen))
+        dt = 1.*self.roach.roachController.params['nChannelsPerStream']/self.roach.roachController.params['fpgaClockRate']
         noiseData = np.zeros(fftlen)
         
         data = np.reshape(data[:nFftAvg*fftlen],(nFftAvg,fftlen))
         noiseData=np.fft.rfft(data)
         noiseData=np.abs(noiseData)**2  #power spectrum
-        noiseData = 1.*np.average(noiseData,axis=0)/fftlen
+        noiseData = dt*np.average(noiseData,axis=0)/fftlen  #normalize
+        noiseData = 10.*np.log10(noiseData) #convert to dBc/Hz
         
         if np.all(noiseData>0):
             print 'Adding noise Data'
@@ -312,10 +314,10 @@ class RoachPhaseStreamWindow(QMainWindow):
         self.canvas = FigureCanvas(self.fig)
         self.canvas.setParent(self.main_frame)
         self.ax1 = self.fig.add_subplot(211)
-        self.ax1.set_ylabel('Noise Power Spectrum')
+        self.ax1.set_ylabel('Phase Noise PSD [dBc/Hz]')
         self.ax1.set_xlabel('f [Hz]')
-        self.line2, = self.ax1.loglog([],[],color='cyan')
-        self.line1, = self.ax1.loglog([],[],color='blue')       # line 1 on top of line 2
+        self.line2, = self.ax1.semilogx([],[],color='cyan')
+        self.line1, = self.ax1.semilogx([],[],color='blue')       # line 1 on top of line 2
         self.ax2 = self.fig.add_subplot(212)
         self.ax2.set_xlabel('Time [us]')
         self.ax2.set_ylabel('Phase [Deg]')
