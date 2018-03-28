@@ -11,14 +11,15 @@ from PyQt4 import QtCore
 from Queue import Queue
 from Roach2Controls import Roach2Controls
 #from lib import iqsweep  # From old SDR code for saving powersweep files
-import iqsweep
+#import iqsweep
+import MkidDigitalReadout.DataReadout.ChannelizerControls.lib.iqsweep
 
 class RoachStateMachine(QtCore.QObject):        #Extends QObject for use with QThreads
     """
     This class defines and executes commands on the readout boards using the Roach2Controls object.
     All the important stuff happens in the executeCommand() function
     
-    command enums are class variables
+    command enums are class variablesi
         0 - CONNECT
         1 - LOADFREQ
         2 - etc...
