@@ -53,6 +53,7 @@ class HighTemplar(QMainWindow):
         self.config = ConfigParser.ConfigParser()
         if defaultValues is None:
             defaultValues = 'example.cfg'
+        self.defaultValues=defaultValues
         self.config.read(defaultValues)
         
         
@@ -496,6 +497,11 @@ class HighTemplar(QMainWindow):
         #for thread in self.threadPool:
         #    thread.quit()
         #    del thread
+        
+        newConfigFN = self.defaultValues.rsplit('.',1)[0]+'_NEW.'+ self.defaultValues.rsplit('.',1)[1]
+        with open(newConfigFN, 'wb') as configfile:
+            self.config.write(configfile)
+        
         time.sleep(.1)
         QtCore.QCoreApplication.instance().quit
 
