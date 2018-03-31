@@ -158,7 +158,7 @@ class RoachPhaseStreamWindow(QMainWindow):
         noiseData = dt*np.average(noiseData,axis=0)/fftlen  #normalize
         noiseData = 10.*np.log10(noiseData) #convert to dBc/Hz
         
-        if np.all(noiseData>0):
+        if not np.all(noiseData==0):
             print 'Adding noise Data'
             if self.phaseNoiseDataList[ch] is not None: 
                 print 'adding old noise data'
