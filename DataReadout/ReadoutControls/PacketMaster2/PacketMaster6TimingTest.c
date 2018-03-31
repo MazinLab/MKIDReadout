@@ -222,7 +222,7 @@ void* Cuber()
     clock_gettime(CLOCK_REALTIME, &spec);   
     olds  = spec.tv_sec;
     
-    //FILE *timeFile = fopen("timetestPk6.txt", "w");
+    FILE *timeFile = fopen("timetestPk6.txt", "w");
 
     while (access( "/home/ramdisk/QUIT", F_OK ) == -1)
     {
@@ -301,7 +301,7 @@ void* Cuber()
                 gettimeofday(&tv, NULL);
                 sysTs = (unsigned long long)(tv.tv_sec)*1000 + (unsigned long long)(tv.tv_usec)/1000 - (unsigned long long)TSOFFS*1000;
                 sysTs = sysTs*2;
-                //fprintf(timeFile, "%llu %llu\n", roachTs, sysTs);
+                fprintf(timeFile, "%llu %llu\n", roachTs, sysTs);
 
                 memmove(packet,&olddata[pstart],i*8 - pstart);
                 pcount++;                

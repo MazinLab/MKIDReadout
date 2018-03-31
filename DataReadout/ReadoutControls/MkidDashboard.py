@@ -34,9 +34,9 @@ from PixelHistogramWindow import PixelHistogramWindow
 from LaserControl import LaserControl
 from Telescope import *
 import casperfpga
-from Roach2Controls import Roach2Controls
+from MkidDigitalReadout.DataReadout.ChannelizerControls.Roach2Controls import Roach2Controls
 from lib.utils import interpolateImage
-import sn_hardware as snh
+#import sn_hardware as snh
 #from initialBeammap import xyPack,xyUnpack
 
 class ImageSearcher(QtCore.QObject):     #Extends QObject for use with QThreads
@@ -542,7 +542,7 @@ class MkidDashboard(QMainWindow):
             roach.connect()
             
             roach.fpga.write_int(self.config.get('properties','photonPort_reg'), self.config.getint('properties','photonCapPort'))
-            roach.fpga.write_int(self.config.get('properties','minFramePeriod_reg'),self.config.getint('properties','minFramePeriod'))
+            #roach.fpga.write_int(self.config.get('properties','minFramePeriod_reg'),self.config.getint('properties','minFramePeriod')) Deleted in darkquad29
 
             self.roachList.append(roach)
             
@@ -1133,7 +1133,7 @@ class MkidDashboard(QMainWindow):
             
             data_path = self.config.get('properties','data_dir')
             start_file_loc = self.config.get('properties','cuber_ramdisk')
-            print "Starting Obs"
+            print "Starting Obs", "Start file Loc:", start_file_loc
             f=open(start_file_loc+'/START','w')
             f.write(data_path)
             f.close()

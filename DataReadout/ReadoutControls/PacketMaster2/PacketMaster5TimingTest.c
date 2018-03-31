@@ -1,5 +1,3 @@
-#define _GNU_SOURCE
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <errno.h>
@@ -24,27 +22,21 @@
 #include <math.h>
 #include <byteswap.h>
 #include <sys/mman.h>
-#include <sched.h>
 
 #define _POSIX_C_SOURCE 200809L
+
 #define BUFLEN 1500
 #define PORT 50000
 #define XPIX 140
 #define YPIX 145
 #define NROACH 20
 #define SHAREDBUF 536870912
-#define TSOFFS 1514764800
 
-
-#define handle_error_en(en, msg) \
-        do { errno = en; perror(msg); exit(EXIT_FAILURE); } while (0)
-
-// global semaphores for locking shared memory.  sem0 = rptr1, sem1 = rptr2 
-static sem_t sem[2];
+#define TSOFFS 1514764800 
 
 //#define LOGPATH "/mnt/data0/logs/"
 
-// compile with gcc -Wall -Wextra -o PacketMaster6 PacketMaster6.c -I. -lm -lrt -lpthread -O3
+// compile with gcc -o PacketMaster5 PacketMaster5.c -I. -lm -lrt
 
 struct datapacket {
     unsigned int baseline:17;
@@ -63,6 +55,7 @@ struct hdrpacket {
 
 struct readoutstream {
     uint64_t unread;
+    char busy;               // set to 1 to disallow reads, 0 to allow reads
     char data[SHAREDBUF];
 };
 
@@ -73,43 +66,21 @@ void diep(char *s)
   exit(1);
 }
 
-// maximize thread priority and set to desired CPU
-int MaximizePriority(int cpu)
+int need_to_stop() //Checks for a stop file and returns true if found, else returns 0
 {
-    int ret,s;        
-    struct sched_param params;  // struct sched_param is used to store the scheduling priority
-    
-    pthread_t this_thread = pthread_self();
-    
-    cpu_set_t cpuset;
-
-    // Set affinity mask to include cpu passed to thread
-    CPU_ZERO(&cpuset);
-    CPU_SET(cpu, &cpuset);
-
-    s = pthread_setaffinity_np(this_thread, sizeof(cpu_set_t), &cpuset);
-    if (s != 0)
-        handle_error_en(s, "pthread_setaffinity_np");
-
-    // Check the actual affinity mask assigned to the thread 
-    s = pthread_getaffinity_np(this_thread, sizeof(cpu_set_t), &cpuset);
-    if (s != 0)
-        handle_error_en(s, "pthread_getaffinity_np");
-
-    printf("Set returned by pthread_getaffinity_np() contained:\n");
-    if (CPU_ISSET(cpu, &cpuset)) printf("    CPU %d\n", cpu);    
-    
-    // We'll set the priority to the maximum.
-    params.sched_priority = sched_get_priority_max(SCHED_FIFO);
-    
-    ret = pthread_setschedparam(this_thread, SCHED_FIFO, &params);
-    if (ret != 0) {
-        // Print the error
-        printf("Error setting thread realtime priority - %d,%d\n",params.sched_priority,ret);
-        return(ret);     
+    char stopfilename[] = "stop.bin";
+    FILE* stopfile;
+    stopfile = fopen(stopfilename,"r");
+    if (stopfile == 0) //Don't stop
+    {
+        errno = 0;
+        return 0;
     }
-    
-    return(ret);
+    else //Stop file exists, stop
+    {
+        printf("found stop file. Exiting\n");
+        return 1;
+    }
 }
 
 // open a shared memory space named buf
@@ -184,9 +155,9 @@ void ParsePacket( uint16_t image[XPIX][YPIX], char *packet, unsigned int l, uint
 
 }
 
-void* Cuber()
+void Cuber()
 {
-    int64_t br,i,ret;
+    int64_t br,i,j;
     char data[1024];
     char *olddata;
     char packet[808*16];
@@ -199,15 +170,23 @@ void* Cuber()
     uint64_t frame[NROACH];
     uint64_t pcount = 0;
     struct hdrpacket *hdr;
-    uint64_t swp,swp1;
+    struct hdrpacket hdrv;
+    char temp[8];
+    uint64_t swp,swp1,newstart;
+    char cmd[120];   
+    char errflag = 0; 
     struct readoutstream *rptr;
     uint64_t pstart;
+    
+    //For timing test
     struct timeval tv;
     unsigned long long sysTs;
     uint64_t roachTs;
+    
 
-    ret = MaximizePriority(6);
     printf("Fear the wrath of CUBER!\n");
+    printf(" Cuber: My PID is %d\n", getpid());
+    printf(" Cuber: My parent's PID is %d\n", getppid()); fflush(stdout);
     
     // open shared memory block 2 for photon data
     rptr = OpenShared("/roachstream2");    
@@ -221,8 +200,8 @@ void* Cuber()
 
     clock_gettime(CLOCK_REALTIME, &spec);   
     olds  = spec.tv_sec;
-    
-    //FILE *timeFile = fopen("timetestPk6.txt", "w");
+
+    FILE *timeFile = fopen("timetestPk5.txt", "w");
 
     while (access( "/home/ramdisk/QUIT", F_OK ) == -1)
     {
@@ -235,7 +214,6 @@ void* Cuber()
           wp = fopen(outfile,"wb");
           fwrite(image, sizeof(image[0][0]), XPIX * YPIX, wp);
           fclose(wp);
-          wp = NULL;
 
           olds = s;
           memset(image, 0, sizeof(image[0][0]) * XPIX * YPIX);    // zero out array
@@ -243,8 +221,9 @@ void* Cuber()
           pcount=0;
        }
        
-       // not a new second, so read in new data and parse it
-       sem_wait(&sem[1]);        
+       // not a new second, so read in new data and parse it    
+       while( rptr->busy == 1 ) continue; 
+       rptr->busy=1;     
        br = rptr->unread;
        if( br%8 != 0 ) printf("Misalign in Cuber - %d\n",br); 
 	   	    
@@ -270,7 +249,7 @@ void* Cuber()
              rptr->unread = 0;     
           }
        }
-       sem_post(&sem[1]);  
+       rptr->busy=0;   
 
        // sanity check that the first packet in oldbr is a header packet
        /*
@@ -297,14 +276,13 @@ void* Cuber()
              if (hdr->start == 0b11111111) {        // found new packet header!
                 // fill packet and parse
                 // printf("Found Header at %d\n",i*8); fflush(stdout);
+                memmove(packet,&olddata[pstart],i*8 - pstart);
+                pcount++;                
                 roachTs = (uint64_t)hdr->timestamp;
                 gettimeofday(&tv, NULL);
                 sysTs = (unsigned long long)(tv.tv_sec)*1000 + (unsigned long long)(tv.tv_usec)/1000 - (unsigned long long)TSOFFS*1000;
                 sysTs = sysTs*2;
-                //fprintf(timeFile, "%llu %llu\n", roachTs, sysTs);
-
-                memmove(packet,&olddata[pstart],i*8 - pstart);
-                pcount++;                
+                fprintf(timeFile, "%llu %llu\n", roachTs, sysTs);
                 ParsePacket(image,packet,i*8 - pstart,frame); 
 		pstart = i*8;   // move start location for next packet	                      
              }
@@ -319,25 +297,26 @@ void* Cuber()
 
     printf("CUBER: Closing\n");
     free(olddata);
-    return NULL;
+    return;
 }
 
-void* Writer()
+void Writer()
 {
-    //long            ms; // Milliseconds
+    long            ms; // Milliseconds
     time_t          s,olds;  // Seconds
     struct timespec spec;
-    long outcount;
-    int ret, mode=0;
+    long dat, outcount;
+    int mode=0;
     FILE *wp, *rp;
-    //char data[1024];
+    char data[1024];
     char path[80];
     char fname[120];
+    int br;
     struct readoutstream *rptr;
-    
-    ret = MaximizePriority(4);
 
-    printf("Rev up the RAID array, WRITER is active!\n");
+    printf("Rev up the RAID array,WRITER is active!\n");
+    printf(" Writer: My PID is %d\n", getpid());
+    printf(" Writer: My parent's PID is %d\n", getppid());
 
     // open shared memory block 1 for photon data
     rptr = OpenShared("/roachstream1");
@@ -356,9 +335,10 @@ void* Writer()
 
        // keep the shared mem clean!       
        if( mode == 0 ) {
-          sem_wait(&sem[0]);
+          while( rptr->busy == 1 ) continue;
+	      rptr->busy = 1;
 	      rptr->unread = 0;
-	      sem_post(&sem[0]);
+	      rptr->busy = 0;
        }
 
        if( mode == 0 && access( "/home/ramdisk/START", F_OK ) != -1 ) {
@@ -389,7 +369,6 @@ void* Writer()
           if ( access( "/home/ramdisk/STOP", F_OK ) != -1 ) {
              // stop file exists, finish up and go to mode 0
 	         fclose(wp);
-             wp = NULL;
              remove("/home/ramdisk/STOP");
              mode = 0;
              printf("Mode 2->0\n");
@@ -402,7 +381,6 @@ void* Writer()
 
              if( s - olds >= 1 ) {
                  fclose(wp);
-                 wp = NULL;
                  sprintf(fname,"%s%d.bin",path,s);
                  printf("WRITER: Writing to %s, rate = %ld MBytes/sec\n",fname,outcount/1000000);
                  wp = fopen(fname,"wb");
@@ -411,20 +389,20 @@ void* Writer()
              }
 
 	         // write all data in shared memory to disk
-	         sem_wait(&sem[0]);
 	         if( rptr->unread > 0 ) {
+	            while( rptr->busy == 1 ) continue;
+	            rptr->busy = 1;
 	            fwrite( rptr->data, 1, rptr->unread, wp);    // could probably speed this up by copying data to new array and doing the fwrite after setting busy to 0
 	            outcount += rptr->unread; 
 	            rptr->unread = 0;
+	            rptr->busy = 0;
 	         }
-	         sem_post(&sem[0]);
           }
        }
 
        // check for quit flag and then bug out if received! 
        if( access( "/home/ramdisk/QUIT", F_OK ) != -1 ) {
-          if(wp!=NULL)
-	        fclose(wp);
+	      fclose(wp);
           remove("/home/ramdisk/START");
           remove("/home/ramdisk/STOP");
           remove("/home/ramdisk/QUIT");
@@ -448,21 +426,20 @@ void* Writer()
     }
 */
     printf("WRITER: Closing\n");
-    return NULL;
+    return;
 }
 
 
-void* Reader()
+void Reader()
 {
   //set up a socket connection
   struct sockaddr_in si_me, si_other;
-  int s,ret;
+  int s, i, slen=sizeof(si_other);
   unsigned char buf[BUFLEN];
   ssize_t nBytesReceived = 0;
   ssize_t nTotalBytes = 0;
+  int n1,n2;
   struct readoutstream *rptr1, *rptr2;
-  
-  ret = MaximizePriority(2);
 
   printf("READER: Connecting to Socket!\n"); fflush(stdout);
 
@@ -543,7 +520,8 @@ void* Reader()
     //printf("read from socket %d %d!\n",nFrames, nBytesReceived);
     
     // write the socket data to shared memory
-    sem_wait(&sem[0]);       
+    while( rptr1->busy == 1 ) continue;
+    rptr1->busy = 1;
     if( rptr1->unread >= (SHAREDBUF - BUFLEN) ) {
        perror("Data overflow 1 in Reader.\n");   
     } 
@@ -551,9 +529,10 @@ void* Reader()
        memmove( &(rptr1->data[rptr1->unread]),buf,nBytesReceived);
        rptr1->unread += nBytesReceived;
     }      
-    sem_post(&sem[0]);
-    
-    sem_wait(&sem[1]);
+    rptr1->busy = 0;
+
+    while( rptr2->busy == 1 ) continue;
+    rptr2->busy = 1;
     if( rptr2->unread >= (SHAREDBUF - BUFLEN) ) {
        perror("Data overflow 2 in Reader.\n");   
     } 
@@ -561,7 +540,7 @@ void* Reader()
        memmove( &(rptr2->data[rptr2->unread]),buf,nBytesReceived);
        rptr2->unread += nBytesReceived;
     }      
-    sem_post(&sem[1]);
+    rptr2->busy = 0;
 
   }
 
@@ -569,7 +548,7 @@ void* Reader()
   printf("received %ld frames, %ld bytes\n",nFrames,nTotalBytes);
   close(s);
 
-  return NULL;
+  return;
 
 }
 
@@ -603,71 +582,60 @@ double timespec_subtract (struct timespec *x, struct timespec *y) {
 
 int main(void)
 {
-    
-    pthread_t threads[3];
-    pthread_attr_t attr;
-    void *status;
-    
-    int rc,t;
+    pid_t pid;
+    int rv;
     char buf[30];
     struct readoutstream *rptr1, *rptr2;
-    
-    // Delete pre-existing control files
-    remove("/home/ramdisk/START");
-    remove("/home/ramdisk/STOP");
-    remove("/home/ramdisk/QUIT");
-    
-    // Initialize and set thread detached attribute
-    pthread_attr_init(&attr);
-    pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_JOINABLE);
 
-    // Set up semaphores
-    sem_init(&sem[0], 0, 1);
-    sem_init(&sem[1], 0, 1);
+    signal(SIGCHLD, SIG_IGN);  /* now I don't have to wait()! */
 
     // Create shared memory for photon data
     rptr1 = OpenShared("/roachstream1");
     rptr2 = OpenShared("/roachstream2");
     
-    t=0;
-    rc = pthread_create(&threads[0], &attr, Reader, (void *) &t);
-    if (rc){
-        printf("ERROR creating Reader(); return code from pthread_create() is %d\n", rc);
-        exit(-1);
+    // make sure we don't think we have data in the shared location
+    rptr1->unread = 0;
+    rptr1->busy = 0;
+    rptr2->unread = 0;
+    rptr2->busy = 0;        
+        
+    // Delete pre-existing control files
+    remove("/home/ramdisk/START");
+    remove("/home/ramdisk/STOP");
+    remove("/home/ramdisk/QUIT");
+    
+    //printf("struct sizes = %d, %d\n",sizeof(struct hdrpacket),sizeof(struct datapacket));
+
+    switch(pid = fork()) {
+    case -1:
+        perror("fork");  /* something went wrong */
+        exit(1);         /* parent exits */
+
+    case 0:
+	Writer();
+        exit(0);
+
+    default:
+	printf("You have invoked PacketMaster3.  This is the socket reader process.\n");
+        printf("My PID is %d\n", getpid());
+        printf("Writer's PID is %d\n", pid);
+
+	// spawn Cuber
+	if (!fork()) {
+	        //printf("MASTER: Spawning Cuber\n"); fflush(stdout);
+        	Cuber();
+        	//printf("MASTER: Cuber died!\n"); fflush(stdout);
+        	exit(0);
+    	} 
+        
+	Reader();
+	//TestReader();
+
+        wait(NULL);
+        printf("Reader: En Taro Adun!\n");
     }
     
-    rc = pthread_create(&threads[1], &attr, Writer, (void *) &t);
-    if (rc){
-        printf("ERROR creating Writer(); return code from pthread_create() is %d\n", rc);
-        exit(-1);
-    }
-    
-    rc = pthread_create(&threads[2], &attr, Cuber, (void *) &t);
-    if (rc){
-        printf("ERROR creating Cuber(); return code from pthread_create() is %d\n", rc);
-        exit(-1);
-    }
-    
-    pthread_attr_destroy(&attr);
-    rc = pthread_join(threads[1], &status); // wait until we detect quit condition in Writer()
-    if (rc) {
-        printf("ERROR; return code from pthread_join() is %d\n", rc);
-        exit(-1);
-    }
-                       
     // close shared memory
-    printf("Closing shared memory");
-    sem_wait(&sem[0]);  // stop messing with memory 
-    sem_wait(&sem[1]);      
-    
-    printf("Killing Cuber and Reader");
-    pthread_cancel(threads[0]);  // kill Reader
-    pthread_cancel(threads[2]);  // kill Cuber
-    
     shm_unlink("/roachstream1");   
     shm_unlink("/roachstream2");   
-    sem_close(&sem[0]);
-    sem_close(&sem[1]);
-    
-    pthread_exit(NULL);  // close up shop
 }
