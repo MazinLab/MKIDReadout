@@ -55,6 +55,9 @@ from WideSweepFile import WideSweepFile
 
 class WideAna(QMainWindow):
     def __init__(self, parent=None,plotFunc=None,title='',separateProcess=False, image=None,showMe=True, initialFile=None, flNum=None):
+
+        self.coll_thresh=1.E-4     #100 kHz
+        
         self.parent = parent
         if self.parent == None:
             self.app = QApplication([])
@@ -98,6 +101,7 @@ class WideAna(QMainWindow):
         self.segment = 0
         self.calcXminXmax()
         self.plotSegment()
+        self.ylim = self.axes.get_ylim()
         print "Ready to add and delete peaks."
 
     def draw(self):
@@ -126,7 +130,7 @@ class WideAna(QMainWindow):
     def on_key_or_button(self, event, pressed):
         xdata = getattr(event, 'xdata', None)
         if xdata is not None:
-            ind = np.searchsorted(self.wsf.x, xdata)
+            ind = np.argmin(np.abs(self.wsf.x-xdata))
             xFound = self.wsf.x[ind]
             indPk = np.searchsorted(self.wsf.pk, ind)
             xPkFound0 = self.wsf.x[self.wsf.pk[indPk-1]]
@@ -138,10 +142,10 @@ class WideAna(QMainWindow):
             bestWsfIndex = self.wsf.pk[bestIndex]
             bestX = self.wsf.x[bestWsfIndex]
             if pressed == "d":
-                #if self.peakMask[bestWsfIndex]:
-                #self.peakMask[bestWsfIndex] = False
-                self.goodPeakMask[bestWsfIndex-7:bestWsfIndex+7] = False # larger area of indicies to pinpoint false resonator location
-                self.badPeakMask[bestWsfIndex-7:bestWsfIndex+7] = False # larger area of indicies to pinpoint false resonator location
+                #self.goodPeakMask[bestWsfIndex-7:bestWsfIndex+7] = False # larger area of indicies to pinpoint false resonator location
+                #self.badPeakMask[bestWsfIndex-7:bestWsfIndex+7] = False # larger area of indicies to pinpoint false resonator location
+                self.goodPeakMask[np.where(np.logical_and(self.wsf.x>(xFound-self.coll_thresh), self.wsf.x<(xFound+self.coll_thresh)))]=False
+                self.badPeakMask[np.where(np.logical_and(self.wsf.x>(xFound-self.coll_thresh), self.wsf.x<(xFound+self.coll_thresh)))]=False
                 self.setCountLabel()
                 self.replot()
                 self.writeToGoodFile()
@@ -166,9 +170,11 @@ class WideAna(QMainWindow):
 
     def replot(self):
             xlim = self.axes.set_xlim()
+            self.ylim = self.axes.get_ylim()
             self.xMin=xlim[0]
             self.xMax=xlim[1]
             self.plotSegment()
+            
 
     def create_main_frame(self,title):
         self.main_frame = QWidget()
@@ -282,10 +288,29 @@ class WideAna(QMainWindow):
         else:
             peaks = self.wsf.peaks
         
+
+
+
+        #remove collisions
+        freqsAtPeaks = self.wsf.x[peaks]
+        args = np.argsort(freqsAtPeaks)
+        peaks=peaks[args]
+        freqsAtPeaks=freqsAtPeaks[args]
+        diffs = freqsAtPeaks[1:] - freqsAtPeaks[:-1]
+        diffs = np.append(diffs, [peaks[-1]])
+        peaks=np.delete(peaks, np.where(diffs<2.E-9))    #remove duplicate peaks
+        freqsAtPeaks=np.delete(freqsAtPeaks, np.where(diffs<2.E-9))    #remove duplicate peaks
+        
+        diffs = freqsAtPeaks[1:] - freqsAtPeaks[:-1]
+        diffs = np.append(diffs, [peaks[-1]])
+        colls = peaks[np.where(diffs<=self.coll_thresh)]
+
+        '''
         #coll_thresh = self.wsf.x[0]
         dist = abs(np.roll(peaks, -1) - peaks)
         #colls = np.delete(peaks,np.where(dist>=9))
 
+        
         colls=[]
         diff, coll_thresh = 0, 0
         while diff <= 5e-4:
@@ -301,6 +326,8 @@ class WideAna(QMainWindow):
                 else:
                     colls.append(peaks[i])
                     #print 'for ', self.wsf.x[peaks[i]], 'chosing this one'
+        '''
+
         print colls
         if colls != []:
             #colls=np.array(map(int,colls))
@@ -353,6 +380,7 @@ class WideAna(QMainWindow):
     def changeSegmentValue(self,value):
         self.segment = value
         self.calcXminXmax()
+        self.ylim = self.axes.get_ylim()
         self.plotSegment()
 
     def segmentDecrement(self, value, amount=0.9):
@@ -395,22 +423,25 @@ class WideAna(QMainWindow):
             for x in self.wsf.x[self.goodPeakMask]:
                 if x > self.xMin and x < self.xMax:
                     self.axes.axvline(x=x,color='g')
-                    self.axes.axvline(x=x+0.00010,color='g',linestyle='-.',linewidth=0.5)
-                    self.axes.axvline(x=x-0.00010,color='g',linestyle='-.',linewidth=0.5)
-            for c in self.wsf.x[self.collMask]:
-                if c > self.xMin and c < self.xMax:
-                    self.axes.axvline(x=c,color='g')
+                    self.axes.axvline(x=x+self.coll_thresh,color='g',linestyle='-.',linewidth=0.5)
+                    self.axes.axvline(x=x-self.coll_thresh,color='g',linestyle='-.',linewidth=0.5)
+            #for c in self.wsf.x[self.collMask]:
+            #    if c > self.xMin and c < self.xMax:
+            #        self.axes.axvline(x=c,color='g')
 
             for x in self.wsf.x[self.badPeakMask]:
                 if x > self.xMin and x < self.xMax:
                     self.axes.axvline(x=x,color='r')
-                    self.axes.axvline(x=x+0.00010,color='r',linestyle='-.',linewidth=0.5)
-                    self.axes.axvline(x=x-0.00010,color='r',linestyle='-.',linewidth=0.5)
+                    self.axes.axvline(x=x+self.coll_thresh,color='r',linestyle='-.',linewidth=0.5)
+                    self.axes.axvline(x=x-self.coll_thresh,color='r',linestyle='-.',linewidth=0.5)
             
             self.axes.set_xlim((self.xMin,self.xMax))
+            try: self.axes.set_ylim(self.ylim)
+            except: pass
             self.axes.set_title("segment=%.1f/%.1f"%(self.segment,self.segmentMax))
             #self.axes.legend().get_frame().set_alpha(0.5)
             self.draw()
+        self.canvas.setFocus()
 
     def yDisplayClicked(self, value):
         if value:
