@@ -897,6 +897,7 @@ class RoachSweepWindow(QMainWindow):
             attens=attens+(dacAtten-self.dacAtten)
             self.roach.roachController.attenList=attens     # force this to update
             self.writeNewFreqFile(attens=attens)
+            self.resetRoach.emit(RoachStateMachine.ROTATE)
             self.resetRoach.emit(RoachStateMachine.SWEEP)
             self.initFreqs(False)
         self.dacAtten=dacAtten
