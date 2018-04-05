@@ -12,7 +12,7 @@ from Queue import Queue
 from Roach2Controls import Roach2Controls
 #from lib import iqsweep  # From old SDR code for saving powersweep files
 #import iqsweep
-import MkidDigitalReadout.DataReadout.ChannelizerControls.lib.iqsweep
+from MkidDigitalReadout.DataReadout.ChannelizerControls.lib import iqsweep
 
 class RoachStateMachine(QtCore.QObject):        #Extends QObject for use with QThreads
     """
@@ -362,6 +362,7 @@ class RoachStateMachine(QtCore.QObject):        #Extends QObject for use with QT
         LO_offsets = np.arange(LO_start, LO_end, LO_step) - LO_freq
         start_DACAtten = self.config.getfloat('Roach '+str(self.num),'dacatten_start')
         stop_DACAtten = self.config.getfloat('Roach '+str(self.num),'dacatten_stop')
+        start_ADCAtten = self.config.getfloat('Roach '+str(self.num),'adcatten')
         
         powerSweepFile = self.config.get('Roach '+str(self.num),'powersweepfile')
         powerSweepFile = powerSweepFile.rsplit('.',1)[0]+'_'+time.strftime("%Y%m%d-%H%M%S",time.localtime())+'.'+powerSweepFile.rsplit('.',1)[1]
@@ -372,6 +373,13 @@ class RoachStateMachine(QtCore.QObject):        #Extends QObject for use with QT
                 self.roachController.changeAtten(1,dacAtten1)
                 self.roachController.changeAtten(2,dacAtten2)
                 print 'Setting DAC atten: '+str(dacAtten)
+                # keep total power on the ADC the same
+                newADCAtten=start_ADCAtten - (dacAtten - start_DACAtten)
+                adcAtten1 = max(0.,np.floor(newADCAtten*2)/4.)
+                adcAtten2 = max(0., np.ceil(newADCAtten*2)/4.)
+                self.roachController.changeAtten(3,adcAtten1)
+                self.roachController.changeAtten(4,adcAtten2)
+                print 'Setting ADCatten: '+str(newADCAtten)
             iqData = self.roachController.performIQSweep(LO_start/1.e6, LO_end/1.e6, LO_step/1.e6)
             self.I_data = iqData['I']
             self.Q_data = iqData['Q']
@@ -417,6 +425,12 @@ class RoachStateMachine(QtCore.QObject):        #Extends QObject for use with QT
         if stop_DACAtten > start_DACAtten:      # reset the dac atten to the start value again if we did a power sweep
             dacAtten1 = np.floor(start_DACAtten*2)/4.
             dacAtten2 = np.ceil(start_DACAtten*2)/4.
+            
+            adcAtten1 = np.floor(start_ADCAtten*2)/4.
+            adcAtten2 = np.ceil(start_ADCAtten*2)/4.
+            self.roachController.changeAtten(3,adcAtten1)
+            self.roachController.changeAtten(4,adcAtten2)
+            print 'Setting ADCatten: '+str(start_ADCAtten)
             self.roachController.changeAtten(1,dacAtten1)
             self.roachController.changeAtten(2,dacAtten2)
             print 'Setting DAC atten: '+str(start_DACAtten)
@@ -684,6 +698,7 @@ class RoachStateMachine(QtCore.QObject):        #Extends QObject for use with QT
         OutPUTS:
             data - list of phase in radians
         """
+        resID = self.roachController.resIDs[channel]
         print "r"+str(self.num)+": ch"+str(channel)+" Collecting phase timestream"
         #try:
         #    ch, stream = np.where(self.roachController.freqChannels == self.roachController.freqList[channel])
@@ -698,7 +713,13 @@ class RoachStateMachine(QtCore.QObject):        #Extends QObject for use with QT
         try:
             data=self.roachController.takePhaseStreamDataOfFreqChannel(freqChan=channel, duration=duration, hostIP=hostip, fabric_port=port)
             longSnapFN = self.config.get('Roach '+str(self.num),'longsnapfile')
-            longSnapFN = longSnapFN.rsplit('.',1)[0]+'_ch'+str(int(channel))+'_'+time.strftime("%Y%m%d-%H%M%S",time.localtime())+'.'+longSnapFN.rsplit('.',1)[1]
+            longSnapFN = longSnapFN.rsplit('.',1)[0]+'_resID'+str(int(resID))+'_'+time.strftime("%Y%m%d-%H%M%S",time.localtime())+'.'+longSnapFN.rsplit('.',1)[1]
+            np.savez(longSnapFN,data)
+        except IOError:
+            path = longSnapFN.rsplit('/',1)
+            if len(path)<=1: raise
+            print 'Making directory: '+path[0]
+            os.mkdir(path[0])
             np.savez(longSnapFN,data)
         except:
             traceback.print_exc()

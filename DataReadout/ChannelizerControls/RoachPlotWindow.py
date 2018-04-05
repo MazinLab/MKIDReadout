@@ -337,29 +337,29 @@ class RoachPhaseStreamWindow(QMainWindow):
         self.spinbox_channel.valueChanged.connect(lambda x: self.initThresh())
         
         self.label_resID = QLabel('ResID: ')
-        self.label_resID.setMinimumWidth(60)
-        self.label_resID.setMaximumWidth(60)
+        self.label_resID.setMinimumWidth(80)
+        self.label_resID.setMaximumWidth(80)
         
         self.label_freq = QLabel('Freq: 0 GHz')
-        self.label_freq.setMinimumWidth(140)
-        self.label_freq.setMaximumWidth(140)
+        self.label_freq.setMinimumWidth(145)
+        self.label_freq.setMaximumWidth(145)
         self.label_thresh = QLabel('Thresh: 0 deg')
-        self.label_thresh.setMinimumWidth(100)
-        self.label_thresh.setMaximumWidth(100)
+        self.label_thresh.setMinimumWidth(120)
+        self.label_thresh.setMaximumWidth(120)
         self.label_median = QLabel('Median: 0 deg')
-        self.label_median.setMinimumWidth(100)
-        self.label_median.setMaximumWidth(100)
+        self.label_median.setMinimumWidth(120)
+        self.label_median.setMaximumWidth(120)
         
         button_snapPhase = QPushButton("Phase Snapshot")
         button_snapPhase.setEnabled(True)
         button_snapPhase.clicked.connect(self.phaseSnapShot)
         
         self.label_nearestRes = QLabel('Nearest Res: ')
-        self.label_nearestRes.setMinimumWidth(200)
-        self.label_nearestRes.setMaximumWidth(200)
+        self.label_nearestRes.setMinimumWidth(240)
+        self.label_nearestRes.setMaximumWidth(240)
         self.label_nearestSideband = QLabel('Nearest Alias: ')
-        self.label_nearestSideband.setMinimumWidth(200)
-        self.label_nearestSideband.setMaximumWidth(200)
+        self.label_nearestSideband.setMinimumWidth(240)
+        self.label_nearestSideband.setMaximumWidth(240)
         
         numSnapsThresh = self.config.getint('Roach '+str(self.roachNum),'numsnaps_thresh')
         spinbox_numSnapsThresh = QSpinBox()
@@ -409,6 +409,13 @@ class RoachPhaseStreamWindow(QMainWindow):
             if ret==QMessageBox.Ok: self.phaseTimeStreamAllChannels()
         button_allLongSnap.clicked.connect(allChPhaseStreamClicked)
         
+        longSnapFile = self.config.get('Roach '+str(self.roachNum),'longsnapfile')
+        label_longSnapFile = QLabel('Long Snap Filename:')
+        textbox_longSnapFile = QLineEdit(longSnapFile)
+        textbox_longSnapFile.setMaximumWidth(400)
+        textbox_longSnapFile.setMinimumWidth(400)
+        textbox_longSnapFile.textChanged.connect(partial(self.changedSetting,'longsnapfile'))
+        
         vbox_plot = QVBoxLayout()
         vbox_plot.addWidget(self.canvas)
         vbox_plot.addWidget(self.mpl_toolbar)
@@ -441,6 +448,11 @@ class RoachPhaseStreamWindow(QMainWindow):
         hbox_phaseTimestream.addWidget(button_longSnap)
         hbox_phaseTimestream.addWidget(button_allLongSnap)
         hbox_phaseTimestream.addStretch()
+
+        hbox_longSnapFile = QHBoxLayout()
+        hbox_longSnapFile.addWidget(label_longSnapFile)
+        hbox_longSnapFile.addWidget(textbox_longSnapFile)
+        hbox_longSnapFile.addStretch()
         
         vbox1 = QVBoxLayout()
         vbox1.addLayout(vbox_plot)
@@ -448,6 +460,7 @@ class RoachPhaseStreamWindow(QMainWindow):
         vbox1.addLayout(hbox_nearestRes)
         vbox1.addLayout(hbox_thresh)
         vbox1.addLayout(hbox_phaseTimestream)
+        vbox1.addLayout(hbox_longSnapFile)
         
         self.main_frame.setLayout(vbox1)
         self.setCentralWidget(self.main_frame)
@@ -863,6 +876,7 @@ class RoachSweepWindow(QMainWindow):
         QtCore.QMetaObject.invokeMethod(self.roach, 'loadADCAtten', Qt.QueuedConnection,
                                         QtCore.Q_ARG(float, adcAtten))
         self.adcAttenChanged.emit()
+        self.resetRoach.emit(RoachStateMachine.ROTATE)
         self.resetRoach.emit(RoachStateMachine.SWEEP)
     
     def changeDACAtten(self, dacAtten):
