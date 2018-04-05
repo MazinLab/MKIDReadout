@@ -14,7 +14,6 @@ From python
 
 
 
-
 """
 
 
@@ -125,21 +124,50 @@ class DigitalWideSweep(QtCore.QObject):
         print "Finished r"+str(roachNum)+' '+RoachStateMachine.parseCommand(command)
 
         if command == RoachStateMachine.SWEEP:
-            self.writeWSdata(roachNum, commandData)
+            self.data = commandData
+            self.writeWSdata(roachNum, commandData, 'raw_')
+            calData = self.calibrateWSdata(roachNum, commandData)
+            self.writeWSdata(roachNum, calData)
             self.quitQApp()
 
 
-    def writeWSdata(self, roachNum, data):
+    def calibrateWSdata(self, roachNum, data):
+        overlap_tolerance=1. # say that any tone less than 1Hz away is the same frequency
+
+        I=data['I']
+        Q=data['Q']
+        A = (I**2. + Q**2.)**0.5
+        #toneCorrections=[]
+        corr=1.
+        for ch in range(len(A)-1):
+            tone2_min = data['freqList'][ch+1] + data['freqOffsets'][0]
+            tones1 = data['freqOffsets'] + data['freqList'][ch]
+            overlap_arg=np.where(np.isclose(tones1, [tone2_min]*len(data['freqOffsets']), atol = overlap_tolerance))[0][0]
+            
+            tone_corrs = 1.0*A[ch][overlap_arg:] / A[ch+1][:-1*overlap_arg]
+            #toneCorrections.append(np.median(tone_corrs))
+            corr=np.median(tone_corrs)
+            data['I'][ch+1] = data['I'][ch+1]*corr
+            data['Q'][ch+1] = data['Q'][ch+1]*corr
+            A[ch+1]*=corr
+
+        return data
+
+
+    def writeWSdata(self, roachNum, data, filePrefix=None):
         roachArg = np.where(np.asarray(self.roachNums) == roachNum)[0][0]
         #freqFN = self.roaches[roachArg].config.get('Roach '+str(roachNum),'freqfile')
         #path=freqFN.rsplit('/',1)[0]
         widesweepFN = self.outPath+'/'+self.outPrefix+'digWS_r'+str(roachNum)+'.txt'
+        if filePrefix is not None:
+            widesweepFN = self.outPath+'/'+filePrefix+self.outPrefix+'digWS_r'+str(roachNum)+'.txt'
         
 
         I=data['I'].flatten()
         Q=data['Q'].flatten()
         freqs = np.tile(data['freqOffsets'], len(data['freqList'])) + np.repeat(data['freqList'], len(data['freqOffsets']))
         args = np.argsort(freqs)
+        args=np.sort(args)
         
         outData = np.asarray([ freqs[args]/1.E9, I[args], Q[args]]).T
         #print outData.shape
@@ -154,8 +182,6 @@ class DigitalWideSweep(QtCore.QObject):
                'DAC atten: '+str(self.roaches[roachArg].config.getfloat('Roach '+str(roachNum),'dacatten_start'))+'\n'+\
                'ADC atten: '+str(self.roaches[roachArg].config.getfloat('Roach '+str(roachNum),'adcatten'))
         np.savetxt(widesweepFN, outData, fmt="%.9f %.9f %.9f",header=header)
-        
-        self.data=data
         
 
     def startWS(self, roachNums=None, startFreqs=None, endFreqs=None,lo_step=None, DACatten=None, ADCatten=None, makeNewFreqs=True, **kwargs):
@@ -180,6 +206,7 @@ class DigitalWideSweep(QtCore.QObject):
         threadsToStart=[]
         for i, roach_i in enumerate(roachNums):
             roachArg = np.where(np.asarray(self.roachNums) == roach_i)[0][0]
+            DAC_freqResolution = self.roaches[roachArg].roachController.params['dacSampleRate']/(self.roaches[roachArg].roachController.params['nDacSamplesPerCycle']*self.roaches[roachArg].roachController.params['nLutRowsToUse'])
             if self.roachThreads[roachArg].isRunning():
                 print 'Roach '+str(roach_i)+' is busy'
             else: 
@@ -207,9 +234,14 @@ class DigitalWideSweep(QtCore.QObject):
                     freqs = np.atleast_1d(freqData[:,1])
                     self.saveFreqList(freqs, freqFN2, resIDs=resIDs)
                     span = np.amax([freqs[0] - startFreq, endFreq - freqs[-1], np.amax(np.diff(freqs))])
+                    span += 10*DAC_freqResolution  # force at least 10 overlap between tones
+
                 
+                #span=500.E6
+                lo_step = DAC_freqResolution
+                self.roaches[roachArg].config.set('Roach '+str(roach_i),'sweeplostep',str(lo_step))
                 self.roaches[roachArg].config.set('Roach '+str(roach_i),'sweeplospan',str(span))
-                if lo_step: self.roaches[roachArg].config.set('Roach '+str(roach_i),'sweeplostep',str(lo_step))
+                #if lo_step: self.roaches[roachArg].config.set('Roach '+str(roach_i),'sweeplostep',str(lo_step))
                 if DACatten:
                     self.roaches[roachArg].config.set('Roach '+str(roach_i),'dacatten_start',str(DACatten))
                     self.roaches[roachArg].config.set('Roach '+str(roach_i),'dacatten_stop',str(DACatten))
@@ -309,6 +341,7 @@ class DigitalWideSweep(QtCore.QObject):
         
         #freqList = np.rint(freqList).astype(np.int)
         maxSpan = np.amax([(endFreq - startFreq) - (freqList[-1] - freqList[0]), np.amax(np.diff(freqList))])
+        maxSpan +=10.*freqResolution    #force at least 10 points overlap in sweep
         offset=freqList[0]-startFreq - maxSpan/2.
         freqList = freqList - offset
         LO = LO - offset
@@ -334,5 +367,13 @@ if __name__ == "__main__":
     print defaultValues,roachNums, filePrefix
     
     debug=False
+    startFreqs=np.asarray([3.5E9]*len(roachNums))
+    startFreqs[1::2]+=2.E9
+    stopFreqs=np.asarray([5.5E9]*len(roachNums))
+    stopFreqs[1::2]+=2.E9
     digWS = DigitalWideSweep(roachNums, defaultValues,filePrefix,debug=debug)
-    digWS.startWS(roachNums=None, startFreqs=[3.5E9, 5.5E9], endFreqs=[5.5E9,7.5E9],lo_step=None, DACatten=None, ADCatten=33.,resAtten=65)
+    digWS.startWS(roachNums=None, startFreqs=startFreqs, endFreqs=stopFreqs,DACatten=None, ADCatten=None,resAtten=65)
+
+
+
+
