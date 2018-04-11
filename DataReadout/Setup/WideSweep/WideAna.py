@@ -149,6 +149,7 @@ class WideAna(QMainWindow):
                 self.setCountLabel()
                 self.replot()
                 self.writeToGoodFile()
+                self.writeToAllFile()
 
             if pressed == "a":
                 if not self.goodPeakMask[bestWsfIndex]:
@@ -328,16 +329,16 @@ class WideAna(QMainWindow):
                     #print 'for ', self.wsf.x[peaks[i]], 'chosing this one'
         '''
 
-        print colls
+        #print colls
         if colls != []:
             #colls=np.array(map(int,colls))
             self.collMask[colls] = True # update: so unidentified peaks can be identified as unusable
             
         peaks = np.delete(peaks,colls) #remove collisions (peaks < 0.5MHz apart = < 9 steps apart)
         #peaks = np.delete(peaks,np.where(dist<9)) #remove collisions (peaks < 0.5MHz apart = < 9 steps apart)
-        self.goodPeakMask[peaks] = True
-        self.badPeakMask[colls] = True
-        self.goodPeakMask[colls] = False
+        #self.goodPeakMask[peaks] = True
+        #self.badPeakMask[colls] = True
+        #self.goodPeakMask[colls] = False
 
         self.setCountLabel()
         self.writeToGoodFile()
@@ -347,29 +348,55 @@ class WideAna(QMainWindow):
         self.countLabel.setText("Good peaks = %d, All peaks = %d" % (self.goodPeakMask.sum(), self.goodPeakMask.sum() + self.badPeakMask.sum()))
 
     def writeToGoodFile(self):
-        gf = open(self.goodFile,'wb')
-        #id = (self.flNum-1)*2000
-        resId = self.flNum*10000
-        for index in range(len(self.goodPeakMask)):
-            if self.goodPeakMask[index]:
-                line = "%8d %12d %16.7f\n"%(resId,index,self.wsf.x[index])
-                gf.write(line)
-                resId += 1
-            elif self.badPeakMask[index]:
-                resId += 1
+        #gf = open(self.goodFile,'wb')
+        ##id = (self.flNum-1)*2000
+        #resId = self.flNum*10000
+        #for index in range(len(self.goodPeakMask)):
+        #    if self.goodPeakMask[index]:
+        #        line = "%8d %12d %16.7f\n"%(resId,index,self.wsf.x[index])
+        #        gf.write(line)
+        #        resId += 1
+        #    elif self.badPeakMask[index]:
+        #        resId += 1
+        #gf.close()
+
+        ws_good_inds = np.where(self.goodPeakMask>0)
+        ws_bad_inds = np.where(self.badPeakMask>0)
+        freqs = np.append(self.wsf.x[ws_good_inds], self.wsf.x[ws_bad_inds])
+        sort_inds = np.argsort(freqs)
+        resIds = np.asarray(range(len(freqs)))+self.flNum*10000
+
+        d=np.diff(self.wsf.x[ws_good_inds])
+        if np.any(d<0):
+            print "Warning, Some freqs were out of order, check the output file to make sure they were handled correctly"
+        
+
+        data = np.asarray([resIds[np.where(sort_inds<len(ws_good_inds[0]))], \
+                ws_good_inds[0][sort_inds[np.where(sort_inds<len(ws_good_inds[0]))]], \
+                freqs[sort_inds][np.where(sort_inds<len(ws_good_inds[0]))]]).T
+        gf=file(self.goodFile,'wb') #Can open file in append mode this way. But doesn't matter here...
+        np.savetxt(gf, data,fmt="%8d %12d %16.7f")
         gf.close()
 
     def writeToAllFile(self):
-        af = open(self.allFile,'wb')
-        #id = (self.flNum-1)*2000
-        resId = self.flNum*10000
-        print len(np.where(self.goodPeakMask==1)[0]), len(np.where(self.badPeakMask==1)[0])
-        for index in range(len(self.goodPeakMask)):
-            if self.goodPeakMask[index] or self.badPeakMask[index]:
-                line = "%8d %12d %16.7f\n"%(resId,index,self.wsf.x[index])
-                af.write(line)
-                resId += 1
-        af.close()
+        #af = open(self.allFile,'wb')
+        ##id = (self.flNum-1)*2000
+        #resId = self.flNum*10000
+        #print len(np.where(self.goodPeakMask==1)[0]), len(np.where(self.badPeakMask==1)[0])
+        #for index in range(len(self.goodPeakMask)):
+        #    if self.goodPeakMask[index] or self.badPeakMask[index]:
+        #        line = "%8d %12d %16.7f\n"%(resId,index,self.wsf.x[index])
+        #        af.write(line)
+        #        resId += 1
+        #af.close()
+        
+        ws_good_inds = np.where(self.goodPeakMask>0)
+        ws_bad_inds = np.where(self.badPeakMask>0)
+        freqs = np.append(self.wsf.x[ws_good_inds], self.wsf.x[ws_bad_inds])
+        sort_inds = np.argsort(freqs)
+        resIds = np.asarray(range(len(freqs)))+self.flNum*10000
+        data = np.asarray([resIds, np.append(ws_good_inds[0], ws_bad_inds[0])[sort_inds], freqs[sort_inds]])
+        np.savetxt(self.allFile, data.T,fmt='%8d %12d %16.7f')
 
     # deal with zooming and plotting one segment
     def zoom(self,zoom):
@@ -476,6 +503,7 @@ if __name__ == "__main__":
             initialFile = os.path.join(mdd,initialFileName)
     except:
         print "Can not find",initialFile
+        print "Usage: python WideAna.py filename feedline#"
         exit()
     try: flNum = int(sys.argv[2])
     except:
