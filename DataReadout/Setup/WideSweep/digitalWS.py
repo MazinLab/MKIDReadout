@@ -84,6 +84,7 @@ class DigitalWideSweep(QtCore.QObject):
         #parameters for making random freq list
         self.toneBandwidth = 500.0E3   # Hz                                        # frequencies will not be closer together than this to avoid bandwidth overlap
         self.minNominalSpacing = 800.0E3    #Hz                                         # Will fit 1024 frequencies into bandwidth specified or fewer
+        self.numoverlapPoints = 10                                              # neighboring tones will be swept such that at least 10 points overlap in frequency
         self.execQApp=0     #if 0 then stop the QApp. Otherwise, keep it running.
         self.app = QtCore.QCoreApplication(sys.argv)    # The signals emmited by RoachStateMachine objects require a QEventLoop to be running from a QApplication.
     
@@ -232,12 +233,12 @@ class DigitalWideSweep(QtCore.QObject):
                     if len(self.outPath)==0: self.outPath=freqFN.rsplit('/',1)[0]
                     resIDs = np.atleast_1d(freqData[:,0])
                     freqs = np.atleast_1d(freqData[:,1])
-                    self.saveFreqList(freqs, freqFN2, resIDs=resIDs)
+                    self.saveFreqList(freqs, freqFN2, resAtten=resAtten, resIDs=resIDs)
                     span = np.amax([freqs[0] - startFreq, endFreq - freqs[-1], np.amax(np.diff(freqs))])
-                    span += 10*DAC_freqResolution  # force at least 10 overlap between tones
+                    span += 1.0*self.numoverlapPoints*DAC_freqResolution  # force at least 10 overlap between tones
 
                 
-                #span=500.E6
+                #span=0.2E6
                 lo_step = DAC_freqResolution
                 self.roaches[roachArg].config.set('Roach '+str(roach_i),'sweeplostep',str(lo_step))
                 self.roaches[roachArg].config.set('Roach '+str(roach_i),'sweeplospan',str(span))
@@ -265,7 +266,7 @@ class DigitalWideSweep(QtCore.QObject):
     def saveFreqList(self,freqs, outfilename='test.txt', resAtten=None, resIDs=None):
         if resAtten is None: resAtten=50
         attens=np.asarray([np.rint(resAtten*4.)/4.]*len(freqs))
-        if not resIDs: resIDs=np.asarray(range(len(freqs)))
+        if resIDs is None: resIDs=np.asarray(range(len(freqs)))
         data = np.asarray([resIDs, freqs, attens]).T
         np.savetxt(outfilename, data, fmt="%4i %10.1f %4i")
     
@@ -341,7 +342,7 @@ class DigitalWideSweep(QtCore.QObject):
         
         #freqList = np.rint(freqList).astype(np.int)
         maxSpan = np.amax([(endFreq - startFreq) - (freqList[-1] - freqList[0]), np.amax(np.diff(freqList))])
-        maxSpan +=10.*freqResolution    #force at least 10 points overlap in sweep
+        maxSpan +=1.0*self.numoverlapPoints*freqResolution    #force at least 10 points overlap in sweep
         offset=freqList[0]-startFreq - maxSpan/2.
         freqList = freqList - offset
         LO = LO - offset
@@ -371,8 +372,11 @@ if __name__ == "__main__":
     startFreqs[1::2]+=2.E9
     stopFreqs=np.asarray([5.5E9]*len(roachNums))
     stopFreqs[1::2]+=2.E9
+    
+    #startFreqs = [5.5E9]
+    #stopFreqs=[7.5E9]
     digWS = DigitalWideSweep(roachNums, defaultValues,filePrefix,debug=debug)
-    digWS.startWS(roachNums=None, startFreqs=startFreqs, endFreqs=stopFreqs,DACatten=None, ADCatten=None,resAtten=65)
+    digWS.startWS(roachNums=None, startFreqs=startFreqs, endFreqs=stopFreqs,DACatten=None, ADCatten=None,resAtten=65,makeNewFreqs=not debug)
 
 
 

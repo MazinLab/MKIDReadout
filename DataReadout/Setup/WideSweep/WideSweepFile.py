@@ -33,7 +33,9 @@ class WideSweepFile():
         (self.Iz2,self.Izsd2) = 0.000, 0.000
         (self.Qz2,self.Qzsd2) = 0.000, 0.000
         file.close()
-        self.data1 = np.loadtxt(fileName, skiprows=3)
+        try:
+            self.data1 = np.loadtxt(fileName)
+        except: self.data1 = np.loadtxt(fileName, skiprows=3)
         self.loadedFileName=fileName
         self.x = self.data1[:,0]
         self.n = len(self.x)
