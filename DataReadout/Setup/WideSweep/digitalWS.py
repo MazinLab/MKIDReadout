@@ -167,7 +167,7 @@ class DigitalWideSweep(QtCore.QObject):
         Q=data['Q'].flatten()
         freqs = np.tile(data['freqOffsets'], len(data['freqList'])) + np.repeat(data['freqList'], len(data['freqOffsets']))
         args = np.argsort(freqs)
-        args=np.sort(args)
+        #args=np.sort(args)
         
         outData = np.asarray([ freqs[args]/1.E9, I[args], Q[args]]).T
         #print outData.shape
