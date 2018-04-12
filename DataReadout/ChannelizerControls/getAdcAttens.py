@@ -123,7 +123,7 @@ def checkErrorsAndSetAtten(roach, startAtten=40, iqBalRange=[0.7, 1.3], rmsRange
             qDBOffs = 20*np.log10(rmsTarget/qRms)
             dbOffs = (iDBOffs + qDBOffs)/2
             curAtten -= dbOffs
-            curAtten = 4*np.round(curAtten)/4.
+            curAtten = np.round(4*curAtten)/4.
 
     return curAtten 
 
@@ -156,6 +156,9 @@ if __name__=='__main__':
         print 'Roach', roach.ip[-3:], 'atten =', atten
         
     print 'Checking for spikes in ADC Spectrum...'
+    if plotSnaps:
+        specFigList = []
+        specAxList = []
     for roach in roachList:
         snapDict = roach.snapZdok()
         specDict = streamSpectrum(snapDict['iVals'], snapDict['qVals'])
@@ -163,18 +166,25 @@ if __name__=='__main__':
         flag = checkSpectrumForSpikes(specDict)
         if flag!=0:
             print 'Spikes in spectrum for Roach', roach.ip
-            
+            if plotSnaps:
+                fig,ax = plt.subplots(1, 1)
+                ax.plot(specDict['freqsMHz'], specDict['spectrumDb'])
+                ax.set_xlabel('Frequency (MHz)')
+                ax.set_title('Spectrum for Roach ' + roach.ip[-3:])
+                specFigList.append(fig)
+                specAxList.append(ax)
+
     print 'Done!'
         
 
     if plotSnaps:
         figList = []
         axList = []
-        for specDict in specDictList:
+        for i,specDict in enumerate(specDictList):
             fig,ax = plt.subplots(1, 1)
             ax.plot(specDict['times'], specDict['signal'].real, color='b', label='I')
             ax.plot(specDict['times'], specDict['signal'].imag, color='g', label='Q')
-            ax.set_title('Roach ' + roach.ip + ' Timestream')
+            ax.set_title('Roach ' + roachList[i].ip[-3:] + ' Timestream')
             ax.set_xlabel('Time (us)')
             ax.set_xlim([0,0.5])
             ax.legend()
