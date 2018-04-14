@@ -407,6 +407,19 @@ class MkidDashboard(QMainWindow):
         self.takingDark = -1                        # Flag for taking dark image. Indicates number of images we still need for darkField image. Negative means not taking a dark
         self.takingFlat = -1                        # Flag for taking flat image. Indicates number of images we still need for flatField image
         
+        # Initialize PacketMaster8
+        print 'Initializing packetmaster...'
+        packetMaster_path=self.config.get('properties','packetMaster_path')
+        packetMasterLog_path = self.config.get('properties','packetMasterLog_path')
+        #command = "sudo nice -n -10 %s >> %s"%(packetMaster_path, packetMasterLog_path)
+        #command = "%s >> %s"%(packetMaster_path, packetMasterLog_path)
+        #print command
+        #QtCore.QTimer.singleShot(50,partial(subprocess.Popen,command,shell=True))
+        packetMasterCfg = open(os.path.join(packetMaster_path, 'PacketMaster.cfg'), 'w')
+        packetMasterCfg.write(self.config.get('properties', 'cuber_ramdisk') + '\n')
+        packetMasterCfg.write(str(self.config.get('properties', 'ncols')) + ' ' + str(self.config.get('properties', 'nrows')))
+        packetMasterCfg.close()
+
 
         #Laser Controller
         print 'Setting up laser control...'
@@ -482,14 +495,6 @@ class MkidDashboard(QMainWindow):
         '''
 
 
-        # Start PacketMaster3
-        print 'Starting packetmaster3...'
-        packetMaster_path=self.config.get('properties','packetMaster_path')
-        packetMasterLog_path = self.config.get('properties','packetMasterLog_path')
-        #command = "sudo nice -n -10 %s >> %s"%(packetMaster_path, packetMasterLog_path)
-        command = "%s >> %s"%(packetMaster_path, packetMasterLog_path)
-        print command
-        #QtCore.QTimer.singleShot(50,partial(subprocess.Popen,command,shell=True))
         
     def turnOffPhotonCapture(self):
         """
