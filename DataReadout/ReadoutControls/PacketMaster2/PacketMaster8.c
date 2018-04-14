@@ -181,6 +181,8 @@ void ParsePacket( uint16_t **image, char *packet, unsigned int l, int nXPix, int
        swp1 = __bswap_64(swp);
        data = (struct datapacket *) (&swp1);
        //image[(data->xcoord)%XPIX][(data->ycoord)%YPIX]++;
+       //printf("x, y: %d, %d\n", data->xcoord, data->ycoord);
+       //printf("image at x, y: %d, %d\n", image[0][0]);
        
        if( data->xcoord >= nXPix || data->ycoord >= nYPix ) continue;
        image[data->xcoord][data->ycoord]++;
@@ -225,12 +227,17 @@ void* Cuber(void *prms)
     olddata = (char *) malloc(sizeof(char)*SHAREDBUF);
 
     //initialize image
+    printf("nXPix %d\n", params->nXPix);
+    printf("nYPix %d\n", params->nYPix);
     image = (uint16_t**)malloc(params->nXPix * sizeof(uint16_t*));
     for(i=0; i<params->nXPix; i++)
+    {
         image[i] = (uint16_t*)malloc(params->nYPix * sizeof(uint16_t));
+        memset(image[i], 0, sizeof(uint16_t)*params->nYPix);
 
-    
-    memset(image, 0, sizeof(image[0][0]) * params->nXPix * params->nYPix);    // zero out array
+    }
+
+    //memset(image, 0, sizeof(image[0][0]) * params->nXPix * params->nYPix);    // zero out array
     memset(olddata, 0, sizeof(olddata[0])*2048);    // zero out array
     memset(data, 0, sizeof(data[0]) * 1024);    // zero out array
     memset(packet, 0, sizeof(packet[0]) * 808 * 2);    // zero out array
@@ -238,12 +245,12 @@ void* Cuber(void *prms)
     clock_gettime(CLOCK_REALTIME, &spec);   
     olds  = spec.tv_sec;
 
-    startTime = gmtime(&olds);
-    year = startTime->tm_year;
-    yearStartTime = calloc(1, sizeof(struct tm));
-    yearStartTime->tm_year = year;
-    yearStartTime->tm_mday = 1;
-    tsOffs = timegm(yearStartTime);
+    //startTime = gmtime(&olds);
+    //year = startTime->tm_year;
+    //yearStartTime = calloc(1, sizeof(struct tm));
+    //yearStartTime->tm_year = year;
+    //yearStartTime->tm_mday = 1;
+    //tsOffs = timegm(yearStartTime);
     
     //FILE *timeFile = fopen("timetestPk6.txt", "w");
 
@@ -256,12 +263,18 @@ void* Cuber(void *prms)
           // we are in a new second, so write out image array and then zero out the array
           sprintf(outfile,"%s/%d.img", params->ramdiskPath, olds);
           wp = fopen(outfile,"wb");
-          fwrite(image, sizeof(image[0][0]), params->nXPix * params->nYPix, wp);
+          //fwrite(image, sizeof(image[0][0]), params->nXPix * params->nYPix, wp);
+          for(i=0; i<params->nXPix; i++)
+          {
+            fwrite(image[i], sizeof(uint16_t), params->nYPix, wp); //write to file
+            memset(image[i], 0, sizeof(uint16_t)*params->nYPix); //zero out array
+          
+          }
           fclose(wp);
           wp = NULL;
 
           olds = s;
-          memset(image, 0, sizeof(image[0][0]) * params->nXPix * params->nYPix);    // zero out array
+          //memset(image, 0, sizeof(image[0][0]) * params->nXPix * params->nYPix);    // zero out array
           printf("CUBER: Parse rate = %d pkts/sec. Data in buffer = %d\n",pcount,oldbr); fflush(stdout);
           pcount=0;
        }
@@ -308,7 +321,7 @@ void* Cuber(void *prms)
 
        // if there is data waiting, process it
        pstart = 0;
-       if( oldbr >= 808*10 ) {       
+       if( oldbr >= 808 ) {       
           // search the available data for a packet boundary
           //printf("Start Parse\n"); fflush(stdout);
           for( i=1; i<oldbr/8; i++) {
@@ -322,7 +335,7 @@ void* Cuber(void *prms)
                 // printf("Found Header at %d\n",i*8); fflush(stdout);
                 roachTs = (uint64_t)hdr->timestamp;
                 gettimeofday(&tv, NULL);
-                sysTs = (unsigned long long)(tv.tv_sec)*1000 + (unsigned long long)(tv.tv_usec)/1000 - (unsigned long long)tsOffs*1000;
+                sysTs = (unsigned long long)(tv.tv_sec)*1000 + (unsigned long long)(tv.tv_usec)/1000 - (unsigned long long)TSOFFS*1000;
                 sysTs = sysTs*2;
                 //fprintf(timeFile, "%llu %llu\n", roachTs, sysTs);
 
@@ -655,6 +668,7 @@ int main(void)
     
 
     // Wait for existing config file
+    printf("Waiting for Dashboard\n");
     while (access( "PacketMaster.cfg", F_OK ) == -1) usleep(10000); //sleep 10 ms
 
     cfgfp = fopen("PacketMaster.cfg","r");
@@ -662,6 +676,7 @@ int main(void)
     fscanf(cfgfp,"%d %d\n", &(params.nXPix), &(params.nYPix));
     fclose(cfgfp);
     remove("PacketMaster.cfg");
+    //printf("%d\n", params.nXPix);
     
     // Delete pre-existing control files
     sprintf(startFileName, "%s/%s", params.ramdiskPath, "START");
@@ -710,11 +725,11 @@ int main(void)
     }
                        
     // close shared memory
-    printf("Closing shared memory");
+    printf("Closing shared memory\n");
     sem_wait(&sem[0]);  // stop messing with memory 
     sem_wait(&sem[1]);      
     
-    printf("Killing Cuber and Reader");
+    printf("Killing Cuber and Reader\n");
     pthread_cancel(threads[0]);  // kill Reader
     pthread_cancel(threads[2]);  // kill Cuber
     
