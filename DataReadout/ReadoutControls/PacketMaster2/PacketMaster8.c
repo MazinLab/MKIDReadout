@@ -40,6 +40,7 @@
 
 // global semaphores for locking shared memory.  sem0 = rptr1, sem1 = rptr2 
 static sem_t sem[2];
+static sem_t quitSem; //semaphore for quit condition
 
 //#define LOGPATH "/mnt/data0/logs/"
 
@@ -254,7 +255,7 @@ void* Cuber(void *prms)
     
     //FILE *timeFile = fopen("timetestPk6.txt", "w");
 
-    while (1) //(access( "/home/ramdisk/QUIT", F_OK ) == -1)
+    while(sem_trywait(&quitSem)==-1) //(access( "/home/ramdisk/QUIT", F_OK ) == -1)
     {
        // if it is a new second, zero the image array and start over
        clock_gettime(CLOCK_REALTIME, &spec);   
@@ -475,9 +476,12 @@ void* Writer(void *prms)
           remove(startFileName);
           remove(stopFileName);
           remove(quitFileName);
+          sem_post(&quitSem);
+          sem_post(&quitSem);
           mode = 3;
           printf("Mode 3\n");
        }
+
 
     }
 
@@ -556,7 +560,7 @@ void* Reader(void *prms)
   //while ( recv(s, buf, BUFLEN, 0) > 0 );
   //printf("READER: buffer clear!\n"); fflush(stdout);
 
-  while(1) //(access( "/home/ramdisk/QUIT", F_OK ) == -1)
+  while(sem_trywait(&quitSem)==-1) //(access( "/home/ramdisk/QUIT", F_OK ) == -1)
   {
     /*
     if (nFrames % 100 == 0)
@@ -618,6 +622,8 @@ void* Reader(void *prms)
   //fclose(dump_file);
   printf("received %ld frames, %ld bytes\n",nFrames,nTotalBytes);
   close(s);
+
+  printf("Reader closing\n");
 
   return NULL;
 
@@ -693,6 +699,7 @@ int main(void)
     // Set up semaphores
     sem_init(&sem[0], 0, 1);
     sem_init(&sem[1], 0, 1);
+    sem_init(&quitSem, 0, 0);
 
     // Create shared memory for photon data
     rptr1 = OpenShared("/roachstream1");
@@ -725,18 +732,19 @@ int main(void)
     }
                        
     // close shared memory
-    printf("Closing shared memory\n");
+    printf("Closing shared memory...\n");
     sem_wait(&sem[0]);  // stop messing with memory 
     sem_wait(&sem[1]);      
     
-    printf("Killing Cuber and Reader\n");
-    pthread_cancel(threads[0]);  // kill Reader
-    pthread_cancel(threads[2]);  // kill Cuber
+    //printf("Killing Cuber and Reader\n");
+    //pthread_cancel(threads[0]);  // kill Reader
+    //pthread_cancel(threads[2]);  // kill Cuber
     
     shm_unlink("/roachstream1");   
     shm_unlink("/roachstream2");   
     sem_close(&sem[0]);
     sem_close(&sem[1]);
+    sem_close(&quitSem);
     
     pthread_exit(NULL);  // close up shop
 }
