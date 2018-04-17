@@ -417,7 +417,9 @@ class MkidDashboard(QMainWindow):
         #QtCore.QTimer.singleShot(50,partial(subprocess.Popen,command,shell=True))
         packetMasterCfg = open(os.path.join(packetMaster_path, 'PacketMaster.cfg'), 'w')
         packetMasterCfg.write(self.config.get('properties', 'cuber_ramdisk') + '\n')
-        packetMasterCfg.write(str(self.config.get('properties', 'ncols')) + ' ' + str(self.config.get('properties', 'nrows')))
+        packetMasterCfg.write(str(self.config.get('properties', 'ncols')) + ' ' + str(self.config.get('properties', 'nrows')) + '\n')
+        packetMasterCfg.write(str(self.config.get('properties', 'use_nuller')) + '\n')
+        packetMasterCfg.write(str(len(roachNums)))
         packetMasterCfg.close()
 
 
