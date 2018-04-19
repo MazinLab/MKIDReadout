@@ -32,7 +32,7 @@
 #define SHAREDBUF 536870912
 #define TSOFFS 1514764800
 #define STRBUF 80
-#define SNINTTIME 200
+//#define SNINTTIME 20
 
 
 #define handle_error_en(en, msg) \
@@ -267,9 +267,12 @@ void *Nuller(void *prms)
     sem_t *doneImgSem;
     char *imgShmName = "/speckNullImgBuff";
     char *tsShmName = "/speckNullTimestamp";
+    char *intTimeShmName = "/speckNullIntTime";
     uint16_t *imgBuffPtr;
     uint64_t *startTsPtr;
+    uint64_t *intTimePtr;
     uint64_t startTimestamp;
+    uint64_t integrationTime;
     uint64_t curTs;
     uint16_t *boardNums;
     uint16_t curRoachInd;
@@ -351,6 +354,25 @@ void *Nuller(void *prms)
     }    
     
     close(fd);
+
+    fd = shm_open(intTimeShmName, O_CREAT | O_RDWR, S_IRUSR | S_IWUSR);
+    if (fd == -1) { 
+        perror("shm_open");  /* something went wrong */
+        exit(1);             
+    }
+    
+    if (ftruncate(fd, sizeof(uint64_t)) == -1) { 
+        perror("ftruncate");  /* something went wrong */
+        exit(1);               
+    }
+  
+    intTimePtr = mmap(NULL, sizeof(uint64_t), PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+    if (intTimePtr == MAP_FAILED) { 
+        perror("mmap");  /* something went wrong */
+        exit(1);            
+    }    
+    
+    close(fd);
     
     printf("Nuller done initializing\n");
 
@@ -404,9 +426,11 @@ void *Nuller(void *prms)
                 doneIntegrating = 0;   
                 memset(imgBuffPtr, 0, sizeof(*imgBuffPtr) * params->nXPix * params->nYPix);    // zero out array
                 startTimestamp = *startTsPtr;
+                integrationTime = *intTimePtr;
                 if(startTimestamp==0)
                     startTimestamp = curTs;
                 printf("TSDiff: %d\n", startTimestamp-curTs);
+                printf("startTimestamp: %d\n", startTimestamp);
               
              }
              if(takingImg)
@@ -454,9 +478,9 @@ void *Nuller(void *prms)
                 if(takingImg)
                 {
                     //printf("curRoachTs: %lld\n", curTs);
-                    if((curTs>startTimestamp)&&(curTs<=(startTimestamp+SNINTTIME)))
+                    if((curTs>startTimestamp)&&(curTs<=(startTimestamp+integrationTime)))
                         ParsePacketSN(imgBuffPtr,packet,i*8 - pstart,params->nXPix,params->nYPix); 
-                    else if(curTs>(startTimestamp+SNINTTIME))
+                    else if(curTs>(startTimestamp+integrationTime))
                     {
                         doneIntegrating |= (1<<curRoachInd);
                         //printf("Nuller: Roach %d done Integrating\n", boardNums[curRoachInd]);
@@ -510,9 +534,11 @@ void *Nuller(void *prms)
     printf("Nuller: Umapping Shm\n");
     munmap(imgBuffPtr, sizeof(uint16_t)*params->nXPix*params->nYPix);
     munmap(startTsPtr, sizeof(uint64_t));
+    munmap(intTimePtr, sizeof(uint64_t));
     printf("Nuller: Unlinking Shm\n");
     shm_unlink(imgShmName);
     shm_unlink(tsShmName);
+    shm_unlink(intTimeShmName);
     
     //fclose(timeFile);
     printf("Nuller: Closing\n");
