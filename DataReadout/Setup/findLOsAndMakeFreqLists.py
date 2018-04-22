@@ -1,7 +1,24 @@
+'''
+Author: Neelay Fruitwala
+
+Automates finding LOs, generating frequecy files and modifying templarconf.cfg files.
+Usage: python findLOsAndMakeFreqFiles.py <setupcfgfile> <templarcfgfile>
+    setupcfgfile - Configuration file containing lists of feedline numbers, roach
+        numbers, and WideAna generated clickthrough results. An example can be found in
+        example_setup.cfg. File is assumed to be in MKID_DATA_DIR (you only need to specify
+        the file name).
+    templarcfgfile - High templar configuration file to be modified. WARNING: file will
+        be OVERWRITTEN. Changes the frequency lists, LOs, longsnap files, and powersweep files
+        to point to the write locations (for the boards specified in setupcfgfile).
+
+'''
+import os, sys
 import numpy as np
 import matplotlib.pyplot as plt
 import pdb
+import ConfigParser
 from createTemplarResList import createTemplarResList
+from readDict import readDict
 
 def findLOs(freqs, loRange=0.2, nIters=10000, colParamWeight=1, resBW=0.0002):
     '''
@@ -71,7 +88,7 @@ def findLOs(freqs, loRange=0.2, nIters=10000, colParamWeight=1, resBW=0.0002):
 
     return lo1Opt, lo2Opt
 
-modifyTemplarConfigFile(templarConfFn, flNums, roachNums, freqFiles, los, freqBandFlags):
+def modifyTemplarConfigFile(templarConfFn, flNums, roachNums, freqFiles, los, freqBandFlags):
     '''
     Modifies the specified templar config file with the correct frequency lists and los. All files
     are referenced to the MKID_DATA_DIR environment variable. Also changes powersweep_file, longsnap_file, etc
@@ -88,29 +105,31 @@ modifyTemplarConfigFile(templarConfFn, flNums, roachNums, freqFiles, los, freqBa
     '''
     mdd = os.environ['MKID_DATA_DIR']
     templarConfFn = os.path.join(mdd, templarConfFn)
-    tcfp = open(templarConfFn)
+    tcfp = open(templarConfFn, 'r')
     templarConf = ConfigParser.ConfigParser()
     templarConf.readfp(tcfp)
+    tcfp.close()
     
     for i,roachNum in enumerate(roachNums):
         templarConf.set('Roach '+str(roachNum), 'freqfile', os.path.join(mdd, freqFiles[i]))
-        templarConf.set('Roach '+str(roachNum), 'powersweepfile', os.path.join(mdd, 'ps_r'+str(roachNum)+'FL'+str(flNums[i])+'_'+freqBandFlag+'.h5'))
+        templarConf.set('Roach '+str(roachNum), 'powersweepfile', os.path.join(mdd, 'ps_r'+str(roachNum)+'FL'+str(flNums[i])+'_'+freqBandFlags[i]+'.h5'))
         templarConf.set('Roach '+str(roachNum), 'longsnapfile', os.path.join(mdd, 'phasesnaps/snap_'+str(roachNum)+'.npz'))
-        templarConf.set('Roach '+str(roachNum), 'lo_freq', str(los[i]*1.e9))  
+        templarConf.set('Roach '+str(roachNum), 'lo_freq', '%0.9E'%(los[i]*1.e9))
 
-    config.write(templarConfFn)
-
-        
-
-loadClickthroughFile(fn):
+    tcfp = open(templarConfFn, 'w')
+    templarConf.write(tcfp)
+    tcfp.close()
+ 
+def loadClickthroughFile(fn):
+    '''
+    Loads clickthrough results from WideAna output file. Returns list of
+    ResIDs, peak locations, and frequencies (in GHz)
+    '''
     if not os.path.isfile(fn):
         fn = os.path.join(mdd, fn)
     resIDs, locs, freqs = np.loadtxt(fn, unpack=True)
     return resIDs, locs, freqs
 
-findLOsAndMakeFrequencyFile(clickthroughFile, flNum):
-    if not os.path.isfile(clickthroughFile):
-        clickthroughFile = os.path.join(os.environ['MKID_DATA_DIR'], clickthroughFile))
 
 
 if __name__=='__main__':
@@ -119,20 +138,29 @@ if __name__=='__main__':
     mdd = os.environ['MKID_DATA_DIR']
     setupDict = readDict()
     setupDict.readFromFile(os.path.join(mdd, sys.argv[1]))
+    print setupDict
     templarCfgFile = sys.argv[2]
     freqFiles = []
-    lfLOs = []
-    hfLOs = []
+    los = []
+    flNums = []
+    freqBandFlags = []
+    boardNums = []
 
     for i, fl in enumerate(setupDict['feedline_nums']):
         clickthroughFile = os.path.join(mdd, setupDict['clickthrough_files'][i])
         _, _, freqs = loadClickthroughFile(clickthroughFile)
-        lo1, lo2 = finLOs(freqs)
-        createTemplarResList(clickthroughFile, lo1, lo2, flNum)
+        lo1, lo2 = findLOs(freqs)
+        createTemplarResList(clickthroughFile, lo1, lo2, fl)
         freqFiles.append('freq_FL' + str(fl) + '_a.txt')
         freqFiles.append('freq_FL' + str(fl) + '_b.txt')
-        lfLOs.append(lo1)
-        hfLOs.append(lo2)
+        los.append(lo1)
+        los.append(lo2)
+        flNums.append(fl)
+        flNums.append(fl)
+        freqBandFlags.append('a')
+        freqBandFlags.append('b')
+        boardNums.append(setupDict['low_freq_boardnums'][i])
+        boardNums.append(setupDict['high_freq_boardnums'][i])
 
-    modifyTemplarConfigFile(templarCfgFile, setupDict['feedline_nums'], setupDict['low_freq_boardnums'], setupDict['high_freq_boardnums'], hfLOs, lfLOs)
+    modifyTemplarConfigFile(templarCfgFile, flNums, boardNums, freqFiles, los, freqBandFlags)
 
