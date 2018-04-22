@@ -1,6 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import pdb
+from createTemplarResList import createTemplarResList
 
 def findLOs(freqs, loRange=0.2, nIters=10000, colParamWeight=1, resBW=0.0002):
     '''
@@ -20,7 +21,7 @@ def findLOs(freqs, loRange=0.2, nIters=10000, colParamWeight=1, resBW=0.0002):
             is less than this value.
     Returns
     -------
-        lo1, lo2 - low and high frequency LOs
+        lo1, lo2 - low and high frequency LOs (in GHz)
     '''
     lfRange = np.array([freqs[0]+1, freqs[0]+1+loRange]) #range to search for LF LO; 200 MHz span
     hfRange = np.array([freqs[-1]-1-loRange, freqs[-1]-1])
@@ -70,12 +71,68 @@ def findLOs(freqs, loRange=0.2, nIters=10000, colParamWeight=1, resBW=0.0002):
 
     return lo1Opt, lo2Opt
 
-makeConfigFile(fn, roachNums, flNums, freqFiles, defaultParamDict, resParamDict):
-    pass
+modifyTemplarConfigFile(templarConfFn, flNums, roachNums, freqFiles, los, freqBandFlags):
+    '''
+    Modifies the specified templar config file with the correct frequency lists and los. All files
+    are referenced to the MKID_DATA_DIR environment variable. Also changes powersweep_file, longsnap_file, etc
+    to be referenced to the correct feedline and MKID_DATA_DIR
 
-loadFrequencyFile(fn):
+    Parameters
+    ----------
+        templarConfFn - name of templar config file
+        flNums - list of feedline numbers corresponding to roachNums
+        roachNums - list of board numbers (last 3 digits of roach IP)
+        freqFiles - list of frequency file names
+        los - list of LO frequencies (in GHz)
+        freqBandFlags - list of flags indicating whether board is LF or HF. 'a' for LF and 'b' for HF
+    '''
+    mdd = os.environ['MKID_DATA_DIR']
+    templarConfFn = os.path.join(mdd, templarConfFn)
+    tcfp = open(templarConfFn)
+    templarConf = ConfigParser.ConfigParser()
+    templarConf.readfp(tcfp)
+    
+    for i,roachNum in enumerate(roachNums):
+        templarConf.set('Roach '+str(roachNum), 'freqfile', os.path.join(mdd, freqFiles[i]))
+        templarConf.set('Roach '+str(roachNum), 'powersweepfile', os.path.join(mdd, 'ps_r'+str(roachNum)+'FL'+str(flNums[i])+'_'+freqBandFlag+'.h5'))
+        templarConf.set('Roach '+str(roachNum), 'longsnapfile', os.path.join(mdd, 'phasesnaps/snap_'+str(roachNum)+'.npz'))
+        templarConf.set('Roach '+str(roachNum), 'lo_freq', str(los[i]*1.e9))  
+
+    config.write(templarConfFn)
+
+        
+
+loadClickthroughFile(fn):
+    if not os.path.isfile(fn):
+        fn = os.path.join(mdd, fn)
     resIDs, locs, freqs = np.loadtxt(fn, unpack=True)
     return resIDs, locs, freqs
 
+findLOsAndMakeFrequencyFile(clickthroughFile, flNum):
+    if not os.path.isfile(clickthroughFile):
+        clickthroughFile = os.path.join(os.environ['MKID_DATA_DIR'], clickthroughFile))
+
+
 if __name__=='__main__':
-    pass
+    if len(sys.argv)<3:
+        print 'Usage: python findLOsAndMakeFreqFiles.py <setupcfgfile> <templarcfgfile>'
+    mdd = os.environ['MKID_DATA_DIR']
+    setupDict = readDict()
+    setupDict.readFromFile(os.path.join(mdd, sys.argv[1]))
+    templarCfgFile = sys.argv[2]
+    freqFiles = []
+    lfLOs = []
+    hfLOs = []
+
+    for i, fl in enumerate(setupDict['feedline_nums']):
+        clickthroughFile = os.path.join(mdd, setupDict['clickthrough_files'][i])
+        _, _, freqs = loadClickthroughFile(clickthroughFile)
+        lo1, lo2 = finLOs(freqs)
+        createTemplarResList(clickthroughFile, lo1, lo2, flNum)
+        freqFiles.append('freq_FL' + str(fl) + '_a.txt')
+        freqFiles.append('freq_FL' + str(fl) + '_b.txt')
+        lfLOs.append(lo1)
+        hfLOs.append(lo2)
+
+    modifyTemplarConfigFile(templarCfgFile, setupDict['feedline_nums'], setupDict['low_freq_boardnums'], setupDict['high_freq_boardnums'], hfLOs, lfLOs)
+
