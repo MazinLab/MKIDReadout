@@ -9,7 +9,8 @@ Usage: python findLOsAndMakeFreqFiles.py <setupcfgfile> <templarcfgfile>
         the file name).
     templarcfgfile - High templar configuration file to be modified. WARNING: file will
         be OVERWRITTEN. Changes the frequency lists, LOs, longsnap files, and powersweep files
-        to point to the write locations (for the boards specified in setupcfgfile).
+        to point to the write locations (for the boards specified in setupcfgfile). File is
+        also assumed to be in MKID_DATA_DIR
 
 '''
 import os, sys
@@ -20,7 +21,7 @@ import ConfigParser
 from createTemplarResList import createTemplarResList
 from readDict import readDict
 
-def findLOs(freqs, loRange=0.2, nIters=10000, colParamWeight=1, resBW=0.0002):
+def findLOs(freqs, loRange=0.2, nIters=10000, colParamWeight=1, resBW=0.0002, ifHole=0.003):
     '''
     Finds the optimal LO frequencies for a feedline, given a list of resonator frequencies.
     Does Monte Carlo optimization to minimize the number of out of band tones and sideband 
@@ -36,6 +37,7 @@ def findLOs(freqs, loRange=0.2, nIters=10000, colParamWeight=1, resBW=0.0002):
             to optimize for sideband collisions. 
         resBW - bandwidth of resonator channels. Tones are considered collisions if their difference
             is less than this value.
+        ifHole - tones within this distance from LO are not counted
     Returns
     -------
         lo1, lo2 - low and high frequency LOs (in GHz)
@@ -54,8 +56,8 @@ def findLOs(freqs, loRange=0.2, nIters=10000, colParamWeight=1, resBW=0.0002):
         #find nFreqsOmitted
         freqsIF1 = freqs - lo1
         freqsIF2 = freqs - lo2
-        isInLFBand = np.abs(freqsIF1)<1
-        isInHFBand = np.abs(freqsIF2)<1
+        isInLFBand = np.logical_and(np.abs(freqsIF1)<1, np.abs(freqsIF1)>ifHole)
+        isInHFBand = np.logical_and(np.abs(freqsIF2)<1, np.abs(freqsIF2)>ifHole)
         isNotValidTone = np.logical_not(np.logical_or(isInLFBand, isInHFBand))
         nFreqsOmitted = np.sum(isNotValidTone)
 
@@ -112,7 +114,7 @@ def modifyTemplarConfigFile(templarConfFn, flNums, roachNums, freqFiles, los, fr
     
     for i,roachNum in enumerate(roachNums):
         templarConf.set('Roach '+str(roachNum), 'freqfile', os.path.join(mdd, freqFiles[i]))
-        templarConf.set('Roach '+str(roachNum), 'powersweepfile', os.path.join(mdd, 'ps_r'+str(roachNum)+'FL'+str(flNums[i])+'_'+freqBandFlags[i]+'.h5'))
+        templarConf.set('Roach '+str(roachNum), 'powersweepfile', os.path.join(mdd, 'ps_r'+str(roachNum)+'_FL_'+str(flNums[i])+'_'+freqBandFlags[i]+'.h5'))
         templarConf.set('Roach '+str(roachNum), 'longsnapfile', os.path.join(mdd, 'phasesnaps/snap_'+str(roachNum)+'.npz'))
         templarConf.set('Roach '+str(roachNum), 'lo_freq', '%0.9E'%(los[i]*1.e9))
 
