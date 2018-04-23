@@ -2,6 +2,13 @@
 Code to minimize sideband amplitude in the ADC by applying offsets to the 
 relative phases and amplitudes of the I and Q signals for each tone.
 
+Usage: python sbSuppressionOptimizer.py -c <templarcfg> <roachNums>
+    templarcfg: High Templar config file
+    roachNums: Last 3 digits of roach ip (or "Roach" section number in templarcfg)
+
+This should be run when readout/array are in final configuration, as the optimization
+is sensitive to tone power.
+
 Author: Neelay Fruitwala
 
 '''
@@ -298,7 +305,7 @@ class SBOptimizer:
             
             counter += 1
             
-            threshold -= 2
+            threshold -= 1
 
             print 'Number of Failed Fits', nFailedFits
             print 'Number past threshold', sum(foundMaxList)
@@ -633,22 +640,27 @@ class sbOptThread(threading.Thread):
         sbo.saveGridSearchOptFreqList(freqFile.split('.')[0] + '_sbOpt_v2.txt')
 
 
-if __name__=='__main__':
-    #if len(sys.argv)<3:
-    #    raise Exception('Must specify IP address and frequency file in MKID_DATA_DIR')
-    #ip = '10.0.0.' + str(sys.argv[1])
-    
-    ipList = ['10.0.0.115'] #['10.0.0.117', '10.0.0.118', '10.0.0.119', '10.0.0.120', '10.0.0.121', '10.0.0.122']
-    globalDacAttenList = [14] #[14, 9, 30, 9, 14, 9]
-    adcAttenList = [23.75] #[31.75, 20.75, 31.75, 31.75, 21.75, 31.75]
-    loFreqList = [5.1010551e9] #[5.0744638e9, 7.1894689e9, 5.1426105e9, 7.2609906e9, 5.1385403e9, 7.2416148e9]
-    freqFileList = ['ps_r112_FL3_a_faceless_lf_train.txt']#['ps_r117_FL1_a_faceless_lf_train_rm_doubles.txt', 'ps_r118_FL1_b_faceless_hf_train_rm_doubles.txt', 'ps_r119_FL5_a_faceless_lf_train_rm_doubles.txt',
-        #'ps_r120_FL5_b_faceless_hf_train_rm_doubles.txt', 'ps_r121_FL4_a_faceless_lf_train_rm_doubles.txt', 'ps_r122_FL4_b_faceless_hf_train_rm_doubles.txt']
+if __name__=='__main__': 
+    args = sys.argv[1:]
+    defaultValues=None
+    if '-c' in args:
+        indx = args.index('-c')
+        defaultValues=args[indx+1]
+        try: args = args[:indx]+args[indx+2:]
+        except IndexError:args = args[:indx]
+    else: raise Exception('Must specify config file using -c <templarconfig>')
+
+    roachNums = np.asarray(args, dtype=np.int)
 
     threadpool = []
 
-    for i in range(len(ipList)):
-        sbThread = sbOptThread(ip=ipList[i], globalDacAtten=globalDacAttenList[i], adcAtten=adcAttenList[i], loFreq=loFreqList[i], freqFile=freqFileList[i])
+    for roachNum in roachNums:
+        ip = templarConf.get('Roach '+str(roachNum), 'ip')
+        globalDacAtten = templarConf.get('Roach '+str(roachNum), 'dacatten_start')
+        adcAtten = templarConf.get('Roach '+str(roachNum), 'adcatten')
+        loFreq = templarConf.get('Roach '+str(roachNum), 'lo_freq')
+        freqFile = templarConf.get('Roach '+str(roachNum), 'freqfile')
+        sbThread = sbOptThread(ip=ip, globalDacAtten=globalDacAtten, adcAtten=adcAtten, loFreq=loFreq, freqFile=freqFile)
         threadpool.append(sbThread)
 
     for thread in threadpool:
