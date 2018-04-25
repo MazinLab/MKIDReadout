@@ -36,11 +36,12 @@ def makeResImage(res_num, angle=0, center_loop=False,  phase_normalise=False, sh
 
     if center_loop:
         Is = np.transpose(np.transpose(Is) - np.mean(Is,1))
-        print 'Is shape', np.shape(Is)
-        print 'mean shape', np.shape(np.mean(Qs,1))
+        #print 'Is shape', np.shape(Is)
+        #print 'mean shape', np.shape(np.mean(Qs,1))
         Qs = np.transpose(np.transpose(Qs) - np.mean(Qs,1))
+        iq_vels = np.transpose(np.transpose(iq_vels) - np.mean(iq_vels,1)) #added by NF 20180423
     #iq_vels = np.round(iq_vels * xWidth / max(dataObj.iq_vels[res_num, iAtten, :]) )
-    iq_vels = np.transpose(np.transpose(iq_vels) / np.amax(iq_vels, axis=1))
+
 
 
             # interpolate iq_vels onto a finer grid
@@ -56,9 +57,12 @@ def makeResImage(res_num, angle=0, center_loop=False,  phase_normalise=False, sh
     #     if (peak_iqv/nonpeak_iqv < noise_condition):
     #         return None 
 
-    res_mag = np.sqrt(np.amax(Is**2 + Qs**2, axis=1))
+    res_mag = np.sqrt(np.amax(Is**2 + Qs**2, axis=1)) #changed by NF 20180423 (originally amax)
+    #res_mag = np.sqrt(np.mean(Is**2 + Qs**2, axis=1)) #changed by NF 20180423
     Is = np.transpose(np.transpose(Is) / res_mag)
     Qs = np.transpose(np.transpose(Qs) / res_mag)
+    #iq_vels = np.transpose(np.transpose(iq_vels)/np.sqrt(np.mean(iq_vels**2,axis=1))) #added by NF 20180423
+    iq_vels = np.transpose(np.transpose(iq_vels) / np.amax(iq_vels, axis=1)) #changed by NF 20180423 (originally amax)
 
     # Is = Is /np.amax(dataObj.iq_vels[res_num, :, :])
     # Qs = Qs /np.amax(dataObj.iq_vels[res_num, :, :])

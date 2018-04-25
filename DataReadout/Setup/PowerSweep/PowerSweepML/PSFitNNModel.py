@@ -64,7 +64,7 @@ class mlClassification():
         #    self.inferenceData = PSFitMLData(h5File = inferenceFile, useAllAttens = False, useResID=True)
 
 
-    def makeTrainData(self, trimAttens=False):                
+    def makeTrainData(self):                
         '''creates 1d arrays using makeWindowImage of each class with associated labels and saves to pkl file
 
         0: saturated peak, too much power
@@ -119,7 +119,7 @@ class mlClassification():
 
 
 
-            if trimAttens:
+            if self.mlDict['trimAttens']:
                 good_res = np.delete(good_res, np.where(rawTrainData.opt_iAttens < self.mlDict['attenWinBelow'])[0])
 
             # rawTrainData.res_indicies = np.zeros((rawTrainData.res_nums,rawTrainData.nClass))
@@ -156,7 +156,7 @@ class mlClassification():
                 # for t in range(num_rotations):
                 #     image = self.makeResImage(res_num = rn, iAtten= iAttens[rn,c], angle=angle[t],showFrames=False, 
                 #                                 test_if_noisy=test_if_noisy, xCenter=self.res_indicies[rn,c])
-                image = mlt.makeResImage(res_num = rn, phase_normalise=False ,showFrames=False, dataObj=rawTrainData, mlDict=self.mlDict) 
+                image = mlt.makeResImage(res_num = rn, center_loop=self.mlDict['center_loop'], phase_normalise=False ,showFrames=False, dataObj=rawTrainData, mlDict=self.mlDict) 
                 if image!=None:
                     trainImages.append(image)
                     oneHot = np.zeros(self.mlDict['nAttens'])
@@ -167,7 +167,7 @@ class mlClassification():
 
 
             for rn in test_ind:#range(int(self.trainFrac*rawTrainData.res_nums), int(self.trainFrac*rawTrainData.res_nums + self.testFrac*rawTrainData.res_nums)):
-                image = mlt.makeResImage(res_num = rn, phase_normalise=False, dataObj=rawTrainData, mlDict=self.mlDict)
+                image = mlt.makeResImage(res_num = rn, center_loop=self.mlDict['center_loop'], phase_normalise=False, dataObj=rawTrainData, mlDict=self.mlDict)
                 if image!=None:
                     testImages.append(image)
                     oneHot = np.zeros(self.mlDict['nAttens'])
@@ -429,7 +429,7 @@ class mlClassification():
                 # print batch_ys[10],#, feed_dict={y_: batch_ys}),
                 # print self.sess.run(self.y, feed_dict={self.x: batch_xs})[10]
                 print self.sess.run(accuracy, feed_dict={self.x: testImages, y_: testLabels, self.keep_prob: 1}) * 100
-            self.sess.run(train_step, feed_dict={self.x: batch_xs, y_: batch_ys, self.keep_prob: 1}) #calculate train_step using feed_dict
+            self.sess.run(train_step, feed_dict={self.x: batch_xs, y_: batch_ys, self.keep_prob: self.mlDict['keep_prob']}) #calculate train_step using feed_dict
         
         print "--- %s seconds ---" % (time.time() - start_time)
         #print ce_log, acc_log
@@ -449,7 +449,8 @@ class mlClassification():
                                                    feed_dict={self.x: testImages, y_: testLabels, self.keep_prob: 1}) #1st 25 printed
         print self.sess.run(self.y, feed_dict={self.x: testImages, y_: testLabels, self.keep_prob: 1})[:100]  # print the scores for each class
         ys_true = self.sess.run(tf.argmax(y_,1), feed_dict={self.x: testImages, y_: testLabels, self.keep_prob: 1})
-        ys_guess = self.sess.run(tf.argmax(self.y,1), feed_dict={self.x: testImages, y_: testLabels, self.keep_prob: 1})
+        y_probs = self.sess.run(self.y, feed_dict={self.x: testImages, y_: testLabels, self.keep_prob: 1})
+        ys_guess = np.argmax(y_probs, 1)
         print np.sum(self.sess.run(self.y, feed_dict={self.x: testImages, y_: testLabels, self.keep_prob: 1}),axis=0)
         right = []
         within1dB = []
@@ -467,6 +468,9 @@ class mlClassification():
         print 'Accuracy of model in testing: ', score, '%'
         if score < 85: print 'Consider making more training images'
         print 'Testing accuracy within 1 dB: ', float(len(within1dB))/len(ys_true)*100, '%' 
+
+        score = self.sess.run(accuracy, feed_dict={self.x: trainImages, y_: trainLabels, self.keep_prob: 1}) * 100
+        print 'Accuracy of model in training: ', score, '%'
         #acc_log.append(score)
         # train_log = np.array([['score ', score], ['keep_prob', 1], ['num_filt1', self.num_filt1], ['num_filt2', self.num_filt2], ['num_filt3', self.num_filt3],
         #     ['num_filt4', 0], ['n_pool1', n_pool1], ['n_pool2', n_pool2], ['n_pool3', n_pool3], ['n_pool4', 0]])
@@ -481,11 +485,11 @@ class mlClassification():
         plt.hist(ys_true)
         plt.title('correct attens')
         plt.show()
-        plt.plot(ys_true, ys_guess)
+        plt.plot(ys_true, ys_guess, '.')
         plt.title('confusion')
         plt.show()
         
-        np.savez(modelSavePath+'_confusion.npz', ys_true=ys_true, ys_guess=ys_guess)
+        np.savez(modelSavePath+'_confusion.npz', ys_true=ys_true, ys_guess=ys_guess, y_probs=y_probs)
 
         del trainImages, trainLabels, testImages, testLabels
 
@@ -649,7 +653,7 @@ class mlClassification():
         for i,rn in enumerate(span): 
             sys.stdout.write("\r%d of %i" % (i+1,res_nums) )
             sys.stdout.flush()
-            image = self.makeResImage(res_num = rn, phase_normalise=False,showFrames=False, dataObj=self.inferenceData)
+            image = self.makeResImage(res_num = rn, center_loop=self.mlDict['center_loop'], phase_normalise=False,showFrames=False, dataObj=self.inferenceData)
             inferenceImage=[]
             inferenceImage.append(image)            # inferenceImage is just reformatted image
             self.inferenceLabels[rn,:] = self.sess.run(self.y, feed_dict={self.x: inferenceImage, self.keep_prob: 1})
@@ -665,7 +669,7 @@ class mlClassification():
                     padResWidth = 20
                     if self.inferenceData.opt_freqs[rn] > self.inferenceData.opt_freqs[rn-1]:
                         print 'isgreater'
-                        image = self.makeResImage(res_num = rn-1, phase_normalise=False, showFrames=False, dataObj=self.inferenceData, padFreq=self.inferenceData.opt_freqs[rn])
+                        image = self.makeResImage(res_num = rn-1, center_loop=self.mlDict['center_loop'], phase_normalise=False, showFrames=False, dataObj=self.inferenceData, padFreq=self.inferenceData.opt_freqs[rn])
                         inferenceImage = [image]
                         self.inferenceLabels[rn-1,:] = self.sess.run(self.y, feed_dict={self.x: inferenceImage, self.keep_prob: 1})
                         iAtt = np.argmax(self.inferenceLabels[rn-1,:])
@@ -682,7 +686,7 @@ class mlClassification():
                         self.inferenceData.opt_freqs[rn-1] = self.inferenceData.freqs[rn-1, self.get_peak_idx(rn-1, iAtt, smooth=True, cutType=cutType, padInd=padInd)]
                         print 'newfreq', self.inferenceData.opt_freqs[rn-1]
                     else:
-                        image = self.makeResImage(res_num = rn, phase_normalise=False, showFrames=False, dataObj=self.inferenceData, padFreq=self.inferenceData.opt_freqs[rn-1])
+                        image = self.makeResImage(res_num = rn, center_loop=self.mlDict['center_loop'], phase_normalise=False, showFrames=False, dataObj=self.inferenceData, padFreq=self.inferenceData.opt_freqs[rn-1])
                         inferenceImage = [image]
                         self.inferenceLabels[rn,:] = self.sess.run(self.y, feed_dict={self.x: inferenceImage, self.keep_prob: 1})
                         iAtt = np.argmax(self.inferenceLabels[rn,:])

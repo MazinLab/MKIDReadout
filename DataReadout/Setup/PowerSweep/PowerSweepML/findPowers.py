@@ -55,7 +55,7 @@ def findPowers(mlDict, h5FileName):
     for i,rn in enumerate(span): 
         sys.stdout.write("\r%d of %i" % (i+1,res_nums) )
         sys.stdout.flush()
-        image = mlt.makeResImage(res_num = rn, phase_normalise=False,showFrames=False, dataObj=inferenceData, mlDict=mlDict)
+        image = mlt.makeResImage(res_num = rn, center_loop=mlDict['center_loop'], phase_normalise=False,showFrames=False, dataObj=inferenceData, mlDict=mlDict)
         inferenceImage=[]
         inferenceImage.append(image)            # inferenceImage is just reformatted image
         inferenceLabels[rn,:] = sess.run(y_output, feed_dict={x_input: inferenceImage, keep_prob: 1})
@@ -71,7 +71,7 @@ def findPowers(mlDict, h5FileName):
                 padResWidth = 20
                 if inferenceData.opt_freqs[rn] > inferenceData.opt_freqs[rn-1]:
                     print 'isgreater'
-                    image = mlt.makeResImage(res_num = rn-1, phase_normalise=False, showFrames=False, dataObj=inferenceData, padFreq=inferenceData.opt_freqs[rn], mlDict=mlDict)
+                    image = mlt.makeResImage(res_num = rn-1, center_loop=mlDict['center_loop'], phase_normalise=False, showFrames=False, dataObj=inferenceData, padFreq=inferenceData.opt_freqs[rn], mlDict=mlDict)
                     inferenceImage = [image]
                     inferenceLabels[rn-1,:] = sess.run(y_output, feed_dict={x_input: inferenceImage, keep_prob: 1})
                     iAtt = np.argmax(inferenceLabels[rn-1,:])
@@ -88,7 +88,7 @@ def findPowers(mlDict, h5FileName):
                     inferenceData.opt_freqs[rn-1] = inferenceData.freqs[rn-1, mlt.get_peak_idx(rn-1, iAtt, dataObj=inferenceData, smooth=True, cutType=cutType, padInd=padInd)]
                     print 'newfreq', inferenceData.opt_freqs[rn-1]
                 else:
-                    image = mlt.makeResImage(res_num = rn, phase_normalise=False, showFrames=False, dataObj=inferenceData, padFreq=inferenceData.opt_freqs[rn-1], mlDict=mlDict)
+                    image = mlt.makeResImage(res_num = rn, center_loop=mlDict['center_loop'], phase_normalise=False, showFrames=False, dataObj=inferenceData, padFreq=inferenceData.opt_freqs[rn-1], mlDict=mlDict)
                     inferenceImage = [image]
                     inferenceLabels[rn,:] = sess.run(y_output, feed_dict={x_input: inferenceImage, keep_prob: 1})
                     iAtt = np.argmax(inferenceLabels[rn,:])
