@@ -1366,6 +1366,7 @@ class MkidDashboard(QMainWindow):
         def takeDark():
             self.darkField=None
             self.takingDark=self.spinbox_darkImage.value()
+            self.writeLog(target='dark', str(darkIntTime) + ' sec integration time')  #added by clint
         button_darkImage.clicked.connect(takeDark)
         self.checkbox_darkImage = QCheckBox()
         self.checkbox_darkImage.setChecked(False)
