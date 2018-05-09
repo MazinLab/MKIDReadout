@@ -703,6 +703,94 @@ class Roach2Controls:
             raise Exception('MicroBlaze failed to set LO!')
         #time.sleep(1)
 
+    def loadLOFreqDebug(self,LOFreq=None,regList):
+        """
+        Send LO frequency to V7 over UART.
+        Must initialize LO first.
+        
+        INPUTS:
+            LOFreq - LO frequency in MHz
+            regList - 7 element list of SPI programming regs, before freq info is added
+        
+        Sends LO freq one byte at a time, LSB first
+           sends integer bytes first, then fractional
+        """
+        if LOFreq is None:
+            try:
+                LOFreq = self.LOFreq/1e6 #IF board uses MHz
+            except AttributeError:
+                print "Run setLOFreq() first!"
+                raise        
+       
+        if not len(regList)==7:
+            raise Exception('regList must have 7 register values')
+        loFreqInt = int(LOFreq)
+        loFreqFrac = LOFreq - loFreqInt
+        
+        # Put V7 into LO recv mode
+        while(not(self.v7_ready)):
+            self.v7_ready = self.fpga.read_int(self.params['v7Ready_reg'])
+
+        self.v7_ready = 0
+        self.fpga.write_int(self.params['inByteUART_reg'],self.params['mbRecvLODebug'])
+        time.sleep(0.01)
+        self.fpga.write_int(self.params['txEnUART_reg'],1)
+        time.sleep(0.01)
+        self.fpga.write_int(self.params['txEnUART_reg'],0)        
+
+        for regVal in regList:
+            for j in range(4):
+                transferByte = (regVal>>(j*8))&255
+                while(not(self.v7_ready)):
+                    self.v7_ready = self.fpga.read_int(self.params['v7Ready_reg'])
+                    time.sleep(0.01)
+                self.v7_ready = 0
+                self.sendUARTCommand(transferByte)
+        
+        for i in range(2):
+            transferByte = (loFreqInt>>(i*8))&255 #takes an 8-bit "slice" of loFreqInt
+            
+            while(not(self.v7_ready)):
+                self.v7_ready = self.fpga.read_int(self.params['v7Ready_reg'])
+
+            if(self.v7_ready == self.params['v7Err']):
+                raise Exception('MicroBlaze errored out.  Try reinitializing LO.')
+
+            self.v7_ready = 0
+            self.fpga.write_int(self.params['inByteUART_reg'],transferByte)
+            time.sleep(0.01)
+            self.fpga.write_int(self.params['txEnUART_reg'],1)
+            time.sleep(0.001)
+            self.fpga.write_int(self.params['txEnUART_reg'],0)
+        
+        #print 'loFreqFrac' + str(loFreqFrac)	
+        loFreqFrac = int(loFreqFrac*(2**16))
+        #print 'loFreqFrac' + str(loFreqFrac)
+        
+        # same as transfer of int bytes
+        for i in range(2):
+            transferByte = (loFreqFrac>>(i*8))&255
+            
+            while(not(self.v7_ready)):
+                self.v7_ready = self.fpga.read_int(self.params['v7Ready_reg'])
+                time.sleep(0.01)
+            
+            if(self.v7_ready == self.params['v7Err']):
+                raise Exception('MicroBlaze errored out.  Try reinitializing LO.')
+
+            self.v7_ready = 0
+            self.fpga.write_int(self.params['inByteUART_reg'],transferByte)
+            time.sleep(0.01)
+            self.fpga.write_int(self.params['txEnUART_reg'],1)
+            time.sleep(0.001)
+            self.fpga.write_int(self.params['txEnUART_reg'],0)
+    
+        while(not(self.v7_ready)):      # Wait for V7 to say it's done setting LO
+            self.v7_ready = self.fpga.read_int(self.params['v7Ready_reg'])
+            time.sleep(0.01)
+
+        if(self.v7_ready == self.params['v7Err']):
+            raise Exception('MicroBlaze failed to set LO!')
 
     def setAdcScale(self, scale=.25):
         """
