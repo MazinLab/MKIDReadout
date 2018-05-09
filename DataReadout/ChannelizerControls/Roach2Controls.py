@@ -703,7 +703,7 @@ class Roach2Controls:
             raise Exception('MicroBlaze failed to set LO!')
         #time.sleep(1)
 
-    def loadLOFreqDebug(self,LOFreq=None,regList):
+    def loadLOFreqDebug(self,LOFreq=None,regList=None):
         """
         Send LO frequency to V7 over UART.
         Must initialize LO first.
