@@ -6,14 +6,26 @@ def getDefaultRegList():
 def changeRegBits(regVal, bitRange, newVal):
     if bitRange.__class__==int:
         bitmask = 2**bitRange
+        lsb = bitRange
         if newVal>1:
             raise Exception('Not enough bits for newVal')
     else:
         bitmask = 2**(bitRange[1] + 1) - 1 - (2**(bitRange[0]) - 1)
+        lsb = bitRange[0]
         if newVal > (2**(bitRange[1] - bitRange[0] + 1) - 1):
             raise Exception('Not enough bits for newVal')
 
     regVal -= (regVal & bitmask)
-    regVal += (newVal << bitRange[0])
+    regVal += (newVal << lsb)
     print bin(regVal)
     return regVal
+
+def getRegBits(regVal, bitRange):
+    if bitRange.__class__==int:
+        bitmask = 2**bitRange
+        lsb = bitRange
+    else:
+        bitmask = 2**(bitRange[1] + 1) - 1 - (2**(bitRange[0]) - 1)
+        lsb = bitRange[0]
+
+    return (regVal & bitmask) >> lsb
