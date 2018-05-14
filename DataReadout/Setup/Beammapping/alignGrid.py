@@ -12,9 +12,11 @@ Usage: python alignGrid.py <configFile>
 
 '''
 
+import os, sys
 import numpy as np
 import scipy.ndimage as sciim
 import matplotlib.pyplot as plt
+from readDict import readDict
 
 class BMAligner:
 
@@ -27,10 +29,10 @@ class BMAligner:
         self.makeRawImage()
 
     def makeRawImage(self):
-        self.rawImage = np.zeros((np.max(self.rawXs)*self.usFactor+1, np.max(self.rawYs)*self.usFactor+1))
+        self.rawImage = np.zeros((int(np.max(self.rawXs)*self.usFactor+1), int(np.max(self.rawYs)*self.usFactor+1)))
         for i, resID in enumerate(self.resIDs):
             if self.flags[i] == 0:
-                self.rawImage[round(self.rawXs[i]*self.usFactor), round(self.rawYs[i]*self.usFactor)] = 1
+                self.rawImage[int(round(self.rawXs[i]*self.usFactor)), int(round(self.rawYs[i]*self.usFactor))] = 1
 
     def fftRawImage(self):
         self.rawImageFFT = np.abs(np.fft.fft2(self.rawImage))
@@ -192,12 +194,16 @@ class BMAligner:
             coords2[:,0], coords2[:,1]]), fmt='%4i %.5f %.5f %.5f %.5f')
         
     def plotCoords(self):
-        plt.plot(self.coords[:,0], self.coords[:,1], '.')
+        goodInds = np.where(self.flags==0)[0]
+        badInds = np.where(self.flags!=0)[0]
+        plt.plot(self.coords[goodInds,0], self.coords[goodInds,1], '.', color='b')
+        plt.plot(self.coords[badInds,0], self.coords[badInds,1], '.', color='r')
         plt.show()
             
 if __name__=='__main__':
     if len(sys.argv)<2:
         print 'Usage: "python alignGrid.py <configFile>", where <configFile> is in MKID_DATA_DIR'
+        exit(1)
 
     mdd = os.environ['MKID_DATA_DIR']
     cfgFn = os.path.join(mdd, sys.argv[1])
@@ -208,9 +214,10 @@ if __name__=='__main__':
     aligner.makeRawImage()
     aligner.fftRawImage()
     aligner.findAngleAndScale()
-    aligner.rotateAndScaleCoordinates()
+    aligner.rotateAndScaleCoords()
     aligner.findOffset()
-    aligner.saveRawMap(paramDict['outputFileName'])
+    aligner.plotCoords()
+    aligner.saveRawMap(paramDict['outputFilename'])
     aligner.makeDoublesRawMap(paramDict['masterDoublesList'], paramDict['outputDoubleName'])
 
 
