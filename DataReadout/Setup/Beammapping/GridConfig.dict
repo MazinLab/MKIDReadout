@@ -3,3 +3,6 @@ masterDoublesList = '/mnt/data0/Darkness/20161107/beammaps/Beamlist_Master_Doubl
 
 outputFilename = '/mnt/data0/Darkness/20161107/beammaps/RawMap.txt'
 outputDoubleName = '/mnt/data0/Darkness/20161107/beammaps/RawMap_DOUBLES.txt'
+
+nXPix = 80
+nYPix = 125
