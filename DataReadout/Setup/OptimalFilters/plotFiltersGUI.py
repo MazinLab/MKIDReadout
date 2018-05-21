@@ -17,17 +17,17 @@ import inspect
 class Window(QtGui.QDialog):
     def __init__(self, parent=None):
         super(Window, self).__init__(parent)
-        self.initUI()          
-         
-    def initUI(self):  
-        #make the folder finder button and display      
+        self.initUI()
+
+    def initUI(self):
+        #make the folder finder button and display
         self.btn = QtGui.QPushButton('Find Folder', self)
         self.btn.clicked.connect(self.loadData)
         self.btn.setAutoDefault(False)
 
         self.file_display=QtGui.QLineEdit(self)
         self.file_display.setReadOnly(True)
-        
+
         #make combo box
         self.comboBox=QtGui.QComboBox(self)
         self.filterTypes=zip(*inspect.getmembers(mF, inspect.isfunction))
@@ -46,16 +46,16 @@ class Window(QtGui.QDialog):
         self.filterFunction=self.filterTypes[1][index0]
         self.filterName=self.filterTypes[0][index0]
         self.comboBox.setCurrentIndex(index0)
-        self.comboBox.currentIndexChanged.connect(self.change_filter)       
+        self.comboBox.currentIndexChanged.connect(self.change_filter)
 
         #make the checkbox
         self.check=QtGui.QCheckBox("Plot Data Used to Fit Template")
         self.check.stateChanged.connect(lambda:self.plot())
-        
+
         #make third checkbox
         self.check3=QtGui.QCheckBox("Plot Zero Noise Filter")
         self.check3.stateChanged.connect(lambda:self.plot())
-        
+
         #make second checkbox
         self.check2=QtGui.QCheckBox("Plot Scaled Fourier Transform of Filter")
         self.check2.stateChanged.connect(lambda:self.plot())
@@ -83,7 +83,7 @@ class Window(QtGui.QDialog):
 
         #make log file display
         self.log_label=QtGui.QLabel("Log File:")
-        
+
         self.log_display=QtGui.QTextEdit(self)
         self.log_display.setReadOnly(True)
         self.log_display.setFixedHeight(100)
@@ -92,12 +92,12 @@ class Window(QtGui.QDialog):
         filebox = QtGui.QHBoxLayout()
         filebox.addWidget(self.btn)
         filebox.addWidget(self.file_display)
-        
+
         checkbox = QtGui.QHBoxLayout()
         checkbox.addWidget(self.check)
         checkbox.addStretch()
         checkbox.addWidget(self.comboBox)
-        
+
         checkbox3=QtGui.QHBoxLayout()
         checkbox3.addWidget(self.check3)
         checkbox3.addStretch()
@@ -105,7 +105,7 @@ class Window(QtGui.QDialog):
         checkbox2=QtGui.QHBoxLayout()
         checkbox2.addWidget(self.check2)
         checkbox2.addStretch()
-        
+
         labelbox1=QtGui.QHBoxLayout()
         labelbox1.addWidget(self.slider_label)
         labelbox1.addStretch()
@@ -117,11 +117,11 @@ class Window(QtGui.QDialog):
         labelbox2=QtGui.QHBoxLayout()
         labelbox2.addWidget(self.file_label)
         labelbox2.addStretch()
-        
+
         labelbox3=QtGui.QHBoxLayout()
         labelbox3.addWidget(self.log_label)
         labelbox3.addStretch()
-        
+
         self.options = QtGui.QVBoxLayout()
         self.options.addLayout(filebox)
         self.options.addLayout(checkbox)
@@ -135,7 +135,7 @@ class Window(QtGui.QDialog):
         self.options.addLayout(labelbox3)
         self.options.addWidget(self.log_display)
         self.options.addStretch()
-        
+
 
         # a figure instance to plot on
         self.figure1 = plt.figure()
@@ -151,7 +151,7 @@ class Window(QtGui.QDialog):
         self.canvas1 = FigureCanvas(self.figure1)
         self.canvas2 = FigureCanvas(self.figure2)
         self.canvas3 = FigureCanvas(self.figure3)
-  
+
         # this is the Navigation widget
         # it takes the Canvas widget and a parent
         self.toolbar1 = NavigationToolbar(self.canvas1, self)
@@ -175,7 +175,7 @@ class Window(QtGui.QDialog):
 
         self.setGeometry(300, 30, 1000, 900)
         self.setWindowTitle('Plot Filters')
-    
+
         self.show()
     def loadData(self,changing=False):
         reformated=False
@@ -197,7 +197,7 @@ class Window(QtGui.QDialog):
             self.slider.setMaximum(0)
             self.name_display.setText('')
             self.ax1.cla()
-            self.ax2.cla()        
+            self.ax2.cla()
             self.ax3.cla()
             self.canvas1.draw()
             self.canvas2.draw()
@@ -209,12 +209,12 @@ class Window(QtGui.QDialog):
         self.filter_type=np.loadtxt(self.f_type)
         self.rough_templates=np.atleast_2d(np.loadtxt(self.f_rough_templates))
         self.filters_fourier=np.atleast_2d(np.loadtxt(self.f_filters_fourier))
-        
+
         with open (self.f_list, 'rb') as fp:
             self.file_list = pickle.load(fp)
         with open(self.f_log,'rU') as f:
             self.log_file=f.readlines()
-        
+
         #calculate filter that would be used if there was no noise. won't work if only one set
         #reformat arrays if 1D
         #if len(np.shape(self.template_coefficients))==1:
@@ -252,19 +252,19 @@ class Window(QtGui.QDialog):
 
     def plot(self):
         self.ax1.cla()
-        self.ax2.cla()        
+        self.ax2.cla()
         self.ax3.cla()
 
         self.ax1.plot(self.template_coefficients[self.pixel,:],'b',label='final template')
         if self.check.isChecked() == True:
             self.ax1.plot(self.rough_templates[self.pixel,:],'r',label='data fitted')
 
-        self.ax2.plot(self.filter_coefficients[self.pixel,:],'b',label='final filter')  
+        self.ax2.plot(self.filter_coefficients[self.pixel,:],'b',label='final filter')
 
         if self.check3.isChecked()==True:
             self.ax2.plot(self.template_filter[self.pixel,:],'k',label='zero noise filter')
-  
-        if np.sum(self.noise_data[self.pixel,:]>0)>0:       
+
+        if np.sum(self.noise_data[self.pixel,:]>0)>0:
                 self.ax3.loglog(self.noise_freq,self.noise_data[self.pixel,:],'b',label='noise PSD')
                 self.ax3.legend(fontsize=10,loc='upper center', bbox_to_anchor=(0.5, 1.13))
         if self.check2.isChecked() == True and np.sum(self.filters_fourier[self.pixel,:]>0)>0 and np.sum(self.template_fft[self.pixel,:]>0)>0:
@@ -327,11 +327,7 @@ class Window(QtGui.QDialog):
         self.filterName=self.filterTypes[0][index]
         self.loadData(changing=True)
 
-        
 
-
-        
- 
 def main(*args, **kwargs):
     app = QtGui.QApplication(sys.argv)
     ex = Window()
