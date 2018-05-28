@@ -149,5 +149,6 @@ class PixelHistogramWindow(QMainWindow):
         self.setCentralWidget(self.main_frame)
     
     def closeEvent(self, event):
+        self.parent.newImageProcessed.disconnect(self.plotData)
         self.closeWindow.emit()
         event.accept()
