@@ -415,7 +415,7 @@ class MkidDashboard(QMainWindow):
         #command = "%s >> %s"%(packetMaster_path, packetMasterLog_path)
         #print command
         #QtCore.QTimer.singleShot(50,partial(subprocess.Popen,command,shell=True))
-        packetMasterCfg = open(os.path.join(packetMaster_path, 'PacketMaster.cfg'), 'w')
+        packetMasterCfg = open(os.path.join(os.path.dirname(packetMaster_path), 'PacketMaster.cfg'), 'w')
         packetMasterCfg.write(self.config.get('properties', 'cuber_ramdisk') + '\n')
         packetMasterCfg.write(str(self.config.get('properties', 'ncols')) + ' ' + str(self.config.get('properties', 'nrows')) + '\n')
         packetMasterCfg.write(str(self.config.get('properties', 'use_nuller')) + '\n')
@@ -1212,7 +1212,7 @@ class MkidDashboard(QMainWindow):
         telescopeDict = self.telescopeController.getAllTelescopeInfo(self.textbox_target.text())
         self.writeLog('telescope',**telescopeDict)
     
-    def writeLog(self, target=None, *args, **kwargs):
+    def writeLog(self, target,*args, **kwargs):
         """
         Writes a log file
         The file is named 'UNIXTIME_target.log'
@@ -1366,7 +1366,7 @@ class MkidDashboard(QMainWindow):
         def takeDark():
             self.darkField=None
             self.takingDark=self.spinbox_darkImage.value()
-            self.writeLog(target='dark', str(darkIntTime) + ' sec integration time')  #added by clint
+            self.writeLog('dark', str(darkIntTime) + ' sec integration time')  #added by clint
         button_darkImage.clicked.connect(takeDark)
         self.checkbox_darkImage = QCheckBox()
         self.checkbox_darkImage.setChecked(False)

@@ -32,19 +32,25 @@ class PixelTimestreamWindow(QMainWindow):
         self.plotData()
         parent.newImageProcessed.connect(self.plotData)
         
-    
     def plotData(self,**kwargs):
         self.setCheckboxText(currentPix=True)
+        countRate=[]
+        countRate_cur=[]
         if self.checkbox_plotPix.isChecked():
             countRate = self.getCountRate()
-            self.line.set_data([range(len(countRate))],countRate)
-        else: self.line.set_data([],[])
         if self.checkbox_plotCurrentPix.isChecked():
-            countRate = self.getCountRate(True)
-            self.line2.set_data([range(len(countRate))],countRate)
-        else: self.line2.set_data([],[])
-        self.ax.relim()
-        self.ax.autoscale_view(True,True,True)
+            countRate_cur = self.getCountRate(True)
+        oldx_lim = self.ax.get_xlim()
+        oldy_lim = self.ax.get_ylim()
+        self.ax.cla()
+        self.ax.plot(countRate,'g-')
+        self.ax.plot(countRate_cur,'c-')
+        if self.mpl_toolbar._active is None:
+            self.ax.relim()
+            self.ax.autoscale_view(True,True,True)
+        else:
+            self.ax.set_xlim(oldx_lim)
+            self.ax.set_ylim(oldy_lim)
         self.draw()
 
     def getCountRate(self, forCurrentPix=False):
@@ -100,8 +106,6 @@ class PixelTimestreamWindow(QMainWindow):
         self.ax = self.fig.add_subplot(111)
         self.ax.set_xlabel('Time [s]')
         self.ax.set_ylabel('Count Rate [#/s]')
-        self.line, = self.ax.plot([],[],'g-')
-        self.line2, = self.ax.plot([],[],'c-')
         
         # Create the navigation toolbar, tied to the canvas
         self.mpl_toolbar = NavigationToolbar(self.canvas, self.main_frame)
@@ -141,5 +145,7 @@ class PixelTimestreamWindow(QMainWindow):
         self.setCentralWidget(self.main_frame)
     
     def closeEvent(self, event):
+        self.parent.newImageProcessed.disconnect(self.plotData)
         self.closeWindow.emit()
         event.accept()
+
