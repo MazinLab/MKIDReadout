@@ -1,9 +1,8 @@
-
 import pdb
 from numba import jit
 import ConfigParser
 import numpy as np
-import os, time, warnings
+import sys, os, time, warnings
 from PyQt4 import QtCore
 import matplotlib
 matplotlib.use('Qt4Agg')
@@ -66,7 +65,7 @@ class BeamSweep1D():
         if pixelComputationMask is None:
             nGoodPix = nPix - len(badPix[0])
             #nGroups=np.prod(imageList.shape)*(np.prod(imageList[0].shape)-1)/(200*3000*2999)*nGoodPix/nPix     # 300 timesteps x 3000 pixels takes a lot of memory...
-            nGroups = nTime*nGoodPix*(nGoodPix-1)/(300*3000*2999)
+            nGroups = nTime*nGoodPix*(nGoodPix-1)/(600*3000*2999)
             pixelComputationMask=np.random.randint(0,int(round(nGroups)),imageList[0].shape)
             #pixelComputationMask=np.repeat(range(5),2000).reshape(imageList[0].shape)
         self.compMask = np.asarray(pixelComputationMask)
@@ -77,7 +76,7 @@ class BeamSweep1D():
 
 
     
-    def getAbsOffset(self,shiftedTimes, auto=True):
+    def getAbsOffset(self,shiftedTimes, auto=False):
         """
         INPUTS:
             shiftedTimes: a list of time streams shifted to match up
@@ -169,8 +168,8 @@ class BeamSweep1D():
         return locs
 
 
-@jit
-def shapeBeammapIntoImages(initialBeammap, roughBeammap=None):
+#@jit
+def shapeBeammapIntoImages(initialBeammap, roughBeammap):
     resIDs, flag, x, y=np.loadtxt(initialBeammap,unpack=True)
     nCols = np.amax(x)+1
     nRows = np.amax(y)+1
@@ -180,8 +179,10 @@ def shapeBeammapIntoImages(initialBeammap, roughBeammap=None):
     xImage[:]=np.nan
     yImage = np.empty((nRows,nCols))
     yImage[:]=np.nan
+    y=y.astype(np.int)
+    x=x.astype(np.int)
         
-    if roughBeammap is not None:
+    try:
         roughResIDs, roughFlags, roughX, roughY=np.loadtxt(roughBeammap,unpack=True)
         for i,resID in enumerate(roughResIDs):
             ind=np.where(resIDs==resID)[0][0]
@@ -189,9 +190,9 @@ def shapeBeammapIntoImages(initialBeammap, roughBeammap=None):
             flagImage[y[ind],x[ind]]=int(roughFlags[i])
             xImage[y[ind],x[ind]]=roughX[i]
             yImage[y[ind],x[ind]]=roughY[i]
-    else:
+    except IOError:
         for i in range(len(resIDs)):
-            resIDmage[y[i],x[i]]=int(resIDs[i])
+            resIDimage[y[i],x[i]]=int(resIDs[i])
             flagImage[y[i],x[i]]=int(flag[i])
     return resIDimage, flagImage, xImage, yImage
 
@@ -232,16 +233,19 @@ def getPeak(data, guess_arg, width=5):
     
 
 class ManualRoughBeammap():
-    def __init__(self, x_images, y_images, initialBeammap, roughBeammapFN=None):
+    def __init__(self, x_images, y_images, initialBeammap, roughBeammapFN):
         """
-        Class for manually clicking through beammap
+        Class for manually clicking through beammap. 
+        Saves a rough beammap with filename roughBeammapFN-HHMMSS.txt
+        A 'rough' beammap is one that doesn't have x/y but instead the peak location in time from the swept light beam. 
         
         INPUTS:
             x_images - list of images for sweep(s) in x-direction
             y_images - 
-            initialBeammap
-            x_loc - optional guess for location of peak
-            y_loc -
+            initialBeammap - path+filename of initial beammap used for making images
+            roughBeammapFN - path+filename of the rough beammap (time at peak instead of x/y value)
+                             If the roughBeammap doesn't exist then it will be instantiated with nans
+                             We append a timestamp to this string as the output file
         """
         self.x_images=x_images
         self.y_images=y_images
@@ -252,43 +256,11 @@ class ManualRoughBeammap():
         
         self.initialBeammapFN=initialBeammap
         self.roughBeammapFN=roughBeammapFN
-        self.outputBeammapFn = initialBeammap.rsplit('.',1)[0]+time.strftime('-%H%M%S')+'.txt'
+        self.outputBeammapFn = roughBeammapFN.rsplit('.',1)[0]+time.strftime('-%H%M%S')+'.txt'
         self.resIDsMap, self.flagMap, self.x_loc, self.y_loc = shapeBeammapIntoImages(self.initialBeammapFN,self.roughBeammapFN)
         if self.roughBeammapFN is None or not os.path.isfile(self.roughBeammapFN):
             self.flagMap[np.where(self.flagMap!=beamMapFlags['noDacTone'])]=beamMapFlags['failed']
-        #try: 
-        #    self.resIDsMap = getBeammapResIDImage(self.initialBeammapFN)
-        #    self.flagMap = getBeammapFlagImage(self.initialBeammapFN,self.roughBeammapFN)
-        #    _,_,x_loc,y_loc = np.loadtxt(self.roughBeammapFN,unpack=True)
-        #except IOError:
-        #    self.resIDsMap = getBeammapResIDImage(self.initialBeammapFN)
-        #    self.flagMap = getBeammapFlagImage(self.initialBeammapFN)
-        #    x_loc=np.empty(x_images[0].shape)
-        #    x_loc[:]=np.nan
-        #    y_loc=np.empty(y_images[0].shape)
-        #    y_loc[:]=np.nan
-        #    self.flagMap[np.where(self.flagMap!=beamMapFlags['noDacTone'])]=beamMapFlags['failed']
-        ##noDacTone = np.where(self.flagMap==beamMapFlags['noDacTone'])
 
-
-        #x_loc[np.where(x_loc<0)]=np.nan
-        #y_loc[np.where(y_loc<0)]=np.nan
-        #x_loc[np.where(x_loc>=self.nTime_x)]=np.nan
-        #y_loc[np.where(y_loc>=self.nTime_y)]=np.nan
-        #x_loc[np.where(totalCounts_x<=0)]=np.nan
-        #y_loc[np.where(totalCounts_y<=0)]=np.nan
-        
-        ##update flagMap
-        #self.flagMap[:]=beamMapFlags['good']
-        #self.flagMap[np.where( np.logical_not(np.isfinite(x_loc)) * np.logical_not(np.isfinite(y_loc)))]=beamMapFlags['failed']
-        #self.flagMap[np.where( np.isfinite(x_loc) * np.logical_not(np.isfinite(y_loc)))]=beamMapFlags['yFailed']
-        #self.flagMap[np.where( np.logical_not(np.isfinite(x_loc)) * np.isfinite(y_loc))]=beamMapFlags['xFailed']
-        #self.flagMap[noDacTone]=beamMapFlags['noDacTone']
-        
-        ##x_loc[np.where(np.logical_not(np.isfinite(x_loc)))]=-1
-        ##y_loc[np.where(np.logical_not(np.isfinite(x_loc)))]=-1
-        #self.x_loc=x_loc
-        #self.y_loc=y_loc
         
         self.goodPix = np.where((self.flagMap!=beamMapFlags['noDacTone']) * (totalCounts_x+totalCounts_y)>0)
         self.nGoodPix = len(self.goodPix[0])
@@ -398,11 +370,13 @@ class ManualRoughBeammap():
             self.timestreamPlots[2].set_ydata(self.x_images[:,y,x])
             #self.ax_time_x.autoscale(True,'y',True)
             self.ax_time_x.set_ylim(0, 1.05*np.amax(self.x_images[:,y,x]))
+            self.ax_time_x.set_xlim(-2, self.nTime_x+2)
         if lineNum==3 or lineNum>=4:
             self.ax_time_x.set_title('Pix '+str(self.curPixInd)+' resID'+str(int(self.resIDsMap[y,x]))+' ('+str(x)+', '+str(y)+')')
             self.timestreamPlots[3].set_ydata(self.y_images[:,y,x])
             #self.ax_time_y.autoscale(True,'y',True)
             self.ax_time_y.set_ylim(0, 1.05*np.amax(self.y_images[:,y,x]))
+            self.ax_time_y.set_xlim(-2, self.nTime_y+2)
         
         self.fig_time.canvas.draw()
         
@@ -532,13 +506,13 @@ class RoughBeammap():
         """
         Should add option for median
         """
-        assert self.sweepType.lower() in ['x','y']
+        assert sweepType.lower() in ['x','y']
         imageList = None
         nTimes=0
-        nSweeps=0
+        nSweeps=0.
         for s in self.config.sections():
             if s.startswith("SWEEP") and self.config.get(s,'sweepType').lower() in [sweepType.lower()]:
-                nSweeps+=1
+                nSweeps+=1.
                 sweepNum = int(s.rsplit('SWEEP',1)[-1])
                 imList = self.loadSweepImgs(sweepNum)
                 direction=1
@@ -553,6 +527,7 @@ class RoughBeammap():
             self.x_images=imageList/nSweeps
         else:
             self.y_images=imageList/nSweeps
+        print 'stacked',nSweeps, sweepType, 'sweeps'
         return imageList
         
     def concatImages(self, sweepType):
@@ -564,6 +539,7 @@ class RoughBeammap():
         imageList = None
         for s in self.config.sections():
             if s.startswith("SWEEP") and self.config.get(s,'sweepType').lower() in [sweepType.lower()]:
+                print 'loading: '+str(s)
                 sweepNum = int(s.rsplit('SWEEP',1)[-1])
                 imList = self.loadSweepImgs(sweepNum)
                 direction=1
@@ -590,25 +566,30 @@ class RoughBeammap():
         
     
     def saveRoughBeammap(self):
-        try: allResIDs, flags, x, y = np.loadtxt(self.config.get('DEFAULT','roughBeammap'), unpack=True)
-        except IOError:
-            allResIDs, flags, x, y = np.loadtxt(self.config.get('DEFAULT','initialBeammap'), unpack=True)
-            x[:]=np.nan
-            y[:]=np.nan
-        otherFlagArgs = np.where(flags!=beamMapFlags['good'] * flags!=beamMapFlags['failed'] * flags!=beamMapFlags['xFailed'] * flags!=beamMapFlags['yFailed'])
-        otherFlags = flags[otherFlagArgs]
-        
-        if self.y_locs is not None and len(self.y_locs)==len(allResIDs): 
-            y=self.y_locs
-        if self.x_locs is not None and len(self.x_locs)==len(allResIDs): 
-            x=self.x_locs
-        flags[np.where(np.logical_not(np.isfinite(x)) * np.logical_not(np.isfinite(y)))] = beamMapFlags['failed']
-        flags[np.where(np.logical_not(np.isfinite(x)) * np.isfinite(y))] = beamMapFlags['xFailed']
-        flags[np.where(np.logical_not(np.isfinite(y)) * np.isfinite(x))] = beamMapFlags['yFailed']
-        flags[np.where(np.isfinite(x) * np.isfinite(y))] = beamMapFlags['good']
-        flags[otherFlagArgs]=otherFlags
-        
-        data=np.asarray([allResIDs, flags, x, y]).T
+
+        print 'Saving'
+        allResIDs_map, flag_map, x_map, y_map = shapeBeammapIntoImages(self.config.get('DEFAULT','initialBeammap'), self.config.get('DEFAULT','roughBeammap'))
+        otherFlagArgs = np.where((flag_map!=beamMapFlags['good']) * (flag_map!=beamMapFlags['failed']) * (flag_map!=beamMapFlags['xFailed']) * (flag_map!=beamMapFlags['yFailed']))
+        otherFlags = flag_map[otherFlagArgs]
+        if self.y_locs is not None and self.y_locs.shape==flag_map.shape:
+            y_map=self.y_locs
+            print 'added y'
+        if self.x_locs is not None and self.x_locs.shape==flag_map.shape:
+            x_map=self.x_locs
+            print 'added x'
+
+        flag_map[np.where(np.logical_not(np.isfinite(x_map)) * np.logical_not(np.isfinite(y_map)))] = beamMapFlags['failed']
+        flag_map[np.where(np.logical_not(np.isfinite(x_map)) * np.isfinite(y_map))] = beamMapFlags['xFailed']
+        flag_map[np.where(np.logical_not(np.isfinite(y_map)) * np.isfinite(x_map))] = beamMapFlags['yFailed']
+        flag_map[np.where(np.isfinite(x_map) * np.isfinite(y_map))] = beamMapFlags['good']
+        flag_map[otherFlagArgs]=otherFlags
+
+        allResIDs = allResIDs_map.flatten()
+        flags = flag_map.flatten()
+        x = x_map.flatten()
+        y = y_map.flatten()
+        args = np.argsort(allResIDs)
+        data=np.asarray([allResIDs[args], flags[args], x[args], y[args]]).T
         np.savetxt(self.config.get('DEFAULT','roughBeammap'), data, fmt='%7d %3d %7f %7f')
         
 
@@ -823,14 +804,16 @@ class BeammapSweep1D(QtCore.QObject):        #Extends QObject for use with QThre
 
 
 if __name__=='__main__':
-    configFN = 'beam3.cfg'
-    
+    #configFN = 'beam3.cfg'
+    configFN = sys.argv[1]
     
     b=RoughBeammap(configFN)
     #b.computeSweeps('x')
     #b.computeSweeps('y')
-    b.concatImages('x')
-    b.concatImages('y')
+    #b.concatImages('x')
+    #b.concatImages('y')
+    b.stackImages('x')
+    b.stackImages('y')
     #print b.config.get('DEFAULT','initialBeammap')
     #print b.config.get('DEFAULT','roughBeammap')
     b.manualSweepCleanup()
