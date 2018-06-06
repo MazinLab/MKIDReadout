@@ -7,6 +7,110 @@ from multiprocessing import Pool
 from numba import jit
 
 
+def addBeammapReadoutFlag(initialBeammapFn, outputBeammapFn, templarCfg):
+    config = ConfigParser.ConfigParser()
+    config.read(templarCfg)
+    goodResIDs=np.asarray([])
+    for r in config.sections():
+        try:
+            freqFN = config.get(r,'freqfile')
+            print freqFN
+            resIDs, _, _ = np.loadtxt(freqFN,unpack=True)
+            goodResIDs = np.unique(np.concatenate((goodResIDs,resIDs)))
+            #pdb.set_trace()
+        except: pass
+    allResIDs, flags, x, y = np.loadtxt(initialBeammapFn, unpack=True)
+    badPixels = np.where(np.logical_not(np.in1d(allResIDs, goodResIDs)))
+    flags[badPixels]=beamMapFlags['noDacTone']
+    
+    data=np.asarray([allResIDs, flags, x, y]).T
+    np.savetxt(outputBeammapFn, data, fmt='%7d %3d %5d %5d')
+
+@jit
+def getFreqMap(initialBeammap, templarCfg):
+    resIDs, _, x, y=np.loadtxt(initialBeammap,unpack=True)
+    y=y.astype(np.int)
+    x=x.astype(np.int)
+    nCols = np.amax(x)+1
+    nRows = np.amax(y)+1
+    freqMap = np.empty((nRows,nCols))
+    freqMap[:]=np.nan
+    config = ConfigParser.ConfigParser()
+    config.read(templarCfg)
+    for r in config.sections():
+        freqFN = config.get(r,'freqfile')
+        if os.path.isfile(freqFN):
+            print freqFN
+            freqResIDs, freqs, _ = np.loadtxt(freqFN,unpack=True)
+            for i,resID in enumerate(freqResIDs):
+                ind=np.where(resIDs==resID)[0][0]
+                freqMap[y[ind],x[ind]]=freqs[i]
+    return freqMap
+
+#@jit
+def shapeBeammapIntoImages(initialBeammap, roughBeammap):
+    resIDs, flag, x, y=np.loadtxt(initialBeammap,unpack=True)
+    nCols = np.amax(x)+1
+    nRows = np.amax(y)+1
+    resIDimage = np.empty((nRows,nCols))
+    flagImage = np.empty((nRows,nCols))
+    xImage = np.empty((nRows,nCols))
+    xImage[:]=np.nan
+    yImage = np.empty((nRows,nCols))
+    yImage[:]=np.nan
+    y=y.astype(np.int)
+    x=x.astype(np.int)
+        
+    try:
+        roughResIDs, roughFlags, roughX, roughY=np.loadtxt(roughBeammap,unpack=True)
+        for i,resID in enumerate(roughResIDs):
+            ind=np.where(resIDs==resID)[0][0]
+            resIDimage[y[ind],x[ind]]=int(resID)
+            flagImage[y[ind],x[ind]]=int(roughFlags[i])
+            xImage[y[ind],x[ind]]=roughX[i]
+            yImage[y[ind],x[ind]]=roughY[i]
+    except IOError:
+        for i in range(len(resIDs)):
+            resIDimage[y[i],x[i]]=int(resIDs[i])
+            flagImage[y[i],x[i]]=int(flag[i])
+    return resIDimage, flagImage, xImage, yImage
+
+@jit
+def getBeammapFlagImage(beammap, roughBeammap=None):
+    resIDs, flag, x, y=np.loadtxt(beammap,unpack=True)
+    nCols = np.amax(x)+1
+    nRows = np.amax(y)+1
+    image = np.empty((nRows,nCols))
+    
+    if roughBeammap is not None:
+        roughResIDs, roughFlags, _, _=np.loadtxt(roughBeammap,unpack=True)
+        for i,resID in enumerate(roughResIDs):
+            ind=np.where(resIDs==resID)[0][0]
+            #print ind
+            image[y[ind],x[ind]]=int(roughFlags[i])
+    else:
+        for i in range(len(resIDs)):
+            image[y[i],x[i]]=int(flag[i])
+    return image
+
+@jit
+def getBeammapResIDImage(beammap):
+    resIDs, flag, x, y=np.loadtxt(beammap,unpack=True)
+    nCols = np.amax(x)+1
+    nRows = np.amax(y)+1
+    image = np.empty((nRows,nCols))
+    for i in range(len(resIDs)):
+        image[y[i],x[i]]=int(resIDs[i])
+    return image
+
+
+def getPeak(data, guess_arg, width=5):
+    if not np.isfinite(guess_arg) or guess_arg<0 or guess_arg>=len(data): return np.nan
+    guess_arg=int(guess_arg)
+    startInd = max(guess_arg-width,0)
+    endInd = min(guess_arg+width+1, len(data)-1)
+    return np.argmax(data[startInd:endInd])+startInd
+
 def loadImgFiles(fnList, nRows, nCols):
     imageList = []
     for fn in fnList:
@@ -14,32 +118,6 @@ def loadImgFiles(fnList, nRows, nCols):
         image = np.transpose(np.reshape(image, (nCols, nRows)))
         imageList.append(image)
     return np.asarray(imageList)
-
-def crossCorrelate(template, data):
-    '''
-    returns np.correlate's cross correlation of the template with the data.
-    The max of the correlation is where your timestream matches up
-    '''
-    corr = []
-    for i in range(len(data)):
-        corr.append(np.correlate(template, data[i], mode='full'))
-    corr = np.array(corr)
-    return corr
-
-def xcorr(x):
-    """FFT based autocorrelation function, which is faster than numpy.correlate"""
-    # x is supposed to be an array of sequences, of shape (totalelements, length)
-    fftx = np.fft.fft(x, n=(len(x[0])*2-1), axis=1)
-    ret = np.fft.ifft(fftx * np.conjugate(fftx), axis=1)
-    ret = np.fft.fftshift(ret, axes=1)
-    return ret
-
-def xCrossCorr(x,y):
-    fftx = np.fft.rfft(x)
-    ffty = np.fft.rfft(y)
-    ret = np.fft.irfft(fftx * np.conjugate(ffty),n = len(x))
-    ret = np.fft.fftshift(ret)
-    return ret
 
 def determineSelfconsistentPixelLocs2(corrMatrix, a):
     """
@@ -54,25 +132,7 @@ def determineSelfconsistentPixelLocs2(corrMatrix, a):
     #pdb.set_trace()
     return bestPixels, np.sort(totalVar)[::-1]
 
-def crossCorrelateImageTimestreams(imageList):
-    """
-    Cross correlate each pixels timestream with every other pixel's
-    
-    INPUTS:
-        imageList - List of images with pixel counts (3d array)
-    OUTPUTS:
-        correlationMatrix - cross correlation of each pixels timestream with every other
-                            shape: nCols*nRows X nCols*nRows X nTimeSamples
-                            row i, col j is the cross correlation of pixel i's timesteam with pixel j.
-    """
-    shape=np.shape(imageList)   #nTimeSamples X nRows X nCols
-    fftImage = np.fft.rfft(imageList,axis=0)   # fft of each pixel's timestream
-    fftImage=np.rollaxis(fftImage,0,3)                                  # now nRows X nCols X nFreqs
-    fftImage = np.reshape(fftImage, (shape[1]*shape[2],-1))        # reshape into list of timestream ffts
-    fftCorrelationMatrix = np.einsum('ik,jk->ijk',fftImage,np.conj(fftImage))   # multiply each timestream with the conjugate of every other timestream elementwise
-    correlationMatrix = np.fft.irfft(fftCorrelationMatrix,n=shape[2],axis=2)       # inverse fourier transform to complete correlation calculation
-    correlationMatrix = np.fft.fftshift(correlationMatrix,axis=2)
-    return correlationMatrix
+
 
 def crossCorrelateTimestreams(timestreams, minCounts=5, maxCounts=2499):
     """
@@ -142,82 +202,6 @@ def crossCorrelateTimestreams(timestreams, minCounts=5, maxCounts=2499):
     #pdb.set_trace()
     return correlationList, goodPix
 
-def crossCorrelateImageTimestreams2(imageList, minCounts=5, maxCounts=2499):
-    """
-    This cross correlates every 'good' pixel with every other 'good' pixel.
-    
-    Inputs: 
-        imageList - List of 2D images in shape [x, y, time]
-        minCounts - The minimum number of total counts across all time to be good
-        maxCounts - The maximum number of counts during a single time frame to be considered good
-    
-    Outputs:
-        correlationList - List of cross correlation products for good pixels
-                          Shape: [(len(goodPix)-1)*len(goodPix)/2, time]
-                          The first len(goodPix)-1 arrays are for pixel 0 cross correlated with the n-1 other pixels
-                          The next len(goodPix)-2 arrays are for pixel 1 cross correlated with pixels 2,3,4....
-                          etc.
-        goodPix - List of indices 'i' of good pixels. 
-                  I think x=i/x_Max, y=i%x_Max or something like that. Need to check
-    """
-    imageList=np.rollaxis(imageList, 0, 3)
-    #imageList = imageList[:,:,:-2]
-    shape=imageList.shape
-    imageList=np.reshape(imageList,(shape[0]*shape[1],shape[2]))
-    bkgndList = 1.0*np.median(imageList,axis=1)
-    nCountsList = 1.0*np.sum(imageList,axis=1)
-    maxCountsList = 1.0*np.amax(imageList,axis=1)
-    goodPix = np.where((nCountsList>minCounts) * (maxCountsList<maxCounts) * (bkgndList < nCountsList/shape[2]))[0]
-    print "Num good Pix: "+str(len(goodPix))
-    goodPix = goodPix[:1000]
-    #goodPix = np.asarray([2002,2117,2126])
-    
-    #Normalize the images for cross correlation and remove bad pixels
-    imageList=imageList[goodPix] - bkgndList[goodPix,np.newaxis]            # subtract background
-    imageList = imageList / (nCountsList[goodPix,np.newaxis]/shape[2])      # divide by avg count rate
-    #imageList=imageList[goodPix]/maxCountsList[goodPix,np.newaxis]                                    # nGoodPix X nTimeSamples array
-    #imageList=imageList[goodPix]
-    
-    print "taking fft..."
-    fftImage = np.fft.rfft(imageList, axis=1)                       # fft the timestream
-    del imageList
-    print "...Done"
-    
-    #fftCorrelationList=np.zeros(((len(goodPix)-1)*len(goodPix)/2,fftImage.shape[1]),dtype=np.complex128)
-    fftCorrelationList=np.zeros(((len(goodPix)-1)*len(goodPix)/2,shape[2]))
-    def crossCorrelate_i(index):
-        corrList = np.multiply(fftImage[index,:], np.conj(fftImage)[index+1:,:])
-        startIndex = len(goodPix)*index - index*(index+1)/2
-        endIndex = startIndex+len(goodPix) - index - 1
-        
-        corrList=np.fft.irfft(corrList, n=shape[2], axis=1)
-        corrList = np.fft.fftshift(corrList,axes=1)
-        
-        fftCorrelationList[ startIndex : endIndex, :] = corrList
-    
-    print "Cross correlating..."
-    startTime=time.time()
-    for i in range(len(goodPix)-1):
-        crossCorrelate_i(i)         # could be fast if we use multiprocessing
-        #cor = np.multiply(fftImage[i,:],np.conj(fftImage)[i,:])
-        #cor = np.fft.irfft(cor,n=shape[2])
-        #cor = np.fft.fftshift(cor)
-        #print np.argmax(cor)
-    print "...cross Correlate: "+str((time.time()-startTime)*1000)+' ms'
-    #pdb.set_trace()
-    
-    #del fftImage
-    fftImage=None
-    #fftCorrelationList = None
-    
-    print "Inverse fft..."
-    #correlationList=np.fft.irfft(fftCorrelationList, n=shape[2], axis=1)
-    #correlationList = np.fft.fftshift(correlationList,axes=1)
-    correlationList=fftCorrelationList
-    print "...Done"
-
-    #pdb.set_trace()
-    return correlationList, goodPix
     
 @jit    
 def minimizePixelLocationVariance(corrMatrix, weights=None):

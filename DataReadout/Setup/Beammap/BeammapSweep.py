@@ -1,47 +1,54 @@
-import pdb
-from numba import jit
-import ConfigParser
-import numpy as np
+"""
+Author: Alex Walter
+Date: June 5, 2018
+
+This file contains classes and functions used to create a rough beammap
+A rough beammap is the following format:
+resID   flag    time_x  time_y
+[int    int     float   float]
+
+A regular beammap is:
+resID   flag    loc_x   loc_y
+[int    int     int     int]
+
+
+Classes in this file:
+BeamSweep1D(imageList, pixelComputationMask=None, minCounts=5, maxCountRate=2499)
+ManualRoughBeammap(x_images, y_images, initialBeammap, roughBeammapFN)
+RoughBeammap(configFN)
+
+Usage:
+
+
+"""
+
 import sys, os, time, warnings
-from PyQt4 import QtCore
+import numpy as np
 import matplotlib
 matplotlib.use('Qt4Agg')
 import matplotlib.pyplot as plt
-from MkidDigitalReadout.DataReadout.Setup.Beammap.utils import crossCorrelateTimestreams,  determineSelfconsistentPixelLocs2, loadImgFiles, minimizePixelLocationVariance
 
-beamMapFlags = {
-                'good':0,           #No flagging
-                'noDacTone':1,      #Pixel not read out
-                'failed':2,         #Beammap failed to place pixel
-                'yFailed':3,        #Beammap succeeded in x, failed in y
-                'xFailed':4,        #Beammap succeeded in y, failed in x
-                'double':5,
-                'wrongFeedline':6   #Beammap placed pixel in wrong feedline
-                }
+from numba import jit
+import ConfigParser
 
-def addBeammapReadoutFlag(initialBeammapFn, outputBeammapFn, templarCfg):
-    config = ConfigParser.ConfigParser()
-    config.read(templarCfg)
-    goodResIDs=np.asarray([])
-    for r in config.sections():
-        try:
-            freqFN = config.get(r,'freqfile')
-            print freqFN
-            resIDs, _, _ = np.loadtxt(freqFN,unpack=True)
-            goodResIDs = np.unique(np.concatenate((goodResIDs,resIDs)))
-            #pdb.set_trace()
-        except: pass
-    allResIDs, flags, x, y = np.loadtxt(initialBeammapFn, unpack=True)
-    badPixels = np.where(np.logical_not(np.in1d(allResIDs, goodResIDs)))
-    flags[badPixels]=beamMapFlags['noDacTone']
-    
-    data=np.asarray([allResIDs, flags, x, y]).T
-    np.savetxt(outputBeammapFn, data, fmt='%7d %3d %5d %5d')
-    
+from MkidDigitalReadout.DataReadout.Setup.Beammap.utils import crossCorrelateTimestreams,  determineSelfconsistentPixelLocs2, loadImgFiles, minimizePixelLocationVariance, getPeak, shapeBeammapIntoImages
+from MkidDigitalReadout.DataReadout.Setup.Beammap.beammapFlags import beamMapFlags
+
+#import pdb
 
 class BeamSweep1D():
+    """
+    This class is for computing a rough beammap using a list of images
+    
+    It uses a complicated autocorrelation function to find the pixel locations
+    """
+
     def __init__(self, imageList, pixelComputationMask=None, minCounts=5, maxCountRate=2499):
         """
+        Be careful, this function doesn't care about the units of time in the imageList
+        The default minCounts, maxCountRate work well when the images are binned as 1 second exposures        
+
+        INPUTS:
             imageList - list of images
             pixelComputationMask - It takes too much memory to calculate the beammap for the whole array at once. 
                                    This is a 2D array of integers (same shape as an image) with the value at each pixel 
@@ -78,8 +85,12 @@ class BeamSweep1D():
     
     def getAbsOffset(self,shiftedTimes, auto=False):
         """
+        The autocorrelation function can only calculate relative time differences
+        between pixels. This function defines the absolute time reference (ie. the 
+        location of the peak)
+
         INPUTS:
-            shiftedTimes: a list of time streams shifted to match up
+            shiftedTimes: a list of pixel time streams shifted to match up
             auto: if False then ask user to click on a plot
         """
         offset = np.argmax(np.sum(shiftedTimes,axis=0))
@@ -103,6 +114,9 @@ class BeamSweep1D():
         
 
     def findRelativePixelLocations(self):
+        """
+        Use auto correllation and least squares to find best time offsets between pixels
+        """
         try: locs=np.empty(self.imageList[0].shape)
         except TypeError: return []
         locs[:]=np.nan
@@ -167,70 +181,6 @@ class BeamSweep1D():
         locs[np.where(locs>=len(self.imageList))]=len(self.imageList)
         return locs
 
-
-#@jit
-def shapeBeammapIntoImages(initialBeammap, roughBeammap):
-    resIDs, flag, x, y=np.loadtxt(initialBeammap,unpack=True)
-    nCols = np.amax(x)+1
-    nRows = np.amax(y)+1
-    resIDimage = np.empty((nRows,nCols))
-    flagImage = np.empty((nRows,nCols))
-    xImage = np.empty((nRows,nCols))
-    xImage[:]=np.nan
-    yImage = np.empty((nRows,nCols))
-    yImage[:]=np.nan
-    y=y.astype(np.int)
-    x=x.astype(np.int)
-        
-    try:
-        roughResIDs, roughFlags, roughX, roughY=np.loadtxt(roughBeammap,unpack=True)
-        for i,resID in enumerate(roughResIDs):
-            ind=np.where(resIDs==resID)[0][0]
-            resIDimage[y[ind],x[ind]]=int(resID)
-            flagImage[y[ind],x[ind]]=int(roughFlags[i])
-            xImage[y[ind],x[ind]]=roughX[i]
-            yImage[y[ind],x[ind]]=roughY[i]
-    except IOError:
-        for i in range(len(resIDs)):
-            resIDimage[y[i],x[i]]=int(resIDs[i])
-            flagImage[y[i],x[i]]=int(flag[i])
-    return resIDimage, flagImage, xImage, yImage
-
-@jit
-def getBeammapFlagImage(beammap, roughBeammap=None):
-    resIDs, flag, x, y=np.loadtxt(beammap,unpack=True)
-    nCols = np.amax(x)+1
-    nRows = np.amax(y)+1
-    image = np.empty((nRows,nCols))
-    
-    if roughBeammap is not None:
-        roughResIDs, roughFlags, _, _=np.loadtxt(roughBeammap,unpack=True)
-        for i,resID in enumerate(roughResIDs):
-            ind=np.where(resIDs==resID)[0][0]
-            #print ind
-            image[y[ind],x[ind]]=int(roughFlags[i])
-    else:
-        for i in range(len(resIDs)):
-            image[y[i],x[i]]=int(flag[i])
-    return image
-
-@jit
-def getBeammapResIDImage(beammap):
-    resIDs, flag, x, y=np.loadtxt(beammap,unpack=True)
-    nCols = np.amax(x)+1
-    nRows = np.amax(y)+1
-    image = np.empty((nRows,nCols))
-    for i in range(len(resIDs)):
-        image[y[i],x[i]]=int(resIDs[i])
-    return image
-
-def getPeak(data, guess_arg, width=5):
-    if not np.isfinite(guess_arg) or guess_arg<0 or guess_arg>=len(data): return np.nan
-    guess_arg=int(guess_arg)
-    startInd = max(guess_arg-width,0)
-    endInd = min(guess_arg+width+1, len(data)-1)
-    return np.argmax(data[startInd:endInd])+startInd
-    
 
 class ManualRoughBeammap():
     def __init__(self, x_images, y_images, initialBeammap, roughBeammapFN):
@@ -487,7 +437,6 @@ class ManualRoughBeammap():
             self.plotXYscatter()
             plt.show()
 
-
 class RoughBeammap():
     def __init__(self, configFN):
         """
@@ -611,201 +560,14 @@ class RoughBeammap():
     
     def plotTimestream(self):
         pass
-        
-    
-
-class BeammapSweep1D(QtCore.QObject):        #Extends QObject for use with QThreads
-
-    def __init__(self, configFN, sweepNum=1):
-        """
-        Inputs:
-            imageList - list of images
-            config - .cfg file with start and end times of beammap sweeps
-            sweepNum - The nth sweep
-        """
-        super(BeammapSweep1D, self).__init__()
-        self.config = ConfigParser.ConfigParser()
-        self.config.read(configFN)
-        self.sweepNum = int(sweepNum)
-        assert self.sweepNum>0
-        self.loadImgs()
-        
-        
-        self.sweepType=self.config.get('SWEEP'+str(self.sweepNum),'sweepType')
-        print self.sweepType
-        assert self.sweepType in ['x','y']
-        self.sweepDirection = self.config.get('SWEEP'+str(self.sweepNum),'sweepDirection')
-        assert self.sweepDirection in ['+','-']
-        
-        #Use these parameters to determine what's a good pixel
-        self.minCounts = 5       # counts during total exposure
-        self.maxCountRate = 2499 # counts per image frame
-
-    
-    def loadImgs(self):
-        print "Loading Images..."
-        path = self.config.get('SWEEP'+str(self.sweepNum),'imgFileDirectory')
-        startTime = self.config.getint('SWEEP'+str(self.sweepNum),'startTime')
-        duration = self.config.getint('SWEEP'+str(self.sweepNum),'duration')
-        if duration%2==0:
-            warnings.warn("Having an even number of time steps can create off by 1 errors: subtracting one time step to make it odd")
-            duration-=1
-        fnList = [path+str(startTime + i)+'.img' for i in range(duration)]
-        nRows = self.config.getint('SWEEP'+str(self.sweepNum),'numRows')
-        nCols = self.config.getint('SWEEP'+str(self.sweepNum),'numCols')
-        self.imageList = loadImgFiles(fnList, nRows, nCols)
-        print "...Done"
-    
-    def findRelativePixelLocations(self):
-        """
-        Cross correlates every pixels timestream with every other pixel and
-        returns a list of locations indicating the median maximum correlation
-        
-        OUTPUTS:
-            pixelLoc - The location of pixel i for each good pixel
-            goodPix - List of which pixels were good in terms of y*numCols + x
-        """
-        imList=np.rollaxis(self.imageList, 0, 3)
-        shape=imList.shape
-        imList=np.reshape(imList,(shape[0]*shape[1],shape[2]))
-
-        correlationList, goodPix = crossCorrelateImageTimestreams2(np.copy(self.imageList), self.minCounts, self.maxCountRate)
-        correlationLocs = np.argmax(correlationList,axis=1)
-        correlationQaulity = 1.0*np.amax(correlationList,axis=1)/np.sum(correlationList,axis=1)
-        #correlationQuality = np.sum((correlationList[:,:len(goodPix)/2] - (correlationList[:,-1:-len(goodPix)/2-1:-1]))**2.,axis=1)     #subtract the mirror, square, and sum. If symmetric then it should be near 0
-        #del correlationList
-        
-        print "Making Correlation matrix..."
-        corrMatrix = np.zeros((len(goodPix),len(goodPix)))
-        corrMatrix[np.triu_indices(len(goodPix),1)] = correlationLocs - len(self.imageList)/2
-        corrMatrix[np.tril_indices(len(goodPix),-1)] = -1*np.transpose(corrMatrix)[np.tril_indices(len(goodPix),-1)]
-        del correlationLocs
-        corrQualityMatrix = np.ones((len(goodPix),len(goodPix)))
-        corrQualityMatrix[np.triu_indices(len(goodPix),1)] = correlationQaulity
-        corrQualityMatrix[np.tril_indices(len(goodPix),-1)] = -1*np.transpose(corrQualityMatrix)[np.tril_indices(len(goodPix),-1)]
-        del correlationQaulity
-        print "...Done"
-        #pdb.set_trace()
-
-        print "Determining Pixel Locations..."
-        a = minimizePixelLocationVariance(corrMatrix)
-        #pdb.set_trace()
-        
-        j=20
-        for i in range(len(goodPix)):
-            break
-            if i<19: continue
-            print i, goodPix[i]
-            #plt.plot(range(shape[2]) - a[i], imList[goodPix[i]] / (1.0*np.sum(imList[goodPix[i]])))
-            #plt.plot(range(shape[2]) - a[j], imList[goodPix[j]] / (1.0*np.sum(imList[goodPix[j]])))
-            plt.plot(range(shape[2])-a[i], imList[goodPix[i]])
-            plt.plot(range(shape[2])-a[j], imList[goodPix[j]])
-            ax1=plt.gca()
-            ax1.set_title("Timestream "+str(i)+', '+str(goodPix[i]))
-            if i<j:
-                #plt.figure()
-                plt.gca().set_title("Correlation "+str(i)+', '+str(goodPix[i])+' with '+str(j)+', '+str(goodPix[j]))
-                corrIndex = (-i**2. + (2.*len(goodPix)-1)*i)/2. + j-i -1
-                print i, j, corrIndex
-                plt.plot(correlationList[corrIndex],label='fft corr')
-                corrL = shape[2]/2. - np.argmax(correlationList[corrIndex])
-                #ax1.axvline(np.argmax(imList[goodPix[j]]) - corrL,color='red')
-            elif j<i:
-                #plt.figure()
-                plt.gca().set_title("Correlation "+str(i)+', '+str(goodPix[i])+' with '+str(j)+', '+str(goodPix[j]))
-                corrIndex = (-j**2. + (2.*len(goodPix)-1)*j)/2. + i-j -1
-                print i, j, corrIndex
-                plt.plot((correlationList[corrIndex])[::-1],label='fft corr')
-                corrL = np.argmax(correlationList[corrIndex]) - shape[2]/2.
-                #ax1.axvline(np.argmax(imList[goodPix[j]]) - corrL,color='red')
-            
-            
-            cor = np.correlate(1.0*imList[goodPix[i]],imList[goodPix[j]],mode='same')
-            cor2 = xCrossCorr(imList[goodPix[i]],imList[goodPix[j]])
-            cor3 = xCrossCorr(imList[goodPix[j]],imList[goodPix[i]])
-            #print cor
-            #plt.plot(cor,label='numpy corr')
-            #plt.plot(cor2+20,label='fft corr 2')
-            #plt.plot(cor3[::-1]-20,label='fft corr 2 reversed')
-            plt.legend()
-            
-            plt.show()
-        
-        #cor2 = xCrossCorr(imList[goodPix[0]],imList[goodPix[1]])
-
-        
-        bestPixelArgs, totalVar = self.determineSelfconsistentPixelLocs2(corrMatrix, a)
-        bestPixels = goodPix[bestPixelArgs]
-        
-        
-        
-        bestPixels = bestPixels[: len(bestPixels)/20]
-        
-        #pdb.set_trace()
-        best_a = minimizePixelLocationVariance(corrMatrix[:,np.where(np.in1d(goodPix,bestPixels))[0]])
-        print "...Done"
-        return best_a, goodPix
-        
-        
-        
-        bestPixelArgs2, totalVar = self.determineSelfconsistentPixelLocs2(corrMatrix[:,np.where(np.in1d(goodPix,bestPixels))[0]], best_a)
-        bestPixels2 = goodPix[bestPixelArgs2]
-        print bestPixels2
-        print totalVar
-        #for i in range(len(bestPixels2)):
-        #    print i, bestPixels2[i], totalVar[i]
-        #    print "shift: ",best_a[np.where(goodPix==bestPixels2[i])[0]]
-        #    plt.plot(range(len(imList[bestPixels2[i]])) - best_a[np.where(goodPix==bestPixels2[i])[0]], imList[bestPixels2[i]])
-        #    plt.show()
-        
-        corrMatrix2 = corrMatrix - best_a[:,np.newaxis]
-        medDelays = np.median(corrMatrix2,axis=0)
-        corrMatrix2 = corrMatrix2 - medDelays[np.newaxis,:]
-        totalVar2 = np.sum(np.abs(corrMatrix2)<=1,axis=1)[bestPixelArgs2]
-        
-        pdb.set_trace()
-        
-
-    def determineSelfconsistentPixelLocs2(self, corrMatrix, a):
-        corrMatrix2 = corrMatrix - a[:,np.newaxis]
-        medDelays = np.median(corrMatrix2,axis=0)
-        corrMatrix2 = corrMatrix2 - medDelays[np.newaxis,:]
-        #totalVar = np.var(corrMatrix2,axis=1)
-        totalVar = np.sum(np.abs(corrMatrix2)<=1,axis=1)
-        bestPixels = np.argsort(totalVar)[::-1]
-        #pdb.set_trace()
-        return bestPixels, np.sort(totalVar)[::-1]
-    
-    def determineSelfconsistentPixelLocs(self, corrMatrix):
-        """
-        determine which pixels when cross correlated yield a self consistent
-        location for the other pixels. 
-        
-        First, estimate the pixel location by taking the median of the pixel locations from the cross correlations with every pixel
-        Second, determine the top 5% of pixels that yeild the corrent location for other pixels
-        Third, re-estimate the pixel locations by taking the mean of the pixel locations from cross correlations with top 5% pixels
-        Fourth, Determine which pixels get the correct answer for the top 5% pixels. 
-        
-        INPUTS:
-            corrMatrix - square matrix with the relative location betweeen the pixels
-        """
-
-        roughPixelLoc = np.median(corrMatrix,axis=1)
-        numPixelIsCorrect=np.sum((corrMatrix.T == roughPixelLoc).T,axis=1)
-        bestPix = np.argpartition(-numPixelIsCorrect, np.ceil(corrMatrix.shape[1]*.05))[:np.ceil(corrMatrix.shape[1]*.05)]
-        betterPixelLoc = np.mean(corrMatrix[:,bestPix],axis=1)
-        
-        tolerance = 2   # within two timesteps
-        numPixelIsCorrect = np.sum(
-                            (corrMatrix[bestPix,:].T >= betterPixelLoc[bestPix]-tolerance).T & \
-                            (corrMatrix[bestPix,:].T <= betterPixelLoc[bestPix]+tolerance).T, axis=1)
-        
-        
-
 
 if __name__=='__main__':
     #configFN = 'beam3.cfg'
-    configFN = sys.argv[1]
+    try:
+        configFN = sys.argv[1]
+    except IndexError:
+        print "Usage: $python BeammapSweep.py config.cfg"
+        raise ValueError
     
     b=RoughBeammap(configFN)
     #b.computeSweeps('x')
@@ -818,33 +580,5 @@ if __name__=='__main__':
     #print b.config.get('DEFAULT','roughBeammap')
     b.manualSweepCleanup()
     
-    '''
-    bothGood=np.where(np.isfinite(x1) & np.isfinite(y1))
-    plt.scatter(x1[bothGood], y1[bothGood])
-    plt.show()
-    raise ValueError
-    
-    beam=BeammapSweep1D(configFN, 1)
-    x1, goodPix = beam.findRelativePixelLocations()
-
-    beam=BeammapSweep1D(configFN, 2)
-    y1, goodPix2 = beam.findRelativePixelLocations()
-    
-    bothGood = np.in1d(goodPix, goodPix2,True)
-    x1=x1[bothGood]
-    goodPix=goodPix[bothGood]
-    bothGood2 = np.in1d(goodPix2, goodPix,True)
-    y1=y1[bothGood2]
-    goodPix2=goodPix2[bothGood2]
-    
-    print '\n\n'
-    print goodPix
-    print goodPix2
-    
-    pdb.set_trace()
-    plt.plot(x1,y1,'.')
-    plt.show()
-    '''
-
 
 
