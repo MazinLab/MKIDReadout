@@ -36,6 +36,7 @@ from tables import *
 #import my functions
 #from make_image_v2 import make_image as make_image_import
 from iqsweep import *
+from matplotlib.backends.backend_qt4 import NavigationToolbar2QT as NavigationToolbar
 
 class StartQt4(QMainWindow):
     def __init__(self,parent=None):
@@ -53,6 +54,22 @@ class StartQt4(QMainWindow):
         QObject.connect(self.ui.atten, SIGNAL("valueChanged(int)"), self.setnewatten)
         QObject.connect(self.ui.savevalues, SIGNAL("clicked()"), self.savevalues)
         QObject.connect(self.ui.jumptores, SIGNAL("clicked()"), self.jumptores)
+
+        self.widesweep=None
+        try:
+            path='/home/data/MEC/20180517/'
+            ws_FN = 'HypatiaFL5a_digWS_r222.txt'
+            ws_freqs_all_FN = 'HypatiaFL5a_digWS_r222-freqs-all.txt'
+            ws_freqs_good_FN = 'HypatiaFL5a_digWS_r222-freqs-good.txt'
+            self.widesweep=numpy.loadtxt(path+ws_FN)  #freq, I, Q
+            self.widesweep_goodFreqs = numpy.loadtxt(path+ws_freqs_good_FN ,usecols=[2])
+            self.widesweep_allResIDs,self.widesweep_allFreqs = numpy.loadtxt(path+ws_freqs_all_FN,usecols=[0,2],unpack=True)
+        except IOError:
+            pass
+
+        self.navi_toolbar = NavigationToolbar(self.ui.plot_3.canvas, self)
+        self.ui.plot_3.canvas.setFocusPolicy( Qt.ClickFocus )
+        cid=self.ui.plot_3.canvas.mpl_connect('key_press_event', self.zoom_plot_3)
         
     def open_dialog(self):
         self.openfile = QFileDialog.getOpenFileName(parent=None, caption=QString(str("Choose PS File")),directory = ".",filter=QString(str("H5 (*.h5)")))
@@ -213,6 +230,11 @@ class StartQt4(QMainWindow):
     def on_press(self, event):
         self.select_freq(event.xdata)
 
+    def zoom_plot_3(self,event):
+        if str(event.key) == str('z'):
+            print 'zoooom'
+            self.navi_toolbar.zoom()
+
     def click_plot_1(self, event):
         #Chris. self.select_atten(event.xdata)
         self.ui.atten.setValue(round(event.xdata))
@@ -275,6 +297,30 @@ class StartQt4(QMainWindow):
                 self.ui.plot_2.canvas.ax.plot(self.Res1.freq[:-1],self.res1_iq_vels[self.iAtten-2],'g.-')
                 self.ui.plot_2.canvas.ax.lines[-1].set_alpha(.3)
             cid=self.ui.plot_2.canvas.mpl_connect('button_press_event', self.on_press)
+
+            if self.widesweep is not None:
+                freq_start = self.Res1.freq[0]/1.E9
+                freq_stop = self.Res1.freq[-1]/1.E9
+                widesweep_inds = np.where(np.logical_and(self.widesweep[:,0]>=freq_start, self.widesweep[:,0]<=freq_stop))
+                iqVel_med = numpy.median(self.res1_iq_vel)
+                ws_amp = (self.widesweep[widesweep_inds,1]**2. + self.widesweep[widesweep_inds,2]**2.)**0.5
+                #ws_amp = 10.*numpy.log10(ws_amp)
+                ws_amp_med = numpy.median(ws_amp)
+                ws_amp*=1.0*iqVel_med/ws_amp_med
+
+                self.ui.plot_2.canvas.ax.plot(self.widesweep[widesweep_inds,0]*1.E9, ws_amp,'k.-')
+                self.ui.plot_2.canvas.ax.lines[-1].set_alpha(.5)
+                
+                #ws_goodFreqs = self.widesweep_goodFreqs[numpy.where(numpy.logical_and(self.widesweep_goodFreqs>=freq_start,self.widesweep_goodFreqs<=freq_stop))]
+                ws_allFreqs = self.widesweep_allFreqs[numpy.where(numpy.logical_and(self.widesweep_allFreqs>=freq_start,self.widesweep_allFreqs<=freq_stop))]
+                ws_allResIDs = self.widesweep_allResIDs[numpy.where(numpy.logical_and(self.widesweep_allFreqs>=freq_start,self.widesweep_allFreqs<=freq_stop))]
+                for ws_resID_i, ws_freq_i in zip(ws_allResIDs,ws_allFreqs):
+                    ws_color = 'k'
+                    if ws_freq_i in self.widesweep_goodFreqs:
+                        ws_color='r'
+                    self.ui.plot_2.canvas.ax.axvline(ws_freq_i*1.E9, c=ws_color, alpha=0.5)
+                    ws_ymax=self.ui.plot_2.canvas.ax.yaxis.get_data_interval()[1]
+                    self.ui.plot_2.canvas.ax.text(x=ws_freq_i*1.E9, y=ws_ymax,s=str(int(ws_resID_i)), color=ws_color, alpha=0.5)
             self.ui.plot_2.canvas.draw()
 
             self.ui.plot_3.canvas.ax.clear()
@@ -285,6 +331,15 @@ class StartQt4(QMainWindow):
                 self.ui.plot_3.canvas.ax.plot(self.Res1.Is[self.iAtten-2],self.Res1.Qs[self.iAtten-2],'g.-')
                 self.ui.plot_3.canvas.ax.lines[-1].set_alpha(.3)
             self.ui.plot_3.canvas.ax.plot(self.Res1.I,self.Res1.Q,'.-')
+            if self.widesweep is not None:
+                ws_I = self.widesweep[widesweep_inds,1]
+                ws_Q = self.widesweep[widesweep_inds,2]
+                ws_dataRange_I = self.ui.plot_3.canvas.ax.xaxis.get_data_interval()
+                ws_dataRange_Q = self.ui.plot_3.canvas.ax.yaxis.get_data_interval()
+                ws_I -= numpy.median(ws_I) - numpy.median(ws_dataRange_I)
+                ws_Q -= numpy.median(ws_Q) - numpy.median(ws_dataRange_Q)
+                #self.ui.plot_3.canvas.ax.plot(ws_I, ws_Q,'k.-')
+                #self.ui.plot_3.canvas.ax.lines[-1].set_alpha(.5)
             #self.ui.plot_3.canvas.format_labels()
             print 'makeplots'
             self.ui.plot_3.canvas.draw()

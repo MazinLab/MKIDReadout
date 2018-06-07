@@ -56,15 +56,21 @@ class StartQt4(QMainWindow):
         QObject.connect(self.ui.jumptores, SIGNAL("clicked()"), self.jumptores)
 
         self.widesweep=None
+        self.h5resID_offset=0
+        self.wsresID_offset=0
         try:
-            path='/home/data/MEC/20180403/'
-            ws_FN = 'Hypatia_FL7_digWS_r222.txt'
-            ws_freqs_all_FN = 'Hypatia_FL7_digWS_r222-freqs-all.txt'
-            ws_freqs_good_FN = 'Hypatia_FL7_digWS_r222-freqs-good.txt'
+            path='/home/data/MEC/20180517/'
+            ws_FN = 'HypatiaFL5b_digWS_r222.txt'
+            ws_freqs_all_FN = 'HypatiaFL5b_digWS_r222-freqs-all.txt'
+            ws_freqs_good_FN = 'HypatiaFL5b_digWS_r222-freqs-good.txt'
             self.widesweep=numpy.loadtxt(path+ws_FN)  #freq, I, Q
             self.widesweep_goodFreqs = numpy.loadtxt(path+ws_freqs_good_FN ,usecols=[2])
             self.widesweep_allResIDs,self.widesweep_allFreqs = numpy.loadtxt(path+ws_freqs_all_FN,usecols=[0,2],unpack=True)
+            self.h5resID_offset=4
+            self.wsresID_offset=968
+            self.widesweep_allResIDs+=self.wsresID_offset
         except IOError:
+            print 'Could not load widewseep data :-('
             pass
 
         self.navi_toolbar = NavigationToolbar(self.ui.plot_3.canvas, self)
@@ -87,7 +93,9 @@ class StartQt4(QMainWindow):
         self.Res1.LoadPowers(str(self.openfile), 'r0', self.freq[self.resnum])
         self.ui.res_num.setText(str(self.resnum))
         self.resfreq = self.freq[self.resnum]
-        
+        try: self.Res1.resID+=self.h5resID_offset    #sometimes the resID in the h5 file is wrong...        
+        except: self.Res1.resID = self.resnum+self.h5resID_offset   #or the h5 has no resID column
+
         self.resID =self.Res1.resID
         print "Res: "+str(self.resnum)+' --> ID: '+str(self.resID)
         
@@ -184,7 +192,7 @@ class StartQt4(QMainWindow):
         #is the resonant frequency by checking the neighboring edges            
         #len(IQ_vels[ch]) == len(f_span)-1, so guess_idx is the index
         #of the lower frequency vertex of the longest edge            
-        if guess_idx-1 < 0 or self.res1_iq_vel[guess_idx-1] < self.res1_iq_vel[guess_idx+1]:
+        if guess_idx-1 < 0 or guess_idx+1>=len(self.res1_iq_vels) or self.res1_iq_vel[guess_idx-1] < self.res1_iq_vel[guess_idx+1]:
             iNewResFreq = guess_idx
         else:
             iNewResFreq = guess_idx-1
@@ -205,6 +213,7 @@ class StartQt4(QMainWindow):
             #print "Scale factor is ", self.scale
             self.freq=append(self.freq,[k['f0'][0]])
             self.idList=append(self.idList,[k['resID'][0]])
+        self.idList+=self.h5resID_offset
         #self.freqList = np.zeros(len(k['f0']))
         #self.attenList = np.zeros(len(self.freqList)) - 1
         self.freqList = np.zeros(2000)
@@ -351,6 +360,7 @@ class StartQt4(QMainWindow):
             self.ui.plot_1.canvas.draw()
             self.ui.plot_2.canvas.draw()
             self.ui.plot_3.canvas.draw()
+            raise
             
 
     def setnewatten(self):

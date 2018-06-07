@@ -209,7 +209,7 @@ class PSFitMLData():
         self.Qs = self.Qs[self.good_res]
         self.resIDs = self.resIDs[self.good_res]
 
-    def savePSTxtFile(self, flag = ''):
+    def savePSTxtFile(self, flag = '', outputFN=None):
         '''
         Saves a frequency file after inference.  self.opt_attens and self.opt_freqs
         should be populated by an external ML algorithm.
@@ -217,7 +217,8 @@ class PSFitMLData():
         if self.opt_attens is None or self.opt_freqs is None:
             raise ValueError('Classify Resonators First!')
         
-        PSSaveFile = self.baseFile + flag + '.txt'
+        if outputFN is None: PSSaveFile = self.baseFile + flag + '.txt'
+        else: PSSaveFile = outputFN.rsplit('.',1)[0]+flag+'.txt'
         sf = open(PSSaveFile,'wb')
         print 'saving file', PSSaveFile
         print 'baseFile', self.baseFile
