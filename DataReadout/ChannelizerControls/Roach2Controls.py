@@ -21,7 +21,7 @@ Example usage:
     attenList = np.random.randint(23,33,nFreqs)
     
     # Talk to Roach
-    roach_0 = FpgaControls(ip, params, True, True)
+    roach_0 = Roach2Controls(ip, params, True, True)
     roach_0.setLOFreq(loFreq)
     roach_0.generateResonatorChannels(freqList)
     roach_0.generateFftChanSelection()
@@ -991,6 +991,17 @@ class Roach2Controls:
         # check that we are utilizing the dynamic range of the DAC correctly
         highestVal = np.max((np.abs(iValues).max(),np.abs(qValues).max()))
         expectedHighestVal_sig = scipy.special.erfinv((len(iValues)-0.1)/len(iValues))*np.sqrt(2.)   # 10% of the time there should be a point this many sigmas higher than average
+
+        if self.verbose:
+            print '\tUsing '+str(1.0*highestVal/maxAmp*100)+' percent of DAC dynamic range'
+            print '\thighest: '+str(highestVal)+' out of '+str(maxAmp)
+            print '\tsigma_I: '+str(np.std(iValues))+' sigma_Q: '+str(np.std(qValues))
+            print '\tLargest val_I: '+str(1.0*np.abs(iValues).max()/np.std(iValues))+' sigma. Largest val_Q: '+str(1.0*np.abs(qValues).max()/np.std(qValues))+' sigma.'
+            print '\tExpected val: '+str(expectedHighestVal_sig)+' sigmas'
+            #print '\n\tDac freq list: '+str(self.dacQuantizedFreqList)
+            #print '\tDac Q vals: '+str(qValues)
+            #print '\tDac I vals: '+str(iValues)
+            
         if highestVal > expectedHighestVal_sig*np.max((np.std(iValues),np.std(qValues))):
             warnings.warn("The freq comb's relative phases may have added up sub-optimally. You should calculate new random phases")
         if highestVal > maxAmp:
@@ -1001,14 +1012,6 @@ class Roach2Controls:
             warnings.warn("DAC Dynamic range not fully utilized. Increase global attenuation by: "+str(int(np.floor(20.*np.log10(1.0*maxAmp/highestVal))))+' dB')
         
         if self.verbose:
-            print '\tUsing '+str(1.0*highestVal/maxAmp*100)+' percent of DAC dynamic range'
-            print '\thighest: '+str(highestVal)+' out of '+str(maxAmp)
-            print '\tsigma_I: '+str(np.std(iValues))+' sigma_Q: '+str(np.std(qValues))
-            print '\tLargest val_I: '+str(1.0*np.abs(iValues).max()/np.std(iValues))+' sigma. Largest val_Q: '+str(1.0*np.abs(qValues).max()/np.std(qValues))+' sigma.'
-            print '\tExpected val: '+str(expectedHighestVal_sig)+' sigmas'
-            #print '\n\tDac freq list: '+str(self.dacQuantizedFreqList)
-            #print '\tDac Q vals: '+str(qValues)
-            #print '\tDac I vals: '+str(iValues)
             print '...Done!'
 
         '''
