@@ -57,6 +57,11 @@ def getFreqMap(initialBeammap, templarCfg):
                 freqMap[y[ind],x[ind]]=freqs[i]
     return freqMap
 
+def getFLMap(initialBeammap):
+    resIDMap = getBeammapResIDImage(initialBeammap)
+    resIDMap/=10000
+    return np.trunc(resIDMap).astype(np.int)
+
 #@jit
 def shapeBeammapIntoImages(initialBeammap, roughBeammap):
     resIDs, flag, x, y=np.loadtxt(initialBeammap,unpack=True)
@@ -104,8 +109,8 @@ def getBeammapFlagImage(beammap, roughBeammap=None):
     return image
 
 @jit
-def getBeammapResIDImage(beammap):
-    resIDs, flag, x, y=np.loadtxt(beammap,unpack=True)
+def getBeammapResIDImage(initialBeammap):
+    resIDs, flag, x, y=np.loadtxt(initialBeammap,unpack=True)
     nCols = np.amax(x)+1
     nRows = np.amax(y)+1
     image = np.empty((nRows,nCols))
