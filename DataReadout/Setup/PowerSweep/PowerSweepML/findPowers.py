@@ -16,7 +16,7 @@ import PSFitMLTools as mlt
 from readDict import readDict
 
 
-def findPowers(mlDict, h5FileName):
+def findPowers(mlDict, h5FileName, outputFN=None):
     '''
     Uses Trained model, specified by mlDict, to infer powers from a powersweep 
     saved in h5FileName. Saves results in .txt file in $MKID_DATA_DIR
@@ -108,7 +108,7 @@ def findPowers(mlDict, h5FileName):
     
     print '\n', doubleCounter, 'doubles fixed'
     
-    inferenceData.savePSTxtFile(flag = '_' + mlDict['modelName'])
+    inferenceData.savePSTxtFile(flag = '_' + mlDict['modelName'],outputFN=outputFN)
 
 if __name__=='__main__':
     if len(sys.argv)<3:
@@ -117,6 +117,12 @@ if __name__=='__main__':
 
     mlDict = readDict()
     mlDict.readFromFile(sys.argv[1])
+
+    h5FileName=sys.argv[2]
+    if not os.path.isfile(h5FileName):
+        h5FileName = os.path.join(os.environ['MKID_DATA_DIR'], h5FileName)
     
-    h5FileName = os.path.join(os.environ['MKID_DATA_DIR'], sys.argv[2])
-    findPowers(mlDict, h5FileName)
+    try: outputDir=sys.argv[3]
+    except: outputDir=None
+    
+    findPowers(mlDict, h5FileName, outputDir)
