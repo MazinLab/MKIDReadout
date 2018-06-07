@@ -218,6 +218,11 @@ class InitStateMachine(QtCore.QObject):        #Extends QObject for use with QTh
         self.roachController.setLOFreq(2.e9)
         self.roachController.loadLOFreq()
         print 'Set LO to 2 GHz'
+        self.roachController.changeAtten(1, 31.75)   #DAC atten 1
+        self.roachController.changeAtten(2, 31.75)   #DAC atten 2
+        self.roachController.changeAtten(3, 31.75)   #ADC atten 1
+        self.roachController.changeAtten(4, 31.75)   #ADC atten 2
+        print 'Set RF board attenuators to maximum'
         return True
 
     def calZdok(self):

@@ -94,7 +94,7 @@ def checkErrorsAndSetAtten(roach, startAtten=40, iqBalRange=[0.7, 1.3], rmsRange
         atten3 = np.floor(curAtten*2)/4.
         atten4 = np.ceil(curAtten*2)/4.
 
-        if verbose:
+        if verbose or curAtten<0 or curAtten>31.75*2.:
             print 'atten3', atten3
             print 'atten4', atten4
             
