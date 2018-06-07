@@ -5,6 +5,8 @@ import time
 from functools import partial
 from multiprocessing import Pool
 from numba import jit
+import ConfigParser
+from beammapFlags import beamMapFlags
 
 
 def addBeammapReadoutFlag(initialBeammapFn, outputBeammapFn, templarCfg):
@@ -25,6 +27,14 @@ def addBeammapReadoutFlag(initialBeammapFn, outputBeammapFn, templarCfg):
     
     data=np.asarray([allResIDs, flags, x, y]).T
     np.savetxt(outputBeammapFn, data, fmt='%7d %3d %5d %5d')
+
+def convertBeammapToNewFlagFormat(initialBeammapFn, outputBeammapFn, templarCfg):
+    allResIDs, flags, x, y = np.loadtxt(initialBeammapFn, unpack=True)
+    nonZeroFlagInds = np.where(flags!=0)[0]
+    flags[nonZeroFlagInds] += 1 #increment existing flags by 1
+    data=np.asarray([allResIDs, flags, x, y]).T
+    np.savetxt(outputBeammapFn, data, fmt='%7d %3d %5d %5d')
+    addBeammapReadoutFlag(outputBeammapFn, outputBeammapFn, templarCfg)
 
 @jit
 def getFreqMap(initialBeammap, templarCfg):
