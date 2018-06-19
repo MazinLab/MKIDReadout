@@ -5,12 +5,11 @@ Automates finding LOs, generating frequecy files and modifying templarconf.cfg f
 Usage: python findLOsAndMakeFreqFiles.py <setupcfgfile> <templarcfgfile>
     setupcfgfile - Configuration file containing lists of feedline numbers, roach
         numbers, and WideAna generated clickthrough results. An example can be found in
-        example_setup.cfg. File is assumed to be in MKID_DATA_DIR (you only need to specify
-        the file name).
+        example_setup.cfg. If it can't find the file it looks in MKID_DATA_DIR.
     templarcfgfile - High templar configuration file to be modified. WARNING: file will
         be OVERWRITTEN. Changes the frequency lists, LOs, longsnap files, and powersweep files
-        to point to the write locations (for the boards specified in setupcfgfile). File is
-        also assumed to be in MKID_DATA_DIR
+        to point to the write locations (for the boards specified in setupcfgfile). If it can't 
+        find the file it looks in MKID_DATA_DIR.
 
 '''
 import os, sys
@@ -105,9 +104,14 @@ def modifyTemplarConfigFile(templarConfFn, flNums, roachNums, freqFiles, los, fr
         los - list of LO frequencies (in GHz)
         freqBandFlags - list of flags indicating whether board is LF or HF. 'a' for LF and 'b' for HF
     '''
-    mdd = os.environ['MKID_DATA_DIR']
-    templarConfFn = os.path.join(mdd, templarConfFn)
-    tcfp = open(templarConfFn, 'r')
+    
+    try:
+        tcfp = open(templarConfFn, 'r')
+        mdd = os.path.dirname(templarConfFn)
+    except IOError:
+        mdd = os.environ['MKID_DATA_DIR']
+        templarConfFn = os.path.join(mdd, templarConfFn)
+        tcfp = open(templarConfFn, 'r')
     templarConf = ConfigParser.ConfigParser()
     templarConf.readfp(tcfp)
     tcfp.close()
@@ -137,10 +141,16 @@ def loadClickthroughFile(fn):
 if __name__=='__main__':
     if len(sys.argv)<3:
         print 'Usage: python findLOsAndMakeFreqFiles.py <setupcfgfile> <templarcfgfile>'
-    mdd = os.environ['MKID_DATA_DIR']
+    
     setupDict = readDict()
-    setupDict.readFromFile(os.path.join(mdd, sys.argv[1]))
-    print setupDict
+    try: 
+        setupDict.readFromFile(sys.argv[1])
+        try: mdd = setupDict['MKID_DATA_DIR']
+        except KeyError: mdd = os.environ['MKID_DATA_DIR']
+    except IOError:
+        mdd = os.environ['MKID_DATA_DIR']
+        setupDict.readFromFile(os.path.join(mdd, sys.argv[1]))
+    #print setupDict
     templarCfgFile = sys.argv[2]
     freqFiles = []
     los = []
