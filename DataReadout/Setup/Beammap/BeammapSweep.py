@@ -39,15 +39,13 @@ from MkidDigitalReadout.DataReadout.Setup.Beammap.beammapFlags import beamMapFla
 
 class BeamSweepGaussFit:
     """
-    Does the same thing as BeamSweep1D, but using Seth's algorithm from DARKNESSBeamMap.py. Requires a 
-    (well-behaved) template pixel with known peak position
+    Uses a Gaussian fit to refine the output of the cross-correlation.
     """
-    def __init__(self, imageList, tempPixCoords, tempPeakLoc):
+    def __init__(self, imageList, initialGuessImage):
         self.imageList = imageList
-        self.tempPixCoords = tempPixCoords
+        self.initialGuessImage = initialGuessImage
         self.peakLocs = np.empty(imageList[0].shape)
         self.peakLocs[:] = np.nan
-        self.tempPeakLoc = self.fitPeak(tempPixCoords, tempPeakLoc)
 
     def fitPeak(self, pixCoords, initialGuess, fitWindow=20):
         timestream = self.imageList[initialGuess-fitWindow:initialGuess+fitWindow, pixCoords[0], pixCoords[1]]
@@ -65,14 +63,13 @@ class BeamSweepGaussFit:
 
         return fitParams[0]
         
-    def findRoughPeakLocs(self):
+    def fitRoughPeakLocs(self):
         templateTimestream = self.imageList[:, self.tempPixCoords[0], self.tempPixCoords[1]]
         for x in range(self.imageList[0].shape[0]):
             for y in range(self.imageList[0].shape[1]):
                 timestream = self.imageList[:, x, y]
-                timestreamCorr = np.correlate(timestream, templateTimestream, 'full')
-                peakGuess = np.amax(timestreamCorr) + self.tempPeakLoc - len(templateTimestream) + 1
-                self.peakLocs[x,y] = self.fitPeak([x,y], peakGuess)
+                peakGuess = self.initialGuessImage[x, y]
+                self.peakLocs[x,y] = self.fitPeak([x, y], peakGuess)
 
         return self.peakLocs
 
@@ -544,24 +541,17 @@ class RoughBeammap():
             self.y_images=imageList
         return imageList
 
-    def computeSweeps(self, sweepType, pixelComputationMask=None, fitType='crosscorr'):
+    def computeSweeps(self, sweepType, pixelComputationMask=None):
         """
         Careful: We assume the sweep speed is always the same!!!
         For now, we assume initial beammap is the same too.
         """
         assert fitType.lower() in ['gauss', 'crosscorr'], 'Fit type must be either gauss or crosscorr'
         imageList=self.concatImages(sweepType)
-        if fitType=='crosscorr':
-            sweep = BeamSweep1D(imageList,pixelComputationMask)
-            locs=sweep.findRelativePixelLocations()
-        else:
-            tempCoords = [int(self.config.get('DEFAULT', 'tempX')), int(self.config.get('DEFAULT', 'tempY'))]
-            if sweepType in ['x', 'X']: 
-                tempPeakLoc = int(self.config.get('DEFAULT', 'tempXPeak'))
-            elif sweepType in ['y', 'Y']: 
-                tempPeakLoc = int(self.config.get('DEFAULT', 'tempYPeak'))
-            sweep = BeamSweepGaussFit(imageList, tempCoords, tempPeakLoc) 
-            locs = sweep.findRoughPeakLocs()
+        sweep = BeamSweep1D(imageList,pixelComputationMask)
+        locs=sweep.findRelativePixelLocations()
+        sweepFit = BeamSweepGaussFit(imageList, locs) 
+        locs = sweepFit.findRoughPeakLocs()
             
         if sweepType in ['x','X']: self.x_locs=locs
         else: self.y_locs=locs
