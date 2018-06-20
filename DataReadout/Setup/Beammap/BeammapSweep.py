@@ -36,6 +36,47 @@ from MkidDigitalReadout.DataReadout.Setup.Beammap.beammapFlags import beamMapFla
 
 #import pdb
 
+class BeamSweepGaussFit()
+    """
+    Does the same thing as BeamSweep1D, but using Seth's algorithm from DARKNESSBeamMap.py. Requires a 
+    (well-behaved) template pixel with known peak position
+    """
+    def __init__(self, imageList, tempPixCoords, tempPeakLoc):
+        self.tempPixCoords = tempPixCoords
+        self.peakLocs = np.empty(imageList[0].shape)
+        self.peakLocs[:] = np.nan
+        self.tempPeakLoc = self.fitPeak(tempPixCoords, tempPeakLoc)
+
+    def fitPeak(self, pixCoords, initialGuess, fitWindow=20):
+        timestream = imageList[initialGuess-fitWindow:initialGuess+fitWindow, pixCoords[0], pixCoords[1]]
+        t = np.arange(initialGuess-fitWindow, initialGuess+fitWindow)
+        
+        def gaussian(x, center, scale, width):
+            return scale*np.exp(-(x - center)**2/width**2)
+
+        try:
+            fitParams, _ = spo.optimize_curvefit(gaussian, t, timestream, [initialGuess, 1500, 2])
+        except RuntimeError:
+            print 'Fit failed at pix:', pixCoords
+            return np.nan
+            
+
+        return fitParams[0]
+        
+    def findRoughPeakLocs(self):
+        templateTimestream = self.imageList[:, self.tempPixCoords[0], self.tempPixCoords[1]]
+        for x in self.imageList[0].shape[0]:
+            for y in self.imageList[0].shape[1]:
+                timestream = self.imageList[:, x, y]
+                timestreamCorr = np.correlate(timestream, templateTimestream, 'full')
+                peakGuess = np.amax(timestreamCorr) + self.tempPeakLoc - len(templateTimestream) + 1
+                self.peakLocs[x,y] = self.fitPeak([x,y], peakGuess)
+
+        return self.peakLocs
+
+        
+        
+
 class BeamSweep1D():
     """
     This class is for computing a rough beammap using a list of images
