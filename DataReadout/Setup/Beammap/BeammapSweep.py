@@ -27,6 +27,7 @@ import numpy as np
 import matplotlib
 matplotlib.use('Qt4Agg')
 import matplotlib.pyplot as plt
+import scipy.optimize as spo
 
 from numba import jit
 import ConfigParser
@@ -36,26 +37,27 @@ from MkidDigitalReadout.DataReadout.Setup.Beammap.beammapFlags import beamMapFla
 
 #import pdb
 
-class BeamSweepGaussFit()
+class BeamSweepGaussFit:
     """
     Does the same thing as BeamSweep1D, but using Seth's algorithm from DARKNESSBeamMap.py. Requires a 
     (well-behaved) template pixel with known peak position
     """
     def __init__(self, imageList, tempPixCoords, tempPeakLoc):
+        self.imageList = imageList
         self.tempPixCoords = tempPixCoords
         self.peakLocs = np.empty(imageList[0].shape)
         self.peakLocs[:] = np.nan
         self.tempPeakLoc = self.fitPeak(tempPixCoords, tempPeakLoc)
 
     def fitPeak(self, pixCoords, initialGuess, fitWindow=20):
-        timestream = imageList[initialGuess-fitWindow:initialGuess+fitWindow, pixCoords[0], pixCoords[1]]
+        timestream = self.imageList[initialGuess-fitWindow:initialGuess+fitWindow, pixCoords[0], pixCoords[1]]
         t = np.arange(initialGuess-fitWindow, initialGuess+fitWindow)
         
         def gaussian(x, center, scale, width):
             return scale*np.exp(-(x - center)**2/width**2)
 
         try:
-            fitParams, _ = spo.optimize_curvefit(gaussian, t, timestream, [initialGuess, 1500, 2])
+            fitParams, _ = spo.curve_fit(gaussian, t, timestream, [initialGuess, 1500, 2])
         except RuntimeError:
             print 'Fit failed at pix:', pixCoords
             return np.nan
@@ -65,8 +67,8 @@ class BeamSweepGaussFit()
         
     def findRoughPeakLocs(self):
         templateTimestream = self.imageList[:, self.tempPixCoords[0], self.tempPixCoords[1]]
-        for x in self.imageList[0].shape[0]:
-            for y in self.imageList[0].shape[1]:
+        for x in range(self.imageList[0].shape[0]):
+            for y in range(self.imageList[0].shape[1]):
                 timestream = self.imageList[:, x, y]
                 timestreamCorr = np.correlate(timestream, templateTimestream, 'full')
                 peakGuess = np.amax(timestreamCorr) + self.tempPeakLoc - len(templateTimestream) + 1
@@ -542,14 +544,25 @@ class RoughBeammap():
             self.y_images=imageList
         return imageList
 
-    def computeSweeps(self, sweepType, pixelComputationMask=None):
+    def computeSweeps(self, sweepType, pixelComputationMask=None, fitType='crosscorr'):
         """
         Careful: We assume the sweep speed is always the same!!!
         For now, we assume initial beammap is the same too.
         """
+        assert fitType.lower() in ['gauss', 'crosscorr'], 'Fit type must be either gauss or crosscorr'
         imageList=self.concatImages(sweepType)
-        sweep = BeamSweep1D(imageList,pixelComputationMask)
-        locs=sweep.findRelativePixelLocations()
+        if fitType=='crosscorr':
+            sweep = BeamSweep1D(imageList,pixelComputationMask)
+            locs=sweep.findRelativePixelLocations()
+        else:
+            tempCoords = [int(self.config.get('DEFAULT', 'tempX')), int(self.config.get('DEFAULT', 'tempY'))]
+            if sweepType in ['x', 'X']: 
+                tempPeakLoc = int(self.config.get('DEFAULT', 'tempXPeak'))
+            elif sweepType in ['y', 'Y']: 
+                tempPeakLoc = int(self.config.get('DEFAULT', 'tempYPeak'))
+            sweep = BeamSweepGaussFit(imageList, tempCoords, tempPeakLoc) 
+            locs = sweep.findRoughPeakLocs()
+            
         if sweepType in ['x','X']: self.x_locs=locs
         else: self.y_locs=locs
         self.saveRoughBeammap()
@@ -611,8 +624,8 @@ if __name__=='__main__':
         raise ValueError
     
     b=RoughBeammap(configFN)
-    #b.computeSweeps('x')
-    #b.computeSweeps('y')
+    b.computeSweeps('x', fitType='gauss')
+    b.computeSweeps('y', fitType='gauss')
     #b.concatImages('x')
     #b.concatImages('y')
     b.stackImages('x')
