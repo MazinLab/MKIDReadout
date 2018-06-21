@@ -48,28 +48,30 @@ class BeamSweepGaussFit:
         self.peakLocs[:] = np.nan
 
     def fitPeak(self, pixCoords, initialGuess, fitWindow=20):
-        timestream = self.imageList[initialGuess-fitWindow:initialGuess+fitWindow, pixCoords[0], pixCoords[1]]
-        t = np.arange(initialGuess-fitWindow, initialGuess+fitWindow)
-        
+        bounds = [max(0, int(initialGuess-fitWindow)), min(int(initialGuess+fitWindow), len(self.imageList[:,0,0]))]
+        timestream = self.imageList[bounds[0]:bounds[1], pixCoords[0], pixCoords[1]]
+        t = np.arange(bounds[0], bounds[1])
         def gaussian(x, center, scale, width):
             return scale*np.exp(-(x - center)**2/width**2)
 
         try:
             fitParams, _ = spo.curve_fit(gaussian, t, timestream, [initialGuess, 1500, 2])
+            fitCenter = max(fitParams[0], 0)
+            fitCenter = min(fitCenter, len(self.imageList[:,0,0]))
         except RuntimeError:
             print 'Fit failed at pix:', pixCoords
-            return np.nan
+            return initialGuess
             
 
-        return fitParams[0]
+        return fitCenter
         
     def fitRoughPeakLocs(self):
-        templateTimestream = self.imageList[:, self.tempPixCoords[0], self.tempPixCoords[1]]
         for x in range(self.imageList[0].shape[0]):
             for y in range(self.imageList[0].shape[1]):
                 timestream = self.imageList[:, x, y]
                 peakGuess = self.initialGuessImage[x, y]
-                self.peakLocs[x,y] = self.fitPeak([x, y], peakGuess)
+                if not np.isnan(peakGuess):
+                    self.peakLocs[x,y] = self.fitPeak([x, y], peakGuess)
 
         return self.peakLocs
 
@@ -546,12 +548,11 @@ class RoughBeammap():
         Careful: We assume the sweep speed is always the same!!!
         For now, we assume initial beammap is the same too.
         """
-        assert fitType.lower() in ['gauss', 'crosscorr'], 'Fit type must be either gauss or crosscorr'
         imageList=self.concatImages(sweepType)
         sweep = BeamSweep1D(imageList,pixelComputationMask)
         locs=sweep.findRelativePixelLocations()
         sweepFit = BeamSweepGaussFit(imageList, locs) 
-        locs = sweepFit.findRoughPeakLocs()
+        locs = sweepFit.fitRoughPeakLocs()
             
         if sweepType in ['x','X']: self.x_locs=locs
         else: self.y_locs=locs
@@ -614,8 +615,8 @@ if __name__=='__main__':
         raise ValueError
     
     b=RoughBeammap(configFN)
-    b.computeSweeps('x', fitType='gauss')
-    b.computeSweeps('y', fitType='gauss')
+    b.computeSweeps('x')
+    b.computeSweeps('y')
     #b.concatImages('x')
     #b.concatImages('y')
     b.stackImages('x')
