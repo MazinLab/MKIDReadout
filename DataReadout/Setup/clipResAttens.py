@@ -2,12 +2,13 @@
 Author: Ben Mazin
 Date: June 20, 2018
 
-This code allows clips the attenuation values for resonators in a frequency list
+This code clips the attenuation values for resonators in a frequency list
+This is useful so that a single high powered resonator doesn't take up the entire DAC dynamic range
 It histograms the attenuations and then asks the user for a max and min attenuation
 Resonators above the max are removed
 Resonators below the min are clipped to the min
 
-It outputs a new frequency file called filename_clip.txt
+It outputs a new frequency file called *filename*_clip.txt
 
 Usage:
 $python clipResAttens.py ps_freq_FL6a.txt ps_freq_FL6b.txt
@@ -59,7 +60,7 @@ def clipHist(filename):
     data[np.where(data[:,2]<atten['min'])[0],2]=atten['min']
     data = data[np.where(data[:,2]<atten['max'])]
     outFN = filename.rsplit('.',1)[0]+'_clip.txt'
-    np.savetxt(outFN, data, fmt="%4i %10.1f %4i")
+    np.savetxt(outFN, data, fmt="%6i %10.9e %4i")
 
 if __name__=='__main__':
 

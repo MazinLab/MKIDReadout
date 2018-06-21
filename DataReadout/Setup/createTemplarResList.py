@@ -38,9 +38,9 @@ def createTemplarResList(fn, LO1, LO2, feedline=1, atten=46):
     
     path = os.path.dirname(fn)+'/'
     data = np.transpose([resIDs1,freqs1*10**9,[atten]*len(freqs1)])
-    np.savetxt(path+'freq_FL'+str(feedline)+'_a.txt', data, fmt="%4i %10.1f %4i")
+    np.savetxt(path+'freq_FL'+str(feedline)+'_a.txt', data, fmt="%6i %10.9e %4i")
     data = np.transpose([resIDs2,freqs2*10**9,[atten]*len(freqs2)])
-    np.savetxt(path+'freq_FL'+str(feedline)+'_b.txt', data, fmt="%4i %10.1f %4i")
+    np.savetxt(path+'freq_FL'+str(feedline)+'_b.txt', data, fmt="%6i %10.9e %4i")
     
     
     
