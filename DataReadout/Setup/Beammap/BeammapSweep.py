@@ -16,6 +16,7 @@ Classes in this file:
 BeamSweep1D(imageList, pixelComputationMask=None, minCounts=5, maxCountRate=2499)
 ManualRoughBeammap(x_images, y_images, initialBeammap, roughBeammapFN)
 RoughBeammap(configFN)
+BeamSweepGaussFit(imageList, initialGuessImage)
 
 Usage:
 
@@ -27,62 +28,57 @@ import numpy as np
 import matplotlib
 matplotlib.use('Qt4Agg')
 import matplotlib.pyplot as plt
-import scipy.optimize as spo
+
 
 from numba import jit
 import ConfigParser
 
-from MkidDigitalReadout.DataReadout.Setup.Beammap.utils import crossCorrelateTimestreams,  determineSelfconsistentPixelLocs2, loadImgFiles, minimizePixelLocationVariance, getPeak, shapeBeammapIntoImages
+from MkidDigitalReadout.DataReadout.Setup.Beammap.utils import crossCorrelateTimestreams,  determineSelfconsistentPixelLocs2, loadImgFiles, minimizePixelLocationVariance, getPeak, shapeBeammapIntoImages, fitPeak
 from MkidDigitalReadout.DataReadout.Setup.Beammap.beammapFlags import beamMapFlags
 
 #import pdb
 
-class BeamSweepGaussFit:
+
+
+class GaussFitBeamSweep():
     """
-    Uses a Gaussian fit to refine the output of the cross-correlation.
+    Uses a Gaussian fit to find peak in lightcurve
+    Can be used to refine the output of the cross-correlation.
+
+    
     """
-    def __init__(self, imageList, initialGuessImage):
+    def __init__(self, imageList, locEstimates=None):
         self.imageList = imageList
-        self.initialGuessImage = initialGuessImage
+        self.initialGuessImage = locEstimates
         self.peakLocs = np.empty(imageList[0].shape)
         self.peakLocs[:] = np.nan
-
-    def fitPeak(self, pixCoords, initialGuess, fitWindow=20):
-        bounds = [max(0, int(initialGuess-fitWindow)), min(int(initialGuess+fitWindow), len(self.imageList[:,0,0]))]
-        timestream = self.imageList[bounds[0]:bounds[1], pixCoords[0], pixCoords[1]]
-        t = np.arange(bounds[0], bounds[1])
-        def gaussian(x, center, scale, width):
-            return scale*np.exp(-(x - center)**2/width**2)
-
-        try:
-            fitParams, _ = spo.curve_fit(gaussian, t, timestream, [initialGuess, 1500, 2])
-            fitCenter = max(fitParams[0], 0)
-            fitCenter = min(fitCenter, len(self.imageList[:,0,0]))
-        except RuntimeError:
-            print 'Fit failed at pix:', pixCoords
-            return initialGuess
-            
-
-        return fitCenter
         
-    def fitRoughPeakLocs(self):
-        for x in range(self.imageList[0].shape[0]):
-            for y in range(self.imageList[0].shape[1]):
-                timestream = self.imageList[:, x, y]
-                peakGuess = self.initialGuessImage[x, y]
-                if not np.isnan(peakGuess):
-                    self.peakLocs[x,y] = self.fitPeak([x, y], peakGuess)
+    def fitRoughPeakLocs(self, fitWindow=20):
+        """
+        INPUTS:
+            fitWindow - Only find peaks within this window of the initial guess
 
+        Returns:
+            peakLocs - map of peak locations for each pixel
+        """
+        for y in range(self.imageList[0].shape[0]):
+            for x in range(self.imageList[0].shape[1]):
+                timestream = self.imageList[:, y, x]
+                if self.initialGuessImage is None or np.logical_not(np.isfinite(self.initialGuessImage[y, x])):
+                    peakGuess=None
+                    fitWindow=None
+                else:
+                    peakGuess=self.initialGuessImage[y, x]
+                peakLocs[y,x] = fitPeak(timestream, peakGuess, fitWindow)
         return self.peakLocs
 
         
-        
 
-class BeamSweep1D():
+class CorrelateBeamSweep():
     """
     This class is for computing a rough beammap using a list of images
     
-    It uses a complicated autocorrelation function to find the pixel locations
+    It uses a complicated cross-correlation function to find the pixel locations
     """
 
     def __init__(self, imageList, pixelComputationMask=None, minCounts=5, maxCountRate=2499):
@@ -114,7 +110,8 @@ class BeamSweep1D():
         if pixelComputationMask is None:
             nGoodPix = nPix - len(badPix[0])
             #nGroups=np.prod(imageList.shape)*(np.prod(imageList[0].shape)-1)/(200*3000*2999)*nGoodPix/nPix     # 300 timesteps x 3000 pixels takes a lot of memory...
-            nGroups = nTime*nGoodPix*(nGoodPix-1)/(600*3000*2999)
+            nGroups = nTime*nGoodPix*(nGoodPix-1)/(600*3000*2999.)
+            nGroups = nGoodPix/1200.
             pixelComputationMask=np.random.randint(0,int(round(nGroups)),imageList[0].shape)
             #pixelComputationMask=np.repeat(range(5),2000).reshape(imageList[0].shape)
         self.compMask = np.asarray(pixelComputationMask)
@@ -234,7 +231,7 @@ class ManualRoughBeammap():
         INPUTS:
             x_images - list of images for sweep(s) in x-direction
             y_images - 
-            initialBeammap - path+filename of initial beammap used for making images
+            initialBeammap - path+filename of initial beammap used for making the images
             roughBeammapFN - path+filename of the rough beammap (time at peak instead of x/y value)
                              If the roughBeammap doesn't exist then it will be instantiated with nans
                              We append a timestamp to this string as the output file
@@ -382,13 +379,17 @@ class ManualRoughBeammap():
             if offset<0: offset=np.nan
             if event.inaxes == self.ax_time_x:
                 offset=getPeak(self.x_images[:,y,x],offset)
-                #if offset>=self.nTime_x: offset=np.nan
+                #fitParams=fitPeak(self.x_images[:,y,x],offset,20)
+                #offset=fitParams[0]
+                #print fitParams
                 self.x_loc[y,x]=offset
                 print 'x: ',offset
                 self.updateTimestreamPlot(0)
             elif event.inaxes == self.ax_time_y:
-                #if offset>=self.nTime_y: offset=np.nan
                 offset=getPeak(self.y_images[:,y,x],offset)
+                #fitParams=fitPeak(self.y_images[:,y,x],offset,20)
+                #offset=fitParams[0]
+                #print fitParams
                 self.y_loc[y,x]=offset
                 print 'y: ',offset
                 self.updateTimestreamPlot(1)
@@ -543,20 +544,66 @@ class RoughBeammap():
             self.y_images=imageList
         return imageList
 
-    def computeSweeps(self, sweepType, pixelComputationMask=None):
+    def findLocWithCrossCorrelation(self, sweepType, pixelComputationMask=None):
         """
-        Careful: We assume the sweep speed is always the same!!!
+        This function estimates the location in time for the light peak in each pixel by cross-correlating the timestreams
+        See CorrelateBeamSweep class
+
+        Careful: We assume the sweep speed is always the same when looking at multiple sweeps!!!
         For now, we assume initial beammap is the same too.
+
+        INPUTS:
+            sweepType - either 'x', or 'y'
+            pixelComputationMask - see CorrelateBeamSweep.__init__()
+
+        OUTPUTS:
+            locs - map of locations for each pixel [units of time]
         """
         imageList=self.concatImages(sweepType)
-        sweep = BeamSweep1D(imageList,pixelComputationMask)
+        sweep = CorrelateBeamSweep(imageList,pixelComputationMask)
         locs=sweep.findRelativePixelLocations()
-        sweepFit = BeamSweepGaussFit(imageList, locs) 
-        locs = sweepFit.fitRoughPeakLocs()
-            
         if sweepType in ['x','X']: self.x_locs=locs
         else: self.y_locs=locs
-        self.saveRoughBeammap()
+        return locs
+
+    def findLocWithGaussianFit(self,sweepType, locEstimates=None, fitWindow=20):
+        """
+        This function estimates the location in time for the light peak in each pixel by fitting a gaussian to the peak
+        See GaussFitBeamSweep class
+
+        Careful: The sweep start times must be aligned such that the light peaks stack up. 
+        We assume the sweep speed is always the same when looking at multiple sweeps!!!
+        For now, we assume initial beammap is the same too.
+
+        INPUTS:
+            sweepType - either 'x', or 'y'
+            locEstimate - optional guesses for peak location. Should be 2D map of peak locations
+
+        OUTPUTS:
+            locs - map of locations for each pixel [units of time]
+        """
+        imageList=self.stackImages(sweepType)
+        sweep = GaussFitBeamSweep(imageList, locEstimates)
+        if locEstimage is None: fitWindow=None
+        locs = sweep.fitRoughPeakLocs(fitWindow=fitWindow)
+        if sweepType in ['x','X']: self.x_locs=locs
+        else: self.y_locs=locs
+        return locs
+
+    #def computeSweeps(self, sweepType, pixelComputationMask=None):
+    #    """
+    #    Careful: We assume the sweep speed is always the same!!!
+    #    For now, we assume initial beammap is the same too.
+    #    """
+    #    imageList=self.concatImages(sweepType)
+    #    sweep = CorrelateBeamSweep(imageList,pixelComputationMask)
+    #    locs=sweep.findRelativePixelLocations()
+    #    sweepFit = BeamSweepGaussFit(imageList, locs)
+    #    locs = sweepFit.fitRoughPeakLocs()
+    #        
+    #    if sweepType in ['x','X']: self.x_locs=locs
+    #    else: self.y_locs=locs
+    #    self.saveRoughBeammap()
         
     
     def saveRoughBeammap(self):
@@ -615,14 +662,15 @@ if __name__=='__main__':
         raise ValueError
     
     b=RoughBeammap(configFN)
-    b.computeSweeps('x')
-    b.computeSweeps('y')
-    #b.concatImages('x')
-    #b.concatImages('y')
-    b.stackImages('x')
-    b.stackImages('y')
-    #print b.config.get('DEFAULT','initialBeammap')
-    #print b.config.get('DEFAULT','roughBeammap')
+    b.findLocWithCrossCorrelation('x')
+    b.findLocWithCrossCorrelation('y')
+    #b.findLocWithGaussianFit('x', b.x_locs, fitWindow=30)
+    #b.findLocWithGaussianFit('y', b.y_locs, fitWindow=30)
+    b.saveRoughBeammap()
+    b.concatImages('x')
+    b.concatImages('y')
+    #b.stackImages('x')
+    #b.stackImages('y')
     b.manualSweepCleanup()
     
 

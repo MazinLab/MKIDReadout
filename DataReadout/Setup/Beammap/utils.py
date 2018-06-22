@@ -1,13 +1,64 @@
 
 import numpy as np
 import pdb
+import os
 import time
 from functools import partial
 from multiprocessing import Pool
 from numba import jit
 import ConfigParser
+import scipy.optimize as spo
 from beammapFlags import beamMapFlags
 
+
+def getFLCoordRangeDict(FLmap):
+    """
+    INPUTS:
+        FLmap - map of array with values equal to the FL. see getFLMap()
+    OUTPUTS:
+        coordFLRangeDict - Dictionary with key = FL# and value = [xMin, xMax, yMin, yMax] for that FL
+    """
+    FLs = np.unique(FLmap)
+    coordFLRangeDict={}
+    for FL in FLs:
+        inds = np.where(FLmap==FL)
+        xMin = np.amin(inds[0])
+        xMax = np.amax(inds[0])
+        yMin = np.amin(inds[1])
+        yMax = np.amax(inds[1])
+        coordFLRangeDict[FL] = [xMin, xMax, yMin, yMax]
+    return coordFLRangeDict
+
+def getFLCoordRangeMaps(FLmap):
+    """
+    INPUTS:
+        FLmap - map of array with values equal to the FL. see getFLMap()
+    OUTPUTS:
+        xMinFLmap - map of array with value equal to the minimum allowable x coordinate for that feedline
+        xMaxFLmap
+        yMinFLmap
+        yMaxFLmap
+    """
+    FLs = np.unique(FLmap)
+    xMinFLmap=np.empty(FLmap.shape)
+    xMaxFLmap=np.empty(FLmap.shape)
+    yMinFLmap=np.empty(FLmap.shape)
+    yMaxFLmap=np.empty(FLmap.shape)
+    for FL in FLs:
+        inds = np.where(FLmap==FL)
+        xMinFLmap[inds] = np.amin(inds[0])
+        xMaxFLmap[inds] = np.amax(inds[0])
+        yMinFLmap[inds] = np.amin(inds[1])
+        yMaxFLmap[inds] = np.amax(inds[1])
+    return xMinFLmap, xMaxFLmap, yMinFLmap, yMaxFLmap
+        
+
+def getDesignFreqMap(designFreqFL, FLmap):
+    FLs = np.unique(FLmap)
+    designFreqMap = np.empty(FLmap.shape)
+    for FL in FLmap:
+        designFreqMap[np.where(FLmap==FL)] = designFreqFL
+    return designFreqMap
 
 def addBeammapReadoutFlag(initialBeammapFn, outputBeammapFn, templarCfg):
     config = ConfigParser.ConfigParser()
@@ -36,7 +87,7 @@ def convertBeammapToNewFlagFormat(initialBeammapFn, outputBeammapFn, templarCfg)
     np.savetxt(outputBeammapFn, data, fmt='%7d %3d %5d %5d')
     addBeammapReadoutFlag(outputBeammapFn, outputBeammapFn, templarCfg)
 
-@jit
+#@jit
 def getFreqMap(initialBeammap, templarCfg):
     resIDs, _, x, y=np.loadtxt(initialBeammap,unpack=True)
     y=y.astype(np.int)
@@ -65,8 +116,8 @@ def getFLMap(initialBeammap):
 #@jit
 def shapeBeammapIntoImages(initialBeammap, roughBeammap):
     resIDs, flag, x, y=np.loadtxt(initialBeammap,unpack=True)
-    nCols = np.amax(x)+1
-    nRows = np.amax(y)+1
+    nCols = int(np.amax(x)+1)
+    nRows = int(np.amax(y)+1)
     resIDimage = np.empty((nRows,nCols))
     flagImage = np.empty((nRows,nCols))
     xImage = np.empty((nRows,nCols))
@@ -125,6 +176,44 @@ def getPeak(data, guess_arg, width=5):
     startInd = max(guess_arg-width,0)
     endInd = min(guess_arg+width+1, len(data)-1)
     return np.argmax(data[startInd:endInd])+startInd
+
+@jit
+def gaussian(x, center, scale, width, offset):
+    return scale*np.exp(-(x - center)**2/width**2) + offset
+
+def fitPeak(timestream, initialGuess=None, fitWindow=20):
+    """
+    This function fits a gaussian to a timestream with an initial Guess for location
+
+    INPUT:
+        timestream - 
+        initialGuess - guess for location of peak
+        fitWindow - only consider data around this window
+    OUTPUT:
+        fitParams - center, scale, width of fitted gaussian
+    """
+    minT=0
+
+    if np.isfinite(initialGuess) and np.isfinite(fitWindow) and initialGuess >=0 and initialGuess<len(timestream):
+        minT = int(max(0, initialGuess-fitWindow))
+        maxT = int(min(len(timestream), initialGuess+fitWindow))
+        timestream=timestream[minT: maxT]
+    if not np.isfinite(initialGuess):
+        initialGuess=np.argmax(timestream)
+    initialGuess-=minT #need this if we're only fitting to a small window
+    
+    try:
+        width=2.
+        offset=np.median(timestream)
+        scale = np.amax(timestream) - offset
+        print [initialGuess+minT, scale, width,offset]
+        fitParams, _ = spo.curve_fit(gaussian, xdata=range(len(timestream)), ydata=timestream, p0=[initialGuess, scale, width,offset], sigma=np.sqrt(timestream))
+        if fitParams[0]<0 or fitParams[0]>len(timestream):
+            raise RuntimeError('Fit center is outside the available range')
+        fitParams[0]+=minT
+        return fitParams
+    except RuntimeError:
+        return [initialGuess+minT, None, None]
 
 def loadImgFiles(fnList, nRows, nCols):
     imageList = []
