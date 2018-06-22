@@ -16,6 +16,7 @@ import os, sys
 import numpy as np
 import scipy.ndimage as sciim
 import matplotlib.pyplot as plt
+import matplotlib.patches as patches
 from readDict import readDict
 
 class BMAligner:
@@ -29,16 +30,17 @@ class BMAligner:
         self.makeRawImage()
 
     def makeRawImage(self):
-        self.rawImage = np.zeros((int(np.max(self.rawXs)*self.usFactor+1), int(np.max(self.rawYs)*self.usFactor+1)))
+        self.rawImage = np.zeros((int(np.max(self.rawXs[np.where(np.isfinite(self.rawXs))])*self.usFactor+2), int(np.max(self.rawYs[np.where(np.isfinite(self.rawYs))])*self.usFactor+2)))
         for i, resID in enumerate(self.resIDs):
             if self.flags[i] == 0:
-                self.rawImage[int(round(self.rawXs[i]*self.usFactor)), int(round(self.rawYs[i]*self.usFactor))] = 1
+                if np.isfinite(self.rawXs[i]) and np.isfinite(self.rawYs[i]):
+                    self.rawImage[int(round(self.rawXs[i]*self.usFactor)), int(round(self.rawYs[i]*self.usFactor))] = 1
 
     def fftRawImage(self):
         self.rawImageFFT = np.abs(np.fft.fft2(self.rawImage))
         self.rawImageFreqs = [np.fft.fftfreq(self.rawImageFFT.shape[0]), np.fft.fftfreq(self.rawImageFFT.shape[1])]
     
-    def findAngleAndScale(self):
+    def findKvecsAuto(self):
         maxFiltFFT = sciim.maximum_filter(self.rawImageFFT, size=10)
         locMaxMask = (self.rawImageFFT==maxFiltFFT)
         
@@ -51,9 +53,9 @@ class BMAligner:
         kvecList = np.zeros((2,2))
         while nMaxFound < 2:
             maxCoords = np.unravel_index(maxInds[i], self.rawImageFFT.shape)
+            kvec = np.array([self.rawImageFreqs[0][maxCoords[0]], self.rawImageFreqs[1][maxCoords[1]]])
 
-            if locMaxMask[maxCoords]==1 and maxCoords!=(0,0):
-                kvec = np.array([self.rawImageFreqs[0][maxCoords[0]], self.rawImageFreqs[1][maxCoords[1]]])
+            if locMaxMask[maxCoords]==1 and (kvec[0]**2+kvec[1]**2)>0.05:
                 if nMaxFound == 0:
                     kvecList[0] = kvec
                     nMaxFound += 1
@@ -79,15 +81,28 @@ class BMAligner:
         if yKvec[1]<0:
             yKvec *= -1
 
+        self.xKvec = xKvec
+        self.yKvec = yKvec
 
-        anglex = np.arctan2(xKvec[1], xKvec[0])
-        angley = np.arctan2(yKvec[1], yKvec[0]) - np.pi/2
+    def findKvecsManual(self):
+        shiftedFreqs = [0, 0]
+        shiftedFreqs[0] = np.fft.fftshift(self.rawImageFreqs[0])
+        shiftedFreqs[1] = np.fft.fftshift(self.rawImageFreqs[1])
+        shiftedImage = np.fft.fftshift(self.rawImageFFT)
+
+        kvecGui = KVecGUI(shiftedImage, shiftedFreqs, 30*self.usFactor)
+        self.xKvec = kvecGui.kx
+        self.yKvec = kvecGui.ky
+
+    def findAngleAndScale(self):
+        anglex = np.arctan2(self.xKvec[1], self.xKvec[0])
+        angley = np.arctan2(self.yKvec[1], self.yKvec[0]) - np.pi/2
 
         assert (anglex - angley)/anglex < 0.01, 'x and y kvecs are not perpendicular!'
 
         self.angle = (anglex + angley)/2
-        self.xScale = 1/(self.usFactor*np.linalg.norm(xKvec))
-        self.yScale = 1/(self.usFactor*np.linalg.norm(yKvec))
+        self.xScale = 1/(self.usFactor*np.linalg.norm(self.xKvec))
+        self.yScale = 1/(self.usFactor*np.linalg.norm(self.yKvec))
 
         print 'angle:', self.angle
         print 'x scale:', self.xScale
@@ -199,6 +214,59 @@ class BMAligner:
         plt.plot(self.coords[goodInds,0], self.coords[goodInds,1], '.', color='b')
         plt.plot(self.coords[badInds,0], self.coords[badInds,1], '.', color='r')
         plt.show()
+
+
+class KVecGUI():
+    def __init__(self, fftImage, fftFreqs, plotRange=None):
+        zeroKxLoc = np.where(fftFreqs[0]==0)[0][0]
+        zeroKyLoc = np.where(fftFreqs[1]==0)[0][0]
+        if plotRange is not None:
+            fftFreqs[0] = fftFreqs[0][zeroKxLoc-plotRange:zeroKxLoc+plotRange]
+            fftFreqs[1] = fftFreqs[1][zeroKyLoc-plotRange:zeroKyLoc+plotRange]
+            fftImage = fftImage[zeroKxLoc-plotRange:zeroKxLoc+plotRange, zeroKyLoc-plotRange:zeroKyLoc+plotRange]
+            zeroKxLoc = plotRange
+            zeroKyLoc = plotRange
+
+        self.zeroKxLoc = zeroKxLoc
+        self.zeroKyLoc = zeroKyLoc
+        self.fftImage = fftImage
+        self.fftFreqs = fftFreqs
+
+        self.curAxis = 'x'
+
+        print 'Click first bright spot to the right of center (red dot)'
+        
+        self.plotImage()
+
+    def plotImage(self):
+        self.fig = plt.figure()
+        self.ax = self.fig.add_subplot(111)
+
+        self.ax.imshow(np.transpose(self.fftImage))
+        self.ax.add_patch(patches.Circle((self.zeroKxLoc, self.zeroKyLoc), radius=10, color='red'))
+
+        self.fig.canvas.mpl_connect('button_press_event', self.onClick)
+        
+
+        plt.show()
+
+
+    def onClick(self, event):
+        if self.fig.canvas.manager.toolbar._active is None:
+            if self.curAxis=='x':
+                self.kx = np.array([self.fftFreqs[0][int(round(event.xdata))], self.fftFreqs[1][int(round(event.ydata))]])
+                print 'kx:', self.kx
+                self.curAxis='y'
+                print 'Click first bright spot below center (red dot)'
+            elif self.curAxis=='y':
+                self.ky = np.array([self.fftFreqs[0][int(round(event.xdata))], self.fftFreqs[1][int(round(event.ydata))]])
+                print 'ky:', self.ky
+                self.curAxis='x'
+                print 'Done.' 
+                print 'If you want to re-select kx, click first bright spot to the right of center (red dot), otherwise close the plot'
+
+            
+            
             
 if __name__=='__main__':
     if len(sys.argv)<2:
@@ -213,12 +281,14 @@ if __name__=='__main__':
     aligner = BMAligner(paramDict['masterPositionList'], paramDict['nXPix'], paramDict['nYPix'])
     aligner.makeRawImage()
     aligner.fftRawImage()
+    aligner.findKvecsManual()
     aligner.findAngleAndScale()
     aligner.rotateAndScaleCoords()
-    aligner.findOffset()
+    aligner.findOffset(50000)
     aligner.plotCoords()
     aligner.saveRawMap(paramDict['outputFilename'])
-    aligner.makeDoublesRawMap(paramDict['masterDoublesList'], paramDict['outputDoubleName'])
+    if paramDict['masterDoublesList'] is not None:
+        aligner.makeDoublesRawMap(paramDict['masterDoublesList'], paramDict['outputDoubleName'])
 
 
 
