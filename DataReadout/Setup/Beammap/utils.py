@@ -79,6 +79,12 @@ def addBeammapReadoutFlag(initialBeammapFn, outputBeammapFn, templarCfg):
     data=np.asarray([allResIDs, flags, x, y]).T
     np.savetxt(outputBeammapFn, data, fmt='%7d %3d %5d %5d')
 
+def restrictRoughBeammapToFLs(roughBeammapFN, fl):
+    data = np.loadtxt(roughBeammapFN)
+    data[np.where(np.trunc(data[:,0]/10000).astype(np.int)!=fl),1]=beamMapFlags['noDacTone']
+    outputFN = roughBeammapFN.split('.')[0]+'_FL'+str(int(fl))+'.txt'
+    np.savetxt(outputFN, data, fmt='%7d %3d %7f %7f')
+
 def convertBeammapToNewFlagFormat(initialBeammapFn, outputBeammapFn, templarCfg):
     allResIDs, flags, x, y = np.loadtxt(initialBeammapFn, unpack=True)
     nonZeroFlagInds = np.where(flags!=0)[0]
@@ -170,7 +176,7 @@ def getBeammapResIDImage(initialBeammap):
     return image
 
 
-def getPeak(data, guess_arg, width=5):
+def snapToPeak(data, guess_arg, width=5):
     if not np.isfinite(guess_arg) or guess_arg<0 or guess_arg>=len(data): return np.nan
     guess_arg=int(guess_arg)
     startInd = max(guess_arg-width,0)

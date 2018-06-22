@@ -33,7 +33,7 @@ import matplotlib.pyplot as plt
 from numba import jit
 import ConfigParser
 
-from MkidDigitalReadout.DataReadout.Setup.Beammap.utils import crossCorrelateTimestreams,  determineSelfconsistentPixelLocs2, loadImgFiles, minimizePixelLocationVariance, getPeak, shapeBeammapIntoImages, fitPeak
+from MkidDigitalReadout.DataReadout.Setup.Beammap.utils import crossCorrelateTimestreams,  determineSelfconsistentPixelLocs2, loadImgFiles, minimizePixelLocationVariance, snapToPeak, shapeBeammapIntoImages, fitPeak
 from MkidDigitalReadout.DataReadout.Setup.Beammap.beammapFlags import beamMapFlags
 
 #import pdb
@@ -96,6 +96,7 @@ class CorrelateBeamSweep():
         """
         self.imageList=np.asarray(imageList)
 
+
         #Use these parameters to determine what's a good pixel
         self.minCounts = minCounts       # counts during total exposure
         self.maxCountRate = maxCountRate # counts per image frame
@@ -122,7 +123,7 @@ class CorrelateBeamSweep():
 
 
     
-    def getAbsOffset(self,shiftedTimes, auto=False):
+    def getAbsOffset(self,shiftedTimes, auto=True):
         """
         The autocorrelation function can only calculate relative time differences
         between pixels. This function defines the absolute time reference (ie. the 
@@ -245,12 +246,23 @@ class ManualRoughBeammap():
         
         self.initialBeammapFN=initialBeammap
         self.roughBeammapFN=roughBeammapFN
-        self.outputBeammapFn = roughBeammapFN.rsplit('.',1)[0]+time.strftime('-%H%M%S')+'.txt'
+        #self.outputBeammapFn = roughBeammapFN.rsplit('.',1)[0]+time.strftime('-%H%M%S')+'.txt'
+        self.outputBeammapFn = roughBeammapFN.rsplit('.',1)[0]+'_clicked.txt'
+        if os.path.isfile(self.outputBeammapFn): self.roughBeammapFN=self.outputBeammapFn
         self.resIDsMap, self.flagMap, self.x_loc, self.y_loc = shapeBeammapIntoImages(self.initialBeammapFN,self.roughBeammapFN)
         if self.roughBeammapFN is None or not os.path.isfile(self.roughBeammapFN):
             self.flagMap[np.where(self.flagMap!=beamMapFlags['noDacTone'])]=beamMapFlags['failed']
 
-        
+        ##Snap to peak
+        #for row in range(len(self.x_loc)):
+        #    for col in range(len(self.x_loc[0])):
+        #        self.x_loc[row, col] = snapToPeak(self.x_images[:,row,col],self.x_loc[row,col],10)
+        #for row in range(len(self.y_loc)):
+        #    for col in range(len(self.y_loc[0])):
+        #        self.y_loc[row, col] = snapToPeak(self.y_images[:,row,col],self.y_loc[row,col],10)
+        #self.saveRoughBeammap()
+
+
         self.goodPix = np.where((self.flagMap!=beamMapFlags['noDacTone']) * (totalCounts_x+totalCounts_y)>0)
         self.nGoodPix = len(self.goodPix[0])
         print 'Pixels with light: ',self.nGoodPix
@@ -293,8 +305,10 @@ class ManualRoughBeammap():
         if np.logical_not(np.isfinite(y_loc)): y_loc=-1
         ln_yLoc=self.ax_time_y.axvline(y_loc,c='r')
         
-        #self.ax_time_x.set_title('Timestreams')
-        self.ax_time_x.set_title('Pix '+str(self.curPixInd)+' resID'+str(int(self.resIDsMap[y,x]))+' ('+str(x)+', '+str(y)+')')
+        
+        #self.ax_time_x.set_title('Pix '+str(self.curPixInd)+' resID'+str(int(self.resIDsMap[y,x]))+' ('+str(x)+', '+str(y)+')')
+        flagStr = [key for key, value in beamMapFlags.items() if value == self.flagMap[y,x]][0]
+        self.ax_time_x.set_title('Pix '+str(self.curPixInd)+'; resID'+str(int(self.resIDsMap[y,x]))+'; ('+str(x)+', '+str(y)+'); flag '+str(flagStr))
         self.ax_time_x.set_ylabel('X counts')
         self.ax_time_y.set_ylabel('Y counts')
         self.ax_time_y.set_xlabel('Timesteps')
@@ -316,21 +330,39 @@ class ManualRoughBeammap():
             self.curPixInd+=1
             self.curPixInd%=self.nGoodPix
             self.updateTimestreamPlot()
+            self.updateXYPlot(1)
+            self.updateFlagMapPlot()
         elif event.key in ['left']: 
             self.curPixInd-=1
             self.curPixInd%=self.nGoodPix
             self.updateTimestreamPlot()
+            self.updateXYPlot(1)
+            self.updateFlagMapPlot()
         elif event.key in ['b']:
             y=self.goodPix[0][self.curPixInd]
             x=self.goodPix[1][self.curPixInd]
             self.x_loc[y,x]=np.nan
             self.y_loc[y,x]=np.nan
             print 'Pix '+str(int(self.resIDsMap[y,x]))+' ('+str(x)+', '+str(y)+') Marked bad'
+            self.updateFlagMap(self.curPixInd)
             self.curPixInd+=1
             self.curPixInd%=self.nGoodPix
             self.updateTimestreamPlot()
             self.updateXYPlot(2)
+            self.updateFlagMapPlot()
+        elif event.key in ['d']:
+            y=self.goodPix[0][self.curPixInd]
+            x=self.goodPix[1][self.curPixInd]
+            if self.flagMap[y,x]!=beamMapFlags['double']:
+                self.flagMap[y,x]=beamMapFlags['double']
+                print 'Pix '+str(int(self.resIDsMap[y,x]))+' ('+str(x)+', '+str(y)+') Marked as double'
+            else:
+                self.flagMap[y,x]=beamMapFlags['good']
+                print 'Pix '+str(int(self.resIDsMap[y,x]))+' ('+str(x)+', '+str(y)+') Un-Marked as double'
+            
             self.updateFlagMap(self.curPixInd)
+            self.updateTimestreamPlot(5)
+            
     
     def onCloseTime(self,event):
         if not self._want_to_close:
@@ -355,18 +387,18 @@ class ManualRoughBeammap():
             if np.logical_not(np.isfinite(offset)): offset=-1
             self.timestreamPlots[1].set_xdata(offset)
         if lineNum==2 or lineNum>=4:
-            self.ax_time_x.set_title('Pix '+str(self.curPixInd)+' resID'+str(int(self.resIDsMap[y,x]))+' ('+str(x)+', '+str(y)+')')
             self.timestreamPlots[2].set_ydata(self.x_images[:,y,x])
             #self.ax_time_x.autoscale(True,'y',True)
             self.ax_time_x.set_ylim(0, 1.05*np.amax(self.x_images[:,y,x]))
             self.ax_time_x.set_xlim(-2, self.nTime_x+2)
         if lineNum==3 or lineNum>=4:
-            self.ax_time_x.set_title('Pix '+str(self.curPixInd)+' resID'+str(int(self.resIDsMap[y,x]))+' ('+str(x)+', '+str(y)+')')
             self.timestreamPlots[3].set_ydata(self.y_images[:,y,x])
             #self.ax_time_y.autoscale(True,'y',True)
             self.ax_time_y.set_ylim(0, 1.05*np.amax(self.y_images[:,y,x]))
             self.ax_time_y.set_xlim(-2, self.nTime_y+2)
-        
+        if lineNum==2 or lineNum==3 or lineNum==4 or lineNum==5:
+            flagStr = [key for key, value in beamMapFlags.items() if value == self.flagMap[y,x]][0]
+            self.ax_time_x.set_title('Pix '+str(self.curPixInd)+'; resID'+str(int(self.resIDsMap[y,x]))+'; ('+str(x)+', '+str(y)+'); flag '+str(flagStr))
         self.fig_time.canvas.draw()
         
     
@@ -378,7 +410,7 @@ class ManualRoughBeammap():
             offset=event.xdata
             if offset<0: offset=np.nan
             if event.inaxes == self.ax_time_x:
-                offset=getPeak(self.x_images[:,y,x],offset)
+                offset=snapToPeak(self.x_images[:,y,x],offset)
                 #fitParams=fitPeak(self.x_images[:,y,x],offset,20)
                 #offset=fitParams[0]
                 #print fitParams
@@ -386,7 +418,7 @@ class ManualRoughBeammap():
                 print 'x: ',offset
                 self.updateTimestreamPlot(0)
             elif event.inaxes == self.ax_time_y:
-                offset=getPeak(self.y_images[:,y,x],offset)
+                offset=snapToPeak(self.y_images[:,y,x],offset)
                 #fitParams=fitPeak(self.y_images[:,y,x],offset,20)
                 #offset=fitParams[0]
                 #print fitParams
@@ -412,7 +444,8 @@ class ManualRoughBeammap():
     def updateFlagMap(self, curPixInd):
         y=self.goodPix[0][curPixInd]
         x=self.goodPix[1][curPixInd]
-        if np.isfinite(self.x_loc[y,x]) * np.isfinite(self.y_loc[y,x]): self.flagMap[y,x]=beamMapFlags['good']
+        if np.isfinite(self.x_loc[y,x]) * np.isfinite(self.y_loc[y,x]): 
+            if self.flagMap[y,x]!=beamMapFlags['double']: self.flagMap[y,x]=beamMapFlags['good']
         elif np.logical_not(np.isfinite(self.x_loc[y,x])) * np.isfinite(self.y_loc[y,x]): self.flagMap[y,x]=beamMapFlags['xFailed']
         elif np.isfinite(self.x_loc[y,x]) * np.logical_not(np.isfinite(self.y_loc[y,x])): self.flagMap[y,x]=beamMapFlags['yFailed']
         elif np.logical_not(np.isfinite(self.x_loc[y,x])) * np.logical_not(np.isfinite(self.y_loc[y,x])): self.flagMap[y,x]=beamMapFlags['failed']
@@ -434,7 +467,7 @@ class ManualRoughBeammap():
         my_cmap.set_bad('k')
         
         flagMap_masked[self.goodPix[0][self.curPixInd],self.goodPix[1][self.curPixInd]]=self.curPixValue
-        self.ln_flags = self.ax_flags.matshow(flagMap_masked, cmap=my_cmap,vmin=0.1, vmax=np.amax(self.flagMap)+.1)
+        self.ln_flags = self.ax_flags.matshow(flagMap_masked, cmap=my_cmap,vmin=0.1, vmax=np.amax(beamMapFlags.values())+.1)
         self.ax_flags.set_title('Flag map')
         #cbar = self.fig_flags.colorbar(flagMap_masked, extend='both', shrink=0.9, ax=self.ax_flags)
         self.fig_flags.canvas.mpl_connect('button_press_event', self.onClickFlagMap)
@@ -494,14 +527,14 @@ class RoughBeammap():
         self.x_images=None
         self.y_images=None
 
-    def stackImages(self, sweepType):
+    def stackImages(self, sweepType, median=True):
         """
-        Should add option for median
+        
         """
         assert sweepType.lower() in ['x','y']
-        imageList = None
+        sweepList = None
         nTimes=0
-        nSweeps=0.
+        nSweeps=0
         for s in self.config.sections():
             if s.startswith("SWEEP") and self.config.get(s,'sweepType').lower() in [sweepType.lower()]:
                 nSweeps+=1.
@@ -509,20 +542,35 @@ class RoughBeammap():
                 imList = self.loadSweepImgs(sweepNum)
                 direction=1
                 if self.config.get(s,'sweepDirection') in ['-']: direction=-1
-                if imageList is None: 
-                    imageList=imList[::direction,:,:]
-                    nTimes=len(imageList)
+                if sweepList is None: 
+                    sweepList=np.asarray([imList[::direction,:,:]])
+                    nTimes=len(imList)
                 else: 
-                    nTimes = min(len(imList), nTimes)
-                    imageList=imageList[:nTimes] + (imList[::direction,:,:])[:nTimes]
+                    if len(imList)<nTimes:
+                        pad = np.empty((nTimes-len(imList), len(imList[0]), len(imList[0][0])))
+                        pad[:]=np.nan
+                        imList = np.concatenate((imList[::direction,:,:], pad),0)
+                    elif len(imList)>nTimes:
+                        pad = np.empty((len(sweepList),len(imList)-nTimes, len(imList[0]), len(imList[0][0])))
+                        pad[:]=np.nan
+                        sweepList = np.concatenate((sweepList,pad),1)
+                        imList=imList[::direction,:,:]
+                    sweepList = np.concatenate((sweepList, imList[np.newaxis, :,:,:]),0)
+                            
+
+
+                    #nTimes = min(len(imList), nTimes)
+                    #imageList=imageList[:nTimes] + (imList[::direction,:,:])[:nTimes]
+        if median: images = np.nanmedian(sweepList,0)
+        else: images = np.nanmean(sweepList,0)
         if sweepType in ['x','X']:
-            self.x_images=imageList/nSweeps
+            self.x_images=images
         else:
-            self.y_images=imageList/nSweeps
-        print 'stacked',nSweeps, sweepType, 'sweeps'
-        return imageList
+            self.y_images=images
+        print 'stacked',int(nSweeps), sweepType, 'sweeps'
+        return images
         
-    def concatImages(self, sweepType):
+    def concatImages(self, sweepType, removeBkg=True):
         """
         This won't work well if the background level or QE of the pixel changes between sweeps...
         Should remove this first
@@ -533,7 +581,10 @@ class RoughBeammap():
             if s.startswith("SWEEP") and self.config.get(s,'sweepType').lower() in [sweepType.lower()]:
                 print 'loading: '+str(s)
                 sweepNum = int(s.rsplit('SWEEP',1)[-1])
-                imList = self.loadSweepImgs(sweepNum)
+                imList = self.loadSweepImgs(sweepNum).astype(np.float)
+                if removeBkg:
+                    bkgndList = np.median(imList,axis=0)
+                    imList-=bkgndList
                 direction=1
                 if self.config.get(s,'sweepDirection') in ['-']: direction=-1
                 if imageList is None: imageList=imList[::direction,:,:]
@@ -544,7 +595,7 @@ class RoughBeammap():
             self.y_images=imageList
         return imageList
 
-    def findLocWithCrossCorrelation(self, sweepType, pixelComputationMask=None):
+    def findLocWithCrossCorrelation(self, sweepType, pixelComputationMask=None, snapToPeaks=True, correctMultiSweep=True):
         """
         This function estimates the location in time for the light peak in each pixel by cross-correlating the timestreams
         See CorrelateBeamSweep class
@@ -555,16 +606,46 @@ class RoughBeammap():
         INPUTS:
             sweepType - either 'x', or 'y'
             pixelComputationMask - see CorrelateBeamSweep.__init__()
+            snapToPeaks - If true, snap the cross-correlation to the biggest nearby peak
+            correctMultiSweep - see self.cleanCrossCorrelationToWrongSweep()
 
         OUTPUTS:
             locs - map of locations for each pixel [units of time]
         """
         imageList=self.concatImages(sweepType)
+
+        #FLMap = getFLMap(self.config.get('initialBeammap'))
+
         sweep = CorrelateBeamSweep(imageList,pixelComputationMask)
         locs=sweep.findRelativePixelLocations()
+        if snapToPeaks:
+            for row in range(len(locs)):
+                for col in range(len(locs[0])):
+                    locs[row, col] = snapToPeak(imageList[:,row,col],locs[row,col])
+        if correctMultiSweep:
+            locs = self.cleanCrossCorrelationToWrongSweep(sweepType, locs)
         if sweepType in ['x','X']: self.x_locs=locs
         else: self.y_locs=locs
         return locs
+
+    def cleanCrossCorrelationToWrongSweep(self, sweepType, locs):
+        """
+        If you're doing a cross-correlation with multiple timestreams concatenated after one another
+        there is a common failure mode where the max cross-correlation will be where the peak in the 
+        first sweep matches the peak in the second sweep. 
+
+        If the sweeps are matched up, this function will correct that systematic error. If the sweep start
+        times aren't matched up then this won't work
+        """
+        dur = []
+        for s in self.config.sections():
+            if s.startswith("SWEEP") and self.config.get(s,'sweepType').lower() in [sweepType.lower()]:
+                dur.append(self.config.getfloat(s,'duration'))
+        
+        for i in range(len(dur)-1):
+            locs[np.where(locs>dur[i])] -= dur[i]
+        return locs
+        
 
     def findLocWithGaussianFit(self,sweepType, locEstimates=None, fitWindow=20):
         """
@@ -662,15 +743,15 @@ if __name__=='__main__':
         raise ValueError
     
     b=RoughBeammap(configFN)
-    b.findLocWithCrossCorrelation('x')
-    b.findLocWithCrossCorrelation('y')
+    #b.findLocWithCrossCorrelation('x')
+    #b.findLocWithCrossCorrelation('y')
     #b.findLocWithGaussianFit('x', b.x_locs, fitWindow=30)
     #b.findLocWithGaussianFit('y', b.y_locs, fitWindow=30)
-    b.saveRoughBeammap()
-    b.concatImages('x')
-    b.concatImages('y')
-    #b.stackImages('x')
-    #b.stackImages('y')
+    #b.saveRoughBeammap()
+    #b.concatImages('x',False)
+    #b.concatImages('y',False)
+    b.stackImages('x')
+    b.stackImages('y')
     b.manualSweepCleanup()
     
 
