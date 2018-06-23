@@ -19,9 +19,19 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 from readDict import readDict
 
+beamMapFlags = {
+                'good':0,           #No flagging
+                'noDacTone':1,      #Pixel not read out
+                'failed':2,         #Beammap failed to place pixel
+                'yFailed':3,        #Beammap succeeded in x, failed in y
+                'xFailed':4,        #Beammap succeeded in y, failed in x
+                'double':5,
+                'wrongFeedline':6   #Beammap placed pixel in wrong feedline
+                }
+
 class BMAligner:
 
-    def __init__(self, beamListFn, nXPix, nYPix, usFactor=10):
+    def __init__(self, beamListFn, nXPix, nYPix, usFactor=50):
         self.beamListFn = beamListFn
         self.usFactor = usFactor
         self.nXPix = nXPix
@@ -32,13 +42,24 @@ class BMAligner:
     def makeRawImage(self):
         self.rawImage = np.zeros((int(np.max(self.rawXs[np.where(np.isfinite(self.rawXs))])*self.usFactor+2), int(np.max(self.rawYs[np.where(np.isfinite(self.rawYs))])*self.usFactor+2)))
         for i, resID in enumerate(self.resIDs):
-            if self.flags[i] == 0:
+            if self.flags[i] == beamMapFlags['good']:
                 if np.isfinite(self.rawXs[i]) and np.isfinite(self.rawYs[i]):
                     self.rawImage[int(round(self.rawXs[i]*self.usFactor)), int(round(self.rawYs[i]*self.usFactor))] = 1
 
-    def fftRawImage(self):
+    def fftRawImage(self, save=True):
         self.rawImageFFT = np.abs(np.fft.fft2(self.rawImage))
         self.rawImageFreqs = [np.fft.fftfreq(self.rawImageFFT.shape[0]), np.fft.fftfreq(self.rawImageFFT.shape[1])]
+        if save:
+            np.savez(os.path.join(os.path.dirname(self.beamListFn), 'rawImageFFT.npz'), rawImageFFT=self.rawImageFFT, rawImageFreqs=self.rawImageFreqs)
+
+    def loadFFT(self, path=None):
+        if path is None:
+            path = os.path.join(os.path.dirname(self.beamListFn), 'rawImageFFT.npz')
+
+        fftDict = np.load(path)
+        self.rawImageFFT = fftDict['rawImageFFT']
+        self.rawImageFreqs = fftDict['rawImageFreqs']
+
     
     def findKvecsAuto(self):
         maxFiltFFT = sciim.maximum_filter(self.rawImageFFT, size=10)
@@ -98,7 +119,7 @@ class BMAligner:
         anglex = np.arctan2(self.xKvec[1], self.xKvec[0])
         angley = np.arctan2(self.yKvec[1], self.yKvec[0]) - np.pi/2
 
-        assert (anglex - angley)/anglex < 0.01, 'x and y kvecs are not perpendicular!'
+        #assert (anglex - angley)/anglex < 0.01, 'x and y kvecs are not perpendicular!'
 
         self.angle = (anglex + angley)/2
         self.xScale = 1/(self.usFactor*np.linalg.norm(self.xKvec))
@@ -273,8 +294,10 @@ if __name__=='__main__':
         print 'Usage: "python alignGrid.py <configFile>", where <configFile> is in MKID_DATA_DIR'
         exit(1)
 
-    mdd = os.environ['MKID_DATA_DIR']
-    cfgFn = os.path.join(mdd, sys.argv[1])
+    cfgFn=sys.argv[1]
+    if not os.path.isfile(cfgFn):
+        mdd = os.environ['MKID_DATA_DIR']
+        cfgFn = os.path.join(mdd, cfgFn)
     paramDict = readDict()
     paramDict.read_from_file(cfgFn)
 
