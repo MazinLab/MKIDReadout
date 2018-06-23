@@ -13,5 +13,6 @@ beamMapFlags = {
                 'yFailed':3,        #Beammap succeeded in x, failed in y
                 'xFailed':4,        #Beammap succeeded in y, failed in x
                 'double':5,         #Multiple locations found for pixel
-                'wrongFeedline':6   #Beammap placed pixel in wrong feedline
+                'wrongFeedline':6,  #Beammap placed pixel in wrong feedline
+                'duplicatePixel':7  #Beammap placed pixel on top of another one, and no neighbor could be found
                 }

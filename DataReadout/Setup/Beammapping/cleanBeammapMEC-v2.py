@@ -17,6 +17,7 @@ import os
 import matplotlib.pyplot as plt
 #from arrayPopup import plotArray
 from readDict import readDict
+from MkidDigitalReadout.DataReadout.Setup.Beammap.beammapFlags import beamMapFlags
 
 def isInCorrectFL(i, x):
     #given a resonator ID (i) and x location
@@ -35,7 +36,7 @@ finalBMFile='finalMap_20180621_test.txt'
 nRows = 145
 nCols = 140
 flipX = True
-outputDirectory = '/home/data/MEC/20180621/beammap/'
+outputDirectory = '/mnt/data0/MEC/20180621/beammap/'
 
 #put together full input/output BM paths
 roughPath = os.path.join(outputDirectory,roughBMFile)
@@ -70,7 +71,7 @@ flags[oobMask]=1
 print "Reflagging: ", flags[oobMask]
         
 #redefine fails now that oob pixels have been properly flagged
-fails = np.array(flags,dtype=np.bool)
+fails = np.array(np.logical_and(flags!=beamMapFlags['good'], flags!=beamMapFlags['double']),dtype=np.bool)
 #define mask of good pixels
 goodMask = (~fails)
 
@@ -79,7 +80,7 @@ goodMask = (~fails)
 #otherwise push it to inside edge of nearest pixel on its correct FL
 #if this causes an overlap, let the overlap code handle it
 
-for (i,flag,x) in zip(ids[goodMask],flags[goodMask],preciseXs[goodMask]):
+for (i,flag,x,y) in zip(ids[goodMask],flags[goodMask],preciseXs[goodMask],preciseYs[goodMask]):
     flguess = np.floor(i/10000.0)-1
     if flipX:
         flpos = 9-flguess
@@ -87,7 +88,7 @@ for (i,flag,x) in zip(ids[goodMask],flags[goodMask],preciseXs[goodMask]):
     if (x<flpos*14-1) or (x>(flpos+1)*14+1):
         print "Pixel ", i, " is out of FL",flguess+1," with x = ", x
         print "Flagged as bad (4)"
-        flags[np.where(ids==i)[0]]=4
+        flags[np.where(ids==i)[0]]=beamMapFlags['wrongFeedline']
         preciseXs[np.where(ids==i)[0]]=999.0
         preciseYs[np.where(ids==i)[0]]=999.0
     elif (x<=flpos*14):
@@ -101,12 +102,24 @@ for (i,flag,x) in zip(ids[goodMask],flags[goodMask],preciseXs[goodMask]):
     else:
         print "Pixel ", i, " in FL",flguess+1," with x = ", x, " is good!"
 
+    if y<-1 or y>146:
+        print "Pixel ", i, "is out of y-range"
+        flags[np.where(ids==i)[0]]=beamMapFlags['failed']
+    elif y<0:
+        print "Pixel ", i, "slightly oob"
+        print "Moved to y = 0"
+        preciseYs[np.where(ids==i)[0]]=0
+    elif y>145:
+        print "Pixel ", i, "slightly oob"
+        print "Moved to y = 144.9"
+        preciseYs[np.where(ids==i)[0]]=144.9
+
 #Define x and y integer position in grid as floor of precise x and y coordinates
 xs = np.floor(preciseXs).astype(np.int)
 ys = np.floor(preciseYs).astype(np.int)
 
 #redefine fails now that out-of-FL pixels have been re-flagged
-fails = np.array(flags,dtype=np.bool)
+fails = np.array(np.logical_and(flags!=beamMapFlags['good'], flags!=beamMapFlags['double']),dtype=np.bool)
 #define mask of good pixels
 goodMask = (~fails)
 
@@ -138,7 +151,7 @@ print 'res',np.min(ids[goodMask]),np.max(ids[goodMask])
 for entry in gridDicts:
     x = entry['x']
     y = entry['y']
-    if entry['fail']==0:
+    if entry['fail']==beamMapFlags['good'] or entry['fail']==beamMapFlags['double']:
         overlapItems = [(item,k) for (k,item) in enumerate(gridDicts) if (item['x'] == entry['x'] and item['y'] == entry['y'])]
         overlapItems,gridIndices = zip(*overlapItems) #unzip
         nPixelsAssigned = len(overlapItems)
@@ -164,6 +177,7 @@ for entry in gridDicts:
                         grid[newY,newX] = 7
                     except IndexError:
                         print 'no neighbor could be found'
+                        gridDicts[gridIndices[j]]['fail'] = beamMapFlags['duplicatePixel']
                     except:
                         print 'error in best-neighbor reassignment'
 
@@ -174,7 +188,7 @@ for entry in gridDicts:
     x = entry['x']
     y = entry['y']
     i = entry['resId']
-    if entry['fail']!=0:
+    if entry['fail']!=beamMapFlags['good'] and entry['fail']!=beamMapFlags['double']:
         unassignedCoords = np.where(grid==0)
         unassignedCoords = zip(unassignedCoords[1],unassignedCoords[0]) #x,y
         unassignedNeighbors = [coord for coord in unassignedCoords]
