@@ -2,11 +2,12 @@
 Author: Alex Walter
 Date: March 26, 2018
 
-This code runs a widesweep with the digital readout
+This code runs a widesweep with the digital readout.
+It takes a list of board numbers, a templarconfig.cfg file, and a file prefix for the output files
 
 Usage:
 From command line
-$ python digitalWS.py 220 221 -c example.cfg -o /home/data/MEC/20180330/example
+$ python digitalWS.py 220 221 -c /home/data/MEC/20180530/templarconf.cfg -o /home/data/MEC/20180530/HypatiaFL7b
 
 From python
 >>> digWS = DigitalWideSweep([220,221], 'example.cfg', '/home/data/MEC/20180330/example')
