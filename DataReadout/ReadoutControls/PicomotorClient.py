@@ -6,6 +6,7 @@ a server running on DARKNESS PC.
 
 import socket
 import sys
+import time
 
 def moveMotor(motor, nsteps ):
     input=file("params.txt",'r')
@@ -14,16 +15,34 @@ def moveMotor(motor, nsteps ):
     TCP_IP=str(lines[0]).rstrip()
     TCP_PORT = int(lines[1])
     BUFFER_SIZE = 10025
+    moveSuccess = False
     try:
-        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        s.connect((TCP_IP, TCP_PORT))
-        s.send(str(motor)+' '+str(nsteps))
-        flag = s.recv(BUFFER_SIZE)
+        for i in range(10):
+            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            s.connect((TCP_IP, TCP_PORT))
+            messageToSend = str(motor) + ' ' + str(nsteps)
+            messageLen = len(messageToSend)
+            totalNumSent = 0
+            while totalNumSent<messageLen:
+                numSent = s.send(messageToSend[totalNumSent:])
+                if(numSent==0):
+                    raise Exception('broken socket connection')
+                totalNumSent += numSent
+            flag = s.recv(BUFFER_SIZE)
+            flag = flag.rstrip()
+            print flag
+            s.close()
+            if(int(flag)==0):
+                moveSuccess = True
+                break
+            time.sleep(0.5)
         s.close()
-        print flag.rstrip()
     except socket.error, msg:
         print 'Failed to create socket. Error code: ' + str(msg[0]) + ' , Error message : ' + msg[1]
         sys.exit()
+
+    if moveSuccess==False:
+        raise Exception('Picomotor move failed after 10 tries')
     return 
 
 def getPosition():
@@ -34,15 +53,30 @@ def getPosition():
     TCP_PORT = int(lines[1])
     BUFFER_SIZE = 10025
     try:
-        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        s.connect((TCP_IP, TCP_PORT))
-        s.send(str(1))
-        positions = s.recv(BUFFER_SIZE)
-        s.close()
-        print positions.rstrip()
+        for i in range(10):
+            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            s.connect((TCP_IP, TCP_PORT))
+            messageToSend = str(1)
+            messageLen = len(messageToSend)
+            totalNumSent = 0
+            while totalNumSent<messageLen:
+                numSent = s.send(messageToSend[totalNumSent:])
+                if(numSent==0):
+                    raise Exception('broken socket connection')
+                totalNumSent += numSent
+            positions = s.recv(BUFFER_SIZE)
+            positions = positions.rstrip()
+            print positions
+            s.close()
+            if(len(positions)>1):
+                moveSuccess = True
+                break
+            time.sleep(0.5)
     except socket.error, msg:
         print 'Failed to create socket. Error code: ' + str(msg[0]) + ' , Error message : ' + msg[1]
         sys.exit()
+    if moveSuccess==False:
+        raise Exception('Picomotor move failed after 10 tries')
     return
 
 

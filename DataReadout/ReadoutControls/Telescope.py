@@ -12,7 +12,7 @@ from PyQt4.QtGui import *
 from PyQt4 import QtCore
 import ephem
 #from lib.getSeeing import getPalomarSeeing  # From old SDR code
-from lib.getSeeing import getPalomarSeeing  # From old SDR code
+from SDR.DataReadout.ReadoutControls.lib.getSeeing import getPalomarSeeing  # From old SDR code
 
 class TelescopeWindow(QMainWindow):
     

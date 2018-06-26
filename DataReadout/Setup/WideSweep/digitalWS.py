@@ -13,7 +13,7 @@ From python
 >>> digWS.startWS(roachNums=[220,221], startFreqs=[3.5E9, 5.5E9], endFreqs=[5.5E9,7.5E9],lo_step=None, DACatten=6., ADCatten=30.,makeNewFreqs=True, resAtten=65)
 
 
-
+Note: Power in dBm is approximately -(resAtten + 12). (so a res atten of 65 will have a power of -77 dBm)
 """
 
 

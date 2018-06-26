@@ -21,8 +21,9 @@ def makeResImage(res_num, angle=0, center_loop=False,  phase_normalise=False, sh
     attenWinBelow = mlDict['attenWinBelow']
 
     #xCenter = self.get_peak_idx(res_num,iAtten,dataObj)
-    start = 0
-    end = mlDict['xWidth']
+    xCenter = len(dataObj.Is[res_num,0,:])
+    start = xCenter - (mlDict['xWidth'])/2 - 1
+    end = xCenter + mlDict['xWidth']/2 
 
     # plt.plot(self.Is[res_num,iAtten], self.Qs[res_num,iAtten])
     # plt.show()

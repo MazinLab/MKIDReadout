@@ -125,11 +125,15 @@ if __name__=='__main__':
     
     wsFile = os.path.join(mdd, sys.argv[1])
     templateFile = os.path.join(templateDir, sys.argv[2])
+
+    sigmaThresh = 1.25
+    nDerivChecks = 2
     
     wsFilt = WSTemplateFilt()
     wsFilt.loadTemplate(templateFile)
-    wsFilt.inferPeaks(wsFile)
+    wsFilt.inferPeaks(wsFile, sigmaThresh, nDerivChecks)
     wsFilt.findLocalMinima()
-    wsFilt.markCollisions()
+    wsFilt.markCollisions(200)
+    print 'Found', len(wsFilt.goodPeakIndices), 'good peaks'
     wsFilt.saveInferenceFile()
 

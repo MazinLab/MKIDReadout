@@ -2,7 +2,7 @@ import numpy as np
 import os, sys
 from WSFitFilt import WSTemplateFilt
 
-templateDir = '.'
+templateDir = 'WSFiltTemplates'
 templateFn = 'Hexis_FL3-template.txt'
 rawWSFnList = ['Hexis_WS_FL3.txt']
 
