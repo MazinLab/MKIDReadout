@@ -3,7 +3,7 @@ from matplotlib import pylab as plt
 from math import fabs
 from scipy.interpolate import UnivariateSpline
 # from datetime import datetime
-#import WSFitSc as Sc
+import WSFitSc as Sc
 import WSFitML as ML
 from params import *
 np.set_printoptions(threshold=np.nan)

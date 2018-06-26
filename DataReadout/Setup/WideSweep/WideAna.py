@@ -282,16 +282,10 @@ class WideAna(QMainWindow):
         self.goodPeakMask = np.zeros(len(self.wsf.x),dtype=np.bool)
         self.badPeakMask = np.zeros(len(self.wsf.x),dtype=np.bool)
         self.collMask = np.zeros(len(self.wsf.x),dtype=np.bool)
-        if os.path.isfile(self.baseFile+"-ml-good.txt"):             # update: use machine learning peak loacations if they've been made
-            print 'loading peak location predictions from', self.baseFile+"-ml-good.txt"
-            peaks = np.loadtxt(self.baseFile+"-ml-good.txt")
-            badPeaks = np.loadtxt(self.baseFile+"-ml-bad.txt")
+        if os.path.isfile(self.baseFile+"-ml.txt"):             # update: use machine learning peak loacations if they've been made
+            print 'loading peak location predictions from', self.baseFile+"-ml.txt"
+            peaks = np.loadtxt(self.baseFile+"-ml.txt")
             peaks = map(int,peaks)
-            badPeaks = np.atleast_1d(badPeaks)
-            badPeaks = map(int, badPeaks)
-            self.badPeakMask[badPeaks] = True
-            peaks = np.array(peaks)
-            badPeaks = np.array(badPeaks)
         else:
             peaks = self.wsf.peaks
         
@@ -300,9 +294,9 @@ class WideAna(QMainWindow):
 
         #remove collisions
         freqsAtPeaks = self.wsf.x[peaks]
-        inds = np.argsort(freqsAtPeaks)
-        peaks=peaks[inds]
-        freqsAtPeaks=freqsAtPeaks[inds]
+        args = np.argsort(freqsAtPeaks)
+        peaks=peaks[args]
+        freqsAtPeaks=freqsAtPeaks[args]
         diffs = freqsAtPeaks[1:] - freqsAtPeaks[:-1]
         diffs = np.append(diffs, [peaks[-1]])
         peaks=np.delete(peaks, np.where(diffs<2.E-9))    #remove duplicate peaks
@@ -342,9 +336,9 @@ class WideAna(QMainWindow):
             
         peaks = np.delete(peaks,colls) #remove collisions (peaks < 0.5MHz apart = < 9 steps apart)
         #peaks = np.delete(peaks,np.where(dist<9)) #remove collisions (peaks < 0.5MHz apart = < 9 steps apart)
-        self.goodPeakMask[peaks] = True
-        self.badPeakMask[colls] = True
-        self.goodPeakMask[colls] = False
+        #self.goodPeakMask[peaks] = True
+        #self.badPeakMask[colls] = True
+        #self.goodPeakMask[colls] = False
 
         self.setCountLabel()
         self.writeToGoodFile()

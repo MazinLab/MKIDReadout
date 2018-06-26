@@ -5,7 +5,7 @@ import makeNoiseSpectrum as mNS
 import warnings
 import matplotlib.pyplot as plt
 reload(mNS)
-#import ipdb
+import ipdb
 
 def makeTemplate(rawData, numOffsCorrIters=1 , decayTime=50, nSigmaTrig=4., isVerbose=False,defaultFilter=[]):
     '''

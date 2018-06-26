@@ -29,9 +29,9 @@
 #define _POSIX_C_SOURCE 200809L
 #define BUFLEN 1500
 #define PORT 50000
-#define XPIX 80 //140
-#define YPIX 125 //145
-#define NROACH 10
+#define XPIX 140
+#define YPIX 145
+#define NROACH 20
 #define SHAREDBUF 536870912
 #define TSOFFS 1514764800
 
@@ -224,14 +224,14 @@ void* Cuber()
     
     FILE *timeFile = fopen("timetestPk6.txt", "w");
 
-    while (1)//(access( "/mnt/ramdisk/QUIT", F_OK ) == -1)
+    while (access( "/home/ramdisk/QUIT", F_OK ) == -1)
     {
        // if it is a new second, zero the image array and start over
        clock_gettime(CLOCK_REALTIME, &spec);   
        s  = spec.tv_sec;
        if( s > olds ) {                 
           // we are in a new second, so write out image array and then zero out the array
-          sprintf(outfile,"/mnt/ramdisk/%d.img",olds);
+          sprintf(outfile,"/home/ramdisk/%d.img",olds);
           wp = fopen(outfile,"wb");
           fwrite(image, sizeof(image[0][0]), XPIX * YPIX, wp);
           fclose(wp);
@@ -285,7 +285,7 @@ void* Cuber()
 
        // if there is data waiting, process it
        pstart = 0;
-       if( oldbr >=  808*1 ) {       
+       if( oldbr >= 808*10 ) {       
           // search the available data for a packet boundary
           //printf("Start Parse\n"); fflush(stdout);
           for( i=1; i<oldbr/8; i++) {
@@ -342,7 +342,7 @@ void* Writer()
     // open shared memory block 1 for photon data
     rptr = OpenShared("/roachstream1");
     
-    //  Write looks for a file on /mnt/ramdisk named "START" which contains the write path.  
+    //  Write looks for a file on /home/ramdisk named "START" which contains the write path.  
     //  If this file is present, enter writing mode
     //  and delete the file.  Keep writing until the file "STOP" file appears.
     //  Shut down if a "QUIT" file appears 
@@ -361,7 +361,7 @@ void* Writer()
 	      sem_post(&sem[0]);
        }
 
-       if( mode == 0 && access( "/mnt/ramdisk/START", F_OK ) != -1 ) {
+       if( mode == 0 && access( "/home/ramdisk/START", F_OK ) != -1 ) {
           // start file exists, go to mode 1
            mode = 1;
            printf("Mode 0->1\n");
@@ -369,10 +369,10 @@ void* Writer()
 
        if( mode == 1 ) {
           // read path from start, generate filename, and open file pointer for writing
-          rp = fopen("/mnt/ramdisk/START","r");
+          rp = fopen("/home/ramdisk/START","r");
           fscanf(rp,"%s",path);
           fclose(rp);
-          remove("/mnt/ramdisk/START");
+          remove("/home/ramdisk/START");
 
           clock_gettime(CLOCK_REALTIME, &spec);   
           s  = spec.tv_sec;
@@ -386,11 +386,11 @@ void* Writer()
        }
 
        if( mode == 2 ) {
-          if ( access( "/mnt/ramdisk/STOP", F_OK ) != -1 ) {
+          if ( access( "/home/ramdisk/STOP", F_OK ) != -1 ) {
              // stop file exists, finish up and go to mode 0
 	         fclose(wp);
              wp = NULL;
-             remove("/mnt/ramdisk/STOP");
+             remove("/home/ramdisk/STOP");
              mode = 0;
              printf("Mode 2->0\n");
           } else {
@@ -422,12 +422,12 @@ void* Writer()
        }
 
        // check for quit flag and then bug out if received! 
-       if( access( "/mnt/ramdisk/QUIT", F_OK ) != -1 ) {
+       if( access( "/home/ramdisk/QUIT", F_OK ) != -1 ) {
           if(wp!=NULL)
 	        fclose(wp);
-          remove("/mnt/ramdisk/START");
-          remove("/mnt/ramdisk/STOP");
-          remove("/mnt/ramdisk/QUIT");
+          remove("/home/ramdisk/START");
+          remove("/home/ramdisk/STOP");
+          remove("/home/ramdisk/QUIT");
           mode = 3;
           printf("Mode 3\n");
        }
@@ -506,7 +506,7 @@ void* Reader()
   //while ( recv(s, buf, BUFLEN, 0) > 0 );
   //printf("READER: buffer clear!\n"); fflush(stdout);
 
-  while (access( "/mnt/ramdisk/QUIT", F_OK ) == -1)
+  while (access( "/home/ramdisk/QUIT", F_OK ) == -1)
   {
     /*
     if (nFrames % 100 == 0)
@@ -613,9 +613,9 @@ int main(void)
     struct readoutstream *rptr1, *rptr2;
     
     // Delete pre-existing control files
-    remove("/mnt/ramdisk/START");
-    remove("/mnt/ramdisk/STOP");
-    remove("/mnt/ramdisk/QUIT");
+    remove("/home/ramdisk/START");
+    remove("/home/ramdisk/STOP");
+    remove("/home/ramdisk/QUIT");
     
     // Initialize and set thread detached attribute
     pthread_attr_init(&attr);

@@ -105,9 +105,7 @@ void ParsePacket( uint16_t image[XPIX][YPIX], char *packet, unsigned int l, uint
        swp = *((uint64_t *) (&packet[i*8]));
        swp1 = __bswap_64(swp);
        data = (struct datapacket *) (&swp1);
-       //image[(data->xcoord)%XPIX][(data->ycoord)%YPIX]++;
-       if( data->xcoord >= XPIX || data->ycoord >= YPIX ) continue;
-       image[data->xcoord][data->ycoord]++;
+       image[(data->xcoord)%XPIX][(data->ycoord)%YPIX]++;
        
        // debug
        //if( (data->xcoord)%XPIX == 25 ) {
@@ -218,7 +216,7 @@ void Cuber()
              if (hdr->start == 0b11111111) {        // found new packet header!
                 //printf("Found new packet header at %d.  roach=%d, frame=%d\n",i,hdr->roach,hdr->frame);
        
-                if( i*8 > 130*8 ) { 
+                if( i*8 > 104*8 ) { 
                    printf("Error - packet too long: %d\n",i);
                    //printf("br = %d : oldbr = %d : i = %d\n",br,oldbr,i);
                    //for(j=0;j<oldbr/8;j++) printf("%d : 0x%X\n",j,(uint64_t) olddata[j*8]);                
@@ -238,8 +236,7 @@ void Cuber()
                 pcount++;
                 ParsePacket(image,packet,i*8,frame);
                 break;  // abort loop and start over!                
-             }
-             /* 
+             } 
              else if (hdr->start == 0b01111111 && hdr->roach == 0b11111111 )  {  // short packet detected
                 // fill packet for parsing
                 //printf("Partial Packet %d\n",i);fflush(stdout);
@@ -255,7 +252,7 @@ void Cuber()
                 ParsePacket(image,packet,i*8,frame);
                 break;  // abort loop and start over!                
                 
-             }  */         
+             }           
              
              // need to check for short/EOF packet, which is one zero and 63 ones
              /*
@@ -505,7 +502,6 @@ void Reader()
     if( n1 == -1) perror("write wwr");
     n2=write(cwrp, buf, nBytesReceived);
     if( n2 == -1) perror("write cwr");
-    
     
     //printf("wrote 2 pipes %d %d!\n",nFrames, nBytesReceived);
 

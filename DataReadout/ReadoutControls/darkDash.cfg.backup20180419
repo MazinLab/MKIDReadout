@@ -1,0 +1,147 @@
+[DEFAULT]
+roachParamFile = /mnt/data0/MkidDigitalReadout/DataReadout/ChannelizerControls/DarknessFpga_V2.param
+#beammapFile = /mnt/data0/Darkness/20160723/beammap20160722.txt
+#beammapFile = /mnt/data0/Darkness/20160723/filledBeammap20160722.txt
+#beammapFile = /mnt/data0/Darkness/20161115/beammaps/finalMap.txt
+beammapFile = /mnt/data0/Darkness/20170317/Beammap/finalMap_20170317.txt
+
+#beammapFile = None
+defaultBeammapFile = /mnt/data0/MkidDigitalReadout/DataReadout/Setup/DARKNESS-Beammapping/default_beammap.txt
+
+[properties]
+instrument = DARKNESS
+# packetmaster3 location
+packetMaster_path = /mnt/data0/MkidDigitalReadout/DataReadout/ReadoutControls/PacketMaster2/PacketMaster2
+# packetmaster2 pipe location (log file)
+#packetMasterLog_path = /dev/null 
+packetMasterLog_path = /mnt/data0/Darkness/20170318/packetmaster.log
+# ramdisk directory to look for .img file made by packetmaster3's cuber routine
+cuber_ramdisk = /mnt/ramdisk/
+
+# ramdisk directory to temporarily store log files
+log_ramdisk = /mnt/ramdisk/         
+
+# When we stop observing, move the log files to disk
+log_dir = /mnt/data0/ScienceData/20170319/
+# Where to save data to disk
+data_dir = /mnt/data0/ScienceData/20170319/
+
+ncols=80
+nrows=125
+# Show this many^2 monitor screen pixels per MKID pixel
+image_scale = 7                     
+num_images_to_save=300
+# Cuber spits out images that are integrated over this amount of time
+packetmaster_image_inttime = 1.0
+# Number of images to average for display
+num_images_to_add = 1
+max_count_rate = 2500
+min_count_rate = 0
+# Num images for dark image
+num_images_for_dark=10
+num_images_for_flat=10
+flatFieldFN = /mnt/ramdisk/flatField.npy
+# Number of lasers for energy cal
+numLasers = 5
+# Names of each laser
+laser0 = 808 nm
+laser1 = 904 nm
+laser2 = 980 nm
+laser3 = 1120 nm
+laser4 = 1310 nm
+laserIPaddress = 10.10.10.12
+laserPort = 8888
+laserReceivePort = 4096
+# Flipper is also controlled with the laser box arduino
+
+
+telescopeipaddress = 198.202.125.194
+telescopePort = 5004
+telescopeReceivePort = 1024
+
+phaseDumpEn_reg = phase_dmp_on
+photonCapStart_reg = start_cap
+
+gbe64rst_reg = gbe64_rst
+# min Frame Period is the min seconds between sending photon data. 2kHz = 125000 clock cycles is good
+minFramePeriod_reg=gbe64_max_frame_period
+minFramePeriod = 125000
+# words per frame describes the maximum size of a UDP packet of photons. 1 photon=1 word. 100 photons is good
+wordsPerFrame_reg = gbe64_words_per_frame
+wordsPerFrame = 100
+destIP_reg = gbe64_dest_ip
+hostIP = 10.0.0.51
+photonPort_reg = photon_port
+photonCapPort = 50000
+
+[Roach 112]
+freqList = /mnt/data0/Darkness/20170317/ps_r112_FL3_a_ptsi_train_normd.txt
+ipaddress = 10.0.0.112
+feedline = 3
+boardRange = a
+sideband = neg
+
+[Roach 114]
+freqList = /mnt/data0/Darkness/20170317/ps_r114_FL3_b_ptsi_train_normd.txt
+ipaddress = 10.0.0.114
+feedline = 3
+boardRange = b
+sideband = neg
+
+[Roach 119]
+freqList = /mnt/data0/Darkness/20170317/ps_r119_FL1_a_ptsi_train_normd.txt
+ipaddress = 10.0.0.119
+feedline = 1
+boardRange = a
+sideband = neg
+
+[Roach 116]
+freqList = /mnt/data0/Darkness/20170317/ps_r116_FL1_b_ptsi_train_normd.txt
+ipaddress = 10.0.0.116
+feedline = 1
+boardRange = b
+sideband = neg
+
+[Roach 117]
+freqList = /mnt/data0/Darkness/20170317/ps_r117_FL2_a_ptsi_train_normd.txt
+ipaddress = 10.0.0.117
+feedline = 2
+boardRange = a
+sideband = neg
+
+[Roach 118]
+freqList = /mnt/data0/Darkness/20170317/ps_r118_FL2_b_ptsi_train_normd.txt
+ipaddress = 10.0.0.118
+feedline = 2
+boardRange = b
+sideband = neg
+
+[Roach 115]
+freqList = /mnt/data0/Darkness/20170317/ps_r115_FL4_a_ptsi_train_normd.txt
+ipaddress = 10.0.0.115
+feedline = 4
+boardRange = a
+sideband = neg
+
+[Roach 120]
+freqList = /mnt/data0/Darkness/20170317/ps_r120_FL4_b_ptsi_train_normd.txt
+ipaddress = 10.0.0.120
+feedline = 4
+boardRange = b
+sideband = neg
+
+[Roach 121]
+freqList = /mnt/data0/Darkness/20170317/ps_r121_FL5_a_ptsi_train_normd.txt
+ipaddress = 10.0.0.121
+feedline = 5
+boardRange = a
+sideband = neg
+
+[Roach 122]
+freqList = /mnt/data0/Darkness/20170317/ps_r122_FL5_b_ptsi_train_normd.txt
+ipaddress = 10.0.0.122
+feedline = 5
+boardRange = b
+sideband = neg
+
+
