@@ -99,7 +99,7 @@ class WideAna(QMainWindow):
         self.segment = 0
         self.calcXminXmax()
         self.plotSegment()
-        print "Ready to add and delete peaks."
+        print "Ready to add and delete peaks." 
 
     def draw(self):
         self.fig.canvas.draw()
@@ -281,6 +281,7 @@ class WideAna(QMainWindow):
             peaks = np.loadtxt(self.baseFile+"-ml-good.txt")
             badPeaks = np.loadtxt(self.baseFile+"-ml-bad.txt")
             peaks = map(int,peaks)
+            badPeaks = np.atleast_1d(badPeaks)
             badPeaks = map(int, badPeaks)
             self.badPeakMask[badPeaks] = True
         else:
@@ -406,6 +407,7 @@ class WideAna(QMainWindow):
                     self.axes.axvline(x=x-0.00010,color='r',linestyle='-.',linewidth=0.5)
             
             self.axes.set_xlim((self.xMin,self.xMax))
+            # self.axes.set_ylim((30, 70)) #20171031
             self.axes.set_title("segment=%.1f/%.1f"%(self.segment,self.segmentMax))
             #self.axes.legend().get_frame().set_alpha(0.5)
             self.draw()

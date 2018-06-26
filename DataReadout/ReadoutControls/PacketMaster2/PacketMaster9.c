@@ -675,7 +675,7 @@ void* Cuber(void *prms)
 
        // if there is data waiting, process it
        pstart = 0;
-       if( oldbr >= 808 ) {       
+       if( oldbr >= 10*808 ) {       
           // search the available data for a packet boundary
           //printf("Start Parse\n"); fflush(stdout);
           for( i=1; i<oldbr/8; i++) {
@@ -736,9 +736,9 @@ void* Writer(void *prms)
 
     printf("Rev up the RAID array, WRITER is active!\n");
 
-    sprintf(startFileName, "%s/%s", params->ramdiskPath, "START");
-    sprintf(stopFileName, "%s/%s", params->ramdiskPath, "STOP");
-    sprintf(quitFileName, "%s/%s", params->ramdiskPath, "QUIT");
+    sprintf(startFileName, "%s%s", params->ramdiskPath, "START");
+    sprintf(stopFileName, "%s%s", params->ramdiskPath, "STOP");
+    sprintf(quitFileName, "%s%s", params->ramdiskPath, "QUIT");
 
     // open shared memory block 1 for photon data
     rptr = OpenShared("/roachstream1");
@@ -771,9 +771,11 @@ void* Writer(void *prms)
        if( mode == 1 ) {
           // read path from start, generate filename, and open file pointer for writing
           rp = fopen(startFileName,"r");
+          printf("start file name: %s\n", startFileName);
           fscanf(rp,"%s",path);
           fclose(rp);
           remove(startFileName);
+          fprintf("path: %s\n", path);
 
           clock_gettime(CLOCK_REALTIME, &spec);   
           s  = spec.tv_sec;

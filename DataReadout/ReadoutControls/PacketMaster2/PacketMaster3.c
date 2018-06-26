@@ -129,13 +129,15 @@ void ParsePacket( uint16_t image[XPIX][YPIX], char *packet, unsigned int l, uint
     curroach = hdr->roach;
         
     // check for missed frames and print an error if we got the wrong frame number
+/*
     if( frame[curroach] != curframe) {
-        //printf("Roach %d: Expected Frame %d, Received Frame %d\n",curroach,frame[curroach],curframe); fflush(stdout);
+        printf("Roach %d: Expected Frame %d, Received Frame %d\n",curroach,frame[curroach],curframe); fflush(stdout);
         frame[curroach] = (frame[curroach]+1)%4096;
     }
     else {
         frame[curroach] = (frame[curroach]+1)%4096;
     }
+*/
 
     for(i=1;i<l/8;i++) {
        
@@ -184,7 +186,7 @@ void Cuber()
     
     // open shared memory block 2 for photon data
     rptr = OpenShared("/roachstream2");    
-    olddata = (char *) malloc(sizeof(char)*16777216);
+    olddata = (char *) malloc(sizeof(char)*SHAREDBUF);
     
     //printf("struct sizes = %d, %d\n",sizeof(struct hdrpacket),sizeof(struct datapacket));
 
@@ -239,7 +241,7 @@ void Cuber()
              memmove(&olddata[oldbr],rptr->data,br);
              oldbr+=br;
              rptr->unread = 0;
-             if (oldbr > 16000000) {
+             if (oldbr > SHAREDBUF-2000) {
                 printf("oldbr = %d",oldbr); fflush(stdout);             
              }
           } 
@@ -282,7 +284,7 @@ void Cuber()
                 oldbr = oldbr-i*8;
                    
                 // parse it!
-                if( oldbr < 16100000 ) {  // if buffer is full don't parse it - no time!
+                if( oldbr < SHAREDBUF-5000 ) {  // if buffer is full don't parse it - no time!
                     pcount++;                
                     ParsePacket(image,packet,i*8,frame);
                 }
@@ -550,7 +552,7 @@ void Reader()
     // write the socket data to shared memory
     while( rptr1->busy == 1 ) continue;
     rptr1->busy = 1;
-    if( rptr1->unread >= (524288 - BUFLEN) ) {
+    if( rptr1->unread >= (SHAREDBUF - BUFLEN) ) {
        perror("Data overflow 1 in Reader.\n");   
     } 
     else {
@@ -561,7 +563,7 @@ void Reader()
 
     while( rptr2->busy == 1 ) continue;
     rptr2->busy = 1;
-    if( rptr2->unread >= (524288 - BUFLEN) ) {
+    if( rptr2->unread >= (SHAREDBUF - BUFLEN) ) {
        perror("Data overflow 2 in Reader.\n");   
     } 
     else {

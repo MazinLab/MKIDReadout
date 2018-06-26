@@ -314,6 +314,9 @@ class WideAna(QMainWindow):
         self.setCountLabel()
         self.writeToGoodFile()
 
+        b, a = signal.cheby2(order, rs, wn, btype='high', analog=False)
+        self.wsf.mag = signal.filtfilt(b, a, mags)
+
     def setCountLabel(self):
         self.countLabel.setText("Number of good peaks = %d"%self.goodPeakMask.sum())
 

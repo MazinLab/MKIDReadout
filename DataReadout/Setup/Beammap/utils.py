@@ -213,10 +213,12 @@ def fitPeak(timestream, initialGuess=None, fitWindow=20):
         offset=np.median(timestream)
         scale = np.amax(timestream) - offset
         print [initialGuess+minT, scale, width,offset]
-        fitParams, _ = spo.curve_fit(gaussian, xdata=range(len(timestream)), ydata=timestream, p0=[initialGuess, scale, width,offset], sigma=np.sqrt(timestream))
+        bounds = ([0, 0.5*scale, 0.1*width, 0], [2*fitWindow, 3*scale, 10*width, 3*offset])
+        fitParams, pcov = spo.curve_fit(gaussian, xdata=range(len(timestream)), ydata=timestream, p0=[initialGuess, scale, width,offset], bounds=bounds, method='dogbox', max_nfev=50000, verbose=2)
         if fitParams[0]<0 or fitParams[0]>len(timestream):
             raise RuntimeError('Fit center is outside the available range')
         fitParams[0]+=minT
+        print 'pcov', pcov
         return fitParams
     except RuntimeError:
         return [initialGuess+minT, None, None]
