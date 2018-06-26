@@ -287,7 +287,7 @@ class PSFitMLData():
                 sys.stdout.flush()
                 res = PSFit.loadres(self.useResID)
                 if self.useResID:
-                    resIDs[r] = res['resID']
+                    resIDs[r] = res['resID']+0
                 else:
                     resIDs[r] = r
                 freqs[r,:] =res['freq']

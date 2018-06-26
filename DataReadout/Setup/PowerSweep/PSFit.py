@@ -28,6 +28,7 @@ from os.path import isfile
 #import installed libraries
 from matplotlib import pylab
 from matplotlib import pyplot as plt
+import ConfigParser
 from numpy import *
 import numpy
 from PyQt4.QtGui import *
@@ -55,23 +56,31 @@ class StartQt4(QMainWindow):
         QObject.connect(self.ui.savevalues, SIGNAL("clicked()"), self.savevalues)
         QObject.connect(self.ui.jumptores, SIGNAL("clicked()"), self.jumptores)
 
-        self.widesweep=None
-        self.h5resID_offset=0
-        self.wsresID_offset=0
+        
         try:
-            path='/home/data/MEC/20180517/'
-            ws_FN = 'HypatiaFL5b_digWS_r222.txt'
-            ws_freqs_all_FN = 'HypatiaFL5b_digWS_r222-freqs-all.txt'
-            ws_freqs_good_FN = 'HypatiaFL5b_digWS_r222-freqs-good.txt'
-            self.widesweep=numpy.loadtxt(path+ws_FN)  #freq, I, Q
-            self.widesweep_goodFreqs = numpy.loadtxt(path+ws_freqs_good_FN ,usecols=[2])
-            self.widesweep_allResIDs,self.widesweep_allFreqs = numpy.loadtxt(path+ws_freqs_all_FN,usecols=[0,2],unpack=True)
-            self.h5resID_offset=4
-            self.wsresID_offset=968
+            config = ConfigParser.ConfigParser()
+            config.read('/home/data/MEC/20180620/wsData.cfg')
+            fl = 'FL6b'
+            ws_FN = config.get(fl, 'widesweep_FN')
+            ws_freqs_all_FN = config.get(fl, 'ws_freqs_all_FN')
+            ws_freqs_good_FN = config.get(fl, 'ws_freqs_good_FN')
+
+            #path='/home/data/MEC/20180618/'
+            #ws_FN = 'HypatiaFL8_WS.txt'
+            #ws_freqs_all_FN = 'HypatiaFL8_WS-freqs-all.txt'
+            #ws_freqs_good_FN = 'HypatiaFL8_WS-freqs-good.txt'
+            self.widesweep=numpy.loadtxt(ws_FN)  #freq, I, Q
+            self.widesweep_goodFreqs = numpy.loadtxt(ws_freqs_good_FN ,usecols=[2])
+            self.widesweep_allResIDs,self.widesweep_allFreqs = numpy.loadtxt(ws_freqs_all_FN,usecols=[0,2],unpack=True)
+            self.h5resID_offset=config.getint(fl, 'h5resID_offset')
+            self.wsresID_offset=config.getint(fl, 'wsresID_offset')
             self.widesweep_allResIDs+=self.wsresID_offset
-        except IOError:
+        except (IOError, ConfigParser.NoSectionError):
             print 'Could not load widewseep data :-('
-            pass
+            self.widesweep=None
+            self.h5resID_offset=0
+            self.wsresID_offset=0
+            
 
         self.navi_toolbar = NavigationToolbar(self.ui.plot_3.canvas, self)
         self.ui.plot_3.canvas.setFocusPolicy( Qt.ClickFocus )
