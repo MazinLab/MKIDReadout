@@ -1,5 +1,5 @@
 
-
+#TODO break out into a helper repository
 from scipy.interpolate import griddata 
 import numpy as np
 import matplotlib.pyplot as plt

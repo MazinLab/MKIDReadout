@@ -93,4 +93,4 @@ class Ui_MainWindow(object):
         self.label_3.setText(QtGui.QApplication.translate("MainWindow", "Atten:", None, QtGui.QApplication.UnicodeUTF8))
         self.jumptores.setText(QtGui.QApplication.translate("MainWindow", "Jump to Res", None, QtGui.QApplication.UnicodeUTF8))
 
-from lib.mpl_pyqt4_widget import MPL_Widget
+from ..Beammapping.mpl_pyqt4_widget import MPL_Widget

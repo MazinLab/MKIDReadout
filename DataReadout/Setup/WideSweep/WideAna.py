@@ -282,10 +282,14 @@ class WideAna(QMainWindow):
         self.goodPeakMask = np.zeros(len(self.wsf.x),dtype=np.bool)
         self.badPeakMask = np.zeros(len(self.wsf.x),dtype=np.bool)
         self.collMask = np.zeros(len(self.wsf.x),dtype=np.bool)
-        if os.path.isfile(self.baseFile+"-ml.txt"):             # update: use machine learning peak loacations if they've been made
-            print 'loading peak location predictions from', self.baseFile+"-ml.txt"
-            peaks = np.loadtxt(self.baseFile+"-ml.txt")
+        if os.path.isfile(self.baseFile+"-ml-good.txt"):             # update: use machine learning peak loacations if they've been made
+            print 'loading peak location predictions from', self.baseFile+"-ml-good.txt"
+            peaks = np.loadtxt(self.baseFile+"-ml-good.txt")
+            badPeaks = np.loadtxt(self.baseFile+"-ml-bad.txt")
             peaks = map(int,peaks)
+            badPeaks = np.atleast_1d(badPeaks)
+            badPeaks = map(int, badPeaks)
+            self.badPeakMask[badPeaks] = True
         else:
             peaks = self.wsf.peaks
         
@@ -336,9 +340,9 @@ class WideAna(QMainWindow):
             
         peaks = np.delete(peaks,colls) #remove collisions (peaks < 0.5MHz apart = < 9 steps apart)
         #peaks = np.delete(peaks,np.where(dist<9)) #remove collisions (peaks < 0.5MHz apart = < 9 steps apart)
-        #self.goodPeakMask[peaks] = True
-        #self.badPeakMask[colls] = True
-        #self.goodPeakMask[colls] = False
+        self.goodPeakMask[peaks] = True
+        self.badPeakMask[colls] = True
+        self.goodPeakMask[colls] = False
 
         self.setCountLabel()
         self.writeToGoodFile()
