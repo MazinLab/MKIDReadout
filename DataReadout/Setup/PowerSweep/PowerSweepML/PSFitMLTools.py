@@ -21,19 +21,30 @@ def makeResImage(res_num, angle=0, center_loop=False,  phase_normalise=False, sh
     attenWinBelow = mlDict['attenWinBelow']
 
     #xCenter = self.get_peak_idx(res_num,iAtten,dataObj)
-    xCenter = len(dataObj.Is[res_num,0,:])
-    start = xCenter - (mlDict['xWidth'])/2 - 1
-    end = xCenter + mlDict['xWidth']/2 
+    nFreqPoints = len(dataObj.Is[res_num,0,:])
+
+    if nFreqPoints >= xWidth:
+        xCenter = nFreqPoints/2
+        start = xCenter - int(np.ceil(mlDict['xWidth']/2.))
+        end = xCenter + int(np.floor(mlDict['xWidth']/2.))
+        iq_vels = dataObj.iq_vels[res_num, :, start:end]
+        Is = dataObj.Is[res_num,:,start:end]
+        Qs = dataObj.Qs[res_num,:,start:end]
+        freqs = dataObj.freqs[res_num]
+
+    else:
+        nPadVals = (xWidth - nFreqPoints)/2.
+        iq_vels = np.pad(dataObj.iq_vels[res_num,:,:], [(0,0),(0,0),(int(np.ceil(nPadVals)), int(np.floor(nPadVals)+1))], 'edge')
+        Is = np.pad(dataObj.Is[res_num,:,:], [(0,0),(0,0),(int(np.ceil(nPadVals)), int(np.floor(nPadVals)))], 'edge')
+        Qs = np.pad(dataObj.Qs[res_num,:,:], [(0,0),(0,0),(int(np.ceil(nPadVals)), int(np.floor(nPadVals)))], 'edge')
+        freqs = np.pad(dataObj.freqs[res_num], (int(np.ceil(nPadVals)), int(np.floor(nPadVals))), 'edge')
+        
 
     # plt.plot(self.Is[res_num,iAtten], self.Qs[res_num,iAtten])
     # plt.show()
     # for spectra where the peak is close enough to the edge that some points falls across the bounadry, pad zeros
 
     
-    iq_vels = dataObj.iq_vels[res_num, :, start:end]
-    Is = dataObj.Is[res_num,:,start:end]
-    Qs = dataObj.Qs[res_num,:,start:end]
-    freqs = dataObj.freqs[res_num]
 
     if center_loop:
         Is = np.transpose(np.transpose(Is) - np.mean(Is,1))
