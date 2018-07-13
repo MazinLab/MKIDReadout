@@ -1,46 +1,50 @@
 
 # coding: utf-8
-# FLAG DEFINITIONS
-# 0: Good
-# 1: Pixel not read out
-# 2: Beammap failed to place pixel
-# 3: Succeeded in x, failed in y
-# 4: Succeeded in y, failed in x
-# 5: Multiple locations found for pixel
-# 6: Beammap placed the pixel in the wrong feedline
+'''
+ FLAG DEFINITIONS
+ 0: Good
+ 1: Pixel not read out
+ 2: Beammap failed to place pixel
+ 3: Succeeded in x, failed in y
+ 4: Succeeded in y, failed in x
+ 5: Multiple locations found for pixel
+ 6: Beammap placed the pixel in the wrong feedline
+'''
 
 import numpy as np
-import glob
+from MKIDDigitalReadout.DataReadout.Setup.Beammap.mapcheckertesting import feedline
 import matplotlib.pyplot as plt
-from MKIDDigitalReadout.DataReadout.Setup.Beammap import feedline
+import time
 
-design_feedline=np.loadtxt("mec_feedline.txt")
-feedline_file_name="finalMap_20180605"
-beammap=np.loadtxt(r"beammapTestData/test/finalMap_20180605.txt")
-freqsweeps = glob.glob("beammapTestData/test/ps_*")
+# THESE PATH VARIABLES ARE FOR LOCAL DEVELOPMENT ONLY, DO NOT USE
+noah_design_feedline_path = r"C:\Users\njswi\PycharmProjects\BeammapPredictor\predictor\mec_feedline.txt"
+# noah_feedline_file_name = "finalMap_20180605"
+noah_beammap_path = r"C:\Users\njswi\PycharmProjects\BeammapPredictor\predictor\beammapTestData\test\finalMap_20180605.txt"
+noah_freqsweeps_path = r"C:\Users\njswi\PycharmProjects\BeammapPredictor\predictor\beammapTestData\test\ps_*"
+
+design_feedline=np.loadtxt(noah_design_feedline_path)
+
+print(time.time())
+fl9 = feedline.Feedline(noah_design_feedline_path, noah_beammap_path, noah_freqsweeps_path, 9)
+print(time.time())
+fl8 = feedline.Feedline(noah_design_feedline_path, noah_beammap_path, noah_freqsweeps_path, 8)
+print(time.time())
 
 
-# Define a function to see which flags appear most (or least), mostly just a way to
-# Quanitfy the 'goodness' of an array
-# This should be either added into the feedline class or updated to account for the new data structure
-def flag_counter (beammap_array) :
-    flag_list=[0,0,0,0,0,0,0]
-    for  n in range(len(beammap_array)):
-        if int(beammap_array[n][1])==0:
-            flag_list[0]=flag_list[0]+1
-        elif int(beammap_array[n][1])==1:
-            flag_list[1]=flag_list[1]+1
-        elif int(beammap_array[n][1])==2:
-            flag_list[2]=flag_list[2]+1
-        elif int(beammap_array[n][1])==3:
-            flag_list[3]=flag_list[3]+1
-        elif int(beammap_array[n][1])==4:
-            flag_list[4]=flag_list[4]+1
-        elif int(beammap_array[n][1])==5:
-            flag_list[5]=flag_list[5]+1
-        else:
-            flag_list[6]=flag_list[6]+1
-    return flag_list
+# sarah_design_feedline_path = np.loadtxt("")
+# sarah_feedline_file_name = ""
+# sarah_beammap_path = np.loadtxt(r"")
+# saraah_freqsweeps_path = glob.glob("")
+
+
+# feedline1 = feedline.Feedline(noah_design_feedline_path, noah_beammap_path, noah_freqsweeps_path, 1)
+# feedline5 = feedline.Feedline(noah_design_feedline_path, noah_beammap_path, noah_freqsweeps_path, 5)
+# feedline6 = feedline.Feedline(noah_design_feedline_path, noah_beammap_path, noah_freqsweeps_path, 6)
+# feedline7 = feedline.Feedline(noah_design_feedline_path, noah_beammap_path, noah_freqsweeps_path, 7)
+# feedline8 = feedline.Feedline(noah_design_feedline_path, noah_beammap_path, noah_freqsweeps_path, 8)
+# feedline9 = feedline.Feedline(noah_design_feedline_path, noah_beammap_path, noah_freqsweeps_path, 9)
+# feedline10 = feedline.Feedline(noah_design_feedline_path, noah_beammap_path, noah_freqsweeps_path, 10)
+
 
 '''
 Come back to this function later if necessary, used during development to analyze a full array (as opposed to only feedlines)
