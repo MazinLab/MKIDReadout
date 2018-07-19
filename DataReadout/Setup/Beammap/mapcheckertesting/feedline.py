@@ -28,18 +28,21 @@ class Feedline:
                 else:
                     array[i][j][5] = float('NaN')
 
-        # data has [ResID, freq, flag, x, y]
+        # data has [ResID, freq (with unread pixels as 0), flag, x, y, frequencies (with unread pixels as NaN)]
         self.count = counter
         self.data = array
         self.freqs = array[:, :, 1]
-        self.normalizedfreqs = array[:, :, 5]
+        self.name = "Feedline "+str(fl_num)
         # finding minimim (nonzero) frequency value
         self.min = np.amin(array[:, :, 1][np.nonzero(array[:, :, 1])])
         self.max = np.amax(array[:, :, 1])
         self.number = fl_num
+        # normfreqs shifts the zero point of the array in frequency space to 0 MHz
+        self.normfreqs = array[:, :, 5] - self.min
+
 
     # methods
-    def ResID(self, freq):
+    def ResIDfreq(self, freq):
         for i in range(len(self.data)):
             for j in range(len(self.data[i])):
                 if freq == self.data[i][j][1]:
@@ -47,7 +50,7 @@ class Feedline:
                 else:
                     print("We do not have a resonator for that frequency")
 
-    def ResID(self, x, y):
+    def ResIDpos(self, x, y):
         return self.data[y][x][0]
 
     def x(self, ResID):
@@ -82,10 +85,13 @@ def array_organizer (beammapfile, freqsweeps, devicename):
     else :
         device_file=str(devicename)+'_array.npy'
 
-    if os.path.isfile(os.path.normpath('MKIDDigitalReadout/DataReadout/Setup/Beammap/mapcheckertesting/'+device_file)):
-        good=np.load('MKIDDigitalReadout/DataReadout/Setup/Beammap/mapcheckertesting/'+device_file)
+    if os.path.isfile(os.path.normpath(device_file)):
+
+        good=np.load(device_file)
+
         return good
     else :
+
         beammap=np.loadtxt(beammapfile)
         FreqSweepFiles = glob.glob(freqsweeps)
         final_map=np.zeros((146,140,5))
@@ -101,6 +107,7 @@ def array_organizer (beammapfile, freqsweeps, devicename):
         for i in range(len(FreqSweepFiles)- 1):
             sweep = np.loadtxt(FreqSweepFiles[i+1])
             freqarr = np.concatenate((freqarr, sweep))
+
         frequencies = freqarr[:,1]
         for i in range(len(final_map)):
             for j in range(len(final_map[0])):
@@ -111,5 +118,5 @@ def array_organizer (beammapfile, freqsweeps, devicename):
                 else:
                     good[i][j][1] = 0
 
-        np.save('MKIDDigitalReadout/DataReadout/Setup/Beammap/mapcheckertesting/'+device_file, good)
+        np.save(device_file, good)
         return good
