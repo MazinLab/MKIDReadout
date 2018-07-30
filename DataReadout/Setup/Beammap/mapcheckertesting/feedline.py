@@ -6,16 +6,26 @@ import glob
 import os
 
 
-# NOTE : Update this class to reject/notify the user if they are trying to analyze a 'bad' feedline
-# Figure out what constitutes 'bad'... <100,500,1000 pixels?
-class Feedline:
-    # instantiating the class
+'''NOTE : Update this class to reject/notify the user if they are trying to analyze a 'bad' feedline.
+Figure out what constitutes 'bad'... <100, 500, 1000 pixels?, at least anything completely empty should return "bad"'''
 
+
+class Feedline:
+
+    # instantiating the class
     def __init__(self, modelfile, beammapfile, freqsweeps, fl_num):
 
+        # Load the model feedline data (format is that at each 'coordinate' the value in the array is the design
+        # frequency, measured from 0), the 'good' array is the formatted data from the full array you give it info from
+        # The first time an array is analyzed is takes longer because of the indexfinder function, but then it speeds up
+        # The array called 'good' is just an intermediate step for ease of formatting, it is never used directly
         model = np.loadtxt(modelfile)
         good = array_organizer(beammapfile, freqsweeps, 'Hypatia')
 
+        # Take the data from your array (140-by-146) and create a feedline (14-by-146) from it
+        # The result of this block will be a (146, 14, 6) data cube where each 'location' is a resID and the
+        # third dimension is of the form [resID, frequency (0 for unmeasured pixels), flag, x (column),
+        # y (row), frequency (with NaN for unmeasured pixels)]
         counter = 0
         array = np.zeros((len(model), len(model[0]), 6))
         for i in range(len(model)):
@@ -28,20 +38,19 @@ class Feedline:
                 else:
                     array[i][j][5] = float('NaN')
 
-        # data has [ResID, freq (with unread pixels as 0), flag, x, y, frequencies (with unread pixels as NaN)]
-        self.count = counter
-        self.data = array
-        self.freqs = array[:, :, 1]
-        self.name = "Feedline "+str(fl_num)
-        # finding minimim (nonzero) frequency value
-        self.min = np.amin(array[:, :, 1][np.nonzero(array[:, :, 1])])
-        self.max = np.amax(array[:, :, 1])
-        self.number = fl_num
-        # normfreqs shifts the zero point of the array in frequency space to 0 MHz
-        self.normfreqs = array[:, :, 5] - self.min
+        self.count = counter  # Gives the number of pixels placed on the given feedline
+        self.data = array  # (146, 14, 6) array of the form above
+        self.freqs = array[:, :, 1]  # (146, 14) array that has the frequencies as they were measured (0 is unmeasured)
+        self.name = "Feedline "+str(fl_num)  # Gives feedline name and number as string (included to help titles plots)
+        self.min = np.amin(array[:, :, 1][np.nonzero(array[:, :, 1])])  # Minimum measured frequency value (MHz)
+        self.max = np.amax(array[:, :, 1])  # Maximum measured frequency value (MHz)
+        self.number = fl_num  # More ID information, may be able to delete in future
+        self.normfreqs = array[:, :, 5] - self.min  # Shifts the minimum measured frequency to be 0 MHz
 
+    # Class methods
 
-    # methods
+    # Calling this with a frequency value (originally measured) returns the resID associated
+    # Consider playing with the precision necessary for this (to the tenths place?)
     def ResIDfreq(self, freq):
         for i in range(len(self.data)):
             for j in range(len(self.data[i])):
@@ -50,9 +59,11 @@ class Feedline:
                 else:
                     print("We do not have a resonator for that frequency")
 
+    # Giving this an x and y value returns the resID of the pixel at that location (returns 0 if none associated)
     def ResIDpos(self, x, y):
         return self.data[y][x][0]
 
+    # Giving this an resID returns the x value (column) that the resID falls into
     def x(self, ResID):
         for i in range(len(self.data)):
             for j in range(len(self.data[i])):
@@ -61,6 +72,7 @@ class Feedline:
                 else:
                     print("Invalid ResID")
 
+    # Giving this an resID returns the y value (row) that the resID falls into
     def y(self, ResID):
         for i in range(len(self.data)):
             for j in range(len(self.data[i])):
@@ -70,7 +82,7 @@ class Feedline:
                     print("Invalid ResID")
 
 
-
+# Takes in a resID and the frequency sweep data and matches a measured frequency to a resID
 def indexfinder(val, twoDarr):
     for i in range(len(twoDarr)):
         if int(twoDarr[i][0]) == int(val):
@@ -78,12 +90,15 @@ def indexfinder(val, twoDarr):
     return -1
 
 
+'''This function takes in all of the files for an array and creates the (146,14,5) array that is used to get feedlines
+In the event an array has been analyzed before, it goes quickly and simply loads the already formatted data, otherwise
+it reads in all of the data and organizes it so that we can use it properly in the Feedline class'''
 def array_organizer (beammapfile, freqsweeps, devicename):
 
     if type(devicename) == 'str':
-        device_file=devicename+'_array.npy'
+        device_file = devicename+'_array.npy'
     else :
-        device_file=str(devicename)+'_array.npy'
+        device_file = str(devicename)+'_array.npy'
 
     if os.path.isfile(os.path.normpath(device_file)):
 
@@ -92,28 +107,29 @@ def array_organizer (beammapfile, freqsweeps, devicename):
         return good
     else :
 
-        beammap=np.loadtxt(beammapfile)
+        beammap = np.loadtxt(beammapfile)
         FreqSweepFiles = glob.glob(freqsweeps)
-        final_map=np.zeros((146,140,5))
+        final_map = np.zeros((146,140,5))
 
         for n in range(len(beammap)):
-            final_map[int(beammap[n][3])][int(beammap[n][2])][0]=beammap[n][0]
-            final_map[int(beammap[n][3])][int(beammap[n][2])][2]=beammap[n][1]
-            final_map[int(beammap[n][3])][int(beammap[n][2])][3]=beammap[n][2]
-            final_map[int(beammap[n][3])][int(beammap[n][2])][4]=beammap[n][3]
+            final_map[int(beammap[n][3])][int(beammap[n][2])][0] = beammap[n][0]
+            final_map[int(beammap[n][3])][int(beammap[n][2])][2] = beammap[n][1]
+            final_map[int(beammap[n][3])][int(beammap[n][2])][3] = beammap[n][2]
+            final_map[int(beammap[n][3])][int(beammap[n][2])][4] = beammap[n][3]
 
         good = np.copy(final_map)
         freqarr = np.loadtxt(FreqSweepFiles[0])
-        for i in range(len(FreqSweepFiles)- 1):
+        for i in range(len(FreqSweepFiles) - 1):
             sweep = np.loadtxt(FreqSweepFiles[i+1])
             freqarr = np.concatenate((freqarr, sweep))
 
-        frequencies = freqarr[:,1]
+        # Currently this only places pixels with a 0 flag, consider revamping this to take in all pixels that were read
+        # and then making the distinction between well-placed and poorly-placed pixels later
         for i in range(len(final_map)):
             for j in range(len(final_map[0])):
                 ResID = good[i][j][0]
                 index = indexfinder(ResID, freqarr)
-                if index != -1 and int(final_map[i][j][2])==0:
+                if index != -1 and int(final_map[i][j][2]) == 0:
                     good[i][j][1] = freqarr[index][1]/(10.**6)
                 else:
                     good[i][j][1] = 0

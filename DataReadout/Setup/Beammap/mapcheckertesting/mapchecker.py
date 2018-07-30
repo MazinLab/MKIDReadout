@@ -11,12 +11,86 @@
  6: Beammap placed the pixel in the wrong feedline
 '''
 import numpy as np
-import emcee
-import time
-import matplotlib.pyplot as plt
+import emcee # Used in early development, don't delete until guaranteed not to use this package
+import scipy.optimize as opt
 
 noah_design_feedline_path = r"C:\Users\njswi\PycharmProjects\BeammapPredictor\predictor\mec_feedline.txt"
 design_feedline=np.loadtxt(noah_design_feedline_path)
+
+
+'''Based on a model for our data fit to a polynomial find the residuals between the measured data and the model.
+This is formatted to be used in the non-linear least squares regression code block'''
+def residuals(parameters, feedlineobject, model):
+    p = np.poly1d(parameters)
+    ydata, modeldata = flattendata(feedlineobject,model)
+    err = ydata - p(modeldata)
+    return err
+
+
+'''Because we are working in a space where we do not know the ideal number of parameters to fit, create a function
+where we can specify the order of the polynomial we want to describe our model with, which will then let us find out
+what order polynomial allows us to minimize our residuals by nonlinear least squares regression (maximimizing likelihood)
+NOTE: This works in conjunction with the feedlinefitter function based on the order it is given, which can be specific
+or run through a large number of orders to see which fits best'''
+def initialparamguesser(feedlineobject, model, order):
+    ydata, modeldata = flattendata(feedlineobject, model)
+    params = np.polyfit(modeldata, ydata, order, full=True)[0]
+    return params
+
+
+''' Create a function which flattens the data to conveniently work in frequency space, ensuring that the model data and
+measured data match each other, which is to say that at a given index in the 1D array, the ydata array shows the frequency
+that was measured at a given position, will at the same index, the modeldata array gives the design frequency at the same
+coordinate. '''
+def flattendata(feedlineobject, model):
+    ydata = feedlineobject.normfreqs.flatten()
+    modeldata = model.flatten()
+    modeldata = modeldata[~np.isnan(ydata)]
+    ydata = ydata[~np.isnan(ydata)]
+    return ydata, modeldata
+
+'''This returns the nonlinear least squares object from the Scipy optimize package, and we use two of the return
+values: .x is the array of coefficients for the best fit and .fun is the actual array of residuals. More often we 
+use the .fun method so we can see how well we were able to fit our data'''
+def feedlinefitter(feedlineobj, modelfeedline, order = None):
+    if order == None:
+        chisquarevals = np.zeros(30)
+        for i in range(len(chisquarevals)):
+            pguess = initialparamguesser(feedlineobj, modelfeedline, i)
+            lssqsol = opt.least_squares(residuals, pguess, args=(feedlineobj, modelfeedline))
+            chisquarevals[i] = np.sum((lssqsol.fun)**2)**(1/2)
+        minchisquare = np.min(chisquarevals)
+        bestfitorder = np.where(chisquarevals == minchisquare)[0]
+
+        bestguess = initialparamguesser(feedlineobj, modelfeedline, bestfitorder)
+        leastsquaressolution = opt.least_squares(residuals, bestguess, args=(feedlineobj, modelfeedline))
+        return leastsquaressolution, bestfitorder
+    else :
+        bestguess = initialparamguesser(feedlineobj, modelfeedline, order)
+        leastsquaressolution = opt.least_squares(residuals, bestguess, args=(feedlineobj, modelfeedline))
+        return leastsquaressolution, order
+
+
+
+# Given a feedline, design feedline, and whatever order you wish your least squares to be (None gives the best fit
+# below order 30) and returns the measured frequencies, the frequencies fit by the least squares regression, the model
+# frequencies, and the residuals
+def leastsquaremethod(feedlineobj, modelfeedline, order = None):
+    results, best_order = feedlinefitter(feedlineobj, modelfeedline,order)
+    fitted_coeffs = np.poly1d(results.x) # Consider if this is necessary
+    realdata, modeldata = flattendata(feedlineobj, design_feedline)
+    fitteddata = fitted_coeffs(modeldata)
+    residualvalues = results.fun
+    return realdata, fitteddata, modeldata, residualvalues
+
+
+
+
+
+
+
+
+
 
 '''
 Abandoned MCMC package - keep until better process is found
@@ -73,7 +147,7 @@ def chisquare (params, feedlineobject):
 
 
 def ln_like (params, feedlineobject):
-    return -0.5*chisquare(params, feedlineobject)
+    return -2*chisquare(params, feedlineobject)
 
 
 def ln_prior (params):
@@ -143,4 +217,78 @@ for i in range(len(design_feedline)):
         design_array[i][j+7*14]=design_feedline[i][j]
         design_array[i][j+8*14]=design_feedline[i][j]
         design_array[i][j+9*14]=design_feedline[i][j]
+'''
+
+''' 
+# This block of code was used in development to see what order polynomial we would have to go to get our best fit 
+# DELETE IN FUTURE VERSIONS
+csvals=np.zeros((len(feedlinearray),30))
+stnl=time.time()
+for i in range(len(csvals)):
+    print(i,'!!!')
+    for j in range(len(csvals[i])):
+        pguess = initialparamguesser(feedlinearray[i],design_feedline,j)
+        firstls = opt.least_squares(residuals,pguess,args=(feedlinearray[i],design_feedline))
+        coeff = firstls.x
+        csvals[i][j] = np.sum((firstls.fun)**2)**(1/2)
+etnl=time.time()
+print("Non-linear least squares fitting took {0:1.1f}".format((etnl-stnl)/60),"minutes")
+
+mins = np.amin(csvals,axis=1)
+idealorder = np.zeros(len(mins))
+for i in range(len(mins)):
+    idealorder[i] = np.where(csvals[i] == mins[i])[0]
+
+print(idealorder)
+
+plt.scatter(range(len(csvals[0])), csvals[0], label='feedline 1', marker='.')
+plt.scatter(range(len(csvals[0])), csvals[1], label='feedline 5', marker='.')
+plt.scatter(range(len(csvals[0])), csvals[2], label='feedline 6', marker='.')
+plt.scatter(range(len(csvals[0])), csvals[3], label='feedline 7', marker='.')
+plt.scatter(range(len(csvals[0])), csvals[4], label='feedline 8', marker='.')
+plt.scatter(range(len(csvals[0])), csvals[5], label='feedline 9', marker='.')
+plt.scatter(range(len(csvals[0])), csvals[6], label='feedline 10', marker='.')
+plt.legend()
+plt.xlabel("Order of fit")
+plt.ylabel("Chi Square")
+plt.show()'''
+
+'''
+# THIS WAS AN MCMC ATTEMPT, DELETE IN FUTURE VERSIONS
+
+bestfitparameters=np.zeros((len(feedlinearray),2))
+bestfitparametererrors=np.zeros((len(feedlinearray),2))
+
+analysisstarttime = time.time()
+for i in range(len(feedlinearray)):
+     params, errors = mapchecker.runfeedlinemcmc(feedlinearray[i])
+     print(params,errors)
+     bestfitparameters[i][0], bestfitparameters[i][1] = params
+     bestfitparametererrors[i][0], bestfitparametererrors[i][1] = errors
+analysisendtime = time.time()
+
+
+print("Your analysis took {0:1.1f}".format((analysisendtime-analysisstarttime)/60),"minutes.")
+
+
+residsbf = np.empty_like(feedlinearray)
+residsu = np.empty_like(feedlinearray)
+stddevbfarray = np.zeros(len(feedlinearray))
+stddevuarray = np.zeros(len(feedlinearray))
+avgbfarray = np.zeros(len(feedlinearray))
+avguarray = np.zeros(len(feedlinearray))
+
+for i in range(len(feedlinearray)):
+    residsbf[i], residsu[i], stddevbfarray[i], stddevuarray[i], avgbfarray[i], \
+    avguarray[i] = mapchecker.feedlineprocessor(bestfitparameters[i], feedlinearray[i])
+
+for i in range(len(feedlinearray)):
+    plt.figure(i+1)
+    plt.hist(residsbf[i],bins=25,alpha=0.5,label='Data Modified')
+    plt.hist(residsu[i], bins=25, alpha=0.5, label='Data Unmodified')
+    plt.xlabel("Residual Distance (MHz)")
+    plt.ylabel("Counts")
+    plt.title(feedlinearray[i].name)
+    plt.legend()
+    plt.show()
 '''
