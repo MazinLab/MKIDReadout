@@ -1,7 +1,7 @@
 
 # coding: utf-8
 '''
- FLAG DEFINITIONS
+ FLAG DEFINITIONS (Consider moving elsewhere?)
  0: Good
  1: Pixel not read out
  2: Beammap failed to place pixel
@@ -14,8 +14,9 @@ import numpy as np
 import emcee # Used in early development, don't delete until guaranteed not to use this package
 import scipy.optimize as opt
 
-noah_design_feedline_path = r"C:\Users\njswi\PycharmProjects\BeammapPredictor\predictor\mec_feedline.txt"
-design_feedline=np.loadtxt(noah_design_feedline_path)
+
+design_feedline_path = r"C:\Users\njswi\PycharmProjects\BeammapPredictor\predictor\mec_feedline.txt"
+design_feedline = np.loadtxt(design_feedline_path)
 
 
 '''Based on a model for our data fit to a polynomial find the residuals between the measured data and the model.
@@ -71,7 +72,6 @@ def feedlinefitter(feedlineobj, modelfeedline, order = None):
         return leastsquaressolution, order
 
 
-
 # Given a feedline, design feedline, and whatever order you wish your least squares to be (None gives the best fit
 # below order 30) and returns the measured frequencies, the frequencies fit by the least squares regression, the model
 # frequencies, and the residuals
@@ -84,16 +84,9 @@ def leastsquaremethod(feedlineobj, modelfeedline, order = None):
     return realdata, fitteddata, modeldata, residualvalues
 
 
-
-
-
-
-
-
-
-
+# MCMC framework
 '''
-Abandoned MCMC package - keep until better process is found
+Abandoned MCMC attempt - Keep here for the foreseeable future, although it is likely obsolete
 
 def residualmaker(params, feedlineobject):
 
@@ -109,7 +102,6 @@ def residualmaker(params, feedlineobject):
 
 
 def frequency_modifier (params, feedlineobject):
-
     stretchparam = abs(params[0])
     shiftparam = params[1]
     norm = np.copy(feedlineobject.normfreqs)
@@ -200,61 +192,10 @@ def runfeedlinemcmc(feedlineobject):
 '''
 
 
+# MCMC execution
 '''
-Come back to this later if necessary, used during development to analyze a full array (as opposed to only feedlines)
-
-Create an array map where each element is the design freqency at a given pixel coordinate
-design_array=np.ndarray((146,140))
-for i in range(len(design_feedline)):
-    for j in range(len(design_feedline[i])):
-        design_array[i][j]=design_feedline[i][j]
-        design_array[i][j+14]=design_feedline[i][j]
-        design_array[i][j+2*14]=design_feedline[i][j]
-        design_array[i][j+3*14]=design_feedline[i][j]
-        design_array[i][j+4*14]=design_feedline[i][j]
-        design_array[i][j+5*14]=design_feedline[i][j]
-        design_array[i][j+6*14]=design_feedline[i][j]
-        design_array[i][j+7*14]=design_feedline[i][j]
-        design_array[i][j+8*14]=design_feedline[i][j]
-        design_array[i][j+9*14]=design_feedline[i][j]
-'''
-
-''' 
-# This block of code was used in development to see what order polynomial we would have to go to get our best fit 
-# DELETE IN FUTURE VERSIONS
-csvals=np.zeros((len(feedlinearray),30))
-stnl=time.time()
-for i in range(len(csvals)):
-    print(i,'!!!')
-    for j in range(len(csvals[i])):
-        pguess = initialparamguesser(feedlinearray[i],design_feedline,j)
-        firstls = opt.least_squares(residuals,pguess,args=(feedlinearray[i],design_feedline))
-        coeff = firstls.x
-        csvals[i][j] = np.sum((firstls.fun)**2)**(1/2)
-etnl=time.time()
-print("Non-linear least squares fitting took {0:1.1f}".format((etnl-stnl)/60),"minutes")
-
-mins = np.amin(csvals,axis=1)
-idealorder = np.zeros(len(mins))
-for i in range(len(mins)):
-    idealorder[i] = np.where(csvals[i] == mins[i])[0]
-
-print(idealorder)
-
-plt.scatter(range(len(csvals[0])), csvals[0], label='feedline 1', marker='.')
-plt.scatter(range(len(csvals[0])), csvals[1], label='feedline 5', marker='.')
-plt.scatter(range(len(csvals[0])), csvals[2], label='feedline 6', marker='.')
-plt.scatter(range(len(csvals[0])), csvals[3], label='feedline 7', marker='.')
-plt.scatter(range(len(csvals[0])), csvals[4], label='feedline 8', marker='.')
-plt.scatter(range(len(csvals[0])), csvals[5], label='feedline 9', marker='.')
-plt.scatter(range(len(csvals[0])), csvals[6], label='feedline 10', marker='.')
-plt.legend()
-plt.xlabel("Order of fit")
-plt.ylabel("Chi Square")
-plt.show()'''
-
-'''
-# THIS WAS AN MCMC ATTEMPT, DELETE IN FUTURE VERSIONS
+This was part of the MCMC attempt, where the first block was the code itself, this was the block used to
+run the full MCMC which only took into account a global shift and global stretch (non-localized)
 
 bestfitparameters=np.zeros((len(feedlinearray),2))
 bestfitparametererrors=np.zeros((len(feedlinearray),2))
@@ -292,3 +233,60 @@ for i in range(len(feedlinearray)):
     plt.legend()
     plt.show()
 '''
+
+
+# Design array from design feedline (could be useful, probably not, keep it here until definitely not needed)
+'''
+Create an array map where each element is the design freqency at a given pixel coordinate
+Essentially, copy the 14-by-146 design feedline 10 times side-by-side into a 140-by-146 array
+
+design_array=np.ndarray((146,140))
+for i in range(len(design_feedline)):
+    for j in range(len(design_feedline[i])):
+        design_array[i][j]=design_feedline[i][j]
+        design_array[i][j+14]=design_feedline[i][j]
+        design_array[i][j+2*14]=design_feedline[i][j]
+        design_array[i][j+3*14]=design_feedline[i][j]
+        design_array[i][j+4*14]=design_feedline[i][j]
+        design_array[i][j+5*14]=design_feedline[i][j]
+        design_array[i][j+6*14]=design_feedline[i][j]
+        design_array[i][j+7*14]=design_feedline[i][j]
+        design_array[i][j+8*14]=design_feedline[i][j]
+        design_array[i][j+9*14]=design_feedline[i][j]
+'''
+
+
+# Development of non-linear regression analysis
+''' 
+This block of code was used in development to see what order polynomial we would have to go to get our best fit.
+This is part of what we are now using in the non-linear least squares code, but clunkier, we've streamlined it
+csvals=np.zeros((len(feedlinearray),30))
+stnl=time.time()
+for i in range(len(csvals)):
+    print(i,'!!!')
+    for j in range(len(csvals[i])):
+        pguess = initialparamguesser(feedlinearray[i],design_feedline,j)
+        firstls = opt.least_squares(residuals,pguess,args=(feedlinearray[i],design_feedline))
+        coeff = firstls.x
+        csvals[i][j] = np.sum((firstls.fun)**2)**(1/2)
+etnl=time.time()
+print("Non-linear least squares fitting took {0:1.1f}".format((etnl-stnl)/60),"minutes")
+
+mins = np.amin(csvals,axis=1)
+idealorder = np.zeros(len(mins))
+for i in range(len(mins)):
+    idealorder[i] = np.where(csvals[i] == mins[i])[0]
+
+print(idealorder)
+
+plt.scatter(range(len(csvals[0])), csvals[0], label='feedline 1', marker='.')
+plt.scatter(range(len(csvals[0])), csvals[1], label='feedline 5', marker='.')
+plt.scatter(range(len(csvals[0])), csvals[2], label='feedline 6', marker='.')
+plt.scatter(range(len(csvals[0])), csvals[3], label='feedline 7', marker='.')
+plt.scatter(range(len(csvals[0])), csvals[4], label='feedline 8', marker='.')
+plt.scatter(range(len(csvals[0])), csvals[5], label='feedline 9', marker='.')
+plt.scatter(range(len(csvals[0])), csvals[6], label='feedline 10', marker='.')
+plt.legend()
+plt.xlabel("Order of fit")
+plt.ylabel("Chi Square")
+plt.show()'''
