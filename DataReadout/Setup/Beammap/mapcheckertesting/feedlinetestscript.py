@@ -35,8 +35,8 @@ print('It took {0:1.4f}'.format(endtime-starttime),'seconds to make your feedlin
 feedlinearray = np.array([feedline1, feedline5, feedline6, feedline7, feedline8, feedline9, feedline10])
 feedlineforanalysis = feedlinearray[2]
 
-
-rd, fd, md, resids = mapchecker.leastsquaremethod(feedlineforanalysis, design_feedline, 3, 'let')
+'''
+rd, fd, md, resids = mapchecker.leastsquaremethod(feedlineforanalysis, design_feedline, 3)
 
 plt.subplots(2, 1)
 plt.suptitle(feedlineforanalysis.name)
@@ -62,3 +62,4 @@ plt.xlabel('Residual Distance (MHz)')
 plt.ylabel('Counts')
 plt.title(feedlineforanalysis.name)
 plt.show()
+'''

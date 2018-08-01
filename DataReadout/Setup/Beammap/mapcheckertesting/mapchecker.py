@@ -299,3 +299,59 @@ plt.legend()
 plt.xlabel("Order of fit")
 plt.ylabel("Chi Square")
 plt.show()'''
+
+
+'''
+Attempt at doing a location based search, not much improvement by moving the map
+def residualmap(feedlineobj, designfeedline):
+    design = designfeedline
+    norm = feedlineobj.normfreqs
+    nresids = np.zeros(design.shape)
+    left = feedlineobj.left1
+    lresids = np.zeros(design.shape)
+    right = feedlineobj.right1
+    rresids = np.zeros(design.shape)
+    up = feedlineobj.up1
+    uresids = np.zeros(design.shape)
+    down = feedlineobj.down1
+    dresids = np.zeros(design.shape)
+    for i in range(len(design)):
+        for j in range(len(design[i])):
+            if ~np.isnan(left[i][j]):
+                lresids[i][j] = left[i][j] - design[i][j]
+            else:
+                lresids[i][j] = float('NaN')
+            if ~np.isnan(right[i][j]):
+                rresids[i][j] = right[i][j] - design[i][j]
+            else:
+                rresids[i][j] = float('NaN')
+            if ~np.isnan(up[i][j]):
+                uresids[i][j] = up[i][j] - design[i][j]
+            else:
+                uresids[i][j] = float('NaN')
+            if ~np.isnan(down[i][j]):
+                dresids[i][j] = down[i][j] - design[i][j]
+            else:
+                dresids[i][j] = float('NaN')
+            if ~np.isnan(norm[i][j]):
+                nresids[i][j] = norm[i][j] - design[i][j]
+            else:
+                nresids[i][j] = float('NaN')
+    return nresids, lresids, rresids, uresids, dresids
+
+n,l,r,u,d = residualmap(feedline8,design_feedline)
+
+n = n[~np.isnan(n)].flatten()
+l = l[~np.isnan(l)].flatten()
+r = r[~np.isnan(r)].flatten()
+u = u[~np.isnan(u)].flatten()
+d = d[~np.isnan(d)].flatten()
+
+plt.hist(n, color='c', alpha=0.7, label='Unmoved', bins=30)
+plt.hist(l, color='r', alpha=0.7, label='Left', bins=30)
+plt.hist(r, color='b', alpha=0.7, label='Right', bins=30)
+plt.hist(u, color='g', alpha=0.7, label='Up', bins=30)
+plt.hist(d, color='m', alpha=0.7, label='Down', bins=30)
+plt.legend()
+plt.show()
+'''
