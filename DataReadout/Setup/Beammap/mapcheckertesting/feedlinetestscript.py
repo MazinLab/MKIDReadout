@@ -3,14 +3,13 @@ from MKIDDigitalReadout.DataReadout.Setup.Beammap.mapcheckertesting import feedl
 import numpy as np
 import matplotlib.pyplot as plt
 import time
-import scipy.optimize as opt
 
 # This is for development on a local machine, in full use this will just point to wherever beammap test data is stored
 # REMINDER NOTE: Find where the feedline design frequency file is stored on Dark to correctly use that path
-noah_design_feedline_path = r"C:\Users\njswi\PycharmProjects\BeammapPredictor\predictor\mec_feedline.txt"
-design_feedline=np.loadtxt(noah_design_feedline_path)
-noah_beammap_path = r"C:\Users\njswi\PycharmProjects\BeammapPredictor\predictor\beammapTestData\test\finalMap_20180605.txt"
-noah_freqsweeps_path = r"C:\Users\njswi\PycharmProjects\BeammapPredictor\predictor\beammapTestData\test\ps_*"
+noah_design_feedline_path = r"mec_feedline.txt"
+design_feedline = np.loadtxt(noah_design_feedline_path)
+noah_beammap_path = r"beammapTestData\test\finalMap_20180605.txt"
+noah_freqsweeps_path = r"\beammapTestData\test\ps_*"
 
 
 # Initialize all of the feedlines
@@ -36,7 +35,8 @@ print('It took {0:1.4f}'.format(endtime-starttime),'seconds to make your feedlin
 feedlinearray = np.array([feedline1, feedline5, feedline6, feedline7, feedline8, feedline9, feedline10])
 feedlineforanalysis = feedlinearray[2]
 
-rd, fd, md, resids = mapchecker.leastsquaremethod(feedlineforanalysis, design_feedline, 3)
+
+rd, fd, md, resids = mapchecker.leastsquaremethod(feedlineforanalysis, design_feedline, 3, 'let')
 
 plt.subplots(2, 1)
 plt.suptitle(feedlineforanalysis.name)

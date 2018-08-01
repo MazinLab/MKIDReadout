@@ -15,12 +15,14 @@ import emcee # Used in early development, don't delete until guaranteed not to u
 import scipy.optimize as opt
 
 
-design_feedline_path = r"C:\Users\njswi\PycharmProjects\BeammapPredictor\predictor\mec_feedline.txt"
+design_feedline_path = r"mec_feedline.txt"
 design_feedline = np.loadtxt(design_feedline_path)
 
 
 '''Based on a model for our data fit to a polynomial find the residuals between the measured data and the model.
 This is formatted to be used in the non-linear least squares regression code block'''
+
+
 def residuals(parameters, feedlineobject, model):
     p = np.poly1d(parameters)
     ydata, modeldata = flattendata(feedlineobject,model)
@@ -33,6 +35,8 @@ where we can specify the order of the polynomial we want to describe our model w
 what order polynomial allows us to minimize our residuals by nonlinear least squares regression (maximimizing likelihood)
 NOTE: This works in conjunction with the feedlinefitter function based on the order it is given, which can be specific
 or run through a large number of orders to see which fits best'''
+
+
 def initialparamguesser(feedlineobject, model, order):
     ydata, modeldata = flattendata(feedlineobject, model)
     params = np.polyfit(modeldata, ydata, order, full=True)[0]
@@ -43,6 +47,8 @@ def initialparamguesser(feedlineobject, model, order):
 measured data match each other, which is to say that at a given index in the 1D array, the ydata array shows the frequency
 that was measured at a given position, will at the same index, the modeldata array gives the design frequency at the same
 coordinate. '''
+
+
 def flattendata(feedlineobject, model):
     ydata = feedlineobject.normfreqs.flatten()
     modeldata = model.flatten()
@@ -50,10 +56,13 @@ def flattendata(feedlineobject, model):
     ydata = ydata[~np.isnan(ydata)]
     return ydata, modeldata
 
+
 '''This returns the nonlinear least squares object from the Scipy optimize package, and we use two of the return
 values: .x is the array of coefficients for the best fit and .fun is the actual array of residuals. More often we 
 use the .fun method so we can see how well we were able to fit our data'''
-def feedlinefitter(feedlineobj, modelfeedline, order = None):
+
+
+def feedlinefitter(feedlineobj, modelfeedline, order=None):
     if order == None:
         chisquarevals = np.zeros(30)
         for i in range(len(chisquarevals)):

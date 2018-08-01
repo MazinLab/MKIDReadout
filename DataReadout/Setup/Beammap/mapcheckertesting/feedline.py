@@ -46,6 +46,10 @@ class Feedline:
         self.max = np.amax(array[:, :, 1])  # Maximum measured frequency value (MHz)
         self.number = fl_num  # More ID information, may be able to delete in future
         self.normfreqs = array[:, :, 5] - self.min  # Shifts the minimum measured frequency to be 0 MHz
+        self.up1 = self.shiftfreqsinspace('vertical', -1)
+        self.down1 = self.shiftfreqsinspace('vertical', 1)
+        self.left1 = self.shiftfreqsinspace('horizontal', -1)
+        self.right1 = self.shiftfreqsinspace('horizontal', 1)
 
     # Class methods
 
@@ -80,6 +84,15 @@ class Feedline:
                     return self.data[i][j][3]
                 else:
                     print("Invalid ResID")
+
+    #May be unnecessary in the future, think about utility of this
+    def shiftfreqsinspace(self,direction,amount):
+        if direction == 'vertical' or direction == 'up' or direction == 'down':
+            newfreqs = np.roll(np.copy(self.normfreqs), int(amount), axis=0)
+        elif direction == 'horizontal' or direction == 'left' or direction == 'right':
+            newfreqs = np.roll(np.copy(self.normfreqs), int(amount), axis=1)
+        return newfreqs
+
 
 
 # Takes in a resID and the frequency sweep data and matches a measured frequency to a resID
