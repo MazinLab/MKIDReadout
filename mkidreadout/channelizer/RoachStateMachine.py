@@ -12,7 +12,7 @@ from Queue import Queue
 from Roach2Controls import Roach2Controls
 #from lib import iqsweep  # From old SDR code for saving powersweep files
 #import iqsweep
-from MkidDigitalReadout.DataReadout.ChannelizerControls.lib import iqsweep
+from mkidreadout.channelizer.lib import iqsweep
 
 class RoachStateMachine(QtCore.QObject):        #Extends QObject for use with QThreads
     """

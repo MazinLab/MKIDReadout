@@ -34,8 +34,8 @@ from PixelHistogramWindow import PixelHistogramWindow
 from LaserControl import LaserControl
 from Telescope import *
 import casperfpga
-from MkidDigitalReadout.DataReadout.ChannelizerControls.Roach2Controls import Roach2Controls
-from lib.utils import interpolateImage
+from mkidreadout.channelizer.Roach2Controls import Roach2Controls
+from utils import interpolateImage
 #import sn_hardware as snh
 #from initialBeammap import xyPack,xyUnpack
 

@@ -84,16 +84,13 @@ BUGS:
 
 import sys,os,time,datetime,struct,math,calendar
 import warnings, inspect
-import matplotlib.pyplot as plt
 import numpy as np
 import scipy.special
 import casperfpga
 import socket
 import binascii
-#from Utils.binTools import castBin  # part of SDR
-from MkidDigitalReadout.DataReadout.ChannelizerControls.lib.binTools import castBin
+from mkidreadout.channelizer.lib.binTools import castBin
 from readDict import readDict       #Part of the ARCONS-pipeline/util
-#from initialBeammap import xyPack,xyUnpack
 
 class Roach2Controls:
 

@@ -20,7 +20,7 @@ Note: Power in dBm is approximately -(resAtten + 12). (so a res atten of 65 will
 
 import traceback, sys, warnings
 from functools import partial
-from MkidDigitalReadout.DataReadout.ChannelizerControls.RoachStateMachine import RoachStateMachine
+from mkidreadout.channelizer.RoachStateMachine import RoachStateMachine
 import ConfigParser
 from PyQt4 import QtCore
 import numpy as np

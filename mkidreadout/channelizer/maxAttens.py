@@ -8,7 +8,7 @@ Usage: $python maxAttens.py 222 223
 """
 
 import sys
-from MkidDigitalReadout.DataReadout.ChannelizerControls.Roach2Controls import Roach2Controls
+from mkidreadout.channelizer.Roach2Controls import Roach2Controls
 
 
 if __name__=='__main__':

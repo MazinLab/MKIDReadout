@@ -4,8 +4,8 @@ import numpy as np
 from matplotlib import pyplot as plt
 from astropy.modeling import models, fitting
 import astropy.modeling
-from lib.utils import interpolateImage
-import os,commands
+from utils import interpolateImage
+import os, commands
 
 
 def fit2DMoffat(image,guess):
