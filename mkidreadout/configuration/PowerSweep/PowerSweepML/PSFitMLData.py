@@ -1,12 +1,11 @@
 ''' 
-Class for loading and/or saving ML data for PS fitting using the original Power Sweeo File format.  
-Class contains one data set, could be either inference or training. Typical use would have the save
- functionality used exclusively for inference.
+Class for loading and/or saving ML data for PS fitting.  Class contains one data set, could be either inference or training.  Typical
+use would have the save functionality used exclusively for inference.
 
 '''
 import os,sys,inspect
-from PSFit import *
-from iqsweep import *
+#from PSFit import *
+from mkidreadout.utils.iqsweep import *
 import numpy as np
 import sys, os
 import matplotlib.pyplot as plt
@@ -44,29 +43,29 @@ class PSFitting():
         self.Res1.LoadPowers(self.initialFile, 'r0', self.freq[self.resnum])
         self.resfreq = self.freq[self.resnum]
         self.NAttens = len(self.Res1.atten1s)
-        self.res1_iq_vels=numpy.zeros((self.NAttens,self.Res1.fsteps-1))
-        self.res1_iq_amps=numpy.zeros((self.NAttens,self.Res1.fsteps))
+        self.res1_iq_vels=np.zeros((self.NAttens,self.Res1.fsteps-1))
+        self.res1_iq_amps=np.zeros((self.NAttens,self.Res1.fsteps))
         for iAtt in range(self.NAttens):
             for i in range(1,self.Res1.fsteps-1):
-                self.res1_iq_vels[iAtt,i]=sqrt((self.Res1.Qs[iAtt][i]-self.Res1.Qs[iAtt][i-1])**2+(self.Res1.Is[iAtt][i]-self.Res1.Is[iAtt][i-1])**2)
-                self.res1_iq_amps[iAtt,:]=sqrt((self.Res1.Qs[iAtt])**2+(self.Res1.Is[iAtt])**2)
+                self.res1_iq_vels[iAtt,i]=np.sqrt((self.Res1.Qs[iAtt][i]-self.Res1.Qs[iAtt][i-1])**2+(self.Res1.Is[iAtt][i]-self.Res1.Is[iAtt][i-1])**2)
+                self.res1_iq_amps[iAtt,:]=np.sqrt((self.Res1.Qs[iAtt])**2+(self.Res1.Is[iAtt])**2)
         #Sort the IQ velocities for each attenuation, to pick out the maximums
         
-        sorted_vels = numpy.sort(self.res1_iq_vels,axis=1)
+        sorted_vels = np.sort(self.res1_iq_vels,axis=1)
         #Last column is maximum values for each atten (row)
         self.res1_max_vels = sorted_vels[:,-1]
         #Second to last column has second highest value
         self.res1_max2_vels = sorted_vels[:,-2]
         #Also get indices for maximum of each atten, and second highest
-        sort_indices = numpy.argsort(self.res1_iq_vels,axis=1)
+        sort_indices = np.argsort(self.res1_iq_vels,axis=1)
         max_indices = sort_indices[:,-1]
         max2_indices = sort_indices[:,-2]
         max_neighbor = max_indices.copy()
         
         #for each attenuation find the ratio of the maximum velocity to the second highest velocity
         self.res1_max_ratio = self.res1_max_vels.copy()
-        max_neighbors = zeros(self.NAttens)
-        max2_neighbors = zeros(self.NAttens)
+        max_neighbors = np.zeros(self.NAttens)
+        max2_neighbors = np.zeros(self.NAttens)
         self.res1_max2_ratio = self.res1_max2_vels.copy()
         for iAtt in range(self.NAttens):
             if max_indices[iAtt] == 0:
@@ -74,7 +73,7 @@ class PSFitting():
             elif max_indices[iAtt] == len(self.res1_iq_vels[iAtt,:])-1:
                 max_neighbor = self.res1_iq_vels[iAtt,max_indices[iAtt]-1]
             else:
-                max_neighbor = maximum(self.res1_iq_vels[iAtt,max_indices[iAtt]-1],
+                max_neighbor = np.maximum(self.res1_iq_vels[iAtt,max_indices[iAtt]-1],
                                        self.res1_iq_vels[iAtt,max_indices[iAtt]+1])
             max_neighbors[iAtt]=max_neighbor
             self.res1_max_ratio[iAtt] = self.res1_max_vels[iAtt]/max_neighbor
@@ -83,14 +82,14 @@ class PSFitting():
             elif max2_indices[iAtt] == len(self.res1_iq_vels[iAtt,:])-1:
                 max2_neighbor = self.res1_iq_vels[iAtt,max2_indices[iAtt]-1]
             else:
-                max2_neighbor = maximum(self.res1_iq_vels[iAtt,max2_indices[iAtt]-1],
+                max2_neighbor = np.maximum(self.res1_iq_vels[iAtt,max2_indices[iAtt]-1],
                                         self.res1_iq_vels[iAtt,max2_indices[iAtt]+1])
             max2_neighbors[iAtt]=max2_neighbor
             self.res1_max2_ratio[iAtt] = self.res1_max2_vels[iAtt]/max2_neighbor
         #normalize the new arrays
-        self.res1_max_vels /= numpy.max(self.res1_max_vels)
-        self.res1_max_vels *= numpy.max(self.res1_max_ratio)
-        self.res1_max2_vels /= numpy.max(self.res1_max2_vels)
+        self.res1_max_vels /= np.max(self.res1_max_vels)
+        self.res1_max_vels *= np.max(self.res1_max_ratio)
+        self.res1_max2_vels /= np.max(self.res1_max2_vels)
 
         
         max_ratio_threshold = 2.5#1.5
@@ -103,14 +102,17 @@ class PSFitting():
         guess_atten_idx = np.extract(bool_remove,np.arange(len(self.res1_max_ratio)))
 
         # require the attenuation value to be past the initial peak in MRT
-        guess_atten_idx = guess_atten_idx[where(guess_atten_idx > argmax(self.res1_max_ratio) )[0]]
+        guess_atten_idx = guess_atten_idx[np.where(guess_atten_idx > np.argmax(self.res1_max_ratio) )[0]]
 
-        if size(guess_atten_idx) >= 1:
+        if np.size(guess_atten_idx) >= 1:
             if guess_atten_idx[0]+rule_of_thumb_offset < len(self.Res1.atten1s):
                 guess_atten_idx[0] += rule_of_thumb_offset
                 guess_atten_idx =  int(guess_atten_idx[0])
         else:
             guess_atten_idx = self.NAttens/2
+
+        print 'file', self.initialFile
+        # print 'atten1s', self.Res1.atten1s
 
         if useResID:            
             return {'freq': self.Res1.freq,
@@ -130,22 +132,24 @@ class PSFitting():
     def loadps(self):
         hd5file=openFile(self.initialFile,mode='r')
         group = hd5file.getNode('/','r0')
-        self.freq=empty(0,dtype='float32')
+        self.freq=np.empty(0,dtype='float32')
         
         for sweep in group._f_walkNodes('Leaf'):
             k=sweep.read()
             self.scale = k['scale'][0]
             #print "Scale factor is ", self.scale
-            self.freq=append(self.freq,[k['f0'][0]])
+            self.freq=np.append(self.freq,[k['f0'][0]])
         hd5file.close()
 
 class PSFitMLData():
-    def __init__(self, h5File=None, useAllAttens=True, useResID=False):
+    def __init__(self, h5File=None, PSFile=None, useAllAttens=True, useResID=False):
         self.useAllAttens=useAllAttens
         self.useResID=useResID
         self.h5File = h5File
-        self.PSFile = self.h5File[:-19] + '.txt'
-        self.PSPFile = self.h5File[:-19] + '.pkl'
+        self.PSFile = PSFile
+        self.PSPFile = self.h5File[:-3] + '.pkl'
+        print 'h5File', self.h5File
+        print 'pkl file', self.PSPFile
         self.baseFile = self.h5File[:-19]
         self.freqs, self.iq_vels,self.Is,self.Qs, self.attens, self.resIDs = self.get_PS_data()
         self.opt_attens = None
@@ -164,49 +168,34 @@ class PSFitMLData():
 
         if os.path.isfile(self.PSFile):
             print 'loading peak location data from %s' % self.PSFile
-            PSFile = np.loadtxt(self.PSFile, skiprows=1)
-            opt_freqs = PSFile[:,0]
-            opt_attens = PSFile[:,3]
-            self.opt_iAttens = opt_attens -min(self.attens[0])
-            # if self.useResID:
-            #     goodResIDs = PSFile[:,0]
-            #     self.good_res = np.where(map(lambda x: np.any(x==goodResIDs), self.resIDs))[0]
-            # else:
-                # self.good_res = np.array(PSFile[:,0]-PSFile[0,0],dtype='int')
-
-            # if the PSFile is in the old format match the resonators using the frequencies 
-            all_freqs = np.around(self.freqs, decimals=-4)
-            opt_freqs = np.around(opt_freqs, decimals=-4)
-            self.good_res = np.arange(len(self.freqs))
-            a,b = 0,0
-
-            for g in range(len(opt_freqs)-2):
-                while opt_freqs[g] not in all_freqs[a,:]:
-                    self.good_res = np.delete(self.good_res,g+b) # identify this value of all_freqs as bad by removing from list
-                    a += 1  # keep incrementing until opt_freqs matches good_freqs
-                a += 1 # as g increments so does a 
-            iFinTrainRes = np.where(opt_freqs[-1]==np.around(self.freqs[self.good_res], decimals=-4))[0][0]+1            
-            self.good_res = self.good_res[:iFinTrainRes]
+            PSFile = np.loadtxt(self.PSFile, skiprows=0)
+            opt_freqs = PSFile[:,1]
+            opt_attens = PSFile[:,2]
+            if self.useResID:
+                goodResIDs = PSFile[:,0]
+                self.good_res = np.where(map(lambda x: np.any(x==goodResIDs), self.resIDs))[0]
+            else:
+                self.good_res = np.array(PSFile[:,0]-PSFile[0,0],dtype='int')
 
             self.res_nums = len(self.good_res)          
 
-            # self.attens = self.attens[self.good_res,:]
-            # optAttenLocs = np.where(np.transpose(np.transpose(np.array(self.attens))==np.array(opt_attens))) #find optimal atten indices
-            # optAttenExists = optAttenLocs[0]
-            # self.opt_iAttens = optAttenLocs[1]
-            
-            # attenSkips = optAttenLocs[0]-np.arange(len(optAttenLocs[0]))
-            # attenSkips = np.where(np.diff(attenSkips))[0]+1 #indices where opt atten was not found
-            # for resSkip in attenSkips:
-            #     print 'resSkip', resSkip
-            #     if(opt_attens[resSkip]<self.attens[resSkip,0]):
-            #         opt_attens[resSkip] = self.attens[resSkip,0]
-            #         self.opt_iAttens = np.insert(self.opt_iAttens,resSkip,0) 
-            #     elif(opt_attens[resSkip]>self.attens[resSkip,-1]):
-            #         opt_attens[resSkip] = self.attens[resSkip,-1]
-            #         self.opt_iAttens = np.insert(self.opt_iAttens,resSkip,np.shape(self.attens)[1]-1)
-            #     else:
-            #         raise ValueError('Atten skip index error')
+            self.attens = self.attens[self.good_res,:]
+            optAttenLocs = np.where(np.transpose(np.transpose(np.array(self.attens))==np.array(opt_attens))) #find optimal atten indices
+            optAttenExists = optAttenLocs[0]
+            self.opt_iAttens = optAttenLocs[1]
+
+            attenSkips = optAttenLocs[0]-np.arange(len(optAttenLocs[0]))
+            attenSkips = np.where(np.diff(attenSkips))[0]+1 #indices where opt atten was not found
+            for resSkip in attenSkips:
+                print 'resSkip', resSkip
+                if(opt_attens[resSkip]<self.attens[resSkip,0]):
+                    opt_attens[resSkip] = self.attens[resSkip,0]
+                    self.opt_iAttens = np.insert(self.opt_iAttens,resSkip,0) 
+                elif(opt_attens[resSkip]>self.attens[resSkip,-1]):
+                    opt_attens[resSkip] = self.attens[resSkip,-1]
+                    self.opt_iAttens = np.insert(self.opt_iAttens,resSkip,np.shape(self.attens)[1]-1)
+                else:
+                    raise ValueError('Atten skip index error')
         else: 
             print self.PSFile, 'not found' 
             exit()
@@ -220,7 +209,7 @@ class PSFitMLData():
         self.Qs = self.Qs[self.good_res]
         self.resIDs = self.resIDs[self.good_res]
 
-    def savePSTxtFile(self, flag = ''):
+    def savePSTxtFile(self, flag = '', outputFN=None):
         '''
         Saves a frequency file after inference.  self.opt_attens and self.opt_freqs
         should be populated by an external ML algorithm.
@@ -228,7 +217,8 @@ class PSFitMLData():
         if self.opt_attens is None or self.opt_freqs is None:
             raise ValueError('Classify Resonators First!')
         
-        PSSaveFile = self.baseFile + flag + '.txt'
+        if outputFN is None: PSSaveFile = self.baseFile + flag + '.txt'
+        else: PSSaveFile = outputFN.rsplit('.',1)[0]+flag+'.txt'
         sf = open(PSSaveFile,'wb')
         print 'saving file', PSSaveFile
         print 'baseFile', self.baseFile
@@ -237,7 +227,7 @@ class PSFitMLData():
             line = "%4i \t %10.9e \t %4i \n" % (self.resIDs[r], self.opt_freqs[r], 
                                          self.opt_attens[r])
             sf.write(line)
-            print line
+            #print line
         sf.close()        
 
     def get_PS_data(self, searchAllRes=True, res_nums=50):
@@ -297,7 +287,7 @@ class PSFitMLData():
                 sys.stdout.flush()
                 res = PSFit.loadres(self.useResID)
                 if self.useResID:
-                    resIDs[r] = res['resID']
+                    resIDs[r] = res['resID']+0
                 else:
                     resIDs[r] = r
                 freqs[r,:] =res['freq']
@@ -315,8 +305,12 @@ class PSFitMLData():
                 pickle.dump(Qs, f)
                 pickle.dump(attens, f)
 
+        #print 'prekill attens', attens
         if not(self.useAllAttens):
             attens = attens[0,:]
+
+        print 'h5 data file', self.h5File
+        print 'h5 attens', attens
         return  freqs, iq_vels, Is, Qs, attens, resIDs
 
 def loadPkl(filename):

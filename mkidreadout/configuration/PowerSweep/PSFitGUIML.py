@@ -36,7 +36,7 @@ from PyQt4.QtCore import *
 from tables import *
 #import my functions
 #from make_image_v2 import make_image as make_image_import
-from iqsweep import *
+from mkidreadout.utils.iqsweep import *
 from matplotlib.backends.backend_qt4 import NavigationToolbar2QT as NavigationToolbar
 
 class StartQt4(QMainWindow):

@@ -1,6 +1,6 @@
 import numpy as np
 import scipy.ndimage.filters
-from mpfit import mpfit
+from mkidreadout.utils.mpfit import mpfit
 import math
 import random
 import matplotlib.pyplot as plt

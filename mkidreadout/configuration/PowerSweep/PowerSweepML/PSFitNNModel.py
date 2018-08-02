@@ -17,7 +17,7 @@ mlClassification defines the graph structure, trains the model, and saves it so 
 '''
 import os,sys,inspect
 #from PSFit import *
-from iqsweep import *
+from mkidreadout.utils.iqsweep import *
 import numpy as np
 import sys, os
 import matplotlib.pyplot as plt

@@ -20,7 +20,7 @@ from PyQt4.QtCore import *
 from tables import *
 #import my functions
 #from make_image_v2 import make_image as make_image_import
-from lib.iqsweep import *
+from mkidreadout.utils.iqsweep import *
 from lib.PSFit_GUI import Ui_MainWindow
 
 class StartQt4(QMainWindow):

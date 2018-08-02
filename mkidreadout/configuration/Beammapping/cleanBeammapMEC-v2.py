@@ -17,7 +17,7 @@ import os
 import matplotlib.pyplot as plt
 #from arrayPopup import plotArray
 from readDict import readDict
-from mkidreadout.Setup.Beammap.beammapFlags import beamMapFlags
+from mkidreadout.configuration.beammap.flags import beamMapFlags
 
 def isInCorrectFL(i, x):
     #given a resonator ID (i) and x location

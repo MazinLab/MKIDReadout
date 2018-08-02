@@ -33,8 +33,8 @@ import matplotlib.pyplot as plt
 from numba import jit
 import ConfigParser
 
-from mkidreadout.Setup.Beammap.utils import crossCorrelateTimestreams,  determineSelfconsistentPixelLocs2, loadImgFiles, minimizePixelLocationVariance, snapToPeak, shapeBeammapIntoImages, fitPeak
-from mkidreadout.Setup.Beammap.beammapFlags import beamMapFlags
+from mkidreadout.configuration.beammap.utils import crossCorrelateTimestreams,  determineSelfconsistentPixelLocs2, loadImgFiles, minimizePixelLocationVariance, snapToPeak, shapeBeammapIntoImages, fitPeak
+from mkidreadout.configuration.beammap.flags import beamMapFlags
 
 #import pdb
 
