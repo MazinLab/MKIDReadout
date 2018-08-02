@@ -44,14 +44,6 @@ with open("README.md", "r") as fh:
     long_description = fh.read()
 
 
-# module1 = Extension('demo',
-#                     define_macros = [('MAJOR_VERSION', '1'),
-#                                      ('MINOR_VERSION', '0')],
-#                     include_dirs = ['/usr/local/include'],
-#                     libraries = ['tcl83'],
-#                     library_dirs = ['/usr/local/lib'],
-#                     sources = ['demo.c'])
-
 
 setuptools.setup(
     name="mkidreadout",
@@ -63,6 +55,9 @@ setuptools.setup(
     long_description_content_type="text/markdown",
     url="https://github.com/MazinLab/MKIDReadout",
     packages=setuptools.find_packages(),
+    scripts=['mkidreadout/channelizer/InitGUI.py',
+             'mkidreadout/channelizer/HighTemplar.py',
+             'mkidreadout/channelizer/MkidDashboard.py']
     classifiers=(
         "Programming Language :: Python :: 3",
         "License :: OSI Approved :: MIT License",

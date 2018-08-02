@@ -89,7 +89,7 @@ import scipy.special
 import casperfpga
 import socket
 import binascii
-from mkidreadout.channelizer.lib.binTools import castBin
+from mkidreadout.channelizer.binTools import castBin
 from readDict import readDict       #Part of the ARCONS-pipeline/util
 
 class Roach2Controls:
