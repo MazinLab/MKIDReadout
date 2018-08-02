@@ -23,14 +23,16 @@ def compile_and_install_software():
     src_path = './mkidreadout/readout/packetmaster/'
 
     # compile the software
-    cmd = "gcc -Wall -Wextra -o packetmaster packetmaster.c -I. -lm -lrt -lpthread -O3"
+    cmds = ["gcc -Wall -Wextra -o packetmaster packetmaster.c -I. -lm -lrt -lpthread -O3",
+            'gcc -o Bin2PNG Bin2PNG.c -I. -lm -lrt -lpng',
+            'gcc -o BinToImg BinToImg.c -I. -lm -lrt',
+            'gcc -o BinCheck BinCheck.c -I. -lm -lrt']
     venv = get_virtualenv_path()
-    if venv:
-        cmd += ' --prefix=' + os.path.abspath(venv)
-    subprocess.check_call(cmd, cwd=src_path, shell=True)
 
-    # install the software (into the virtualenv bin dir if present)
-    subprocess.check_call('make install', cwd=src_path, shell=True)
+    for cmd in cmds:
+        if venv:
+            cmd += ' --prefix=' + os.path.abspath(venv)
+        subprocess.check_call(cmd, cwd=src_path, shell=True)
 
 
 class CustomInstall(install):
