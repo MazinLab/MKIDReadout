@@ -11,8 +11,12 @@ from PyQt4 import QtGui
 from PyQt4.QtGui import *
 from PyQt4 import QtCore
 import ephem
-#from lib.getSeeing import getPalomarSeeing  # From old SDR code
-from SDR.DataReadout.ReadoutControls.lib.getSeeing import getPalomarSeeing  # From old SDR code
+
+try:
+    from SDR.DataReadout.ReadoutControls.lib.getSeeing import getPalomarSeeing  # From old SDR code
+except:
+    print "WARNING: Cant find getPalomarSeeing from SDR repository"
+    def getPalomarSeeing(): return "NAN"
 
 class TelescopeWindow(QMainWindow):
     
