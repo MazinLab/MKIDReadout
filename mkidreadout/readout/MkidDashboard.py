@@ -3,7 +3,7 @@ Author:    Alex Walter
 Date:      Jul 3, 2016
 
 
-This is a GUI class for real time control of the DARKNESS instrument. 
+This is a GUI class for real time control of the MEC and DARKNESS instruments. 
  - show realtime image
  - show realtime pixel timestreams (see PixelTimestreamWindow.py)
  - start/end observations
@@ -29,13 +29,13 @@ from PyQt4 import QtCore
 from PyQt4.QtCore import Qt
 from PyQt4 import QtGui
 from PyQt4.QtGui import *
-from PixelTimestreamWindow import PixelTimestreamWindow
-from PixelHistogramWindow import PixelHistogramWindow
-from LaserControl import LaserControl
-from Telescope import *
+from mkidreadout.readout.PixelTimestreamWindow import PixelTimestreamWindow
+from mkidreadout.readout.PixelHistogramWindow import PixelHistogramWindow
+from mkidreadout.readout.LaserControl import LaserControl
+from mkidreadout.readout.Telescope import *
 import casperfpga
 from mkidreadout.channelizer.Roach2Controls import Roach2Controls
-from utils import interpolateImage
+from mkidreadout.readout.utils import interpolateImage
 #import sn_hardware as snh
 #from initialBeammap import xyPack,xyUnpack
 
@@ -583,10 +583,10 @@ class MkidDashboard(QMainWindow):
             #freqs = np.atleast_1d(freqArrays[:,1])      # We need an array of floats
             #attensJunk = np.atleast_1d(freqArrays[:,2])
             
-            print resID_roach
+            #print resID_roach
             roach.generateResonatorChannels(freqs)
             freqCh_roach = np.arange(0,len(resID_roach))
-            print resID
+            #print resID
             freqCh = np.ones(len(resID))*-2
             for i in range(len(resID_roach)):
                 indx = np.where(resID==resID_roach[i])[0]
@@ -1141,9 +1141,10 @@ class MkidDashboard(QMainWindow):
             data_path = self.config.get('properties','data_dir')
             start_file_loc = self.config.get('properties','cuber_ramdisk')
             print "Starting Obs", "Start file Loc:", start_file_loc
-            f=open(start_file_loc+'/START','w')
+            f=open(start_file_loc+'/START_tmp','w')
             f.write(data_path)
             f.close()
+            os.rename(start_file_loc+'/START_tmp', start_file_loc+'/START') #sometimes packetmaseter read the START file before python finished writing the data path into it
 
     
     def stopObs(self):

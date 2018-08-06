@@ -13,7 +13,7 @@ from PyQt4 import QtGui
 from PyQt4 import QtCore
 from PyQt4.QtCore import Qt
 import ConfigParser
-from RoachStateMachine import RoachStateMachine
+from mkidreadout.channelizer.RoachStateMachine import RoachStateMachine
 
 
 class RoachSettingsWindow(QTabWidget):

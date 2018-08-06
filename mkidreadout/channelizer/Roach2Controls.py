@@ -90,7 +90,7 @@ import casperfpga
 import socket
 import binascii
 from mkidreadout.channelizer.binTools import castBin
-from readDict import readDict       #Part of the ARCONS-pipeline/util
+from mkidreadout.utils.readDict import readDict
 
 class Roach2Controls:
 

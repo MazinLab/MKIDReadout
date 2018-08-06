@@ -3,7 +3,7 @@ Author:    Alex Walter
 Date:      May 15, 2016
 
 
-This is a GUI class to setup the resonators for readout. It replaces the old Channelizer and Templar software from the ARCONS readout.
+This is a GUI class to setup the MKID resonators for readout. It replaces the old Channelizer and Templar software from the ARCONS readout.
 This file only contains the GUI and control code. The roach commands are implemented in the RoachStateMachine class and communication to the electronic boards is done in Roach2Controls.py.
 
 Command Flow:
@@ -28,13 +28,10 @@ from PyQt4 import QtCore
 from PyQt4.QtCore import Qt
 from PyQt4 import QtGui
 from PyQt4.QtGui import *
-#from RoachStateMachine import RoachThread, RoachStateMachine
-from RoachStateMachine import RoachStateMachine
-from RoachSettingsWindow import RoachSettingsWindow
-#from RoachSweepWindow import SweepWindowThread
-#from RoachSweepWindow import RoachSweepWindow
-#from RoachPlotWindow import RoachPlotWindow, SweepWindowWorker
-from RoachPlotWindow import *
+
+from mkidreadout.channelizer.RoachStateMachine import RoachStateMachine
+from mkidreadout.channelizer.RoachSettingsWindow import RoachSettingsWindow
+from mkidreadout.channelizer.RoachPlotWindow import RoachPhaseStreamWindow, RoachSweepWindow
 
 
 class HighTemplar(QMainWindow):

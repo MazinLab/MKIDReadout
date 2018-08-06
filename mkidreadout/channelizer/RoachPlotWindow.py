@@ -28,7 +28,7 @@ try:
 except ImportError: #Named changed in some newer matplotlib versions
 	from matplotlib.backends.backend_qt4agg import NavigationToolbar2QT as NavigationToolbar
 
-from RoachStateMachine import RoachStateMachine
+from mkidreadout.channelizer.RoachStateMachine import RoachStateMachine
 
 class RoachPhaseStreamWindow(QMainWindow):
 
