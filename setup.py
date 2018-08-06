@@ -2,6 +2,7 @@ import setuptools, sys
 import os
 from setuptools.command.install import install
 import subprocess
+#pip install -e git+http://github.com/mazinlab/mkidreadout.git@restructure#egg=mkidreadout --src ./mkidtest
 
 
 def get_virtualenv_path():
@@ -23,10 +24,10 @@ def compile_and_install_software():
     src_path = './mkidreadout/readout/packetmaster/'
 
     # compile the software
-    cmds = ["gcc -Wall -Wextra -o packetmaster packetmaster.c -I. -lm -lrt -lpthread -O3",
-            'gcc -o Bin2PNG Bin2PNG.c -I. -lm -lrt -lpng',
-            'gcc -o BinToImg BinToImg.c -I. -lm -lrt',
-            'gcc -o BinCheck BinCheck.c -I. -lm -lrt']
+    cmds = ["gcc -Wall -Wextra -o packetmaster packetmaster.c -I. -lm -lrt -lpthread -O3"]
+#            'gcc -o Bin2PNG Bin2PNG.c -I. -lm -lrt -lpng',
+#            'gcc -o BinToImg BinToImg.c -I. -lm -lrt',
+#            'gcc -o BinCheck BinCheck.c -I. -lm -lrt']
     venv = get_virtualenv_path()
 
     for cmd in cmds:
@@ -59,7 +60,7 @@ setuptools.setup(
     packages=setuptools.find_packages(),
     scripts=['mkidreadout/channelizer/InitGui.py',
              'mkidreadout/channelizer/HighTemplar.py',
-             'mkidreadout/channelizer/MkidDashboard.py'],
+             'mkidreadout/readout/MkidDashboard.py'],
     classifiers=(
         "Programming Language :: Python :: 3",
         "License :: OSI Approved :: MIT License",
