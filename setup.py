@@ -59,7 +59,7 @@ setuptools.setup(
     packages=setuptools.find_packages(),
     scripts=['mkidreadout/channelizer/InitGUI.py',
              'mkidreadout/channelizer/HighTemplar.py',
-             'mkidreadout/channelizer/MkidDashboard.py']
+             'mkidreadout/channelizer/MkidDashboard.py'],
     classifiers=(
         "Programming Language :: Python :: 3",
         "License :: OSI Approved :: MIT License",
