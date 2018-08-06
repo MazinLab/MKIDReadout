@@ -57,9 +57,9 @@ setuptools.setup(
     long_description_content_type="text/markdown",
     url="https://github.com/MazinLab/MKIDReadout",
     packages=setuptools.find_packages(),
-    scripts=['mkidreadout/channelizer/InitGUI.py',
-             'mkidreadout/channelizer/HighTemplar.py',
-             'mkidreadout/channelizer/MkidDashboard.py'],
+    scripts=['mkidreadout/mkidreadout/channelizer/InitGUI.py',
+             'mkidreadout/mkidreadout/channelizer/HighTemplar.py',
+             'mkidreadout/mkidreadout/channelizer/MkidDashboard.py'],
     classifiers=(
         "Programming Language :: Python :: 3",
         "License :: OSI Approved :: MIT License",
