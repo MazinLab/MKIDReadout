@@ -10,8 +10,6 @@ import numpy as np
 from PyQt4 import QtCore
 from Queue import Queue
 from mkidreadout.channelizer.Roach2Controls import Roach2Controls
-#from lib import iqsweep  # From old SDR code for saving powersweep files
-#import iqsweep
 from mkidreadout.utils import iqsweep
 
 

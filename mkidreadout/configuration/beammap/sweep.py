@@ -23,14 +23,11 @@ Usage:
 
 """
 
-import sys, os, time, warnings
+import sys, os, warnings
 import numpy as np
 import matplotlib
 matplotlib.use('Qt4Agg')
 import matplotlib.pyplot as plt
-
-
-from numba import jit
 import ConfigParser
 
 from mkidreadout.configuration.beammap.utils import crossCorrelateTimestreams,  determineSelfconsistentPixelLocs2, loadImgFiles, minimizePixelLocationVariance, snapToPeak, shapeBeammapIntoImages, fitPeak

@@ -17,11 +17,8 @@ from numpy import *
 import numpy
 from PyQt4.QtGui import *
 from PyQt4.QtCore import *
-from tables import *
-#import my functions
-#from make_image_v2 import make_image as make_image_import
 from mkidreadout.utils.iqsweep import *
-from lib.PSFit_GUI import Ui_MainWindow
+from .PSFit_GUI import Ui_MainWindow
 
 class StartQt4(QMainWindow):
     def __init__(self,parent=None):

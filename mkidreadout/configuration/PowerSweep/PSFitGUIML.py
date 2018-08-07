@@ -19,23 +19,11 @@
 # Run this program with no arguments to get the "classic" look.
 # Run this progam with any variable to get the "new" look.  The values of arguments are ignored.
 
-#import standard python libraries
-import sys
-import time
-import struct
-import os
 import ConfigParser
-from os.path import isfile
-#import installed libraries
-from matplotlib import pylab
-from matplotlib import pyplot as plt
 from numpy import *
 import numpy
 from PyQt4.QtGui import *
 from PyQt4.QtCore import *
-from tables import *
-#import my functions
-#from make_image_v2 import make_image as make_image_import
 from mkidreadout.utils.iqsweep import *
 from matplotlib.backends.backend_qt4 import NavigationToolbar2QT as NavigationToolbar
 

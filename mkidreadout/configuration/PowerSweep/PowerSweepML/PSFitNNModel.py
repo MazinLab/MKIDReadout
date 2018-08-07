@@ -15,9 +15,7 @@ For every resonator an "image" of it's power sweep is made, with axes of frequen
 mlClassification defines the graph structure, trains the model, and saves it so it can be used for inference.
 
 '''
-import os,sys,inspect
-#from PSFit import *
-from mkidreadout.utils.iqsweep import *
+
 import numpy as np
 import sys, os
 import matplotlib.pyplot as plt
@@ -26,10 +24,9 @@ import pickle
 import random
 import time
 import math
-from scipy import interpolate
-from PSFitMLData import *
+from .PSFitMLData import *
 np.set_printoptions(threshold=np.inf)
-import PSFitMLTools as mlt
+import .PSFitMLTools as mlt
 
 #removes visible depreciation warnings from lib.iqsweep
 import warnings

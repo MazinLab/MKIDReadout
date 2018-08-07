@@ -3,20 +3,12 @@ Class for loading and/or saving ML data for PS fitting.  Class contains one data
 use would have the save functionality used exclusively for inference.
 
 '''
-import os,sys,inspect
-#from PSFit import *
+
 from mkidreadout.utils.iqsweep import *
 import numpy as np
 import sys, os
-import matplotlib.pyplot as plt
-import tensorflow as tf
 import pickle
-import random
-import time
-import math
-from scipy import interpolate
 np.set_printoptions(threshold=np.inf)
-
 #removes visible depreciation warnings from lib.iqsweep
 import warnings
 warnings.filterwarnings("ignore")

@@ -2,7 +2,7 @@
 Author:    Matt Strader
 
 """
-
+from __future__ import print_function
 import time
 import numpy as np
 import matplotlib.pyplot as plt
@@ -12,21 +12,21 @@ from .Roach2Controls import Roach2Controls
 
 def incrementMmcmPhase(fpga,stepSize=2):
 
-    for i in xrange(stepSize):
+    for i in range(stepSize):
         fpga.write_int('adc_in_inc_phs',1)
         fpga.write_int('adc_in_inc_phs',0)
     
 def snapZdok(fpga,nRolls=0):
     snapshotNames = fpga.snapshots.names()
 
-    fpga.write_int('adc_in_trig',0)#initialize trigger
+    fpga.write_int('adc_in_trig', 0)  #initialize trigger
     for name in snapshotNames:
         fpga.snapshots[name].arm(man_valid=False,man_trig=False)
 
     time.sleep(.01)
-    fpga.write_int('adc_in_trig',1)#trigger snapshots
-    time.sleep(.01) #wait for other trigger conditions to be met, and fill buffers
-    fpga.write_int('adc_in_trig',0)#release trigger
+    fpga.write_int('adc_in_trig', 1)  #trigger snapshots
+    time.sleep(.01)  #wait for other trigger conditions to be met, and fill buffers
+    fpga.write_int('adc_in_trig', 0)  #release trigger
 
     adcData0 = fpga.snapshots['adc_in_snp_cal0_ss'].read(timeout=5,arm=False)['data']
     adcData1 = fpga.snapshots['adc_in_snp_cal1_ss'].read(timeout=5,arm=False)['data']
@@ -92,25 +92,25 @@ def findCal(fpga,bPlot=False):
     errorInQ = checkRamp(snapDict['qVals'],bPlot=bPlot)
     initialError = errorInI | errorInQ
     if initialError == False:
-        print 'keep initial state'
+        print('keep initial state')
         #started at valid solution, so return index 0
         return {'solutionFound':True,'solution':0}
     else:
         nSteps = 60
         stepSize = 4
         failPattern = findCalPattern(fpga,nSteps=nSteps,stepSize=stepSize)['failPattern']
-        print 'fail pat',failPattern
+        print('fail pat', failPattern)
         passPattern = (failPattern == 0.)
-        print 'pass pat',passPattern
+        print('pass pat', passPattern)
         try:
             firstRegionSlice = scipy.ndimage.find_objects(scipy.ndimage.label(passPattern)[0])[0][0]
-            print firstRegionSlice
+            print(firstRegionSlice)
             regionIndices = np.arange(len(passPattern))[firstRegionSlice]
-            print regionIndices
+            print(regionIndices)
             solutionIndex = regionIndices[0]+(len(regionIndices)-1)//2
-            print solutionIndex
+            print(solutionIndex)
             incrementMmcmPhase(fpga,solutionIndex*stepSize)
-            print 'solution found',solutionIndex*stepSize
+            print('solution found', solutionIndex * stepSize)
             return {'solutionFound':True,'solution':solutionIndex*stepSize}
         except IndexError:
             return {'solutionFound':False}
@@ -120,7 +120,7 @@ def findCalPattern(fpga,bPlot=False,nSteps=60,stepSize=4):
     stepIndices = np.arange(0,nSteps*stepSize,stepSize)
 
     totalChange = 0
-    for iStep in xrange(nSteps):
+    for iStep in range(nSteps):
         incrementMmcmPhase(fpga,stepSize=stepSize)
         totalChange += stepSize
 
@@ -140,8 +140,8 @@ if __name__=='__main__':
     if len(sys.argv) > 1:
         ip = '10.0.0.'+sys.argv[1]
     else:
-        print 'Usage:',sys.argv[0],'roachNum'
-    print ip
+        print('Usage:', sys.argv[0], 'roachNum')
+    print(ip)
 
     roach = Roach2Controls(ip, '/mnt/data0/MkidDigitalReadout/DataReadout/ChannelizerControls/DarknessFpga_V2.param', True, False)
     roach.connect()
@@ -151,26 +151,25 @@ if __name__=='__main__':
 
     time.sleep(.01)
     if not roach.fpga.is_running():
-        print 'Firmware is not running. Start firmware, and calibrate qdr first!'
+        print('Firmware is not running. Start firmware, and calibrate qdr first!')
         exit(0)
     roach.fpga.get_system_information()
-    print 'Fpga Clock Rate:',roach.fpga.estimate_fpga_clock()
+    print('Fpga Clock Rate:', roach.fpga.estimate_fpga_clock())
     roach.fpga.write_int('run',1)
 
 
     busDelays = [14,18,14,13]
     busStarts = [0,14,28,42]
     busBitLength = 12
-    for iBus in xrange(len(busDelays)):
+    for iBus in range(len(busDelays)):
         delayLut = zip(np.arange(busStarts[iBus],busStarts[iBus]+busBitLength), 
             busDelays[iBus] * np.ones(busBitLength))
         loadDelayCal(roach.fpga,delayLut)
 
     calDict = findCal(roach.fpga,True)
-    print calDict
+    print(calDict)
 
     roach.sendUARTCommand(0x5)
 
-
-    print 'DONE!'
+    print('DONE!')
 

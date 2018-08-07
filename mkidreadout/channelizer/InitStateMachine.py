@@ -3,7 +3,7 @@ AUTHOR: Matt
 
 The InitStateMachine class runs the commands on the readout boards. 
 """
-import os, sys, time, random
+import sys, time, random
 import numpy as np
 from PyQt4 import QtCore
 from Queue import Queue
