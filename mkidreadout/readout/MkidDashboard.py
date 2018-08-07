@@ -557,7 +557,7 @@ class MkidDashboard(QMainWindow):
         """
         This function loads the beammap into the roach firmware
         It uses the beammapFile property in the config file
-        If it can't find the beammap file then it loads in the defualt beammap from default_beammap.txt
+        If it can't find the beammap file then it loads in the defualt beammap from default.txt
         
         We set self.beammapFailed here for later use. It's a 2D boolean array with the (row,col)=(y,x) 
         indicating if that pixel is in the beammap or not
