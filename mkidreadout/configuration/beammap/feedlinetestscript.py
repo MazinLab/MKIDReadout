@@ -1,5 +1,5 @@
-from MKIDDigitalReadout.DataReadout.Setup.Beammap.mapcheckertesting import mapchecker
-from MKIDDigitalReadout.DataReadout.Setup.Beammap.mapcheckertesting import feedline
+from . import mapchecker
+from . import feedline
 import numpy as np
 import matplotlib.pyplot as plt
 import time
@@ -35,31 +35,31 @@ print('It took {0:1.4f}'.format(endtime-starttime),'seconds to make your feedlin
 feedlinearray = np.array([feedline1, feedline5, feedline6, feedline7, feedline8, feedline9, feedline10])
 feedlineforanalysis = feedlinearray[2]
 
-'''
-rd, fd, md, resids = mapchecker.leastsquaremethod(feedlineforanalysis, design_feedline, 3)
+run=False
+if run:
+    rd, fd, md, resids = mapchecker.leastsquaremethod(feedlineforanalysis, design_feedline, 3)
 
-plt.subplots(2, 1)
-plt.suptitle(feedlineforanalysis.name)
-plt.subplot(211)
-plt.scatter(md, rd, label='measured data', marker='.', c='k')
-plt.scatter(md, fd, label='fitted model data', marker='.', c='b')
-plt.scatter(md, md, label='unfitted model data', marker='.', c='r')
-plt.legend()
-plt.ylabel('Measured Frequency (MHz)')
-plt.subplot(212)
-plt.scatter(md, resids, label='residuals from fitted data', marker='.', c='b')
-plt.scatter(md, rd-md, label='residuals from unfit data', marker='.', c='r')
-plt.legend()
-plt.xlabel('Design Frequency (MHz)')
-plt.ylabel('Residual Distance (MHz)')
-plt.show()
+    plt.subplots(2, 1)
+    plt.suptitle(feedlineforanalysis.name)
+    plt.subplot(211)
+    plt.scatter(md, rd, label='measured data', marker='.', c='k')
+    plt.scatter(md, fd, label='fitted model data', marker='.', c='b')
+    plt.scatter(md, md, label='unfitted model data', marker='.', c='r')
+    plt.legend()
+    plt.ylabel('Measured Frequency (MHz)')
+    plt.subplot(212)
+    plt.scatter(md, resids, label='residuals from fitted data', marker='.', c='b')
+    plt.scatter(md, rd-md, label='residuals from unfit data', marker='.', c='r')
+    plt.legend()
+    plt.xlabel('Design Frequency (MHz)')
+    plt.ylabel('Residual Distance (MHz)')
+    plt.show()
 
-plt.figure(2)
-plt.hist((rd-md), bins=25, label='residuals from unfit data', alpha=0.7, color='red')
-plt.hist(resids, bins=25, label='residuals from fitted data', alpha=0.7, color='blue')
-plt.legend()
-plt.xlabel('Residual Distance (MHz)')
-plt.ylabel('Counts')
-plt.title(feedlineforanalysis.name)
-plt.show()
-'''
+    plt.figure(2)
+    plt.hist((rd-md), bins=25, label='residuals from unfit data', alpha=0.7, color='red')
+    plt.hist(resids, bins=25, label='residuals from fitted data', alpha=0.7, color='blue')
+    plt.legend()
+    plt.xlabel('Residual Distance (MHz)')
+    plt.ylabel('Counts')
+    plt.title(feedlineforanalysis.name)
+    plt.show()

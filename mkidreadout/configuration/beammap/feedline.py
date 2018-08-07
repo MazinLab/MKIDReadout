@@ -1,6 +1,4 @@
-
 # coding: utf-8
-
 import numpy as np
 import glob
 import os
@@ -10,7 +8,7 @@ import os
 Figure out what constitutes 'bad'... <100, 500, 1000 pixels?, at least anything completely empty should return "bad"'''
 
 
-class Feedline:
+class Feedline(object):
 
     # instantiating the class
     def __init__(self, modelfile, beammapfile, freqsweeps, fl_num):
