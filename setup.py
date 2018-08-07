@@ -21,7 +21,7 @@ def get_virtualenv_path():
 
 def compile_and_install_software():
     """Used the subprocess module to compile/install the C software."""
-    src_path = './mkidreadout/readout/packetmaster/'
+    src_path = './mkidreadout/mkidreadout/readout/packetmaster/'
 
     # compile the software
     cmds = ["gcc -Wall -Wextra -o packetmaster packetmaster.c -I. -lm -lrt -lpthread -O3"]
@@ -30,11 +30,16 @@ def compile_and_install_software():
 #            'gcc -o BinCheck BinCheck.c -I. -lm -lrt']
     venv = get_virtualenv_path()
 
-    for cmd in cmds:
-        if venv:
-            cmd += ' --prefix=' + os.path.abspath(venv)
-        subprocess.check_call(cmd, cwd=src_path, shell=True)
+    print os.getcwd()
+    try:
 
+        for cmd in cmds:
+            if venv:
+                cmd += ' --prefix=' + os.path.abspath(venv)
+            subprocess.check_call(cmd, cwd=src_path, shell=True)
+    except Exception as e:
+        print str(e)
+        raise e
 
 class CustomInstall(install):
     """Custom handler for the 'install' command."""
@@ -45,7 +50,6 @@ class CustomInstall(install):
 
 with open("README.md", "r") as fh:
     long_description = fh.read()
-
 
 
 setuptools.setup(
