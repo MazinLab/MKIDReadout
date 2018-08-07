@@ -1,6 +1,8 @@
+from __future__ import print_function
 import setuptools, sys
 import os
 from setuptools.command.install import install
+from setuptools.command.develop import develop
 import subprocess
 #pip install -e git+http://github.com/mazinlab/mkidreadout.git@restructure#egg=mkidreadout --src ./mkidtest
 
@@ -21,7 +23,7 @@ def get_virtualenv_path():
 
 def compile_and_install_software():
     """Used the subprocess module to compile/install the C software."""
-    src_path = './mkidreadout/mkidreadout/readout/packetmaster/'
+    src_path = './mkidreadout/readout/packetmaster/'
 
     # compile the software
     cmds = ["gcc -Wall -Wextra -o packetmaster packetmaster.c -I. -lm -lrt -lpthread -O3"]
@@ -30,7 +32,6 @@ def compile_and_install_software():
 #            'gcc -o BinCheck BinCheck.c -I. -lm -lrt']
     venv = get_virtualenv_path()
 
-    print os.getcwd()
     try:
 
         for cmd in cmds:
@@ -38,14 +39,20 @@ def compile_and_install_software():
                 cmd += ' --prefix=' + os.path.abspath(venv)
             subprocess.check_call(cmd, cwd=src_path, shell=True)
     except Exception as e:
-        print str(e)
+        print(str(e))
         raise e
 
-class CustomInstall(install):
+class CustomInstall(install, object):
     """Custom handler for the 'install' command."""
     def run(self):
         compile_and_install_software()
-        super().run()
+        super(CustomInstall,self).run()
+
+class CustomDevelop(develop, object):
+    """Custom handler for the 'install' command."""
+    def run(self):
+        compile_and_install_software()
+        super(CustomDevelop,self).run()
 
 
 with open("README.md", "r") as fh:
@@ -72,7 +79,7 @@ setuptools.setup(
         "Development Status :: 1 - Planning",
         "Intended Audience :: Science/Research"
     ),
-    cmdclass={'install': CustomInstall}
+    cmdclass={'install': CustomInstall,'develop': CustomDevelop}
 )
 
 
