@@ -15,8 +15,6 @@ import matplotlib
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
 import time
-import pdb
-#import powspec_rebin
 
 class IQsweeptables(IsDescription):
     """The pytables derived class that hold IQ sweep data on the disk

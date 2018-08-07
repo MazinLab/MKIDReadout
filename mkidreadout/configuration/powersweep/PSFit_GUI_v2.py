@@ -105,7 +105,7 @@ class Ui_MainWindow(object):
         self.actionOpen.setText(QtGui.QApplication.translate("MainWindow", "Open", None, QtGui.QApplication.UnicodeUTF8))
         self.s.setText(QtGui.QApplication.translate("MainWindow", "Save", None, QtGui.QApplication.UnicodeUTF8))
 
-from ..Beammapping.mpl_pyqt4_widget import MPL_Widget
+from mkidreadout.utils.mpl_pyqt4_widget import MPL_Widget
 
 if __name__ == "__main__":
     import sys

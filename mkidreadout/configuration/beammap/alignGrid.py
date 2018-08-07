@@ -17,7 +17,7 @@ import numpy as np
 import scipy.ndimage as sciim
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
-from readDict import readDict
+from mkidreadout.utils.readDict import readDict
 
 beamMapFlags = {
                 'good':0,           #No flagging

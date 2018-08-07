@@ -16,7 +16,7 @@ import random
 import os
 import matplotlib.pyplot as plt
 #from arrayPopup import plotArray
-from readDict import readDict
+from mkidreadout.utils.readDict import readDict
 from mkidreadout.configuration.beammap.flags import beamMapFlags
 
 def isInCorrectFL(i, x):

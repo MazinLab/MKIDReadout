@@ -13,7 +13,7 @@ import tensorflow as tf
 import os, sys
 from PSFitMLData import PSFitMLData
 import PSFitMLTools as mlt
-from readDict import readDict
+from mkidreadout.utils.readDict import readDict
 
 
 def findPowers(mlDict, h5FileName, outputFN=None):

@@ -18,7 +18,7 @@ import matplotlib.pyplot as plt
 import pdb
 import ConfigParser
 from createTemplarResList import createTemplarResList
-from readDict import readDict
+from mkidreadout.utils.readDict import readDict
 
 def findLOs(freqs, loRange=0.2, nIters=10000, colParamWeight=1, resBW=0.0002, ifHole=0.003):
     '''

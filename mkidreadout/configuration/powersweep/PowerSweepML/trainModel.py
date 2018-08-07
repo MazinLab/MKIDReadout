@@ -9,7 +9,7 @@ modelDir specified in config file.
 '''
 
 from PSFitNNModel import *
-from readDict import readDict
+from mkidreadout.utils.readDict import readDict
 
 if len(sys.argv)<2:
     print 'Must supply config file!'
