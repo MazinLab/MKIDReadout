@@ -1,5 +1,5 @@
-'''
-Code to minimize sideband amplitude in the ADC by applying offsets to the 
+"""
+Code to minimize sideband amplitude in the ADC by applying offsets to the
 relative phases and amplitudes of the I and Q signals for each tone.
 
 Usage: python sbSuppressionOptimizer.py -c <templarcfg> <roachNums>
@@ -11,20 +11,21 @@ is sensitive to tone power.
 
 Author: Neelay Fruitwala
 
-'''
+"""
 
-import adcSnapCheck as adcSnap
-from Roach2Controls import Roach2Controls
+#TODO modernize to use Roach2Controls instead of functionality from adcSnapCheck imported as adcSnap
+from __future__ import print_function
+from mkidreadout.channelizer.Roach2Controls import Roach2Controls
 import numpy as np
-import time, struct, sys, os
+import time, sys, os
 import matplotlib.pyplot as plt
-import random
 import scipy.optimize as spo
 import threading
 
+
 class SBOptimizer:
-    '''
-    Class for optimizing ADC sideband suppression, by generating phase and amplitude offsets between 
+    """
+    Class for optimizing ADC sideband suppression, by generating phase and amplitude offsets between
     DAC I and Q signals.
 
     Functions:
@@ -35,11 +36,12 @@ class SBOptimizer:
         saveGridSearchOptFreqList: saves a frequency file containing phase and I/Q corrections
 
 
-    '''
+    """
             
-    def __init__(self, ip='10.0.0.112', params='/mnt/data0/neelay/MkidDigitalReadout/DataReadout/ChannelizerControls/DarknessFpga_V2.param', freqList=None,
-        toneAttenList=None, resIDList=None, loFreq=5.e9, adcAtten=31.75, globalDacAtten=9):
-        '''
+    def __init__(self, ip='10.0.0.112',
+                 params='/mnt/data0/neelay/mkidreadout/mkidreadout/channelizer/darknessfpga.param',
+                 freqList=None, toneAttenList=None, resIDList=None, loFreq=5.e9, adcAtten=31.75, globalDacAtten=9):
+        """
         INPUTS:
             ip: ROACH2 IP Address
             params: Roach2Controls parameter file
@@ -49,7 +51,7 @@ class SBOptimizer:
             freqList: list of tone frequencies in frequency comb to optimize (should be entire comb; no need to divide into separate sidebands
             resIDList: list of corresponding resonator IDs
             toneAttenList: list of corresponding resonator attenuation values
-        '''
+        """
         if freqList is None or toneAttenList is None:
             raise Exception('Must specify frequencies and attenuations')
 
@@ -76,9 +78,9 @@ class SBOptimizer:
         self.finalIQRatioListHigh = np.ones(len(self.freqListHigh))
 
     def initRoach(self):
-        '''
+        """
         Initializes the ROACH2: connects, initializes the UART, loads the LO and physical attenuations
-        '''
+        """
         self.roach.connect()
         self.roach.setLOFreq(self.loFreq)
         self.roach.initializeV7UART(waitForV7Ready=False)
@@ -88,7 +90,7 @@ class SBOptimizer:
         self.roach.changeAtten(3,self.adcAtten)
 
     def loadLUT(self, sideband='all', phaseList=None, iqRatioList=None):
-        '''
+        """
         Loads DAC LUT
         INPUTS:
             sideband: specifies which sideband to load:
@@ -98,7 +100,7 @@ class SBOptimizer:
             phaseList: list of phase offsets at each frequency
             iqRatioList: list of I/Q amplitude ratios at each frequency
             No offsets are loaded if the above two parameters are 'None'
-        '''
+        """
         if sideband=='all':
             freqList = self.freqList
             attenList = self.toneAttenList
@@ -114,7 +116,7 @@ class SBOptimizer:
         self.roach.generateResonatorChannels(freqList)
         self.roach.generateFftChanSelection()
         #self.roach.generateDacComb(resAttenList=attenList,globalDacAtten=9)
-        print 'Generating DDS Tones...'
+        print('Generating DDS Tones...')
         self.roach.generateDdsTones()
         self.roach.debug=False
         self.roach.generateDacComb(freqList=freqList, resAttenList=attenList, globalDacAtten=self.globalDacAtten, iqRatioList=iqRatioList, 
@@ -124,11 +126,11 @@ class SBOptimizer:
         time.sleep(1)
     
     def takeAdcSnap(self):
-        '''
+        """
         Takes an ADC Snap
         OUTPUTS:
             snapDict: Dictionary w/ I and Q values (see adcSnapCheck.py)
-        '''
+        """
         delayLut0 = zip(np.arange(0,12),np.ones(12)*14)
         delayLut1 = zip(np.arange(14,26),np.ones(12)*18)
         delayLut2 = zip(np.arange(28,40),np.ones(12)*14)
@@ -143,9 +145,9 @@ class SBOptimizer:
         return snapDict
         
     def gridSearchOptimizerFit(self, phases=np.arange(-25, 25), iqRatios=np.arange(0.8, 1.75, 0.02), sideband='upper', threshold=35, weightDecayDist=1, nAvgs=5, saveNPZ=False):
-        '''
+        """
         Determines optimal phase/iq offsets for each tone in comb simultaneosly. Treats all tones as independent. For each tone,
-        samples the SB suppression at a few random points in phase/iq offset search space, then fits a 2D exponential decay. Takes 
+        samples the SB suppression at a few random points in phase/iq offset search space, then fits a 2D exponential decay. Takes
         additional samples both near and far from the peak, refitting after each sample until an above-threshold point is found. Threshold
         decreases with each iteration.
 
@@ -158,7 +160,7 @@ class SBOptimizer:
             self.finalPhaseList - list of optimal phases
             self.finalIQRatioList - list of optimal IQ ratios
             self.finalSBSupList - list of SB suppressions at optimal points
-        '''
+        """
         if sideband == 'lower':
             freqList = self.freqListLow
             attenList = self.toneAttenListLow
@@ -178,16 +180,16 @@ class SBOptimizer:
         snapDict = self.takeAdcSnap()
         specDict = adcSnap.streamSpectrum(snapDict['iVals'], snapDict['qVals'])        
         findFreq = lambda freq: np.where(specDict['freqsMHz']==freq)[0][0]
-        print 'quantFreqsMHz', quantFreqsMHz
-        print 'spectDictFreqs', specDict['freqsMHz']
-        print 'nSamples', specDict['nSamples']
+        print('quantFreqsMHz', quantFreqsMHz)
+        print('spectDictFreqs', specDict['freqsMHz'])
+        print('nSamples', specDict['nSamples'])
         freqLocs = np.asarray(map(findFreq, quantFreqsMHz))
         sbLocs = -1*freqLocs + len(specDict['freqsMHz'])
         
         #specifies the probability distribution from which to sample points in phase, IQ ratio, search space
-        weights = np.ones((len(freqList), len(phases), len(iqRatios))) 
+        weights = np.ones((len(freqList), len(phases), len(iqRatios)))
 
-        print 'weightShape', np.shape(weights)
+        print('weightShape', np.shape(weights))
 
         #normalize weights within each frequency
         normWeights = np.transpose(np.transpose(np.reshape(weights,(len(freqList),-1)))/np.sum(weights, axis=(1,2)))
@@ -316,11 +318,11 @@ class SBOptimizer:
             
             threshold -= 1
 
-            print 'Number of Failed Fits', nFailedFits
-            print 'Number past threshold', sum(foundMaxList)
-            print 'threshold', threshold
-            print counter, 'iterations'
-            print 'finalSBSupList', finalSBSupList
+            print('Number of Failed Fits', nFailedFits)
+            print('Number past threshold', sum(foundMaxList))
+            print('threshold', threshold)
+            print(counter, 'iterations')
+            print('finalSBSupList', finalSBSupList)
             #plt.imshow(normWeights)
             #plt.colorbar()
             #plt.show()
@@ -343,15 +345,15 @@ class SBOptimizer:
 
         
     def saveGridSearchOptFreqList(self, filename, useResID=True):
-        '''
-        Saves new frequency list containing optimal phase and I/Q offsets. 
+        """
+        Saves new frequency list containing optimal phase and I/Q offsets.
         Compatible with HighTemplar
-        
+
         INPUTS:
             filename: name (including location) of new frequency file
             useResID: should be true if resIDs were initially supplied
 
-        '''
+        """
         if useResID:
            data = np.zeros((len(self.freqList), 5))
            data[:, 0] = self.resIDList
@@ -371,14 +373,14 @@ class SBOptimizer:
 
 
     def ampScalePlotter(self, freq, phase, scaleRange=np.arange(0.5,1.5,0.02)):
-        '''
+        """
         Plot sideband suprression as a function of ADC amplitude scaling
-        
+
         INPUTS:
             freq: tone frequency (Hz)
             phase: phase delay
             scaleRange: range of ADC scalings to check
-        '''
+        """
         self.loadLUT(np.asarray([freq]), phase)
         snapDict = self.takeAdcSnap()
         sbSuppressions = np.zeros(len(scaleRange))
@@ -411,19 +413,19 @@ class SBOptimizer:
         snapDict = self.takeAdcSnap()
         specDict = adcSnap.streamSpectrum(snapDict['iVals'], snapDict['qVals'])        
         findFreq = lambda freq: np.where(specDict['freqsMHz']==freq)[0][0]
-        print 'quantFreqsMHz', quantFreqsMHz
-        print 'spectDictFreqs', specDict['freqsMHz']
-        print 'nSamples', specDict['nSamples']
+        print('quantFreqsMHz', quantFreqsMHz)
+        print('spectDictFreqs', specDict['freqsMHz'])
+        print('nSamples', specDict['nSamples'])
         freqLocs = np.asarray(map(findFreq, quantFreqsMHz))
         sbLocs = -1*freqLocs + len(specDict['freqsMHz'])
         sbSuppressions = specDict['spectrumDb'][freqLocs]-specDict['spectrumDb'][sbLocs]
         return sbSuppressions
                
 def loadGridTable(fileName):
-    '''
+    """
     Loads exhaustive grid search data (made by makeGridPlot), finds optimal phase/iq ratio locations and loads
     them into DAC LUT. Then takes adcSnap and finds SB suppression at each frequency
-    '''
+    """
     data = np.load(fileName)
     sbSupFlat = np.reshape(data['sbSuppressions'],(np.shape(data['sbSuppressions'])[0],-1))
     sbMaxInds = np.argmax(sbSupFlat, axis=1)
@@ -441,9 +443,9 @@ def loadGridTable(fileName):
     # phaseList = np.zeros(len(data['freqs'])) # uncomment these lines if you don't want to load in optimal phases, just frequencies
     # iqRatioList = np.ones(len(data['freqs']))
     sbo.loadLUT(freqList=data['freqs'], phaseList=phaseList, iqRatioList=iqRatioList)
-    
-    print 'phases', phaseList
-    print 'iqRatios', iqRatioList
+
+    print('phases', phaseList)
+    print('iqRatios', iqRatioList)
 
     nSamples = 4096.
     sampleRate = 2000. #MHz
@@ -453,13 +455,14 @@ def loadGridTable(fileName):
     snapDict = sbo.takeAdcSnap()
     specDict = adcSnap.streamSpectrum(snapDict['iVals'], snapDict['qVals'])        
     findFreq = lambda freq: np.where(specDict['freqsMHz']==freq)[0][0]
-    print 'quantFreqsMHz', quantFreqsMHz
-    print 'spectDictFreqs', specDict['freqsMHz']
-    print 'nSamples', specDict['nSamples']
+    print('quantFreqsMHz', quantFreqsMHz)
+    print('spectDictFreqs', specDict['freqsMHz'])
+    print('nSamples', specDict['nSamples'])
     freqLocs = np.asarray(map(findFreq, quantFreqsMHz))
     sbLocs = -1*freqLocs + len(specDict['freqsMHz'])
     sbSuppressions = specDict['spectrumDb'][freqLocs]-specDict['spectrumDb'][sbLocs]
-    print sbSuppressions
+    print(sbSuppressions)
+
 
 def optRawGridData(filename, freqInd=10, corrLen=20, threshold=40, sbSupScale=5, sbSupIncThresh=20):
     data = np.load(filename)
@@ -467,7 +470,7 @@ def optRawGridData(filename, freqInd=10, corrLen=20, threshold=40, sbSupScale=5,
     sampledSBSups = np.zeros(np.shape(sbSups))
 
     weights = np.ones(np.shape(sbSups))
-    print 'weightShape', np.shape(weights)
+    print('weightShape', np.shape(weights))
     normWeights = weights/np.sum(weights)
     flatInds = np.arange(len(weights.flatten()))
     curSup = 0
@@ -477,9 +480,9 @@ def optRawGridData(filename, freqInd=10, corrLen=20, threshold=40, sbSupScale=5,
     baseRowCoords = np.transpose(baseRowCoords)
     baseColCoords = np.tile(np.arange(np.shape(sbSups)[1]),(np.shape(sbSups)[0],1))
     while curSup<threshold:
-        print np.shape(flatInds)
-        print np.shape(normWeights.flatten())
-        print np.sum(normWeights.flatten())
+        print(np.shape(flatInds))
+        print(np.shape(normWeights.flatten()))
+        print(np.sum(normWeights.flatten()))
         flatInd = np.random.choice(flatInds, p=normWeights.flatten())
         sbSupInd = np.unravel_index(flatInd, np.shape(sbSups))
         sampledSBSups[sbSupInd] = sbSups[sbSupInd]
@@ -497,10 +500,10 @@ def optRawGridData(filename, freqInd=10, corrLen=20, threshold=40, sbSupScale=5,
 
         counter += 1
 
-        print counter, 'iterations'
-        print 'sampledSBSups'
-        print 'curSup', curSup
-        print 'position', sbSupInd
+        print(counter, 'iterations')
+        print('sampledSBSups')
+        print('curSup', curSup)
+        print('position', sbSupInd)
         #plt.imshow(normWeights)
         #plt.colorbar()
         #plt.show()
@@ -518,7 +521,7 @@ def loadOptimizedLUT(filename, ip, loadCorrections=True, plot=True):
     data = np.load(filename)
     sbo = SBOptimizer(ip=ip, freqList=data['freqs'], toneAttenList=data['toneAttenList'], globalDacAtten=data['globalDacAtten'], adcAtten=data['adcAtten'], loFreq=data['loFreq'])
     sbo.initRoach()
-    print 'global dac atten', sbo.globalDacAtten
+    print('global dac atten', sbo.globalDacAtten)
     #print 'toneAtten', sbo.toneAtten
     if loadCorrections:
         sbo.loadLUT(phaseList=data['optPhases'], iqRatioList=data['optIQRatios'])
@@ -534,9 +537,9 @@ def loadOptimizedLUT(filename, ip, loadCorrections=True, plot=True):
     snapDict = sbo.takeAdcSnap()
     specDict = adcSnap.streamSpectrum(snapDict['iVals'], snapDict['qVals'])        
     findFreq = lambda freq: np.where(specDict['freqsMHz']==freq)[0][0]
-    print 'quantFreqsMHz', quantFreqsMHz
-    print 'spectDictFreqs', specDict['freqsMHz']
-    print 'nSamples', specDict['nSamples']
+    print('quantFreqsMHz', quantFreqsMHz)
+    print('spectDictFreqs', specDict['freqsMHz'])
+    print('nSamples', specDict['nSamples'])
     freqLocs = np.asarray(map(findFreq, quantFreqsMHz))
     sbLocs = -1*freqLocs + len(specDict['freqsMHz'])
     curSupList = specDict['spectrumDb'][freqLocs]-specDict['spectrumDb'][sbLocs]
@@ -555,7 +558,7 @@ def optRawGridDataFit(filename, freqInd=40, threshold=32, weightDecayDist=1):
     sampledSBSups[:] = np.nan
 
     weights = np.ones(np.shape(sbSups))
-    print 'weightShape', np.shape(weights)
+    print('weightShape', np.shape(weights))
     normWeights = weights/np.sum(weights)
     flatInds = np.arange(len(weights.flatten()))
     curSup = 0
@@ -598,8 +601,8 @@ def optRawGridDataFit(filename, freqInd=40, threshold=32, weightDecayDist=1):
 
         fitParams, pcov = spo.curve_fit(expDecay, xdata, ydata, fitParams, 
             bounds=([0, 0, 30, 2], [np.shape(sampledSBSups)[0], np.shape(sampledSBSups)[1], 50, 20]), method='trf')
-        
-        print 'fitParams', fitParams
+
+        print('fitParams', fitParams)
 
         rowDist = rowCoords - fitParams[0]
         colDist = colCoords - fitParams[1]
@@ -611,10 +614,10 @@ def optRawGridDataFit(filename, freqInd=40, threshold=32, weightDecayDist=1):
         
         counter += 1
 
-        print counter, 'iterations'
-        print 'sampledSBSups'
-        print 'curSup', curSup
-        print 'position', sbSupInd
+        print(counter, 'iterations')
+        print('sampledSBSups')
+        print('curSup', curSup)
+        print('position', sbSupInd)
         #plt.imshow(normWeights)
         #plt.colorbar()
         #plt.show()
@@ -628,9 +631,9 @@ def optRawGridDataFit(filename, freqInd=40, threshold=32, weightDecayDist=1):
     plt.show()
 
 class sbOptThread(threading.Thread):
-    '''
+    """
     Multithreads optimization code to make it easy to run with multiple boards simultaneously
-    '''
+    """
     def __init__(self, **kwargs):
         threading.Thread.__init__(self)
         self.ip = kwargs.pop('ip', '10.0.0.112')
@@ -641,7 +644,7 @@ class sbOptThread(threading.Thread):
         self.mdd = os.environ['MKID_DATA_DIR']
 
     def run(self):
-        print 'Starting optimization for ROACH ' + self.ip
+        print('Starting optimization for ROACH ' + self.ip)
         freqFile = os.path.join(self.mdd, self.freqFileName)
         resIDList, freqList, attenList = np.loadtxt(freqFile, unpack=True)
         sbo = SBOptimizer(ip=self.ip, freqList=freqList, toneAttenList=attenList, resIDList=resIDList, adcAtten=self.adcAtten, globalDacAtten=self.globalDacAtten, loFreq=self.loFreq)

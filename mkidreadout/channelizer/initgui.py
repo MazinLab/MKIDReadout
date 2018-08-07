@@ -24,8 +24,8 @@ from PyQt4 import QtCore
 from PyQt4.QtCore import Qt
 from PyQt4 import QtGui
 from PyQt4.QtGui import *
-from InitStateMachine import InitStateMachine
-from InitSettingsWindow import *
+from mkidreadout.channelizer.InitStateMachine import InitStateMachine
+from mkidreadout.channelizer.InitSettingsWindow import *
 
 class InitGui(QMainWindow):
     def __init__(self, roachNums=None, defaultValues=None):
@@ -42,7 +42,7 @@ class InitGui(QMainWindow):
         self.numRoaches = len(self.roachNums)       # (int) number of roaches connected
         self.config = ConfigParser.ConfigParser()
         if defaultValues is None:
-            defaultValues = 'init.cfg'
+            defaultValues = 'initgui.cfg'
         self.config.read(defaultValues)
         
         
@@ -396,6 +396,13 @@ class InitGui(QMainWindow):
         time.sleep(.1)
         QtCore.QCoreApplication.instance().quit
 
+
+#TODO add argparser
+#todo intelligent errors on config file errors
+#TODO figure out why settings dialog shows waitforv7 as checked even if set false in initgui.cfg
+#todo improve programing detection and square greening
+#todo add all functionailty of autozdokcal.py into initgui,  make  autozdokcal work with QDR firmware too long adc snaps
+#compare with https://mazinlab.atlassian.net/wiki/spaces/READ/pages/edit/36995110?draftId=36995123&draftShareId=7ee6f311-ed8a-4e6a-a4bc-1c76bf0af9c1&
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)

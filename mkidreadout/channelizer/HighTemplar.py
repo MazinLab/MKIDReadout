@@ -49,7 +49,7 @@ class HighTemplar(QMainWindow):
         self.numRoaches = len(self.roachNums)       # (int) number of roaches connected
         self.config = ConfigParser.ConfigParser()
         if defaultValues is None:
-            defaultValues = 'example.cfg'
+            defaultValues = 'hightemplar.cfg'
         self.defaultValues=defaultValues
         self.config.read(defaultValues)
         

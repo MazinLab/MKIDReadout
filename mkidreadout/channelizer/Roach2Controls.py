@@ -2113,7 +2113,7 @@ if __name__=='__main__':
     if len(sys.argv) > 2:
         params = sys.argv[2]
     else:
-        params='DarknessFpga_V2.param'
+        params='darknessfpga.param'
     print ip
     print params
 

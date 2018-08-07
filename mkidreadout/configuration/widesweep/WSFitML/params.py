@@ -2,7 +2,7 @@
 fspan = [0,-1]#[4,4.1]# [4, 4.05] #
 wind_width = 20
 end_score = -0.2#-1.5
-# datadir = '../../Data/WideSweep/'
+# datadir = '../../Data/widesweep/'
 datadir = '/home/rupert/Documents/Widesweep_data/20170331/'
 rawsweepfile = 'Faceless_FL4.txt'
 # manpeakfile = 'WS_FL1-freqs-good.txt'

@@ -69,7 +69,7 @@ setuptools.setup(
     long_description_content_type="text/markdown",
     url="https://github.com/MazinLab/MKIDReadout",
     packages=setuptools.find_packages(),
-    scripts=['mkidreadout/channelizer/InitGui.py',
+    scripts=['mkidreadout/channelizer/initgui.py',
              'mkidreadout/channelizer/HighTemplar.py',
              'mkidreadout/readout/MkidDashboard.py'],
     classifiers=(

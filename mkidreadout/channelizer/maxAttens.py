@@ -15,7 +15,7 @@ if __name__=='__main__':
 
     for arg in sys.argv[1:]:
         ip = '10.0.0.'+arg
-        params = 'DarknessFpga_V2.param'
+        params = 'darknessfpga.param'
         roach = Roach2Controls(ip, params, True)
         roach.connect()
         roach.changeAtten(0, 31.75)

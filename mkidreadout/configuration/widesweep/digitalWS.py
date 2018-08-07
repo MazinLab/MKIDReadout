@@ -10,7 +10,7 @@ From command line
 $ python digitalWS.py 220 221 -c /home/data/MEC/20180530/templarconf.cfg -o /home/data/MEC/20180530/HypatiaFL7b
 
 From python
->>> digWS = DigitalWideSweep([220,221], 'example.cfg', '/home/data/MEC/20180330/example')
+>>> digWS = DigitalWideSweep([220,221], 'hightemplar.cfg', '/home/data/MEC/20180330/example')
 >>> digWS.startWS(roachNums=[220,221], startFreqs=[3.5E9, 5.5E9], endFreqs=[5.5E9,7.5E9],lo_step=None, DACatten=6., ADCatten=30.,makeNewFreqs=True, resAtten=65)
 
 
@@ -52,10 +52,16 @@ class DigitalWideSweep(QtCore.QObject):
         self.roachNums = np.unique(roachNums)       # sorts and removes duplicates
         self.numRoaches = len(self.roachNums)       # (int) number of roaches connected
         self.config = ConfigParser.ConfigParser()
+
+        #todo change to from channelizer.hightemplar import defaultconfig or somesuch
         if defaultValues is None:
-            defaultValues = '../../ChannelizerControls/example.cfg'
+            defaultValues = '../../channelizer/hightemplar.cfg'
         self.config.read(defaultValues)
-        
+
+        #TODO make sure that the config file is sensible, e.g. error out if dacatten setting would result in
+        # ValueError: Not enough dynamic range in DAC! Try decreasing the global DAC Attenuator by 36 dB
+
+
         self.outPath=''                             # Output directory for freq or widesweep files generated
         self.outPrefix=''                           # Prefix to put on files (like the name of the device or FL)
         if len(outputPath.rsplit('/',1))==2:
@@ -186,7 +192,8 @@ class DigitalWideSweep(QtCore.QObject):
         np.savetxt(widesweepFN, outData, fmt="%.9f %.9f %.9f",header=header)
         
 
-    def startWS(self, roachNums=None, startFreqs=None, endFreqs=None,lo_step=None, DACatten=None, ADCatten=None, makeNewFreqs=True, **kwargs):
+    def startWS(self, roachNums=None, startFreqs=None, endFreqs=None, lo_step=None, DACatten=None, ADCatten=None,
+                makeNewFreqs=True, **kwargs):
         """
         This function starts a widesweep on the roaches specified
         
@@ -219,6 +226,7 @@ class DigitalWideSweep(QtCore.QObject):
                 except: startFreq=LO - maxBandwidth/2.
                 try: endFreq = endFreqs[i]
                 except: endFreq=LO + maxBandwidth/2.
+                #todo should the same list be used for each board if making?
                 if makeNewFreqs:
                     freqs, LO, span = self.makeRandomFreqList(startFreq, endFreq,**kwargs)
                     #path=freqFN.rsplit('/',1)[0]
@@ -313,6 +321,9 @@ class DigitalWideSweep(QtCore.QObject):
             nominalFreqSpacing - nominal avg distance between freqs. May be forced to go larger to cover freq range
                                  Needs to be at least toneBandwidth+100.*freqResolution
         """
+        #todo create a frequencylist object
+        #todo move into frequencylist object
+
         assert endFreq >= startFreq, "Must use a positive Freq range"
         maxBandwidth = self.roaches[0].roachController.params['dacSampleRate']
         freqResolution = self.roaches[0].roachController.params['dacSampleRate']/(self.roaches[0].roachController.params['nDacSamplesPerCycle']*self.roaches[0].roachController.params['nLutRowsToUse'])
@@ -369,11 +380,16 @@ if __name__ == "__main__":
     print defaultValues,roachNums, filePrefix
     
     debug=False
+    #TODO make this into argparse args
+    #todo error out if it cant find config file
     startFreqs=np.asarray([3.5E9]*len(roachNums))
     startFreqs[1::2]+=2.E9
     stopFreqs=np.asarray([5.5E9]*len(roachNums))
     stopFreqs[1::2]+=2.E9
-    
+
+    #TODO make program merge the
+
+
     #startFreqs = [5.5E9]
     #stopFreqs=[7.5E9]
     digWS = DigitalWideSweep(roachNums, defaultValues,filePrefix,debug=debug)
@@ -381,4 +397,4 @@ if __name__ == "__main__":
 
 
 
-
+#TODO fix console logging!!!!

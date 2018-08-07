@@ -12,7 +12,7 @@ if __name__=='__main__':
 
     for arg in sys.argv[1:]:
         ip = '10.0.0.'+arg
-        roach = Roach2Controls(ip, 'DarknessFpga_V2.param', True)
+        roach = Roach2Controls(ip, 'darknessfpga.param', True)
         roach.connect()
         roach.initializeV7UART()
         roachList.append(roach)

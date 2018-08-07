@@ -1,5 +1,5 @@
 import numpy as np
-from ..WideSweep.WideSweepFile import WideSweepFile
+from ..widesweep.WideSweepFile import WideSweepFile
 from Resonator import Resonator
 from matplotlib.backends.backend_pdf import PdfPages
 import matplotlib.pyplot as plt
