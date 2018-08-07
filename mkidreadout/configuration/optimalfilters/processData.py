@@ -553,7 +553,6 @@ def query_yes_no(question, default="no"):
 
 
 if __name__ == '__main__':
-    defaultTemplate = np.loadtxt('/mnt/data0/nzobrist/MkidDigitalReadout/DataReadout/'
-                                 'Setup/OptimalFilters/template200_15us.txt')
+    defaultTemplate = np.loadtxt('/mnt/data0/nzobrist/mkidreadout/configuration/optimalfilters/template200_15us.txt')
     processData('/mnt/data0/Darkness/20170403/optimal_filters/112_data/',
                 defaultFilter, isVerbose=True)
