@@ -1,7 +1,7 @@
-'''
+"""
 Automates the functionality in the pixels_movingscan GUI. Finds the optimal scale, angle, and
 offset from the raw beammap data, applies these, and saves the beammap file. Note that clean.py
-should still be run after this. 
+should still be run after this.
 
 Author: Neelay Fruitwala
 
@@ -10,27 +10,17 @@ Usage: python alignGrid.py <configFile>
     the master beamlist and doubles lists that come out of the clickthrough GUI, as well as the raw beammap
     output files. The only difference is that it has parameters for nXPix and nYPix.
 
-'''
-
+"""
+from __future__ import print_function
 import os, sys
 import numpy as np
 import scipy.ndimage as sciim
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 from mkidreadout.utils.readDict import readDict
+from .flags import beamMapFlags
 
-beamMapFlags = {
-                'good':0,           #No flagging
-                'noDacTone':1,      #Pixel not read out
-                'failed':2,         #Beammap failed to place pixel
-                'yFailed':3,        #Beammap succeeded in x, failed in y
-                'xFailed':4,        #Beammap succeeded in y, failed in x
-                'double':5,
-                'wrongFeedline':6   #Beammap placed pixel in wrong feedline
-                }
-
-class BMAligner:
-
+class BMAligner(object):
     def __init__(self, beamListFn, nXPix, nYPix, usFactor=50):
         self.beamListFn = beamListFn
         self.usFactor = usFactor
@@ -38,6 +28,9 @@ class BMAligner:
         self.nYPix = nYPix
         self.resIDs, self.flags, self.rawXs, self.rawYs = np.loadtxt(beamListFn, unpack=True)
         self.makeRawImage()
+        self.rawImage = None
+        self.rawImageFFT = None
+        self.rawImageFreqs = None
 
     def makeRawImage(self):
         self.rawImage = np.zeros((int(np.max(self.rawXs[np.where(np.isfinite(self.rawXs))])*self.usFactor+2), int(np.max(self.rawYs[np.where(np.isfinite(self.rawYs))])*self.usFactor+2)))
@@ -84,8 +77,6 @@ class BMAligner:
                     if np.abs(np.dot(kvecList[0], kvec)) < 0.05*np.linalg.norm(kvec)**2:
                         kvecList[1] = kvec
                         nMaxFound += 1
-                    
-
             i += 1
                 
         xKvecInd = np.argmax(np.abs(kvecList[:,0]))
@@ -125,10 +116,10 @@ class BMAligner:
         self.xScale = 1/(self.usFactor*np.linalg.norm(self.xKvec))
         self.yScale = 1/(self.usFactor*np.linalg.norm(self.yKvec))
 
-        print 'angle:', self.angle
-        print 'x scale:', self.xScale
-        print 'y scale:', self.yScale
-        
+        print('angle:', self.angle)
+        print('x scale:', self.xScale)
+        print('y scale:', self.yScale)
+
     def rotateAndScaleCoords(self, xVals=None, yVals=None):
         c = np.cos(-self.angle)
         s = np.sin(-self.angle)
@@ -153,8 +144,8 @@ class BMAligner:
         sortedY = np.sort(self.coords[goodInds,1])
         baselineXOffs = np.median(sortedX[:self.nXPix*3/4])
         baselineYOffs = np.median(sortedY[:self.nYPix*3/4])
-        print 'Baseline X Offset:', baselineXOffs
-        print 'Baseline Y Offset:', baselineYOffs
+        print('Baseline X Offset:', baselineXOffs)
+        print('Baseline Y Offset:', baselineYOffs)
         curXOffs = baselineXOffs
         curYOffs = baselineYOffs
         optXOffs = curXOffs
@@ -190,7 +181,7 @@ class BMAligner:
                 optI = i
                 startXOffs = optXOffs
                 startYOffs = optYOffs
-                print 'Found new optimum at', optXOffs, optYOffs, 'with', optNGoodPix, 'good Pixels. i =', i
+                print('Found new optimum at', optXOffs, optYOffs, 'with', optNGoodPix, 'good Pixels. i =', i)
             if i - optI > optSearchIters: #search around maximum for a bit then go back to baseline
                 startXOffs = baselineXOffs
                 startYOffs = baselineYOffs
@@ -200,7 +191,7 @@ class BMAligner:
         self.xOffs = optXOffs
         self.yOffs = optYOffs
 
-        print 'Optimal offset:', self.xOffs, self.yOffs
+        print('Optimal offset:', self.xOffs, self.yOffs)
 
         #if roundCoords:
         #    self.coords[:,0] = (np.round(self.coords[:,0] - self.xOffs)).astype(int)
@@ -255,8 +246,8 @@ class KVecGUI():
 
         self.curAxis = 'x'
 
-        print 'Click first bright spot to the right of center (red dot)'
-        
+        print('Click first bright spot to the right of center (red dot)')
+
         self.plotImage()
 
     def plotImage(self):
@@ -276,22 +267,21 @@ class KVecGUI():
         if self.fig.canvas.manager.toolbar._active is None:
             if self.curAxis=='x':
                 self.kx = np.array([self.fftFreqs[0][int(round(event.xdata))], self.fftFreqs[1][int(round(event.ydata))]])
-                print 'kx:', self.kx
+                print('kx:', self.kx)
                 self.curAxis='y'
-                print 'Click first bright spot below center (red dot)'
+                print('Click first bright spot below center (red dot)')
             elif self.curAxis=='y':
                 self.ky = np.array([self.fftFreqs[0][int(round(event.xdata))], self.fftFreqs[1][int(round(event.ydata))]])
-                print 'ky:', self.ky
+                print('ky:', self.ky)
                 self.curAxis='x'
-                print 'Done.' 
-                print 'If you want to re-select kx, click first bright spot to the right of center (red dot), otherwise close the plot'
+                print('Done.')
+                print(
+                    'If you want to re-select kx, click first bright spot to the right of center (red dot), otherwise close the plot')
 
-            
-            
-            
+
 if __name__=='__main__':
     if len(sys.argv)<2:
-        print 'Usage: "python alignGrid.py <configFile>", where <configFile> is in MKID_DATA_DIR'
+        print('Usage: "python alignGrid.py <configFile>", where <configFile> is in MKID_DATA_DIR')
         exit(1)
 
     cfgFn=sys.argv[1]
