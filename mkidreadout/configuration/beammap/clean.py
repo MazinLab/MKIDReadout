@@ -89,7 +89,7 @@ loadDirectory = str(configData['loadDirectory'])
 loadDataFilename = str(configData['loadDataFilename'])
 loadDoublesFilename = str(configData['loadDoublesFilename'])
 
-instrument = str(configData['instrument'])
+instrument = str(configData['instrument']).lower()
 
 #put together full input/output BM paths
 roughPath = os.path.join(outputDirectory,roughBMFile)
