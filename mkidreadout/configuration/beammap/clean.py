@@ -93,7 +93,7 @@ instrument = str(configData['instrument']).lower()
 
 #put together full input/output BM paths
 roughPath = os.path.join(outputDirectory,roughBMFile)
-finalPath = os.path.join(outputDirectory,finalBMFile)
+finalPath = os.path.join(outputDirectory, finalBMFile)
 
 #load location data from rough BM file
 roughBM = np.loadtxt(roughPath)

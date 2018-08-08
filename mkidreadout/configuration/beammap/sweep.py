@@ -736,7 +736,7 @@ if __name__=='__main__':
     try:
         configFN = sys.argv[1]
     except IndexError:
-        print "Usage: $python BeammapSweep.py config.cfg"
+        print "Usage: $python sweep.py sweep.cfg"
         raise ValueError
     
     b=RoughBeammap(configFN)
