@@ -64,7 +64,7 @@ roughBMFile='RawMap.txt'
 finalBMFile='finalMap.txt'
 
 #default config file location
-configFileName = '/mnt/data0/MKIDReadoout/configuration/clean.txt'
+configFileName = '/mnt/data0/MKIDReadoout/configuration/clean.cfg'
 
 # Open config file
 configData = readDict()
