@@ -1,5 +1,5 @@
 """
-cleanBeammap.py
+clean.py
 
 Takes rough beammap with overlapping pixels and pixels out of bounds
 Reconciles doubles by placing them in nearest empty pix

@@ -1,6 +1,6 @@
 '''
 Automates the functionality in the pixels_movingscan GUI. Finds the optimal scale, angle, and
-offset from the raw beammap data, applies these, and saves the beammap file. Note that cleanBeammap.py 
+offset from the raw beammap data, applies these, and saves the beammap file. Note that clean.py
 should still be run after this. 
 
 Author: Neelay Fruitwala
