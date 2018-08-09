@@ -510,6 +510,8 @@ class ManualRoughBeammap():
             self.plotXYscatter()
             plt.show()
 
+
+
 class RoughBeammap():
     def __init__(self, configFN):
         """
