@@ -23,16 +23,15 @@ Usage:
 
 """
 
-import sys, os, warnings
+import os
 import numpy as np
 import matplotlib
 
 matplotlib.use('Qt4Agg')
 import matplotlib.pyplot as plt
-import ConfigParser
 from mkidreadout.core.config import config, importoldconfig, ConfigDict
 
-from mkidpipeline.core.corelog import setup_logging, getLogger
+from mkidcore.corelog import setup_logging, getLogger
 import argparse
 
 from mkidreadout.configuration.beammap.utils import crossCorrelateTimestreams, determineSelfconsistentPixelLocs2, \

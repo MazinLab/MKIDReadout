@@ -1,9 +1,7 @@
-import re
-
-import ruamel.yaml, StringIO
+import re, os, StringIO
+import ruamel.yaml
 from mkidreadout.core import caller_name
-from mkidreadout.core.utils import freeze
-from mkidpipeline.core.corelog import getLogger, setup_logging
+from mkidcore.corelog import getLogger, setup_logging
 try:
     import ConfigParser as configparser
 except ImportError:
@@ -15,12 +13,40 @@ yaml = ruamel.yaml.YAML()
 
 setup_logging()
 
+
+def defaultconfigfile():
+    return os.path.join(os.path.dirname(__file__),'default.yml')
+
+
 @ruamel.yaml.yaml_object(yaml)
 class ConfigDict(dict):
+    """
+    This Class implements a YAML-backed, nestable configuration object. The general idea is that
+    settings are registered, e.g. .register('a.b.c.d', thingA), updated e.g.
+    .update('a.b.c.d', thingB), mutated is partially supported e.g .a.b.c.d.append(foo) works if
+    a.b.c.d is a list, but .update would be preferred.
+
+    .get may be used to support both default values (aside from None, which is not supported at
+    present) and inheritance, though inheritance is no supported across nodes of other type.
+
+    Under the hood this is implemented as a subclass of dicitionary so many tab completions show
+    up as for python dictionaries and [] access will work...use these with caution!
+
+    Some functionality that isn't really implemented yet because it isn't supre clear HOW we will
+    want it yet:
+     -1 Updating a default load of settings with a subset from a user's file.
+     -2 Controlling the breakup of the settings into multiple files.
+
+
+    """
     yaml_tag = u'!configdict'
     __frozen = False
     def __init__(self, *args):
-        """ If initialized with a list of tuples cannonization is not enforced on values"""
+        """
+        If initialized with a list of tuples cannonization is not enforced on values
+        in general you should call ConfigDict().registerfromkvlist() as __init__ will not
+        break dotted keys out into nested namespaces.
+        """
         if args:
             super(ConfigDict, self).update([(cannonizekey(k), v) for k, v in args[0]])
         self.__frozen = True
@@ -55,21 +81,27 @@ class ConfigDict(dict):
         return self[k1][krest] if krest else self[k1]
 
     def __setattr__(self, key, value):
-        if self.__frozen and not hasattr(self, key):
+        if self.__frozen and not key.startswith('_'):
             raise AttributeError('Use register to add config attributes')
         else:
             object.__setattr__(self, key, value)
 
+    # def __str__(self):
+    #     #TODO implement
+
     def get(self, name, default=None, inherit=True):
         """This implements do notation of the config tree with optional inheritance and optional
-        default value. Default values other than None take precedence over inheritance.
+        default value. Default values other han None take precedence over inheritance.
+
+        The empty string is a convenience for returning self
 
         Inheritance means that if cfg.beam.sweep.imgdir doesn't exist but
         cfg.beam.imgdir (or then cfg.imgdir) would be returned provided they are leafs
         """
         k1, _, krest = name.partition('.')
 
-        getLogger('mkidcore.config').debug('{}:{}'.format(name, krest))
+        # if not k1:
+        #     return self
 
         try:
             next = self[k1]
@@ -109,7 +141,7 @@ class ConfigDict(dict):
         return True
 
     def keyisvalid(self, key, error=False):
-        if key.endswith(RESERVED):
+        if key.endswith(RESERVED) or key.startswith('.') or key.endswith('.'):
             if error:
                 raise KeyError("Setting keys may not end with '{}'.".format(RESERVED))
             else:
@@ -161,7 +193,8 @@ class ConfigDict(dict):
         self.keyisvalid(key, error=True)
         self.registered(key, error=True)
         try:
-            return self[key+'._c']
+            tree,_,leaf=key.rpartition('.')
+            return self.get(tree)[leaf+'._c']
         except KeyError:
             return None
 
