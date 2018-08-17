@@ -29,7 +29,7 @@ import matplotlib
 
 matplotlib.use('Qt4Agg')
 import matplotlib.pyplot as plt
-from mkidcore.config import config, importoldconfig, ConfigDict
+from mkidcore.config import config, importoldconfig, ConfigThing
 
 from mkidcore.corelog import setup_logging, getLogger
 import argparse
@@ -750,7 +750,7 @@ def registersettings():
     config.register('detector.nrow', 145)
     config.register('detector.ncol', 140)
 
-    c = ConfigDict()
+    c = ConfigThing()
     c.register('type','x', allowed=('x', 'y'))
     c.register('direction', '+', allowed=('+', '-'))
     c.register('speed', 3, type=int)
@@ -768,7 +768,7 @@ if __name__ == '__main__':
                         required=True)
     args = parser.parse_args()
 
-    thisconfig = ConfigDict()
+    thisconfig = ConfigThing()
     importoldconfig(thisconfig, args.cfgfile, namespace='beammap.sweep')
 
     log.info('Starting rough beammap')
