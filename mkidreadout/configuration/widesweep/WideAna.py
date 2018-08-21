@@ -340,8 +340,8 @@ class WideAna(QMainWindow):
             
         peaks = np.delete(peaks,colls) #remove collisions (peaks < 0.5MHz apart = < 9 steps apart)
         #peaks = np.delete(peaks,np.where(dist<9)) #remove collisions (peaks < 0.5MHz apart = < 9 steps apart)
-        self.goodPeakMask[peaks] = True
-        self.badPeakMask[colls] = True
+        self.goodPeakMask[peaks] = False #True disable automatic peak finding for now
+        self.badPeakMask[colls] = False #True disable automatic peak finding for now
         self.goodPeakMask[colls] = False
 
         self.setCountLabel()
