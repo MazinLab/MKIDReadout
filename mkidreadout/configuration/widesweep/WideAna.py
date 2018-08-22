@@ -95,6 +95,7 @@ class WideAna(QMainWindow):
             self.wsf.createPdf(self.pdfFile)
         else:
             print "Overview PDF file already on disk:",self.pdfFile
+        self.seggrouper(self.wsf.x)
         # plot the first segment
         self.deltaXDisplay = 0.100 # display width in GHz
         self.zoomFactor = 2.0
@@ -437,6 +438,19 @@ class WideAna(QMainWindow):
         self.xMin = xMiddle-dx/2.0
         self.xMax = xMiddle+dx/2.0
 
+    def seggrouper(self,x):
+        groupedgemask=np.diff(x)<=0
+        groupedgemask[0] = 1 #want first group to start at 0
+        gstarts = np.where(groupedgemask)[0]
+        gstarts[1:] += 1
+        gends=gstarts[1:]
+        gends = np.append(gends, len(x))
+        self.slices = map(lambda x: slice(*x), zip(gstarts,gends))
+        #for s in slices:
+        #    yield x[s],y[s]
+        #for start, end in zip(gstarts, gends):
+        #    yield x[start:end], y[start:end]
+
     def plotSegment(self):
         ydText = self.yDisplay.text()
         if self.wsf != None:
@@ -449,7 +463,14 @@ class WideAna(QMainWindow):
             stride = self.wsf.data1.shape[0]/self.segmentMax
             # plot all values and then set xmin and xmax to show this segment
             self.axes.clear()
-            self.axes.plot(self.wsf.x, yPlot, label=yName)
+            for i,s in enumerate(self.slices):
+                if self.xMin>self.wsf.x[s.stop-1] or self.xMax<self.wsf.x[s.start]:
+                   continue
+                x = self.wsf.x[s]
+                y = yPlot[s]
+                use=(x>self.xMin)&(x<self.xMax)
+                self.axes.plot(x[use],y[use],marker='.',markersize=.7,color='C{}'.format(i % 7))
+            #self.axes.plot(self.wsf.x, yPlot, label=yName)
 
             for x in self.wsf.x[self.goodPeakMask]:
                 if x > self.xMin and x < self.xMax:
@@ -467,10 +488,11 @@ class WideAna(QMainWindow):
                     self.axes.axvline(x=x-self.coll_thresh,color='r',linestyle='-.',linewidth=0.5)
             
             self.axes.set_xlim((self.xMin,self.xMax))
-            try: self.axes.set_ylim(self.ylim)
-            except: pass
+            #try: self.axes.set_ylim(self.ylim)
+            #except: pass
             self.axes.set_title("segment=%.1f/%.1f"%(self.segment,self.segmentMax))
             #self.axes.legend().get_frame().set_alpha(0.5)
+            plt.tight_layout()
             self.draw()
         self.canvas.setFocus()
 
