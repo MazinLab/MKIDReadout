@@ -45,6 +45,7 @@ HSFWERRORS = {0: 'No error has occurred. (cleared state)',
 # err.value
 
 log = getLogger('HSFW')  #TODO this isn't best practice but i don't think it will matter here
+HSFW_PORT = 50000
 
 global_KILL_SERVER = False
 
@@ -109,7 +110,7 @@ def connection_handler(conn):
                 fnum = int(data)
                 if abs(fnum) not in (1,2,3,4,5,6):
                     raise ValueError('Filter must be 1-6!')
-                result = HSFWERRORS[setfilterbynumber(abs(fnum), home=fnum < 0)]
+                result = HSFWERRORS[_setfilter(abs(fnum), home=fnum < 0)]
                 print2socket(result, the_socket=conn)
             except ValueError as e:
                 print2socket('bad command:  {}'.format(e), the_socket=conn)
@@ -130,23 +131,6 @@ def connection_handler(conn):
     log.info('Closing connection')
     print2socket('Closing connection', the_socket=conn)
     conn.close()
-
-def setfilterbynumber(num, home=False):
-    if num not in (1,2,3,4,5,6):
-        return
-    try:
-        fwheels = Dispatch("OptecHID_FilterWheelAPI.FilterWheels")
-        wheel = fwheels.FilterWheelList[0]
-        #wheel.FirmwareVersion
-
-        if home:
-            wheel.HomeDevice()  #HomeDevice_Async()
-        wheel.CurrentPosition = num
-        return wheel.ErrorState
-    except Exception:
-        error = traceback.format_exc()
-        getLogger(__name__).error('Caught error', exc_info=True)
-        return error
 
 
 def connect(host, port, verbose=True):
@@ -176,8 +160,26 @@ def connect(host, port, verbose=True):
     return sock
 
 
+def _setfilter(num, home=False):
+    if num not in (1,2,3,4,5,6):
+        return
+    try:
+        fwheels = Dispatch("OptecHID_FilterWheelAPI.FilterWheels")
+        wheel = fwheels.FilterWheelList[0]
+        #wheel.FirmwareVersion
+
+        if home:
+            wheel.HomeDevice()  #HomeDevice_Async()
+        wheel.CurrentPosition = num
+        return wheel.ErrorState
+    except Exception:
+        error = traceback.format_exc()
+        getLogger(__name__).error('Caught error', exc_info=True)
+        return error
+
+
 def setfilter(fnum, home=False, host='localhost:50000'):
-    host,port=host.split(':')
+    host, port = host.split(':')
     conn = connect(host, port)
     try:
         conn.sendall('{}\n'.format(-fnum if home else fnum))
@@ -194,14 +196,13 @@ def setfilter(fnum, home=False, host='localhost:50000'):
         getLogger('HSFW').error(msg.format(fnum), exc_info=True)
         try:
             conn.close()
-        except Exception :
+        except Exception:
             getLogger('HSFW').error('error:', exc_info=True)
         raise e
 
 
 if __name__ == '__main__':
-
-    if platform.system=='Linux':
+    if platform.system == 'Linux':
         sys.exit(1)
     else:
-        start_server(50000)
+        start_server(HSFW_PORT)
