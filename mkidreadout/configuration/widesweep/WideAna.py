@@ -68,11 +68,7 @@ class WideAna(QMainWindow):
         self.baseFile = ('.').join(initialFile.split('.')[:-1])
         self.goodFile = self.baseFile+"-freqs-good.txt"
         self.allFile = self.baseFile+"-freqs-all.txt"
-        if os.path.exists(self.goodFile):
-            self.goodFile = self.goodFile+time.strftime("-%Y-%m-%d-%H-%M-%S")
-            #shutil.copy(self.goodFile,self.goodFile+time.strftime("-%Y-%m-%d-%H-%M-%S"))
-        if os.path.exists(self.allFile):
-            self.allFile = self.allFile+time.strftime("-%Y-%m-%d-%H-%M-%S")
+
         self.pdfFile = self.baseFile+"-good.pdf"
         self.fitLineEdits = {}
         self.flNum = flNum
@@ -89,6 +85,12 @@ class WideAna(QMainWindow):
 
         self.load_file(initialFile)
         # make the PDF file
+        if os.path.exists(self.goodFile) and os.path.exists(self.allFile):
+#            self.goodFile = self.goodFile+time.strftime("-%Y-%m-%d-%H-%M-%S")
+            #shutil.copy(self.goodFile,self.goodFile+time.strftime("-%Y-%m-%d-%H-%M-%S"))            
+            self.load_old_data(self.goodFile,self.allFile)
+#        if os.path.exists(self.allFile):
+#            self.allFile = self.allFile+time.strftime("-%Y-%m-%d-%H-%M-%S")
 
         if not os.path.exists(self.pdfFile):
             print "Create overview PDF file:",self.pdfFile
@@ -104,6 +106,34 @@ class WideAna(QMainWindow):
         self.plotSegment()
         self.ylim = self.axes.get_ylim()
         print "Ready to add and delete peaks."
+        
+        
+    def load_old_data(self, goodFile, allFile):
+        print '\nWARNING: loading old data from \n'+str(goodFile)+'\nand\n'+str(allFile)
+        print '\nThese files WILL BE MODIFIED! Exit the program if you want to abort.\n'
+        old_good_data = np.loadtxt(goodFile)
+        
+        if len(old_good_data)==0:
+            pass
+        else:
+            old_good_ind = old_good_data[:,1].astype(int)   #get the old indexes
+            self.goodPeakMask[old_good_ind] = True
+        
+        old_all_data = np.loadtxt(allFile)
+        if len(old_all_data)==0:
+            return
+        else:
+            old_all_ind = old_all_data[:,1].astype(int)
+            allMask = np.zeros(len(self.wsf.x),dtype=np.bool)
+            allMask[old_all_ind] = True
+            self.badPeakMask = np.logical_xor(self.goodPeakMask,allMask)
+        
+
+        
+        
+        
+        
+        
 
     def draw(self):
         self.fig.canvas.draw()
@@ -346,8 +376,8 @@ class WideAna(QMainWindow):
         self.goodPeakMask[colls] = False
 
         self.setCountLabel()
-        self.writeToGoodFile()
-        self.writeToAllFile()
+#        self.writeToGoodFile()
+#        self.writeToAllFile()
 
     def setCountLabel(self):
         self.countLabel.setText("Good peaks = %d, All peaks = %d" % (self.goodPeakMask.sum(), self.goodPeakMask.sum() + self.badPeakMask.sum()))
@@ -364,6 +394,10 @@ class WideAna(QMainWindow):
         #    elif self.badPeakMask[index]:
         #        resId += 1
         #gf.close()
+
+
+        # wsf.x is the frequency list from the widesweep data file
+
 
         ws_good_inds = np.where(self.goodPeakMask>0)
         ws_bad_inds = np.where(self.badPeakMask>0)
@@ -384,7 +418,7 @@ class WideAna(QMainWindow):
         gf.close()
 
     def writeToAllFile(self):
-        #af = open(self.allFile,'wb')
+        af = open(self.allFile,'wb')
         ##id = (self.flNum-1)*2000
         #resId = self.flNum*10000
         #print len(np.where(self.goodPeakMask==1)[0]), len(np.where(self.badPeakMask==1)[0])
@@ -401,7 +435,7 @@ class WideAna(QMainWindow):
         sort_inds = np.argsort(freqs)
         resIds = np.asarray(range(len(freqs)))+self.flNum*10000
         data = np.asarray([resIds, np.append(ws_good_inds[0], ws_bad_inds[0])[sort_inds], freqs[sort_inds]])
-        np.savetxt(self.allFile, data.T,fmt='%8d %12d %16.7f')
+        np.savetxt(af, data.T,fmt='%8d %12d %16.7f')
 
     # deal with zooming and plotting one segment
     def zoom(self,zoom):
