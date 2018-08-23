@@ -29,7 +29,7 @@ from matplotlib.backends.backend_qt4 import NavigationToolbar2QT as NavigationTo
 import argparse
 
 class StartQt4(QMainWindow):
-    def __init__(self, cfgfile, Ui, parent=None):
+    def __init__(self, cfgfile, feedline, Ui, parent=None):
         QWidget.__init__(self, parent)
         self.ui = Ui()
         self.ui.setupUi(self)
@@ -51,7 +51,7 @@ class StartQt4(QMainWindow):
         try:
             config = ConfigParser.ConfigParser()
             config.read(cfgfile)
-            fl = 'FL7a'
+            fl = 'FL' + feedline.lower()
             ws_FN = config.get(fl, 'widesweep_FN')
             ws_freqs_all_FN = config.get(fl, 'ws_freqs_all_FN')
             ws_freqs_good_FN = config.get(fl, 'ws_freqs_good_FN')
@@ -464,6 +464,7 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description='MKID Powersweep GUI')
     parser.add_argument('cfgfile', type=str, help='The config file', default='./wsData.cfg')
+    parser.add_argument('feedline', type=str, help='Feedline number/band (e.g. 7a)')
     parser.add_argument('--small', action='store_true', dest='smallui', default=False,
                         help='Use small GUI')
     args = parser.parse_args()
@@ -475,6 +476,6 @@ if __name__ == "__main__":
 
 
     app = QApplication(sys.argv)
-    myapp = StartQt4(args.cfgfile, Ui_MainWindow)
+    myapp = StartQt4(args.cfgfile, args.feedline, Ui_MainWindow)
     myapp.show()
     app.exec_()
