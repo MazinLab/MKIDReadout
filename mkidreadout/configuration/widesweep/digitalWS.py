@@ -20,12 +20,16 @@ Note: Power in dBm is approximately -(resAtten + 12). (so a res atten of 65 will
 
 import traceback, sys, warnings
 from functools import partial
-from mkidreadout.channelizer.RoachStateMachine import RoachStateMachine
 import ConfigParser
 from PyQt4 import QtCore
 import numpy as np
-
 import matplotlib.pyplot as plt
+
+from mkidreadout.channelizer.RoachStateMachine import RoachStateMachine
+
+
+
+
 
 
 class DigitalWideSweep(QtCore.QObject):
@@ -131,11 +135,16 @@ class DigitalWideSweep(QtCore.QObject):
         """
         print "Finished r"+str(roachNum)+' '+RoachStateMachine.parseCommand(command)
 
+        #if command == RoachStateMachine.DEFINEDACLUT: self.quitQApp()
+
         if command == RoachStateMachine.SWEEP:
             self.data = commandData
             self.writeWSdata(roachNum, commandData, 'raw_')
-            calData = self.calibrateWSdata(roachNum, commandData)
-            self.writeWSdata(roachNum, calData)
+            try:
+                calData = self.calibrateWSdata(roachNum, commandData)
+                self.writeWSdata(roachNum, calData)
+            except IndexError:
+                pass
             self.quitQApp()
 
 
@@ -244,7 +253,7 @@ class DigitalWideSweep(QtCore.QObject):
                     freqs = np.atleast_1d(freqData[:,1])
                     self.saveFreqList(freqs, freqFN2, resAtten=resAtten, resIDs=resIDs)
                     span = np.amax([freqs[0] - startFreq, endFreq - freqs[-1], np.amax(np.diff(freqs))])
-                    span += 1.0*self.numoverlapPoints*DAC_freqResolution  # force at least 10 overlap between tones
+                    span += 1.0*self.numoverlapPoints*DAC_freqResolution  # force at least 10 overlap points between tones
 
                 
                 #span=0.2E6
@@ -262,6 +271,7 @@ class DigitalWideSweep(QtCore.QObject):
                     state = [RoachStateMachine.UNDEFINED]*RoachStateMachine.NUMCOMMANDS
                     state[:RoachStateMachine.SWEEP] = [RoachStateMachine.COMPLETED]*RoachStateMachine.SWEEP
                     self.roaches[roachArg].initializeToState(state)
+                #self.roaches[roachArg].addCommands(RoachStateMachine.DEFINEDACLUT)
                 self.roaches[roachArg].addCommands(RoachStateMachine.SWEEP)        # add command to roach queue
                 threadsToStart.append(self.roachThreads[roachArg])
 
