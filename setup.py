@@ -78,7 +78,7 @@ setuptools.setup(
     scripts=['mkidreadout/channelizer/initgui.py',
              'mkidreadout/channelizer/HighTemplar.py',
              'mkidreadout/readout/MkidDashboard.py'
-             'mkidreadout/configuration/widesweep/WideAna.py'
+             'mkidreadout/configuration/widesweep/WideAna.py',
              'mkidreadout/configuration/powersweep/PSFitGUIML.py'],
     classifiers=(
         "Programming Language :: Python :: 3",
