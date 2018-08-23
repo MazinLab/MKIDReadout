@@ -26,11 +26,12 @@ from PyQt4.QtGui import *
 from PyQt4.QtCore import *
 from mkidreadout.utils.iqsweep import *
 from matplotlib.backends.backend_qt4 import NavigationToolbar2QT as NavigationToolbar
+import argparse
 
 class StartQt4(QMainWindow):
-    def __init__(self,parent=None):
+    def __init__(self, cfgfile, Ui, parent=None):
         QWidget.__init__(self, parent)
-        self.ui = Ui_MainWindow()
+        self.ui = Ui()
         self.ui.setupUi(self)
     
         self.atten = -1
@@ -49,7 +50,7 @@ class StartQt4(QMainWindow):
         self.wsresID_offset=0
         try:
             config = ConfigParser.ConfigParser()
-            config.read('/home/data/MEC/20180822/wsData.cfg')
+            config.read(cfgfile)
             fl = 'FL7a'
             ws_FN = config.get(fl, 'widesweep_FN')
             ws_freqs_all_FN = config.get(fl, 'ws_freqs_all_FN')
@@ -459,12 +460,21 @@ class StartQt4(QMainWindow):
         self.loadres()
                 
 if __name__ == "__main__":
-    if len(sys.argv) > 1:
+
+
+    parser = argparse.ArgumentParser(description='MKID Powersweep GUI')
+    parser.add_argument('cfgfile', type=str, help='The config file', default='./wsData.cfg')
+    parser.add_argument('--small', action='store_true', dest='smallui', default=False,
+                        help='Use small GUI')
+    args = parser.parse_args()
+
+    if args.smallui:
         from PSFit_GUI_v2 import Ui_MainWindow
     else:
         from PSFit_GUI import Ui_MainWindow
 
+
     app = QApplication(sys.argv)
-    myapp = StartQt4()
+    myapp = StartQt4(args.cfgfile, Ui_MainWindow)
     myapp.show()
     app.exec_()
