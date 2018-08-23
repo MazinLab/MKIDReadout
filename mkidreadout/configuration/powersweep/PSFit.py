@@ -48,8 +48,8 @@ class StartQt4(QMainWindow):
         
         try:
             config = ConfigParser.ConfigParser()
-            config.read('/home/data/MEC/20180620/wsData.cfg')
-            fl = 'FL6b'
+            config.read('/home/data/MEC/20180822/wsData.cfg')
+            fl = 'FL7a'
             ws_FN = config.get(fl, 'widesweep_FN')
             ws_freqs_all_FN = config.get(fl, 'ws_freqs_all_FN')
             ws_freqs_good_FN = config.get(fl, 'ws_freqs_good_FN')
@@ -69,6 +69,7 @@ class StartQt4(QMainWindow):
             self.widesweep=None
             self.h5resID_offset=0
             self.wsresID_offset=0
+            raise
             
 
         self.navi_toolbar = NavigationToolbar(self.ui.plot_3.canvas, self)
