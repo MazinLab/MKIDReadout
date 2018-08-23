@@ -231,6 +231,7 @@ class RoachStateMachine(QtCore.QObject):        #Extends QObject for use with QT
         self.roachController.connect()
         #self.roachController.initV7MB()
         self.loadDdsShift()
+        self.roach.loadFullDelayCal()
         
         return True
     
