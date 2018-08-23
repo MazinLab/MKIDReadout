@@ -18,7 +18,7 @@
 # Implemented a v2 gui that fits in a small screen.  
 # Run this program with no arguments to get the "classic" look.
 # Run this progam with any variable to get the "new" look.  The values of arguments are ignored.
-
+#!/bin/env python
 import ConfigParser
 from numpy import *
 import numpy

@@ -35,6 +35,7 @@ Matt Strader
 Chris Stoughton
 Rupert Dodkins
 """
+#!/bin/env python
 from PyQt4.QtCore import *
 from PyQt4.QtGui import *
 from PyQt4 import QtGui
