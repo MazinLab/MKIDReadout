@@ -195,6 +195,7 @@ class HighTemplar(QMainWindow):
             self.sweepWindows[roachArg].initFreqs() # initialize LO freq
         if command == RoachStateMachine.DEFINEDACLUT:
             self.sweepWindows[roachArg].initFreqs() # if modified pixel attenuation then need this to remove 'MODIFIED' tag on plot window
+            self.sweepWindows[roachArg].updateADCAttenSpinBox(commandData)
                                                     # Also shows dac quantized freqs
         if command == RoachStateMachine.SWEEP:
             self.sweepWindows[roachArg].plotData(commandData)

@@ -231,7 +231,7 @@ class RoachStateMachine(QtCore.QObject):        #Extends QObject for use with QT
         self.roachController.connect()
         #self.roachController.initV7MB()
         self.loadDdsShift()
-        self.roach.loadFullDelayCal()
+        self.roachController.loadFullDelayCal()
         
         return True
     
@@ -320,16 +320,20 @@ class RoachStateMachine(QtCore.QObject):        #Extends QObject for use with QT
         
         print "Initializing ADC/DAC board communication"
         self.roachController.initializeV7UART()
-        print "Setting Attenuators"
+        print "Setting DAC Atten"
         self.roachController.changeAtten(1,dacAtten1)
         self.roachController.changeAtten(2,dacAtten2)
-        self.roachController.changeAtten(3,adcAtten1)
-        self.roachController.changeAtten(4,adcAtten2)
+        #self.roachController.changeAtten(3,adcAtten1)
+        #self.roachController.changeAtten(4,adcAtten2)
         print "Setting LO Freq"
         self.roachController.loadLOFreq()
         print "Loading DAC LUT"
         self.roachController.loadDacLUT()
-        return True
+        print "Auto Setting ADC Atten"
+        newADCAtten = self.roachController.getOptimalADCAtten(adcAtten)
+        
+        #return True
+        return newADCAtten
     
     def sweep(self):
         '''
@@ -340,7 +344,7 @@ class RoachStateMachine(QtCore.QObject):        #Extends QObject for use with QT
         sets the following attributes:
             self.I_data - [nFreqs, nLOsteps] array of I points
             self.Q_data - 
-            self.centers
+            self.centers - [nFreqs, 2] array of I,Q loop centers
         
         NOTE: each I,Q point is actually an average of 1024 points done in firmware
         
@@ -363,6 +367,7 @@ class RoachStateMachine(QtCore.QObject):        #Extends QObject for use with QT
         start_DACAtten = self.config.getfloat('Roach '+str(self.num),'dacatten_start')
         stop_DACAtten = self.config.getfloat('Roach '+str(self.num),'dacatten_stop')
         start_ADCAtten = self.config.getfloat('Roach '+str(self.num),'adcatten')
+        newADCAtten=start_ADCAtten
         
         powerSweepFile = self.config.get('Roach '+str(self.num),'powersweepfile')
         powerSweepFile = powerSweepFile.rsplit('.',1)[0]+'_'+time.strftime("%Y%m%d-%H%M%S",time.localtime())+'.'+powerSweepFile.rsplit('.',1)[1]
@@ -372,14 +377,12 @@ class RoachStateMachine(QtCore.QObject):        #Extends QObject for use with QT
                 dacAtten2 = np.ceil(dacAtten*2)/4.
                 self.roachController.changeAtten(1,dacAtten1)
                 self.roachController.changeAtten(2,dacAtten2)
-                print 'Setting DAC atten: '+str(dacAtten)
+                print 'Changed DAC atten: '+str(dacAtten)
                 # keep total power on the ADC the same
-                newADCAtten=start_ADCAtten - (dacAtten - start_DACAtten)
-                adcAtten1 = max(0.,np.floor(newADCAtten*2)/4.)
-                adcAtten2 = max(0., np.ceil(newADCAtten*2)/4.)
-                self.roachController.changeAtten(3,adcAtten1)
-                self.roachController.changeAtten(4,adcAtten2)
-                print 'Setting ADCatten: '+str(newADCAtten)
+                newADCAtten = self.roachController.getOptimalADCAtten(newADCAtten)
+                print 'Changed ADC atten:',newADCAtten
+
+
             iqData = self.roachController.performIQSweep(LO_start/1.e6, LO_end/1.e6, LO_step/1.e6)
             self.I_data = iqData['I']
             self.Q_data = iqData['Q']
@@ -422,19 +425,19 @@ class RoachStateMachine(QtCore.QObject):        #Extends QObject for use with QT
         iqOnRes = self.roachController.takeAvgIQData(nPoints)
         
         
-        if stop_DACAtten > start_DACAtten:      # reset the dac atten to the start value again if we did a power sweep
+        if stop_DACAtten > start_DACAtten:      # reset the dac/adc atten to the start value again if we did a power sweep
             dacAtten1 = np.floor(start_DACAtten*2)/4.
             dacAtten2 = np.ceil(start_DACAtten*2)/4.
-            
+            self.roachController.changeAtten(1,dacAtten1)
+            self.roachController.changeAtten(2,dacAtten2)
+            print 'Returned DAC atten: '+str(start_DACAtten)
+
             adcAtten1 = np.floor(start_ADCAtten*2)/4.
             adcAtten2 = np.ceil(start_ADCAtten*2)/4.
             self.roachController.changeAtten(3,adcAtten1)
             self.roachController.changeAtten(4,adcAtten2)
-            print 'Setting ADCatten: '+str(start_ADCAtten)
-            self.roachController.changeAtten(1,dacAtten1)
-            self.roachController.changeAtten(2,dacAtten2)
-            print 'Setting DAC atten: '+str(start_DACAtten)
-        
+            print 'Returned ADCatten: '+str(start_ADCAtten)
+
         fList = np.copy(self.roachController.dacQuantizedFreqList)
         fList[np.where(fList>(self.roachController.params['dacSampleRate']/2.))] -= self.roachController.params['dacSampleRate']
         fList+=LO_freq
@@ -462,7 +465,8 @@ class RoachStateMachine(QtCore.QObject):        #Extends QObject for use with QT
     
     def rotateLoops(self):
         '''
-        Rotate loops so that the on resonance phase=0
+        Rotate loops so that the on resonance phase=0.
+        It uses the loop center data from the last sweep performed.
         
         NOTE: We rotate around I,Q = 0. Not around the center of the loop
               When we translate after, we need to resweep
@@ -759,7 +763,7 @@ class RoachStateMachine(QtCore.QObject):        #Extends QObject for use with QT
         adcAtten2 = np.ceil(adcAtten*2)/4.
         self.roachController.changeAtten(3,adcAtten1)
         self.roachController.changeAtten(4,adcAtten2)
-        print 'r'+str(self.num)+'Changed ADCAtten to '+str(adcAtten1)+'+'+str(adcAtten2)
+        print 'r'+str(self.num)+' Changed ADCAtten to '+str(adcAtten1)+'+'+str(adcAtten2)
         # self.roachController.changeAtten(3, adcAtten)
         # print 'r'+str(self.num)+'Changed ADCAtten to '+str(adcAtten)
         self.finished.emit()
@@ -778,7 +782,7 @@ class RoachStateMachine(QtCore.QObject):        #Extends QObject for use with QT
         dacAtten2 = np.ceil(dacAtten*2)/4.
         self.roachController.changeAtten(1,dacAtten1)
         self.roachController.changeAtten(2,dacAtten2)
-        print 'r'+str(self.num)+'Changed DAC Atten to '+str(dacAtten1)+'+'+str(dacAtten2)
+        print 'r'+str(self.num)+' Changed DAC Atten to '+str(dacAtten1)+'+'+str(dacAtten2)
         self.finished.emit()
     
     @QtCore.pyqtSlot(object)
