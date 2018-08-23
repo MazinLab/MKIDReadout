@@ -248,7 +248,7 @@ class StartQt4(QMainWindow):
         self.ui.frequency.setText(str(self.resfreq))
         self.ui.plot_2.canvas.ax.plot(self.Res1.freq[self.indx],self.res1_iq_vel[self.indx],'bo')
         self.ui.plot_3.canvas.ax.plot(self.Res1.I[self.indx],self.Res1.Q[self.indx],'bo')
-        self.indx=where(self.Res1.freq >= self.resfreq)[0][0]
+        self.indx=min(where(self.Res1.freq >= self.resfreq)[0][0], self.Res1.freq.size-1)
         self.ui.plot_2.canvas.ax.plot(self.Res1.freq[self.indx],self.res1_iq_vel[self.indx],'ro')
         self.ui.plot_2.canvas.draw()
         self.ui.plot_3.canvas.ax.plot(self.Res1.I[self.indx],self.Res1.Q[self.indx],'ro')
