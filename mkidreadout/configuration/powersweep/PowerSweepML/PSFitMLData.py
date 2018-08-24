@@ -211,6 +211,10 @@ class PSFitMLData():
         
         if outputFN is None: PSSaveFile = self.baseFile + flag + '.txt'
         else: PSSaveFile = outputFN.rsplit('.',1)[0]+flag+'.txt'
+        
+        if os.path.isfile(PSSaveFile):
+            raise Exception('PS Save data already exists!')
+
         sf = open(PSSaveFile,'wb')
         print 'saving file', PSSaveFile
         print 'baseFile', self.baseFile
