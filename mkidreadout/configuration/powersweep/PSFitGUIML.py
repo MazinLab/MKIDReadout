@@ -89,6 +89,7 @@ class StartQt4(QMainWindow):
         self.Res1.LoadPowers(str(self.openfile), 'r0', self.freq[self.resnum])
         self.ui.res_num.setText(str(self.resnum))
         self.resfreq = self.freq[self.resnum]
+        self.ui.jumptonum.setValue(self.resnum)
 
         try: self.Res1.resID+=self.h5resID_offset    #sometimes the resID in the h5 file is wrong...        
         except: self.Res1.resID = self.resnum+self.h5resID_offset   #or the h5 has no resID column
