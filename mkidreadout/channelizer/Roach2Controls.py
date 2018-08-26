@@ -842,6 +842,10 @@ class Roach2Controls:
 
         self.v7_ready = 0
         self.sendUARTCommand(attenVal)
+
+        while(not(self.v7_ready)):
+            self.v7_ready = self.fpga.read_int(self.params['v7Ready_reg'])
+            time.sleep(0.01)
         
     def snapZdok(self,nRolls=0):
         """
