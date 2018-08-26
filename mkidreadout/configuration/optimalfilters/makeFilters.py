@@ -21,11 +21,11 @@ def wienerFilter(template, noiseSpectrum,nTaps=50):
     
     #set up so that filter works with a coorelation, not a convolution. 
     #Take the conjugate of templateFft for the other case
-    wienerFilter= np.fft.irfft(np.conj(templateFft)/noiseSpectrum)
-    filterNorm = np.dot(template[:nTaps],wienerFilter[:nTaps]) 
+    wienerFilter= np.fft.irfft(np.conj(templateFft)/noiseSpectrum)[-nTaps:]
+    filterNorm = np.convolve(template[:nTaps],wienerFilter, mode='same').max()
     wienerFilter /= filterNorm
     
-    return -wienerFilter[:nTaps]
+    return -wienerFilter
 
 def wienerFilter250(template, noiseSpectrum,nTaps=50):
     """
@@ -47,11 +47,11 @@ def wienerFilter250(template, noiseSpectrum,nTaps=50):
 
     #set up so that filter works with a coorelation, not a convolution. 
     #Take the conjugate of templateFft for the other case
-    wienerFilter= np.fft.irfft(np.conj(templateFft)/noiseSpectrum)
-    filterNorm = np.dot(template[:nTaps],wienerFilter[:nTaps])
+    wienerFilter= np.fft.irfft(np.conj(templateFft)/noiseSpectrum)[-nTaps:]
+    filterNorm = np.convolve(template[:nTaps], wienerFilter, mode='same').max()
     wienerFilter /= filterNorm
 
-    return -wienerFilter[:nTaps]
+    return -wienerFilter
 
 def wienerFilter250s(template, noiseSpectrum,nTaps=50):
     """
@@ -73,11 +73,11 @@ def wienerFilter250s(template, noiseSpectrum,nTaps=50):
     
     #set up so that filter works with a coorelation, not a convolution. 
     #Take the conjugate of templateFft for the other case
-    wienerFilter= np.fft.irfft(np.conj(templateFft)/noiseSpectrum)
-    filterNorm = np.dot(template[:nTaps],wienerFilter[:nTaps]) 
+    wienerFilter= np.fft.irfft(np.conj(templateFft)/noiseSpectrum)[-nTaps:]
+    filterNorm = np.convolve(template[:nTaps], wienerFilter, mode='same').max()
     wienerFilter /= filterNorm
     
-    return -wienerFilter[:nTaps]
+    return -wienerFilter
 
 def wienerFilter200(template, noiseSpectrum,nTaps=50):
     """
@@ -99,11 +99,11 @@ def wienerFilter200(template, noiseSpectrum,nTaps=50):
 
     #set up so that filter works with a coorelation, not a convolution. 
     #Take the conjugate of templateFft for the other case
-    wienerFilter= np.fft.irfft(np.conj(templateFft)/noiseSpectrum)
-    filterNorm = np.dot(template[:nTaps],wienerFilter[:nTaps])
+    wienerFilter= np.fft.irfft(np.conj(templateFft)/noiseSpectrum)[-nTaps:]
+    filterNorm = np.convolve(template[:nTaps], wienerFilter, mode='same').max()
     wienerFilter /= filterNorm
 
-    return -wienerFilter[:nTaps]
+    return -wienerFilter
 
 def wienerFilter200s(template, noiseSpectrum,nTaps=50):
     """
@@ -125,11 +125,11 @@ def wienerFilter200s(template, noiseSpectrum,nTaps=50):
     
     #set up so that filter works with a coorelation, not a convolution. 
     #Take the conjugate of templateFft for the other case
-    wienerFilter= np.fft.irfft(np.conj(templateFft)/noiseSpectrum)
-    filterNorm = np.dot(template[:nTaps],wienerFilter[:nTaps]) 
+    wienerFilter= np.fft.irfft(np.conj(templateFft)/noiseSpectrum)[-nTaps:]
+    filterNorm = np.convolve(template[:nTaps], wienerFilter, mode='same').max()
     wienerFilter /= filterNorm
     
-    return -wienerFilter[:nTaps]
+    return -wienerFilter
 
 def wienerFilter150(template, noiseSpectrum,nTaps=50):
     """
@@ -151,11 +151,11 @@ def wienerFilter150(template, noiseSpectrum,nTaps=50):
 
     #set up so that filter works with a coorelation, not a convolution. 
     #Take the conjugate of templateFft for the other case
-    wienerFilter= np.fft.irfft(np.conj(templateFft)/noiseSpectrum)
-    filterNorm = np.dot(template[:nTaps],wienerFilter[:nTaps])
+    wienerFilter= np.fft.irfft(np.conj(templateFft)/noiseSpectrum)[-nTaps:]
+    filterNorm = np.convolve(template[:nTaps], wienerFilter, mode='same').max()
     wienerFilter /= filterNorm
 
-    return -wienerFilter[:nTaps]
+    return -wienerFilter
 
 def wienerFilter150s(template, noiseSpectrum,nTaps=50):
     """
@@ -177,11 +177,11 @@ def wienerFilter150s(template, noiseSpectrum,nTaps=50):
     
     #set up so that filter works with a coorelation, not a convolution. 
     #Take the conjugate of templateFft for the other case
-    wienerFilter= np.fft.irfft(np.conj(templateFft)/noiseSpectrum)
-    filterNorm = np.dot(template[:nTaps],wienerFilter[:nTaps]) 
+    wienerFilter= np.fft.irfft(np.conj(templateFft)/noiseSpectrum)[-nTaps:]
+    filterNorm = np.convolve(template[:nTaps], wienerFilter, mode='same').max()
     wienerFilter /= filterNorm
     
-    return -wienerFilter[:nTaps]
+    return -wienerFilter
 
 def wienerFilter100(template, noiseSpectrum,nTaps=50):
     """
@@ -203,11 +203,11 @@ def wienerFilter100(template, noiseSpectrum,nTaps=50):
 
     # set up so that filter works with a convolution, not a correlation.
     # Remove the conjugate of templateFft for the other case
-    wienerFilter= np.fft.irfft(np.conj(templateFft)/noiseSpectrum)
-    filterNorm = np.dot(template[:nTaps],wienerFilter[:nTaps])
+    wienerFilter= np.fft.irfft(np.conj(templateFft)/noiseSpectrum)[-nTaps:]
+    filterNorm = np.convolve(template[:nTaps], wienerFilter, mode='same').max()
     wienerFilter /= filterNorm
 
-    return -wienerFilter[:nTaps]
+    return -wienerFilter
 
 def wienerFilter100s(template, noiseSpectrum,nTaps=50):
     """
@@ -229,11 +229,11 @@ def wienerFilter100s(template, noiseSpectrum,nTaps=50):
     
     # set up so that filter works with a convolution, not a correlation.
     # Remove the conjugate of templateFft for the other case
-    wienerFilter= np.fft.irfft(np.conj(templateFft)/noiseSpectrum)
-    filterNorm = np.dot(template[:nTaps],wienerFilter[:nTaps]) 
+    wienerFilter= np.fft.irfft(np.conj(templateFft)/noiseSpectrum)[-nTaps:]
+    filterNorm = np.convolve(template[:nTaps], wienerFilter, mode='same').max()
     wienerFilter /= filterNorm
     
-    return -wienerFilter[:nTaps]
+    return -wienerFilter
 
 def wienerFilter0(template, noiseSpectrum,nTaps=50):
     """
@@ -252,11 +252,11 @@ def wienerFilter0(template, noiseSpectrum,nTaps=50):
     # set up so that filter works with a convolution, not a correlation.
     # Remove the conjugate of templateFft for the other case
     templateFft = np.fft.rfft(template)
-    wienerFilter= np.fft.irfft(np.conj(templateFft)/noiseSpectrum)
+    wienerFilter= np.fft.irfft(np.conj(templateFft)/noiseSpectrum)[-nTaps:]
 
-    filterNorm = np.dot(template[:nTaps],wienerFilter[:nTaps]) 
+    filterNorm = np.convolve(template[:nTaps], wienerFilter, mode='same').max()
     wienerFilter /= filterNorm
-    return -wienerFilter[:nTaps]
+    return -wienerFilter
 
 def matchedFilter(template, noiseSpectrum, nTaps=50):
     """

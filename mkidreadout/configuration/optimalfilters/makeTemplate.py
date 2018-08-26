@@ -3,11 +3,10 @@ import scipy.optimize as opt
 from baselineIIR import IirFilter
 import makeNoiseSpectrum as mNS
 import warnings
-import matplotlib.pyplot as plt
-reload(mNS)
-import ipdb
+from phase_wrap import fix_phase_wrap
 
-def makeTemplate(rawData, numOffsCorrIters=1 , decayTime=50, nSigmaTrig=4., isVerbose=False,defaultFilter=[]):
+def makeTemplate(rawData, numOffsCorrIters=1 , decayTime=50, nSigmaTrig=4.,
+                 isVerbose=False, defaultFilter=[], fix_wrap=False):
     '''
     Make a matched filter template using a raw phase timestream
     INPUTS:
@@ -25,13 +24,17 @@ def makeTemplate(rawData, numOffsCorrIters=1 , decayTime=50, nSigmaTrig=4., isVe
     templateList - list of template itterations by correcting offsets
     peakIndices - list of peak indicies from rawData used for template
     '''
-    #hipass filter data to remove any baseline
+    # correct for phase wrapping
+    if fix_wrap:
+        rawData = fix_phase_wrap(rawData)
+
+    # hipass filter data to remove any baseline
     data = hpFilter(rawData)
 
-    #make filtered data set with default filter
-    filteredData=np.correlate(data,defaultFilter,mode='same')
+    # make filtered data set with default filter
+    filteredData=np.convolve(data,defaultFilter,mode='same')
 
-    #trigger on pulses in data 
+    # trigger on pulses in data
     peakDict = sigmaTrigger(filteredData,nSigmaTrig=nSigmaTrig, decayTime=decayTime,isVerbose=isVerbose)
     
     #if too many triggers raise an error
@@ -41,19 +44,19 @@ def makeTemplate(rawData, numOffsCorrIters=1 , decayTime=50, nSigmaTrig=4., isVe
         peakDict['peakIndices']=peakDict['peakIndices'][:500]
         peakDict['peakMaxIndices']=peakDict['peakMaxIndices'][:500]    
     
-    #remove pulses with additional triggers in the pulse window
+    # remove pulses with additional triggers in the pulse window
     peakIndices = cutPulsePileup(peakDict['peakMaxIndices'], decayTime=decayTime, isVerbose=isVerbose)
     
-    #back to non filtered data
+    # back to non filtered data
     peakIndices = findNearestMax(data,peakIndices)
         
-    #Create rough template
+    # Create rough template
     roughTemplate, time = averagePulses(data, peakIndices, decayTime=decayTime)
     
-    #create noise spectrum from pre-pulse data for filter
+    # create noise spectrum from pre-pulse data for filter
     noiseDict = mNS.makeNoiseSpectrum(rawData,peakIndices,window=200,filt=defaultFilter,isVerbose=isVerbose)
 
-    #Correct for errors in peak offsets due to noise
+    # Correct for errors in peak offsets due to noise
     templateList = [roughTemplate]
     for i in range(numOffsCorrIters):
         peakIndices = correctPeakOffs(data, peakIndices, noiseDict, roughTemplate)
@@ -61,7 +64,7 @@ def makeTemplate(rawData, numOffsCorrIters=1 , decayTime=50, nSigmaTrig=4., isVe
         roughTemplate, time = averagePulses(data, peakIndices, decayTime=decayTime) 
         templateList.append(roughTemplate)
     
-    #fit template to function  
+    # fit template to function
     bnds=([.1, 2, 5],[4, 60, 60])
     warnings.filterwarnings("ignore")
     taufit=opt.curve_fit(pulseFitFun , np.arange(0,200), roughTemplate , [2.,10.,20.], bounds=bnds)  
@@ -248,7 +251,7 @@ def correctPeakOffs(data, peakIndices, noiseDict, template, offsets=np.arange(-2
     filterSet = np.zeros((nOffsets,len(np.fft.rfftfreq(nPointsTotal)) ),dtype=np.complex64)
     newPeakIndices = []
     
-    #Create a set of filters from different template offsets
+    # Create a set of filters from different template offsets
     for i,offset in enumerate(offsets):
         templateOffs = np.roll(template, offset)
         filterSet[i] = makeWienerFilter(noiseDict, templateOffs)
