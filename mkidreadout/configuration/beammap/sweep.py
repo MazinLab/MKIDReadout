@@ -29,7 +29,7 @@ import matplotlib
 
 matplotlib.use('Qt4Agg')
 import matplotlib.pyplot as plt
-from mkidcore.config import config, importoldconfig, ConfigThing
+from mkidcore.config import config, importoldconfig, ConfigThing, _consolidateconfig
 
 from mkidcore.corelog import setup_logging, getLogger
 import argparse
@@ -544,7 +544,7 @@ class RoughBeammap():
             if s.sweeptype in sweepType:
                 nSweeps += 1.
                 imList = self.loadSweepImgs(s)
-                direction = -1 if s.sweepDirection is '-' else 1
+                direction = -1 if s.sweepdirection is '-' else 1
                 if sweepList is None:
                     sweepList = np.asarray([imList[::direction, :, :]])
                     nTimes = len(imList)
@@ -567,7 +567,7 @@ class RoughBeammap():
             images = np.nanmedian(sweepList, 0)
         else:
             images = np.nanmean(sweepList, 0)
-        if sweepType is 'x':
+        if sweepType == 'x':
             self.x_images = images
         else:
             self.y_images = images
@@ -723,7 +723,7 @@ class RoughBeammap():
 
     def loadSweepImgs(self, s):
         path = self.config.beammap.sweep.imgfiledirectory
-        startTime = s.startTime
+        startTime = s.starttime
         duration = s.duration
         if duration % 2 == 0:
             getLogger('beammap.sweep').warn("Having an even number of time steps"
@@ -731,8 +731,8 @@ class RoughBeammap():
                                             "make it odd")
             duration -= 1
         fnList = [path + str(startTime + i) + '.img' for i in range(duration)]
-        nRows = s.numRows
-        nCols = s.numCols
+        nRows = s.numrows
+        nCols = s.numcols
         return loadImgFiles(fnList, nRows, nCols)
 
     def manualSweepCleanup(self):
@@ -743,20 +743,20 @@ class RoughBeammap():
         pass
 
 
-def registersettings():
-    config.register('beammap.sweep.imgfiledirectory', '')
-    config.register('beammap.sweep.initialbeammap', '')
-    config.register('beammap.sweep.roughbeammap', '')
-    config.register('detector.nrow', 145)
-    config.register('detector.ncol', 140)
+def registersettings(cfgObj):
+    cfgObj.register('beammap.sweep.imgfiledirectory', '')
+    cfgObj.register('beammap.sweep.initialbeammap', '')
+    cfgObj.register('beammap.sweep.roughbeammap', '')
+    cfgObj.register('detector.nrow', 145)
+    cfgObj.register('detector.ncol', 140)
 
     c = ConfigThing()
     c.register('type','x', allowed=('x', 'y'))
     c.register('direction', '+', allowed=('+', '-'))
-    c.register('speed', 3, type=int)
-    c.register('duration', 215, type=int)
-    c.register('start', 1527724450, type=int)
-    config.register('beammap.sweep.sweeps', [c])
+    c.register('speed', 3)
+    c.register('duration', 215)
+    c.register('start', 1527724450)
+    cfgObj.register('beammap.sweep.sweeps', [c])
 
 
 if __name__ == '__main__':
@@ -764,12 +764,13 @@ if __name__ == '__main__':
     log = getLogger('Sweep')
 
     parser = argparse.ArgumentParser(description='MKID Wavelength Calibration Utility')
-    parser.add_argument('cfgfile', type=str, help='The config file', default='sweep.cfg',
-                        required=True)
+    parser.add_argument('cfgfile', type=str, help='The config file', default='sweep.cfg')
     args = parser.parse_args()
 
     thisconfig = ConfigThing()
     importoldconfig(thisconfig, args.cfgfile, namespace='beammap.sweep')
+    _consolidateconfig(thisconfig.beammap.sweep)
+    #registersettings()
 
     log.info('Starting rough beammap')
     b = RoughBeammap(thisconfig)
