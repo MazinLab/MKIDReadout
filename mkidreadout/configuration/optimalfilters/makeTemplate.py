@@ -1,3 +1,4 @@
+from __future__ import print_function
 import numpy as np
 import scipy.optimize as opt
 from baselineIIR import IirFilter
@@ -28,7 +29,7 @@ def makeTemplate(rawData, numOffsCorrIters=1 , decayTime=50, nSigmaTrig=4.,
     if fix_wrap:
         rawData = fix_phase_wrap(rawData)
 
-    # hipass filter data to remove any baseline
+    # high pass filter data to remove any baseline
     data = hpFilter(rawData)
 
     # make filtered data set with default filter
@@ -46,6 +47,9 @@ def makeTemplate(rawData, numOffsCorrIters=1 , decayTime=50, nSigmaTrig=4.,
     
     # remove pulses with additional triggers in the pulse window
     peakIndices = cutPulsePileup(peakDict['peakMaxIndices'], decayTime=decayTime, isVerbose=isVerbose)
+
+    # remove pulses that may be phase wrapping
+    peakIndices = cutPhaseWrap(peakIndices, data, isVerbose=isVerbose)
     
     # back to non filtered data
     peakIndices = findNearestMax(data,peakIndices)
@@ -136,7 +140,7 @@ def sigmaTrigger(data,nSigmaTrig=5.,deadTime=200,decayTime=30,isVerbose=False):
         raise ValueError('sigmaTrigger: No triggers found in dataset')
     
     if isVerbose:
-        print 'triggered on', len(peakIndices), 'pulses'    
+        print('triggered on', len(peakIndices), 'pulses')
     
     peakDict={'peakIndices':np.array(peakIndices), 'peakMaxIndices':np.array(peakMaxIndices).astype(int)}
     return peakDict
@@ -169,7 +173,7 @@ def cutPulsePileup(peakIndices, nPointsBefore= 5, nPointsAfter = 195 , decayTime
     decayTime - expected pulse decay time (units: ticks)    
     isVerbose - print information about the template fitting process    
 
-    OUTPUS:
+    OUTPUTS:
     newPeakIndices - list of pulse positions, with unwanted pulses deleted
     '''
     #set window for pulse rejection
@@ -188,10 +192,38 @@ def cutPulsePileup(peakIndices, nPointsBefore= 5, nPointsAfter = 195 , decayTime
         raise ValueError('cutPulsePileup: no pulses passed the pileup cut')       
     
     if isVerbose:
-        print len(peakIndices)-len(newPeakIndices), 'indices cut due to pileup'
+        print(len(peakIndices)-len(newPeakIndices), 'indices cut due to pileup')
     
     return newPeakIndices
-    
+
+
+def cutPhaseWrap(peakIndices, data, nPointsBefore=5, nPointsAfter=195, isVerbose=False):
+    """
+    Removes any pulses that have a phase difference of over pi radians in their trace
+    INPUTS:
+    peakIndices - list of pulse positions
+    data - data with the pulses
+    nPointsBefore - number of points before peakIndex included in template
+    nPointsAfter - number of points after peakIndex included in template
+    decayTime - expected pulse decay time (units: ticks)
+    isVerbose - print information about the template fitting process
+
+    OUTPUTS:
+    newPeakIndices - list of pulse positions, with unwanted pulses deleted
+    """
+    newPeakIndices = np.array([])
+    # loop through indices and remove those that might be wrapping
+    for iPeak, peakIndex in enumerate(peakIndices):
+        delta = np.diff(data[int(peakIndex - nPointsBefore):int(peakIndex + nPointsAfter)])
+        if not (np.abs(delta) > np.pi).any():
+            newPeakIndices = np.append(newPeakIndices, int(peakIndex))
+
+    if isVerbose:
+        print(len(peakIndices)-len(newPeakIndices), 'indices cut due to phase wrapping')
+
+    return newPeakIndices
+
+
 def averagePulses(data, peakIndices, nPointsBefore=5, nPointsAfter=195, decayTime=30, sampleRate=1e6):
     '''
     Average together pulse data to make a template
