@@ -7,7 +7,7 @@ import warnings
 from phase_wrap import fix_phase_wrap
 
 def makeTemplate(rawData, numOffsCorrIters=1 , decayTime=50, nSigmaTrig=4.,
-                 isVerbose=False, defaultFilter=[], fix_wrap=False):
+                 isVerbose=False, defaultFilter=(), fix_wrap=False):
     '''
     Make a matched filter template using a raw phase timestream
     INPUTS:
@@ -22,10 +22,10 @@ def makeTemplate(rawData, numOffsCorrIters=1 , decayTime=50, nSigmaTrig=4.,
     finalTemplate - template of pulse shape
     time - use as x-axis when plotting template
     noiseDict - dictionary containing noise spectrum and corresponding frequencies
-    templateList - list of template itterations by correcting offsets
-    peakIndices - list of peak indicies from rawData used for template
+    templateList - list of template iterations by correcting offsets
+    peakIndices - list of peak indices from rawData used for template
     '''
-    # correct for phase wrapping
+    # correct for phase wrapping (off by default until it works properly)
     if fix_wrap:
         rawData = fix_phase_wrap(rawData)
 
@@ -41,9 +41,9 @@ def makeTemplate(rawData, numOffsCorrIters=1 , decayTime=50, nSigmaTrig=4.,
     #if too many triggers raise an error
     if len(peakDict['peakIndices'])>(len(data)/400):
         raise ValueError('makeTemplate.py: triggered on too many pulses')
-    if len(peakDict['peakIndices'])>500:
-        peakDict['peakIndices']=peakDict['peakIndices'][:500]
-        peakDict['peakMaxIndices']=peakDict['peakMaxIndices'][:500]    
+    if len(peakDict['peakIndices'])>1000:
+        peakDict['peakIndices']=peakDict['peakIndices'][:1000]
+        peakDict['peakMaxIndices']=peakDict['peakMaxIndices'][:1000]
     
     # remove pulses with additional triggers in the pulse window
     peakIndices = cutPulsePileup(peakDict['peakMaxIndices'], decayTime=decayTime, isVerbose=isVerbose)

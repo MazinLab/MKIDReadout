@@ -9,9 +9,9 @@ import time
 
 
 def processData(directory, defaultTemplate, isVerbose=False, GUI=False,
-                progress_callback=[], dataset=[], mainDirectory=[], continuing=False,
+                progress_callback=(), dataset=(), mainDirectory=(), continuing=False,
                 filterMethod=mF.wienerFilter):
-    '''
+    """
     Loop through .npz files in the directory and create filter coefficient files for each
     INPUTS:
     directory - path for the folder containing the data
@@ -24,7 +24,7 @@ def processData(directory, defaultTemplate, isVerbose=False, GUI=False,
     continuing - flag for if continuing from a previous calculation, ignored if GUI=False
     filterMethod - filter calculation method. Must have same input structure as functions
                    in makeFilter.py
-    '''
+    """
     # start time
     startTime = time.time()
     # make default Filter (renormalize and flip)
@@ -244,18 +244,11 @@ def processData(directory, defaultTemplate, isVerbose=False, GUI=False,
             # add template coefficients to array
             templateArray = template
             templateFlag = 1
-        except ValueError:
+        except:
             # add template coefficients to array
             templateArray = defaultTemplate
             roughTemplateArray = np.zeros(np.shape(defaultTemplate))
             templateFlag = 0
-        except Exception as error:
-            # add template coefficients to array
-            templateArray = defaultTemplate
-            roughTemplateArray = np.zeros(np.shape(defaultTemplate))
-            templateFlag = 0
-            with open(os.path.join(directory, "log_file.txt"), 'a') as logfile:
-                logfile.write(error)
         finishedTemp = time.time()
 
         # make filter
@@ -427,8 +420,8 @@ def processData(directory, defaultTemplate, isVerbose=False, GUI=False,
 
 
 def recalculate_filters(directory, filterFunction, isVerbose=False, GUI=False,
-                        progress_callback=[], dataset=[], mainDirectory=[]):
-    '''
+                        progress_callback=(), dataset=(), mainDirectory=()):
+    """
     recalculate filters using existing templates and noise data saved by process_data
     function.
     INPUTS:
@@ -441,7 +434,7 @@ def recalculate_filters(directory, filterFunction, isVerbose=False, GUI=False,
     progress_callback - percent complete callback for GUI, ignored if GUI=False
     dataset - index of data folder being run on, ignored if GUI = False
     mainDirectory - directory containing folders, ignored if GUI=False
-    '''
+    """
     # start time
     startTime = time.time()
 
@@ -490,7 +483,7 @@ def recalculate_filters(directory, filterFunction, isVerbose=False, GUI=False,
         # print progress to terminal
         if isVerbose and not GUI:
             if index != len(templateArray) - 1:
-                perc = round(float(index + 1) / (len(TemplateArray0)) * 100, 1)
+                perc = round(float(index + 1) / (len(templateArray)) * 100, 1)
                 sys.stdout.write(("Percent of filters created: %.1f%%  " + os.linesep)
                                  % (perc))
                 sys.stdout.flush()
@@ -566,6 +559,6 @@ def query_yes_no(question, default="no"):
 
 
 if __name__ == '__main__':
-    defaultTemplate = np.loadtxt('/mnt/data0/nzobrist/mkidreadout/configuration/optimalfilters/template200_15us.txt')
+    defaultTemplate = np.loadtxt('/mnt/data0/nzobrist/Repositories/MKIDReadout/mkidreadout/configuration/optimalfilters/template200_15us.txt')
     processData('/mnt/data0/Darkness/20170403/optimal_filters/112_data/',
                 defaultTemplate, isVerbose=True)
