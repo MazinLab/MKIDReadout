@@ -1,30 +1,6 @@
-from matplotlib import rcParams, rc
-import numpy as np
-import sys
-import scipy.interpolate
-import scipy.signal
-from baselineIIR import IirFilter
-import pickle
 import smooth
-
-# common setup for matplotlib
-#params = {'savefig.dpi': 300, # save figures to 300 dpi
-#          'axes.labelsize': 14,
-#          'text.fontsize': 14,
-#          'legend.fontsize': 14,
-#          'xtick.labelsize': 14,
-#          'ytick.major.pad': 6,
-#          'xtick.major.pad': 6,
-#          'ytick.labelsize': 14}
-# use of Sans Serif also in math mode
-#rc('text.latex', preamble='\usepackage{sfmath}')
-
-#rcParams.update(params)
-
 import matplotlib.pyplot as plt
 import numpy as np
-import os
-import struct
 
 def calcThreshold(phase,nSigma=2.5,nSamples=5000):
     '''
@@ -35,7 +11,7 @@ def calcThreshold(phase,nSigma=2.5,nSamples=5000):
     n,bins= np.histogram(phase[:nSamples],bins=100)
     n = np.array(n,dtype='float32')/np.sum(n)
     tot = np.zeros(len(bins))
-    for i in xrange(len(bins)):
+    for i in range(len(bins)):
         tot[i] = np.sum(n[:i])
     med = bins[np.abs(tot-0.5).argmin()]
     thresh = bins[np.abs(tot-0.05).argmin()]
@@ -166,9 +142,9 @@ def findSigmaThresh(data, initSigmaThresh=2., tailSlack=0., isPlot=False):
         plt.plot(peaksHistBins[:-1], peaksHist)
         plt.title('Unsmoothed Plot')
         plt.show()
-    print 'peaksHistLen:', len(peaksHist)
+    print('peaksHistLen:', len(peaksHist))
     peaksHist = smooth.smooth(peaksHist,(len(peaksHistBins)/20)*2+1)
-    print 'peaksHistSmoothLen:', len(peaksHist)
+    print('peaksHistSmoothLen:', len(peaksHist))
     if(isPlot):
         plt.plot(peaksHistBins[0:len(peaksHist)], peaksHist)
         plt.title('smoothed plot')

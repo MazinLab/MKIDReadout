@@ -221,7 +221,8 @@ class Window(QtGui.QDialog):
         if False:
             length=len(self.filter_coefficients)
             #recalculate filter
-            self.template_filter=np.row_stack((-self.template_coefficients[:length]/(np.dot(self.template_coefficients[:length],self.template_coefficients[:length])),np.zeros(length)))
+            self.template_filter=np.row_stack((-self.template_coefficients[:length][::-1]/(np.dot(self.template_coefficients[:length] ,self.template_coefficients[:length])),
+                                               np.zeros(length)))
 
             self.template_fft=np.abs(np.fft.rfft(self.template_filter))**2
 
@@ -234,7 +235,7 @@ class Window(QtGui.QDialog):
             reformated=True
         else:
             length=len(self.filter_coefficients[0,:])
-            self.template_filter=-self.template_coefficients[:,:length]/np.dot(np.atleast_2d(np.sum(self.template_coefficients[:,:length]*self.template_coefficients[:,:length],axis=1)).T,np.atleast_2d(np.ones(np.shape(self.template_coefficients[0,:length]))))
+            self.template_filter=-self.template_coefficients[:,:length][:, ::-1]/np.dot(np.atleast_2d(np.sum(self.template_coefficients[:,:length]*self.template_coefficients[:,:length],axis=1)).T,np.atleast_2d(np.ones(np.shape(self.template_coefficients[0,:length]))))
             self.template_fft=np.abs(np.fft.rfft(self.template_filter))**2
 
         self.log_display.setText("".join(self.log_file[-4:]))

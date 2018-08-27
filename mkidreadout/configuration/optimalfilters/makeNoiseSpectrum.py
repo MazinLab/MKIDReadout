@@ -1,7 +1,4 @@
 import numpy as np
-import scipy.interpolate
-import scipy.signal
-from baselineIIR import IirFilter
 import triggerPhotons as tP
 
 def makeNoiseSpectrum(data, peakIndices=[], window=800, noiseOffsetFromPeak=200, sampleRate=1e6, filt=[],isVerbose=False,baselineSubtract=True):
@@ -57,7 +54,7 @@ def makeNoiseSpectrum(data, peakIndices=[], window=800, noiseOffsetFromPeak=200,
             noiseSpectra[counter] =4*window/sampleRate*np.abs(np.fft.rfft(data[peakIndex-window-noiseOffsetFromPeak:peakIndex-noiseOffsetFromPeak]))**2 
             counter+=1
             if len(filt)!=0:
-                filteredData=np.correlate(noiseData,filt,mode='same')
+                filteredData=np.convolve(noiseData,filt,mode='same')
                 peakDict=tP.detectPulses(filteredData, nSigmaThreshold = 2., negDerivLenience = 1, bNegativePulses=True)
                 if len(peakDict['peakIndices'])!=0:
                     rejectInd=np.append(rejectInd,int(counter-1)) 
@@ -66,7 +63,7 @@ def makeNoiseSpectrum(data, peakIndices=[], window=800, noiseOffsetFromPeak=200,
         if counter==500:
             break   
     noiseSpectra=noiseSpectra[0:counter]
-    #Remove indicies with pulses by coorelating with a filt if provided
+    #Remove indicies with pulses by convolving with a filt if provided
     if len(filt)!=0: 
         noiseSpectra = np.delete(noiseSpectra, rejectInd.astype(int), axis=0) 
     noiseFreqs = np.fft.rfftfreq(window,1./sampleRate)
