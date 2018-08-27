@@ -17,7 +17,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import pdb
 import ConfigParser
-from createTemplarResList import createTemplarResList
+from mkidreadout.configuration.createTemplarResList import createTemplarResList
 from mkidreadout.utils.readDict import readDict
 
 def findLOs(freqs, loRange=0.2, nIters=10000, colParamWeight=1, resBW=0.0002, ifHole=0.003):
@@ -92,7 +92,8 @@ def findLOs(freqs, loRange=0.2, nIters=10000, colParamWeight=1, resBW=0.0002, if
 def modifyTemplarConfigFile(templarConfFn, flNums, roachNums, freqFiles, los, freqBandFlags):
     '''
     Modifies the specified templar config file with the correct frequency lists and los. All files
-    are referenced to the MKID_DATA_DIR environment variable. Also changes powersweep_file, longsnap_file, etc
+    are referenced to the templarconfig file's location. If the templarconfig file can't be found it
+    looks in MKID_DATA_DIR environment variable. Also changes powersweep_file, longsnap_file, etc
     to be referenced to the correct feedline and MKID_DATA_DIR
 
     Parameters
@@ -118,7 +119,7 @@ def modifyTemplarConfigFile(templarConfFn, flNums, roachNums, freqFiles, los, fr
     
     for i,roachNum in enumerate(roachNums):
         templarConf.set('Roach '+str(roachNum), 'freqfile', os.path.join(mdd, freqFiles[i]))
-        templarConf.set('Roach '+str(roachNum), 'powersweepfile', os.path.join(mdd, 'ps_r'+str(roachNum)+'_FL_'+str(flNums[i])+'_'+freqBandFlags[i]+'.h5'))
+        templarConf.set('Roach '+str(roachNum), 'powersweepfile', os.path.join(mdd, 'ps_r'+str(roachNum)+'_FL'+str(flNums[i])+'_'+freqBandFlags[i]+'.h5'))
         templarConf.set('Roach '+str(roachNum), 'longsnapfile', os.path.join(mdd, 'phasesnaps/snap_'+str(roachNum)+'.npz'))
         templarConf.set('Roach '+str(roachNum), 'lo_freq', '%0.9E'%(los[i]*1.e9))
 
@@ -160,7 +161,12 @@ if __name__=='__main__':
 
     for i, fl in enumerate(setupDict['feedline_nums']):
         clickthroughFile = os.path.join(mdd, setupDict['clickthrough_files'][i])
-        _, _, freqs = loadClickthroughFile(clickthroughFile)
+        try:    
+            _, _, freqs = loadClickthroughFile(clickthroughFile)
+            print "Loaded:", clickthroughFile
+        except IOError:
+            print "Unable to load:",clickthroughFile
+            continue
         lo1, lo2 = findLOs(freqs)
         createTemplarResList(clickthroughFile, lo1, lo2, fl)
         freqFiles.append('freq_FL' + str(fl) + '_a.txt')

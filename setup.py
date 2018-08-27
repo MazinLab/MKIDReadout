@@ -4,6 +4,7 @@ import os
 from setuptools.command.install import install
 from setuptools.command.develop import develop
 import subprocess
+import platform
 #pip install -e git+http://github.com/mazinlab/mkidreadout.git@restructure#egg=mkidreadout --src ./mkidtest
 
 
@@ -23,6 +24,11 @@ def get_virtualenv_path():
 
 def compile_and_install_software():
     """Used the subprocess module to compile/install the C software."""
+    
+    #don't compile if installing on anything that's not linux
+    if platform.system()!='Linux':
+        return
+
     src_path = './mkidreadout/readout/packetmaster/'
 
     # compile the software
@@ -71,7 +77,9 @@ setuptools.setup(
     packages=setuptools.find_packages(),
     scripts=['mkidreadout/channelizer/initgui.py',
              'mkidreadout/channelizer/HighTemplar.py',
-             'mkidreadout/readout/MkidDashboard.py'],
+             'mkidreadout/readout/MkidDashboard.py',
+             'mkidreadout/configuration/widesweep/WideAna.py',
+             'mkidreadout/configuration/powersweep/PSFitGUIML.py'],
     classifiers=(
         "Programming Language :: Python :: 3",
         "License :: OSI Approved :: MIT License",

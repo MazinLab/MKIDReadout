@@ -122,11 +122,11 @@ class PSFitting():
                 'attens':self.Res1.atten1s}
     
     def loadps(self):
-        hd5file=openFile(self.initialFile,mode='r')
-        group = hd5file.getNode('/','r0')
+        hd5file=open_file(self.initialFile,mode='r')
+        group = hd5file.get_node('/','r0')
         self.freq=np.empty(0,dtype='float32')
         
-        for sweep in group._f_walkNodes('Leaf'):
+        for sweep in group._f_walknodes('Leaf'):
             k=sweep.read()
             self.scale = k['scale'][0]
             #print "Scale factor is ", self.scale
@@ -211,6 +211,10 @@ class PSFitMLData():
         
         if outputFN is None: PSSaveFile = self.baseFile + flag + '.txt'
         else: PSSaveFile = outputFN.rsplit('.',1)[0]+flag+'.txt'
+        
+        if os.path.isfile(PSSaveFile):
+            raise Exception('PS Save data already exists!')
+
         sf = open(PSSaveFile,'wb')
         print 'saving file', PSSaveFile
         print 'baseFile', self.baseFile

@@ -1,7 +1,7 @@
 
 #TODO merge this functionality into __main__ of Roach2Controls
 from Roach2Controls import Roach2Controls
-from getAdcAttens import *
+from adcTools import *
 import os, sys
 
 if __name__=='__main__':

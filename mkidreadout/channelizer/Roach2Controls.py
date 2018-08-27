@@ -91,6 +91,7 @@ import socket
 import binascii
 from mkidreadout.channelizer.binTools import castBin
 from mkidreadout.utils.readDict import readDict
+from mkidreadout.channelizer.adcTools import streamSpectrum, checkSpectrumForSpikes
 
 class Roach2Controls:
 
@@ -841,8 +842,19 @@ class Roach2Controls:
 
         self.v7_ready = 0
         self.sendUARTCommand(attenVal)
+
+        while(not(self.v7_ready)):
+            self.v7_ready = self.fpga.read_int(self.params['v7Ready_reg'])
+            time.sleep(0.01)
         
     def snapZdok(self,nRolls=0):
+        """
+        Snaps the raw ADC input coming over the ZDOK
+
+        OUTPUTS:
+            Dictionary containing the I and Q data coming out of the ADC
+        """
+
         snapshotNames = self.fpga.snapshots.names()
 
         #self.fpga.write_int('trig_qdr',0)#initialize trigger
@@ -883,6 +895,81 @@ class Roach2Controls:
         qVals = qValList.flatten('F')
 
         return {'bus0':bus0,'bus1':bus1,'bus2':bus2,'bus3':bus3,'adcData':adcData,'iVals':iVals,'qVals':qVals}
+
+    def getOptimalADCAtten(self, startAtten, iqBalRange=[0.7, 1.3], rmsRange=[0.15,0.19], checkForSpikes=True):
+        """
+        Determines and sets the ADC attenuation such that the RMS amplitude of the ADC input is within the
+        desired range. Also performs basic error checking (IQ balance and undesired harmonics in FFT)
+
+        INPUTS:
+            startAtten - initial value of the attenuation; i.e. where to begin the optimization
+            iqBalRange - range of allowable values for I_rms/Q_rms. Warning is raised if value outside this range
+            rmsRange - range of desired RMS values for ADC input. Optimization ends when ADC RMS is within this range
+            checkForSpikes - if True, compute FFT of ADC input and raise warning if there are large harmonics
+
+        OUTPUTS:
+            Optimal ADC atten determined by this function. Hardware will also be set to this value.
+
+        """
+        adcFullScale = 2.**11
+        curAtten=startAtten
+        rmsTarget = np.mean(rmsRange)
+        
+        while True:
+            atten3 = np.floor(curAtten*2)/4.
+            atten4 = np.ceil(curAtten*2)/4.
+
+            if self.verbose:
+                print 'atten3', atten3
+                print 'atten4', atten4
+                
+            self.changeAtten(3, atten3)
+            self.changeAtten(4, atten4)
+            snapDict = self.snapZdok(nRolls=0)
+            
+            iVals = snapDict['iVals']/adcFullScale
+            qVals = snapDict['qVals']/adcFullScale
+            iRms = np.sqrt(np.mean(iVals**2))
+            qRms = np.sqrt(np.mean(qVals**2))
+            
+            if self.verbose:
+                print 'iRms', iRms
+                print 'qRms', qRms
+            iqRatio = iRms/qRms
+
+            if iqRatio<iqBalRange[0] or iqRatio>iqBalRange[1]:
+                warnings.warn('IQ balance out of range for roach ' + self.ip[-3:])
+
+            if rmsRange[0]<iRms<rmsRange[1] and rmsRange[0]<qRms<rmsRange[1]:
+                break
+
+            else:
+                iDBOffs = 20*np.log10(rmsTarget/iRms)
+                qDBOffs = 20*np.log10(rmsTarget/qRms)
+                dbOffs = (iDBOffs + qDBOffs)/2
+                curAtten -= dbOffs
+                curAtten = np.round(4*curAtten)/4.
+
+                if curAtten<0:
+                    curAtten = 0
+                    self.changeAtten(3, 0)
+                    self.changeAtten(4, 0)
+                    warnings.warn('Dynamic range target unachievable... setting ADC Atten to 0')
+                    break
+                elif curAtten > 63.5:
+                    curAtten = 63.5
+                    self.changeAtten(3, 31.75)
+                    self.changeAtten(4, 31.75)
+                    raise Exception('Dynamic range target unachievable... setting ADC Atten to max')
+                    break
+
+        if checkForSpikes:
+            specDict = streamSpectrum(snapDict['iVals'], snapDict['qVals'])
+            if checkSpectrumForSpikes(specDict):
+                warnings.warn('Spikes in ADC snap spectrum! for roach ' + self.ip[-3:])
+
+        return curAtten 
+    
         
     def loadDelayLut(self, delayLut):  
         nLoadDlyRegBits = 6

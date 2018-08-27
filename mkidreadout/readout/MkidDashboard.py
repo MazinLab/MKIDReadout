@@ -547,6 +547,7 @@ class MkidDashboard(QMainWindow):
             roach=Roach2Controls(ipaddress, roachParamFile, False, False)
             roach.num=roachNum
             roach.connect()
+            roach.loadCurTimestamp()
             
             roach.fpga.write_int(self.config.get('properties','photonPort_reg'), self.config.getint('properties','photonCapPort'))
             #roach.fpga.write_int(self.config.get('properties','minFramePeriod_reg'),self.config.getint('properties','minFramePeriod')) Deleted in darkquad29

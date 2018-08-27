@@ -33,6 +33,7 @@ def processData(directory, defaultTemplate, isVerbose=False, GUI=False,
     # make default Filter (renormalize and flip)
     defaultFilter = -defaultTemplate[0:50] / np.dot(defaultTemplate[0:50],
                                                     defaultTemplate[0:50])
+    defaultFilter = defaultFilter[::-1]
 
     # parse filterMethod name
     filterName = str(filterMethod).split(' ')[1]
@@ -273,6 +274,7 @@ def processData(directory, defaultTemplate, isVerbose=False, GUI=False,
             # add filter coefficients to array
             if templateFlag:
                 filterArray = -template[:50] / np.dot(template[:50], template[:50])
+                filterArray = filterArray[::-1]
             else:
                 filterArray = defaultFilter
             noiseArray = np.zeros(101)
@@ -555,4 +557,4 @@ def query_yes_no(question, default="no"):
 if __name__ == '__main__':
     defaultTemplate = np.loadtxt('/mnt/data0/nzobrist/mkidreadout/configuration/optimalfilters/template200_15us.txt')
     processData('/mnt/data0/Darkness/20170403/optimal_filters/112_data/',
-                defaultFilter, isVerbose=True)
+                defaultTemplate, isVerbose=True)
