@@ -65,11 +65,10 @@ class GaussFitBeamSweep(object):
             for x in range(self.imageList[0].shape[1]):
                 timestream = self.imageList[:, y, x]
                 if self.initialGuessImage is None or np.logical_not(np.isfinite(self.initialGuessImage[y, x])):
-                    peakGuess = None
-                    fitWindow = None
+                    peakGuess=np.nan
                 else:
-                    peakGuess = self.initialGuessImage[y, x]
-                peakLocs[y, x] = fitPeak(timestream, peakGuess, fitWindow)
+                    peakGuess=self.initialGuessImage[y, x]
+                self.peakLocs[y,x] = fitPeak(timestream, peakGuess, fitWindow)[0]
         return self.peakLocs
 
 
@@ -668,7 +667,7 @@ class RoughBeammap():
         """
         imageList = self.stackImages(sweepType)
         sweep = GaussFitBeamSweep(imageList, locEstimates)
-        if locEstimage is None: fitWindow = None
+        if locEstimates is None: fitWindow = None
         locs = sweep.fitRoughPeakLocs(fitWindow=fitWindow)
         if sweepType in ['x', 'X']:
             self.x_locs = locs
@@ -721,6 +720,9 @@ class RoughBeammap():
         data = np.asarray([allResIDs[args], flags[args], x[args], y[args]]).T
         np.savetxt(self.config.beammap.sweep.roughbeammap, data, fmt='%7d %3d %7f %7f')
 
+    def loadRoughBeammap(self):
+        allResIDs_map, flag_map, self.x_locs, self.y_locs = shapeBeammapIntoImages(self.config.beammap.sweep.initialbeammap, self.config.beammap.sweep.roughbeammap)
+
     def loadSweepImgs(self, s):
         path = self.config.beammap.sweep.imgfiledirectory
         startTime = s.startTime
@@ -741,7 +743,6 @@ class RoughBeammap():
 
     def plotTimestream(self):
         pass
-
 
 def registersettings():
     config.register('beammap.sweep.imgfiledirectory', '')
@@ -764,8 +765,7 @@ if __name__ == '__main__':
     log = getLogger('Sweep')
 
     parser = argparse.ArgumentParser(description='MKID Wavelength Calibration Utility')
-    parser.add_argument('cfgfile', type=str, help='The config file', default='sweep.cfg',
-                        required=True)
+    parser.add_argument('cfgfile', type=str, help='The config file', default='sweep.cfg')
     args = parser.parse_args()
 
     thisconfig = ConfigThing()
@@ -773,15 +773,16 @@ if __name__ == '__main__':
 
     log.info('Starting rough beammap')
     b = RoughBeammap(thisconfig)
+    b.loadRoughBeammap()
     # b.findLocWithCrossCorrelation('x')
     # b.findLocWithCrossCorrelation('y')
-    # b.findLocWithGaussianFit('x', b.x_locs, fitWindow=30)
-    # b.findLocWithGaussianFit('y', b.y_locs, fitWindow=30)
-    # b.saveRoughBeammap()
+    b.findLocWithGaussianFit('x', b.x_locs, fitWindow=30)
+    b.findLocWithGaussianFit('y', b.y_locs, fitWindow=30)
+    b.saveRoughBeammap()
     # b.concatImages('x',False)
     # b.concatImages('y',False)
-    log.info('Stack x and y')
-    b.stackImages('x')
-    b.stackImages('y')
-    log.info('Cleanup')
-    b.manualSweepCleanup()
+    #log.info('Stack x and y')
+    #b.stackImages('x')
+    #b.stackImages('y')
+    #log.info('Cleanup')
+    #b.manualSweepCleanup()

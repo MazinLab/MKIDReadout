@@ -8,7 +8,7 @@ from multiprocessing import Pool
 from numba import jit
 import ConfigParser
 import scipy.optimize as spo
-from beammapFlags import beamMapFlags
+from flags import beamMapFlags
 
 
 def getFLCoordRangeDict(FLmap):
@@ -187,7 +187,7 @@ def snapToPeak(data, guess_arg, width=5):
 def gaussian(x, center, scale, width, offset):
     return scale*np.exp(-(x - center)**2/width**2) + offset
 
-def fitPeak(timestream, initialGuess=None, fitWindow=20):
+def fitPeak(timestream, initialGuess=np.nan, fitWindow=20):
     """
     This function fits a gaussian to a timestream with an initial Guess for location
 
@@ -199,14 +199,19 @@ def fitPeak(timestream, initialGuess=None, fitWindow=20):
         fitParams - center, scale, width of fitted gaussian
     """
     minT=0
+    providedInitialGuess = initialGuess #initial guess provided by user
 
-    if np.isfinite(initialGuess) and np.isfinite(fitWindow) and initialGuess >=0 and initialGuess<len(timestream):
+    if not(np.isfinite(initialGuess) and initialGuess >=0 and initialGuess<len(timestream)):
+        initialGuess=np.argmax(timestream)
+
+    if fitWindow is not None:
         minT = int(max(0, initialGuess-fitWindow))
         maxT = int(min(len(timestream), initialGuess+fitWindow))
-        timestream=timestream[minT: maxT]
-    if not np.isfinite(initialGuess):
-        initialGuess=np.argmax(timestream)
+    else:
+        minT = 0
+        maxT = len(timestream)
     initialGuess-=minT #need this if we're only fitting to a small window
+    timestream = timestream[minT:maxT]
     
     try:
         width=2.
@@ -219,7 +224,13 @@ def fitPeak(timestream, initialGuess=None, fitWindow=20):
         fitParams[0]+=minT
         return fitParams
     except RuntimeError:
-        return [initialGuess+minT, None, None]
+        return [providedInitialGuess, np.nan, np.nan, np.nan]
+
+def getPeakCoM(timestream, initialGuess=None, fitWindow=20):
+    """
+    This function determines the center of mass moment of the peak around fitWindow
+    """
+    pass
 
 def loadImgFiles(fnList, nRows, nCols):
     imageList = []

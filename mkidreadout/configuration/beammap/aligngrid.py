@@ -18,7 +18,7 @@ import scipy.ndimage as sciim
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 from mkidreadout.utils.readDict import readDict
-from .flags import beamMapFlags
+from mkidreadout.configuration.beammap.flags import beamMapFlags
 
 class BMAligner(object):
     def __init__(self, beamListFn, nXPix, nYPix, usFactor=50):
@@ -293,7 +293,8 @@ if __name__=='__main__':
 
     aligner = BMAligner(paramDict['masterPositionList'], paramDict['nXPix'], paramDict['nYPix'])
     aligner.makeRawImage()
-    aligner.fftRawImage()
+    #aligner.fftRawImage()
+    aligner.loadFFT()
     aligner.findKvecsManual()
     aligner.findAngleAndScale()
     aligner.rotateAndScaleCoords()
