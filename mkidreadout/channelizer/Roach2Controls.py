@@ -2186,18 +2186,24 @@ class Roach2Controls:
             self.fpga.write_int(self.params['iqLoadCenter_regs'][stream], (ch<<1)+(1<<0))
             self.fpga.write_int(self.params['iqLoadCenter_regs'][stream], 0)
     
-    def sendUARTCommand(self, inByte):
+    def sendUARTCommand(self, inByte, blocking=False):
         """
         Sends a single byte to V7 over UART
         Doesn't wait for a v7_ready signal
         Inputs:
             inByte - byte to send over UART
+            blocking - if True, waits for acknowledgement AFTER command is sent
         """
         self.fpga.write_int(self.params['inByteUART_reg'],inByte)
         time.sleep(0.01)
         self.fpga.write_int(self.params['txEnUART_reg'],1)
         time.sleep(0.01)
         self.fpga.write_int(self.params['txEnUART_reg'],0)        
+        if blocking:
+            while(not(self.v7_ready)):
+                self.v7_ready = self.fpga.read_int(self.params['v7Ready_reg'])
+                time.sleep(0.05)
+            self.v7_ready = 0
         
 if __name__=='__main__':
     if len(sys.argv) > 1:
