@@ -8,7 +8,7 @@ from multiprocessing import Pool
 from numba import jit
 import ConfigParser
 import scipy.optimize as spo
-from flags import beamMapFlags
+from mkidreadout.configuration.beammap.flags import beamMapFlags
 
 MEC_FL_WIDTH = 14
 DARKNESS_FL_WIDTH = 25
@@ -126,7 +126,7 @@ def addBeammapReadoutFlag(initialBeammapFn, outputBeammapFn, templarCfg):
 def restrictRoughBeammapToFLs(roughBeammapFN, fl):
     data = np.loadtxt(roughBeammapFN)
     data[np.where(np.trunc(data[:,0]/10000).astype(np.int)!=fl),1]=beamMapFlags['noDacTone']
-    outputFN = roughBeammapFN.split('.')[0]+'_FL'+str(int(fl))+'.txt'
+    outputFN = roughBeammapFN.split('.')[0]+'_FL'+str(int(fl))+'.bmap'
     np.savetxt(outputFN, data, fmt='%7d %3d %7f %7f')
 
 def convertBeammapToNewFlagFormat(initialBeammapFn, outputBeammapFn, templarCfg):

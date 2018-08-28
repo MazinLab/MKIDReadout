@@ -127,7 +127,7 @@ class CorrelateBeamSweep(object):
         else:
             self.compGroups = np.unique(self.compMask)
 
-    def getAbsOffset(self, shiftedTimes, auto=True):
+    def getAbsOffset(self, shiftedTimes, auto=True, locLimit=None):
         """
         The autocorrelation function can only calculate relative time differences
         between pixels. This function defines the absolute time reference (ie. the 
@@ -137,7 +137,8 @@ class CorrelateBeamSweep(object):
             shiftedTimes: a list of pixel time streams shifted to match up
             auto: if False then ask user to click on a plot
         """
-        offset = np.argmax(np.sum(shiftedTimes, axis=0))
+        if not np.isfinite(locLimit) or locLimit<0 or locLimit>=len(shiftedTimes): locLimit=-1
+        offset = np.argmax(np.sum(shiftedTimes[:locLimit], axis=0))
         if auto: return offset
 
         getLogger('beammap').info("Please click the correct peak")
@@ -158,7 +159,7 @@ class CorrelateBeamSweep(object):
         plt.show()
         return offset
 
-    def findRelativePixelLocations(self):
+    def findRelativePixelLocations(self, locLimit=None):
         """
         Use auto correllation and least squares to find best time offsets between pixels
         """
@@ -217,7 +218,7 @@ class CorrelateBeamSweep(object):
                                                                                     None]  # padded timestream with 0
             shiftedTimes = shiftedTimes[np.arange(len(bestPixels))[:, None], shifts]  # shift each timestream
             # offset = np.argmax(np.sum(shiftedTimes,axis=0))
-            offset = self.getAbsOffset(shiftedTimes)
+            offset = self.getAbsOffset(shiftedTimes, locLimit=locLimit)
             del shiftedTimes
 
             best_a += offset
@@ -258,7 +259,7 @@ class ManualRoughBeammap(object):
         self.initialBeammapFN = initialBeammap
         self.roughBeammapFN = roughBeammapFN
         # self.outputBeammapFn = roughBeammapFN.rsplit('.',1)[0]+time.strftime('-%H%M%S')+'.txt'
-        self.outputBeammapFn = roughBeammapFN.rsplit('.', 1)[0] + '_clicked.txt'
+        self.outputBeammapFn = roughBeammapFN.rsplit('.', 1)[0] + '_clicked.bmap'
         if os.path.isfile(self.outputBeammapFn):
             self.roughBeammapFN = self.outputBeammapFn
         self.resIDsMap, self.flagMap, self.x_loc, self.y_loc = shapeBeammapIntoImages(self.initialBeammapFN,
@@ -639,11 +640,11 @@ class RoughBeammap():
             locs - map of locations for each pixel [units of time]
         """
         imageList = self.concatImages(sweepType)
-
+        dur = [s.duration for s in self.config.beammap.sweep.sweeps if s.sweeptype in sweepType.lower()]
         # FLMap = getFLMap(self.config.beammap.sweep.initialbeammap)
 
         sweep = CorrelateBeamSweep(imageList, pixelComputationMask)
-        locs = sweep.findRelativePixelLocations()
+        locs = sweep.findRelativePixelLocations(locLimit=dur[0])
         if snapToPeaks:
             for row in range(len(locs)):
                 for col in range(len(locs[0])):
