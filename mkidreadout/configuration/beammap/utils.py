@@ -197,8 +197,7 @@ def fitPeak(timestream, initialGuess=np.nan, fitWindow=20):
         fitWindow - only consider data around this window
     OUTPUT:
         fitParams - center, scale, width of fitted gaussian
-    """
-    minT=0
+    """ 
     providedInitialGuess = initialGuess #initial guess provided by user
 
     if not(np.isfinite(initialGuess) and initialGuess >=0 and initialGuess<len(timestream)):
@@ -217,7 +216,7 @@ def fitPeak(timestream, initialGuess=np.nan, fitWindow=20):
         width=2.
         offset=np.median(timestream)
         scale = np.amax(timestream) - offset
-        print [initialGuess+minT, scale, width,offset]
+        #print [initialGuess+minT, scale, width,offset]
         fitParams, _ = spo.curve_fit(gaussian, xdata=range(len(timestream)), ydata=timestream, p0=[initialGuess, scale, width,offset], sigma=np.sqrt(timestream))
         if fitParams[0]<0 or fitParams[0]>len(timestream):
             raise RuntimeError('Fit center is outside the available range')
@@ -226,11 +225,30 @@ def fitPeak(timestream, initialGuess=np.nan, fitWindow=20):
     except RuntimeError:
         return [providedInitialGuess, np.nan, np.nan, np.nan]
 
-def getPeakCoM(timestream, initialGuess=None, fitWindow=20):
+def getPeakCoM(timestream, initialGuess=np.nan, fitWindow=15):
     """
     This function determines the center of mass moment of the peak around fitWindow
     """
-    pass
+
+    if not(np.isfinite(initialGuess) and initialGuess >=0 and initialGuess<len(timestream)):
+        initialGuess=np.argmax(timestream)
+
+    if fitWindow is not None:
+        minT = int(max(0, initialGuess-fitWindow))
+        maxT = int(min(len(timestream), initialGuess+fitWindow))
+    else:
+        minT = 0
+        maxT = len(timestream)
+
+    timestream -= np.median(timestream) #baseline subtract
+    timestream = np.correlate(timestream, np.ones(11), mode='same')
+    timestreamLabels = np.arange(len(timestream))
+
+    timestream = timestream[minT:maxT]
+    #timestream -= np.median(timestream) #baseline subtract
+    timestreamLabels = timestreamLabels[minT:maxT]
+
+    return np.sum(timestreamLabels*timestream)/np.sum(timestream)
 
 def loadImgFiles(fnList, nRows, nCols):
     imageList = []

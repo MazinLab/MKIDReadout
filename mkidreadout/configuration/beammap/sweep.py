@@ -35,13 +35,13 @@ from mkidcore.corelog import setup_logging, getLogger
 import argparse
 
 from mkidreadout.configuration.beammap.utils import crossCorrelateTimestreams, determineSelfconsistentPixelLocs2, \
-    loadImgFiles, minimizePixelLocationVariance, snapToPeak, shapeBeammapIntoImages, fitPeak
+    loadImgFiles, minimizePixelLocationVariance, snapToPeak, shapeBeammapIntoImages, fitPeak, getPeakCoM
 from mkidreadout.configuration.beammap.flags import beamMapFlags
 
 
-class GaussFitBeamSweep(object):
+class FitBeamSweep(object):
     """
-    Uses a Gaussian fit to find peak in lightcurve
+    Uses a fit to find peak in lightcurve (currently either gaussian or CoM)
     Can be used to refine the output of the cross-correlation.
 
     
@@ -53,7 +53,7 @@ class GaussFitBeamSweep(object):
         self.peakLocs = np.empty(imageList[0].shape)
         self.peakLocs[:] = np.nan
 
-    def fitRoughPeakLocs(self, fitWindow=20):
+    def fitRoughPeakLocs(self, fitType, fitWindow=20):
         """
         INPUTS:
             fitWindow - Only find peaks within this window of the initial guess
@@ -61,6 +61,9 @@ class GaussFitBeamSweep(object):
         Returns:
             peakLocs - map of peak locations for each pixel
         """
+        fitType = fitType.lower()
+        if fitType!='gaussian' and fitType!= 'com':
+            raise Exception('fitType must be either Gaussian or CoM!')
         for y in range(self.imageList[0].shape[0]):
             for x in range(self.imageList[0].shape[1]):
                 timestream = self.imageList[:, y, x]
@@ -68,7 +71,11 @@ class GaussFitBeamSweep(object):
                     peakGuess=np.nan
                 else:
                     peakGuess=self.initialGuessImage[y, x]
-                self.peakLocs[y,x] = fitPeak(timestream, peakGuess, fitWindow)[0]
+
+                if fitType == 'gaussian':
+                    self.peakLocs[y,x] = fitPeak(timestream, peakGuess, fitWindow)[0]
+                elif fitType == 'com':
+                    self.peakLocs[y,x] = getPeakCoM(timestream, peakGuess, fitWindow)
         return self.peakLocs
 
 
@@ -225,7 +232,7 @@ class CorrelateBeamSweep(object):
 
 
 class ManualRoughBeammap(object):
-    def __init__(self, x_images, y_images, initialBeammap, roughBeammapFN):
+    def __init__(self, x_images, y_images, initialBeammap, roughBeammapFN, fitType = None):
         """
         Class for manually clicking through beammap. 
         Saves a rough beammap with filename roughBeammapFN-HHMMSS.txt
@@ -238,6 +245,8 @@ class ManualRoughBeammap(object):
             roughBeammapFN - path+filename of the rough beammap (time at peak instead of x/y value)
                              If the roughBeammap doesn't exist then it will be instantiated with nans
                              We append a timestamp to this string as the output file
+            fitType - Type of fit to use when finding exact peak location from click. Current options are 
+                             com and gaussian. Ignored if None (default).
         """
         self.x_images = x_images
         self.y_images = y_images
@@ -256,6 +265,8 @@ class ManualRoughBeammap(object):
                                                                                       self.roughBeammapFN)
         if self.roughBeammapFN is None or not os.path.isfile(self.roughBeammapFN):
             self.flagMap[np.where(self.flagMap != beamMapFlags['noDacTone'])] = beamMapFlags['failed']
+
+        self.fitType = fitType.lower()
 
         ##Snap to peak
         # for row in range(len(self.x_loc)):
@@ -410,19 +421,29 @@ class ManualRoughBeammap(object):
             x = self.goodPix[1][self.curPixInd]
             offset = event.xdata
             if offset < 0: offset = np.nan
+
             if event.inaxes == self.ax_time_x:
                 offset = snapToPeak(self.x_images[:, y, x], offset)
-                # fitParams=fitPeak(self.x_images[:,y,x],offset,20)
-                # offset=fitParams[0]
-                # getLogger('beammap').info(fitParams)
+                if self.fitType == 'gaussian':
+                    fitParams=fitPeak(self.x_images[:,y,x],offset,20)
+                    offset=fitParams[0]
+                    getLogger('beammap').info('Gaussian fit params: ' + str(fitParams))
+                elif self.fitType == 'com':
+                    offset=getPeakCoM(self.x_images[:,y,x],offset)
+                    getLogger('beammap').info('Using CoM: ' + str(offset))
                 self.x_loc[y, x] = offset
-                getLogger('beammap').info('x: {}'.format(offset))
+                getLogger('beammap').info('x: {}'.format(offset), 10)
                 self.updateTimestreamPlot(0)
+
             elif event.inaxes == self.ax_time_y:
                 offset = snapToPeak(self.y_images[:, y, x], offset)
-                # fitParams=fitPeak(self.y_images[:,y,x],offset,20)
-                # offset=fitParams[0]
-                # getLogger('beammap').info(fitParams)
+                if self.fitType == 'gaussian':
+                    fitParams=fitPeak(self.y_images[:,y,x],offset,20)
+                    offset=fitParams[0]
+                    getLogger('beammap').info('Gaussian fit params: ' + str(fitParams))
+                elif self.fitType == 'com':
+                    offset=getPeakCoM(self.y_images[:,y,x],offset, 10)
+                    getLogger('beammap').info('Using CoM: ' + str(offset))
                 self.y_loc[y, x] = offset
                 getLogger('beammap').info('y: {}'.format(offset))
                 self.updateTimestreamPlot(1)
@@ -649,10 +670,11 @@ class RoughBeammap():
             locs[np.where(locs > dur[i])] -= dur[i]
         return locs
 
-    def findLocWithGaussianFit(self, sweepType, locEstimates=None, fitWindow=20):
+    def refinePeakLocs(self, sweepType, fitType, locEstimates=None, fitWindow=20):
         """
-        This function estimates the location in time for the light peak in each pixel by fitting a gaussian to the peak
-        See GaussFitBeamSweep class
+        This function refines the peak locations given by locEstimates with either a gaussian
+        fit or center of mass calculation. Can also be used as a standalone routine (set 
+        locEstimates to None), but currently doesn't work well in this mode.
 
         Careful: The sweep start times must be aligned such that the light peaks stack up. 
         We assume the sweep speed is always the same when looking at multiple sweeps!!!
@@ -666,9 +688,9 @@ class RoughBeammap():
             locs - map of locations for each pixel [units of time]
         """
         imageList = self.stackImages(sweepType)
-        sweep = GaussFitBeamSweep(imageList, locEstimates)
+        sweep = FitBeamSweep(imageList, locEstimates)
         if locEstimates is None: fitWindow = None
-        locs = sweep.fitRoughPeakLocs(fitWindow=fitWindow)
+        locs = sweep.fitRoughPeakLocs(fitType, fitWindow=fitWindow)
         if sweepType in ['x', 'X']:
             self.x_locs = locs
         else:
@@ -739,7 +761,7 @@ class RoughBeammap():
 
     def manualSweepCleanup(self):
         m = ManualRoughBeammap(self.x_images, self.y_images, self.config.beammap.sweep.initialbeammap,
-                               self.config.beammap.sweep.roughbeammap)
+                               self.config.beammap.sweep.roughbeammap, self.config.beammap.sweep.fittype)
 
     def plotTimestream(self):
         pass
@@ -776,10 +798,10 @@ if __name__ == '__main__':
     log.info('Starting rough beammap')
     b = RoughBeammap(thisconfig)
     b.loadRoughBeammap()
-    # b.findLocWithCrossCorrelation('x')
-    # b.findLocWithCrossCorrelation('y')
-    b.findLocWithGaussianFit('x', b.x_locs, fitWindow=30)
-    b.findLocWithGaussianFit('y', b.y_locs, fitWindow=30)
+    #b.findLocWithCrossCorrelation('x')
+    #b.findLocWithCrossCorrelation('y')
+    b.refinePeakLocs('x', b.config.beammap.sweep.fittype, b.x_locs, fitWindow=15)
+    b.refinePeakLocs('y', b.config.beammap.sweep.fittype, b.y_locs, fitWindow=15)
     b.saveRoughBeammap()
     # b.concatImages('x',False)
     # b.concatImages('y',False)
