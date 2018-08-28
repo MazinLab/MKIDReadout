@@ -225,7 +225,7 @@ class InitStateMachine(QtCore.QObject):        #Extends QObject for use with QTh
         return True
 
     def calZdok(self):
-        self.roachController.sendUARTCommand(0x4)
+        self.roachController.sendUARTCommand(0x4, blocking=True)
         print 'switched on ADC ZDOK Cal ramp'
         time.sleep(.1)
 
