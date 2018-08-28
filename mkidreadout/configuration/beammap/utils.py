@@ -10,6 +10,11 @@ import ConfigParser
 import scipy.optimize as spo
 from flags import beamMapFlags
 
+MEC_FL_WIDTH = 14
+DARKNESS_FL_WIDTH = 25
+
+N_FL_MEC = 10
+N_FL_DARKNESS = 5
 
 def getFLCoordRangeDict(FLmap):
     """
@@ -52,6 +57,45 @@ def getFLCoordRangeMaps(FLmap):
         yMaxFLmap[inds] = np.amax(inds[1])
     return xMinFLmap, xMaxFLmap, yMinFLmap, yMaxFLmap
         
+def isInCorrectFL(resIDs, x, y, instrument, slack=0, flip=False):
+    if instrument.lower()=='mec':
+        nFL = N_FL_MEC
+        flWidth = MEC_FL_WIDTH
+        flCoords = x
+    elif instrument.lower()=='darkness':
+        nFL = N_FL_DARKNESS
+        flWidth = DARKNESS_FL_WIDTH
+        flCoords = y
+
+    correctFL = getFLFromID(resIDs)
+    flFromCoordsP = getFLFromCoords(x+slack, y+slack, instrument, flip)
+    flFromCoordsN = getFLFromCoords(x-slack, y-slack, instrument, flip)
+    
+    return (flFromCoordsP == correctFL)|(flFromCoordsN == correctFL)
+
+def getFLFromID(resIDs):
+    correctFL = resIDs/10000 
+    correctFL = correctFL.astype(np.int)
+    return correctFL
+
+def getFLFromCoords(x, y, instrument, flip=False):
+    if instrument.lower()=='mec':
+        nFL = N_FL_MEC
+        flWidth = MEC_FL_WIDTH
+        flCoords = x
+    elif instrument.lower()=='darkness':
+        nFL = N_FL_DARKNESS
+        flWidth = DARKNESS_FL_WIDTH
+        flCoords = y
+
+    flFromCoords = np.floor(flCoords/flWidth)
+
+    if flip:
+        flFromCoords = nFL - flFromCoords
+    else:
+        flFromCoords += 1
+
+    return flFromCoords
 
 def getDesignFreqMap(designFreqFL, FLmap):
     FLs = np.unique(FLmap)

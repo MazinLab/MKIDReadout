@@ -18,6 +18,7 @@ import matplotlib.pyplot as plt
 from mkidreadout.utils.arrayPopup import plotArray
 from mkidreadout.utils.readDict import readDict
 from mkidreadout.configuration.beammap.flags import beamMapFlags
+from mkidreadout.configuration.beammap.utils import isInCorrectFL, getFLFromID, getFLFromCoords
 
 MEC_FL_WIDTH = 14
 DARKNESS_FL_WIDTH = 25
@@ -28,45 +29,6 @@ N_FL_DARKNESS = 5
 logging.basicConfig()
 log = logging.getLogger('beammap.clean')
 
-def isInCorrectFL(resIDs, x, y, instrument, slack=0, flip=False):
-    if instrument.lower()=='mec':
-        nFL = N_FL_MEC
-        flWidth = MEC_FL_WIDTH
-        flCoords = x
-    elif instrument.lower()=='darkness':
-        nFL = N_FL_DARKNESS
-        flWidth = DARKNESS_FL_WIDTH
-        flCoords = y
-
-    correctFL = getFLFromID(resIDs)
-    flFromCoordsP = getFLFromCoords(x+slack, y+slack, instrument, flip)
-    flFromCoordsN = getFLFromCoords(x-slack, y-slack, instrument, flip)
-    
-    return (flFromCoordsP == correctFL)|(flFromCoordsN == correctFL)
-
-def getFLFromID(resIDs):
-    correctFL = resIDs/10000 
-    correctFL = correctFL.astype(np.int)
-    return correctFL
-
-def getFLFromCoords(x, y, instrument, flip=False):
-    if instrument.lower()=='mec':
-        nFL = N_FL_MEC
-        flWidth = MEC_FL_WIDTH
-        flCoords = x
-    elif instrument.lower()=='darkness':
-        nFL = N_FL_DARKNESS
-        flWidth = DARKNESS_FL_WIDTH
-        flCoords = y
-
-    flFromCoords = np.floor(flCoords/flWidth)
-
-    if flip:
-        flFromCoords = nFL - flFromCoords
-    else:
-        flFromCoords += 1
-
-    return flFromCoords
 
 def getOverlapGrid(xCoords, yCoords, flags, nXPix, nYPix):
     pixToUseMask = (flags==beamMapFlags['good']) | (flags==beamMapFlags['double'])
@@ -77,7 +39,6 @@ def getOverlapGrid(xCoords, yCoords, flags, nXPix, nYPix):
         if x >= 0 and y >= 0 and x < nXPix and y < nYPix:
             bmGrid[x, y] += 1
     return bmGrid
-
 
 
 class BMCleaner:
