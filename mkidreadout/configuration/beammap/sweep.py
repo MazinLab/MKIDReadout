@@ -609,7 +609,7 @@ class RoughBeammap():
                 if removeBkg:
                     bkgndList = np.median(imList, axis=0)
                     imList -= bkgndList
-                direction = -1 if s.sweepDirection == '-' else 1
+                direction = -1 if s.sweepdirection == '-' else 1
                 if imageList is None:
                     imageList = imList[::direction, :, :]
                 else:
@@ -797,16 +797,16 @@ if __name__ == '__main__':
 
     log.info('Starting rough beammap')
     b = RoughBeammap(thisconfig)
-    b.loadRoughBeammap()
+    #b.loadRoughBeammap()
+    #b.concatImages('x',False)
+    #b.concatImages('y',False)
     #b.findLocWithCrossCorrelation('x')
     #b.findLocWithCrossCorrelation('y')
-    b.refinePeakLocs('x', b.config.beammap.sweep.fittype, b.x_locs, fitWindow=15)
-    b.refinePeakLocs('y', b.config.beammap.sweep.fittype, b.y_locs, fitWindow=15)
-    b.saveRoughBeammap()
-    # b.concatImages('x',False)
-    # b.concatImages('y',False)
-    #log.info('Stack x and y')
-    #b.stackImages('x')
-    #b.stackImages('y')
-    #log.info('Cleanup')
-    #b.manualSweepCleanup()
+    #b.refinePeakLocs('x', b.config.beammap.sweep.fittype, b.x_locs, fitWindow=15)
+    #b.refinePeakLocs('y', b.config.beammap.sweep.fittype, b.y_locs, fitWindow=15)
+    #b.saveRoughBeammap()
+    log.info('Stack x and y')
+    b.stackImages('x')
+    b.stackImages('y')
+    log.info('Cleanup')
+    b.manualSweepCleanup()
