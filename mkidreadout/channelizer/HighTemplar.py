@@ -305,8 +305,14 @@ class HighTemplar(QMainWindow):
         
         self.contextMenu.clear()    # remove any actions added during previous right click
         
+        if command == RoachStateMachine.DEFINEDACLUT:
+            self.contextMenu.addAction('Auto ADC Atten',partial(self.onContextAutoADCatten,roachNums))
+            self.contextMenu.addSeparator()
+
         if command == RoachStateMachine.SWEEP:
             self.contextMenu.addAction('Plot Sweep',partial(self.onContextPlotSweepClick,roachNums))
+            self.contextMenu.addSeparator()
+            self.contextMenu.addAction('Auto ADC Atten',partial(self.onContextAutoADCatten,roachNums))
             self.contextMenu.addSeparator()
         
         if command == RoachStateMachine.LOADTHRESHOLD:
@@ -322,6 +328,16 @@ class HighTemplar(QMainWindow):
         self.settingsWindow.setCurrentIndex(index)
         self.settingsWindow.show()
     
+    def onContextAutoADCatten(self, roachNums):
+        for roachNum in roachNums:
+            roachArg = np.where(np.asarray(self.roachNums) == roachNum)[0][0]
+            if self.roachThreads[roachArg].isRunning():
+                print 'Roach '+str(roachNum)+' is busy'
+            else:
+                adcAtten = self.roaches[roachArg].config.getfloat('Roach '+str(roachNum),'adcatten')
+                newAdcAtten=self.roaches[roachArg].roachController.getOptimalADCAtten(adcAtten)
+                self.sweepWindows[roachArg].updateADCAttenSpinBox(newAdcAtten)
+
     def onContextPlotSweepClick(self, roachNums):
         for roachNum in roachNums:
             roachArg = np.where(np.asarray(self.roachNums) == roachNum)[0][0]
