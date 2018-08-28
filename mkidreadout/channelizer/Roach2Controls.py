@@ -1727,6 +1727,7 @@ class Roach2Controls:
         except socket.error:
             print 'Failed to create socket'
             raise
+        print 'Created socket'
 
         # Bind socket to local host and port
         try:
@@ -1735,7 +1736,8 @@ class Roach2Controls:
             print 'Bind failed. Error Code : ' + str(msg[0]) + ' Message ' + msg[1]
             sock.close()
             raise
-        #print 'Socket bind complete'
+        sock.settimeout(duration*2)
+        print 'Socket bind complete'
 
         bufferSize = int(8*pktsPerFrame) #Each photon word is 8 bytes
         iFrame = 0
@@ -1758,12 +1760,17 @@ class Roach2Controls:
                     print iFrame
 
         except KeyboardInterrupt:       
-            print 'Exiting'
+            print 'Exiting on KeyboardInterrupt'
             sock.close()
             self.phaseTimeStreamData = frameData
             #dumpFile.write(frameData)
             #dumpFile.close()
             return
+        except socket.timeout:
+            print 'Exiting on timeout'
+            sock.close()
+            self.phaseTimeStreamData = frameData
+            raise
 
         #print 'Exiting'
         sock.close()
