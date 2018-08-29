@@ -19,6 +19,7 @@ dependencies:
   - pip>=17
   - hdf5=1.10.2
   - ruamel.yaml
+  - numba>=0.39.0
 #optional
   - mpmath
   - blas
