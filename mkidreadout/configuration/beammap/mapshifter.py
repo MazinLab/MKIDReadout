@@ -39,7 +39,7 @@ def grabFeedline(rawmap, feedlinenumber):
     return feedline
 
 
-def isincorrectfeedlineX(resonator, feedlinenumber, flipX=True):
+def isincorrectfeedlineX(resonator, feedlinenumber, flipX=False):
     if flipX :
         if feedlinenumber == 1:
             if 126 <= int(np.floor(resonator[2])) <= 139:
@@ -273,13 +273,13 @@ def findbestshift (shiftedmaps):
     return np.array([bestx , besty])
 
 
-def testfeedline (feedlinenumber, diagnosticplots=True):
+def testfeedline (feedlinenumber, diagnosticplots=False):
     testedfeedline = grabFeedline(rawbeammap, feedlinenumber)
-    feedlineshifts = getshiftedmaps(testedfeedline, newdes, 3, 3, 'median')
+    feedlineshifts = getshiftedmaps(testedfeedline, designmap, 3, 3, 'mean')
     bestshift = findbestshift(feedlineshifts)
     if diagnosticplots:
-        # plotmodelvdata(feedlineshifts, 3, 3)
-        # plotresidualhistograms(feedlineshifts, 3, 3)
+        plotmodelvdata(feedlineshifts, 3, 3)
+        plotresidualhistograms(feedlineshifts, 3, 3)
         plotMADs(feedlineshifts)
         plotStdDevs(feedlineshifts)
     return bestshift
@@ -294,16 +294,29 @@ def testarray (feedlinesmeasured):
     return bestshifts
 
 
+def getFeedlineMedianFrequencies(mapWithFreqs):
+    medians = np.zeros((10, 2))
+    for i in range(10):
+        FL = mapWithFreqs[np.where(i+1 == np.floor(mapWithFreqs[:,0]/10000))[0]]
+        FL_freqs = FL[:, 4]
+        FL_freqs = FL_freqs[~np.isnan(FL_freqs)]
+        medians[i][0] = i+1
+        medians[i][1] = np.mean(FL_freqs)
+    return medians
+
+
 def shiftFullMap (rawmap, bestshiftarray):
     xshifts = bestshiftarray[:, 0]
     yshifts = bestshiftarray[:, 1]
     newmap = matchFreqToResID(rawmap)
-    freqs = newmap[:, 4]
-    freqs = freqs[~np.isnan(freqs)]
-    medianF = np.median(freqs)
-    designMed = np.median(designmap.flatten())
-    medianDiff = medianF - designMed
-    newmap[:, 4] = newmap[:, 4] - medianDiff
+    medians = getFeedlineMedianFrequencies(newmap)
+    print(newmap[:, 4])
+    designMed = np.mean(designmap.flatten())
+    medDiffs = medians[:, 1] - designMed
+    for i in range(len(newmap)):
+        feedline = np.floor(newmap[i][0] / 10000)
+        idx = np.where(feedline == medians[:, 0])[0]
+        newmap[i][4] = newmap[i][4] - medDiffs[idx]
     if all(x == xshifts[0] for x in xshifts) and all(y == yshifts[0] for y in yshifts):
         shiftX = xshifts[0]
         shiftY = yshifts[0]
@@ -322,7 +335,7 @@ def singlePixelResidual (pixel):
     difference between measured and design frequency at that point"""
     measuredF = pixel[4]
     if not np.isnan(measuredF):
-        designF = designarray[np.int(np.floor(pixel[3]))][np.int(np.floor(pixel[2]))]
+        designF = designmap[np.int(np.floor(pixel[3]))][np.int(np.floor(pixel[2]))]
         residual = measuredF - designF
         return residual
     return float("NaN")
@@ -346,49 +359,78 @@ def getMapSpread (beammap):
         else:
             residuals[i] = float("NaN")
     residuals = residuals[~np.isnan(residuals)]
-    return np.std(residuals), mad_std(residuals), counter, counterUnder30
+    return np.std(residuals), mad_std(residuals), counter, counterUnder30, residuals
 
 
 def writeFiles (analyzedMap):
     np.savetxt("cookedmap.txt", analyzedMap[:, 0:4])
 
 
+def grabInputs (designFL, rawMap, psFiles, FLlist):
+    design = designFL
+    raw = rawMap
+    freqs = psFiles
+    list = FLlist
+    designmap = np.genfromtxt(design)
+    rawmap = np.genfromtxt(raw)
+    freqsweep = freqs
+
+    designarray = np.roll(np.tile(designmap, 10), 1, axis=1)
+    FreqSweeps = glob.glob(freqsweep)
+    # newarray = np.fliplr(np.flipud(np.roll(designarray, 1, axis=1)))
+    newarray = np.fliplr(np.flipud(designarray))
+
+    return newarray,  rawmap, FreqSweeps, list
+
+
+def outputObject (mapofdesignf, outputmap, vector):
+    return [mapofdesignf, outputmap, shiftvector]
+
+
+def findNearestNeighborFrequency (resonator):
+    resX = int(resonator[2]) % 140
+    resXp1 = int(resX+1) % 140
+    resXm1 = int(resX-1) % 140
+    resY = int(resonator[3]) % 146
+    resYp1 = int(resY+1) % 146
+    resYm1 = int(resY-1) % 146
+    nearestneighborfreqs = [[designmap[resYm1][resXm1], designmap[resYm1][resX], designmap[resYm1][resXp1]],
+                            [designmap[resY][resXm1], designmap[resY][resX], designmap[resY][resXp1]],
+                            [designmap[resYp1][resXm1], designmap[resYp1][resX], designmap[resYp1][resXp1]]]
+    neighborresids = np.abs(nearestneighborfreqs - resonator[4])
+    min_place = np.unravel_index(neighborresids.argmin(), neighborresids.shape)
+    return min_place
+
+
 
 if __name__ == "__main__":
-    # cfgFn = sys.argv[1]
-    # if not os.path.isfile(cfgFn):
-    #     mdd = os.environ['MKID_DATA_DIR']
-    #     cfgFn = os.path.join(mdd, cfgFn)
-    # paramDict = readDict()
-    # paramDict.read_from_file(cfgFn)
-    # print(paramDict['designMap'],paramDict['rawBeamMap'])
-    #
-    # designmap = np.genfromtxt(paramDict['designMap'])
-    # rawbeammap = np.genfromtxt(paramDict['rawBeamMap'])
-    # freqsweeps = paramDict['freqSweepFiles']
-    # listofmeasuredFLs = paramDict['FLs']
-
-    designMap = r'mapcheckertesting\mec_feedline.txt'
-    rawBeamMap = r'\mapcheckertesting\beammapTestData\newtest\RawMapV1.txt'
-    freqSweepFiles = r'\mapcheckertesting\beammapTestData\newtest\ps_*.txt'
-    listofmeasuredFLs = [1, 5, 6, 7, 8, 9, 10]
-    designmap = np.genfromtxt(designMap)
-    rawbeammap = np.genfromtxt(rawBeamMap)
-    freqsweeps = freqSweepFiles
-
-    # SHOULD NOT HAVE TO BE CHANGED, THIS IS JUST USED FOR FORMATTING
-    designarray = np.roll(np.tile(designmap, 10), 1, axis=1)
-    FreqSweepFiles = glob.glob(freqsweeps)
-    newdes = np.roll(designmap, 1, axis=1)
+    designmap, rawbeammap, FreqSweepFiles, listofmeasuredFLs = \
+        grabInputs(r'mec_feedline.txt', r'beammapTestData\newtest\RawMapV1.txt',
+                   r'beammapTestData\newtest\ps_*.txt', [1, 5, 6, 7, 8, 9, 10])
 
     hypatiatest = testarray(listofmeasuredFLs)
     cookedmap, shiftvector = shiftFullMap(rawbeammap, hypatiatest)
-    s1, m1, n1, n30_1 = getMapSpread(cookedmap)
-    s2, m2, n2, n30_2 = getMapSpread(rawbeammap)
+    s1, m1, n1, n30_1, r1 = getMapSpread(cookedmap)
+    s2, m2, n2, n30_2, r2 = getMapSpread(rawbeammap)
 
-    print("The ideal shift was "+str(shiftvector[0])+" pixels in x and "+str(shiftvector[1])+"pixels in y.")
+    output = outputObject(designmap, cookedmap, shiftvector)
+
+    print("The ideal shift was "+str(shiftvector[0])+" pixels in x and "+str(shiftvector[1])+" pixels in y.")
     print("We placed "+str(n1)+" pixels, including "+str(n30_1)+" within 30 MHz of the design frequency, compared to "+
           str(n2)+" pixels before shifting, which had "+str(n30_2)+" within 30 MHz of the design frequency.")
     print("THe spread in errors is {0:1.3f}".format(m1)+" MHz, compared to {0:1.3f}".format(m2)+" before shifting, a "
           "{0:1.3}".format(100-(m1/m2*100))+"% reduction.")
-    writeFiles(cookedmap)
+    # writeFiles(cookedmap)
+
+# DELETE IN REAL CODE THIS IS FOR DEBUGGING
+x = np.full((len(cookedmap), 2), float("NaN"))
+for i in range(len(cookedmap)):
+    if not np.isnan(cookedmap[i][2]) and not np.isnan(cookedmap[i][3]) and not np.isnan(cookedmap[i][4]):
+        x[i] = findNearestNeighborFrequency(cookedmap[i])
+vectors = x-1
+x = cookedmap[:, 2]
+y = cookedmap[:, 3]
+u = vectors[:, 0]
+v = vectors[:, 1]
+plt.quiver(x, y, u, v, scale_units='xy', scale=1)
+plt.show()
