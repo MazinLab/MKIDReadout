@@ -7,8 +7,8 @@ import numpy as np
 import glob
 import matplotlib.pyplot as plt
 from astropy.stats import mad_std
-#import sys, os
-#from mkidreadout.utils.readDict import readDict
+import sys, os
+# from mkidreadout.utils.readDict import readDict
 
 
 def readInFrequencies(powerSweepFiles):
@@ -39,57 +39,109 @@ def grabFeedline(rawmap, feedlinenumber):
     return feedline
 
 
-def isincorrectfeedlineX(resonator, feedlinenumber):
-    if feedlinenumber == 1:
-        if 126 <= int(np.floor(resonator[2])) <= 139:
-            return True
-        else:
-            return False
-    if feedlinenumber == 2:
-        if 112 <= int(np.floor(resonator[2])) <= 125:
-            return True
-        else:
-            return False
-    if feedlinenumber == 3:
-        if 98 <= int(np.floor(resonator[2])) <= 111:
-            return True
-        else:
-            return False
-    if feedlinenumber == 4:
-        if 84 <= int(np.floor(resonator[2])) <= 97:
-            return True
-        else:
-            return False
-    if feedlinenumber == 5:
-        if 70 <= int(np.floor(resonator[2])) <= 83:
-            return True
-        else:
-            return False
-    if feedlinenumber == 6:
-        if 56 <= int(np.floor(resonator[2])) <= 69:
-            return True
-        else:
-            return False
-    if feedlinenumber == 7:
-        if 42 <= int(np.floor(resonator[2])) <= 55:
-            return True
-        else:
-            return False
-    if feedlinenumber == 8:
-        if 28 <= int(np.floor(resonator[2])) <= 41:
-            return True
-        else:
-            return False
-    if feedlinenumber == 9:
-        if 14 <= int(np.floor(resonator[2])) <= 27:
-            return True
-        else:
-            return False
-    if feedlinenumber == 10:
-        if 0 <= int(np.floor(resonator[2])) <= 13:
-            return True
-        else:
-            return False
+def isincorrectfeedlineX(resonator, feedlinenumber, flipX=True):
+    if flipX :
+        if feedlinenumber == 1:
+            if 126 <= int(np.floor(resonator[2])) <= 139:
+                return True
+            else:
+                return False
+        if feedlinenumber == 2:
+            if 112 <= int(np.floor(resonator[2])) <= 125:
+                return True
+            else:
+                return False
+        if feedlinenumber == 3:
+            if 98 <= int(np.floor(resonator[2])) <= 111:
+                return True
+            else:
+                return False
+        if feedlinenumber == 4:
+            if 84 <= int(np.floor(resonator[2])) <= 97:
+                return True
+            else:
+                return False
+        if feedlinenumber == 5:
+            if 70 <= int(np.floor(resonator[2])) <= 83:
+                return True
+            else:
+                return False
+        if feedlinenumber == 6:
+            if 56 <= int(np.floor(resonator[2])) <= 69:
+                return True
+            else:
+                return False
+        if feedlinenumber == 7:
+            if 42 <= int(np.floor(resonator[2])) <= 55:
+                return True
+            else:
+                return False
+        if feedlinenumber == 8:
+            if 28 <= int(np.floor(resonator[2])) <= 41:
+                return True
+            else:
+                return False
+        if feedlinenumber == 9:
+            if 14 <= int(np.floor(resonator[2])) <= 27:
+                return True
+            else:
+                return False
+        if feedlinenumber == 10:
+            if 0 <= int(np.floor(resonator[2])) <= 13:
+                return True
+            else:
+                return False
+    else :
+        if feedlinenumber == 10:
+            if 126 <= int(np.floor(resonator[2])) <= 139:
+                return True
+            else:
+                return False
+        if feedlinenumber == 9:
+            if 112 <= int(np.floor(resonator[2])) <= 125:
+                return True
+            else:
+                return False
+        if feedlinenumber == 8:
+            if 98 <= int(np.floor(resonator[2])) <= 111:
+                return True
+            else:
+                return False
+        if feedlinenumber == 7:
+            if 84 <= int(np.floor(resonator[2])) <= 97:
+                return True
+            else:
+                return False
+        if feedlinenumber == 6:
+            if 70 <= int(np.floor(resonator[2])) <= 83:
+                return True
+            else:
+                return False
+        if feedlinenumber == 5:
+            if 56 <= int(np.floor(resonator[2])) <= 69:
+                return True
+            else:
+                return False
+        if feedlinenumber == 4:
+            if 42 <= int(np.floor(resonator[2])) <= 55:
+                return True
+            else:
+                return False
+        if feedlinenumber == 3:
+            if 28 <= int(np.floor(resonator[2])) <= 41:
+                return True
+            else:
+                return False
+        if feedlinenumber == 2:
+            if 14 <= int(np.floor(resonator[2])) <= 27:
+                return True
+            else:
+                return False
+        if feedlinenumber == 1:
+            if 0 <= int(np.floor(resonator[2])) <= 13:
+                return True
+            else:
+                return False
 
 
 def isonarrayY(resonator):
@@ -221,13 +273,13 @@ def findbestshift (shiftedmaps):
     return np.array([bestx , besty])
 
 
-def testfeedline (feedlinenumber, diagnosticplots=False):
+def testfeedline (feedlinenumber, diagnosticplots=True):
     testedfeedline = grabFeedline(rawbeammap, feedlinenumber)
     feedlineshifts = getshiftedmaps(testedfeedline, newdes, 3, 3, 'median')
     bestshift = findbestshift(feedlineshifts)
     if diagnosticplots:
-        plotmodelvdata(feedlineshifts, 3, 3)
-        plotresidualhistograms(feedlineshifts, 3, 3)
+        # plotmodelvdata(feedlineshifts, 3, 3)
+        # plotresidualhistograms(feedlineshifts, 3, 3)
         plotMADs(feedlineshifts)
         plotStdDevs(feedlineshifts)
     return bestshift
@@ -303,20 +355,26 @@ def writeFiles (analyzedMap):
 
 
 if __name__ == "__main__":
-    # designpath = sys.argv(1)
-    # rawmappath = sys.argv(2)
-    # freqsweepspath = sys.argv(3)
-    # listofmeasuredFLs = sys.argv(4)
+    # cfgFn = sys.argv[1]
+    # if not os.path.isfile(cfgFn):
+    #     mdd = os.environ['MKID_DATA_DIR']
+    #     cfgFn = os.path.join(mdd, cfgFn)
+    # paramDict = readDict()
+    # paramDict.read_from_file(cfgFn)
+    # print(paramDict['designMap'],paramDict['rawBeamMap'])
     #
-    # designmap = np.genfromtxt(str(designpath))
-    # rawbeammap = np.genfromtxt(str(rawmappath))
-    # freqsweeps = str(freqsweepspath)+"ps_*/txt"
-    # listofmeasuredFLs = np.array(listofmeasuredFLs)
+    # designmap = np.genfromtxt(paramDict['designMap'])
+    # rawbeammap = np.genfromtxt(paramDict['rawBeamMap'])
+    # freqsweeps = paramDict['freqSweepFiles']
+    # listofmeasuredFLs = paramDict['FLs']
 
-    designmap = np.genfromtxt(r"mec_feedline.txt")
-    rawbeammap = np.genfromtxt(r"beammapTestData\test\RawMap_20180621.txt")
-    freqsweeps = r"beammapTestData\test\ps_*.txt"
+    designMap = r'mapcheckertesting\mec_feedline.txt'
+    rawBeamMap = r'\mapcheckertesting\beammapTestData\newtest\RawMapV1.txt'
+    freqSweepFiles = r'\mapcheckertesting\beammapTestData\newtest\ps_*.txt'
     listofmeasuredFLs = [1, 5, 6, 7, 8, 9, 10]
+    designmap = np.genfromtxt(designMap)
+    rawbeammap = np.genfromtxt(rawBeamMap)
+    freqsweeps = freqSweepFiles
 
     # SHOULD NOT HAVE TO BE CHANGED, THIS IS JUST USED FOR FORMATTING
     designarray = np.roll(np.tile(designmap, 10), 1, axis=1)
