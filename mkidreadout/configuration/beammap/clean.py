@@ -14,6 +14,7 @@ import numpy as np
 import os
 import logging
 import argparse
+import ipdb
 import matplotlib.pyplot as plt
 from mkidreadout.utils.arrayPopup import plotArray
 from mkidreadout.utils.readDict import readDict
@@ -100,9 +101,9 @@ class BMCleaner:
         self.flags[wayOutMask] = beamMapFlags['wrongFeedline']
 
         self.preciseXs[(self.preciseXs < 0) & ~wayOutMask] = 0
-        self.preciseXs[(self.preciseXs > self.nCols) & ~wayOutMask] = self.nCols - 0.01
+        self.preciseXs[(self.preciseXs >= self.nCols) & ~wayOutMask] = self.nCols - 0.01
         self.preciseYs[(self.preciseYs < 0) & ~wayOutMask] = 0
-        self.preciseYs[(self.preciseYs > self.nRows) & ~wayOutMask] = self.nRows - 0.01
+        self.preciseYs[(self.preciseYs >= self.nRows) & ~wayOutMask] = self.nRows - 0.01
 
     
     def resolveOverlaps(self):
@@ -115,6 +116,8 @@ class BMCleaner:
         nOverlapsResolved = 0
 
         for coord in overlapCoords:
+            #if coord[0]==61 and coord[1]==22:
+            #    ipdb.set_trace()
             coordMask = (coord[0] == self.flooredXs) & (coord[1] == self.flooredYs) & ((self.flags == beamMapFlags['good']) | (self.flags == beamMapFlags['double']))
             coordInds = np.where(coordMask)[0] #indices of overlapping coordinates in beammap
     
@@ -149,12 +152,13 @@ class BMCleaner:
     
                 self.placedXs[toMoveCoordInd] = nnToFillCoord[0]
                 self.placedYs[toMoveCoordInd] = nnToFillCoord[1]
-                self.bmGrid[nnToFillCoord[0], nnToFillCoord[1]] = 1
+                self.bmGrid[nnToFillCoord[0], nnToFillCoord[1]] += 1
                 self.bmGrid[coord[0], coord[1]] -= 1
     
                 distMat = np.delete(distMat, minDistInd[1], axis=1) #delete column corresponding to NN just filled
                 distMat = np.delete(distMat, minDistInd[0], axis=0) #delete row corresponding to moved coordinate
                 coordInds = np.delete(coordInds, minDistInd[0])
+                uONNCoords = np.delete(uONNCoords, minDistInd[1], axis=0)
                 precOverlapCoords = np.delete(precOverlapCoords, minDistInd[0], axis=0)
                 precXOverlap = np.delete(precXOverlap, minDistInd[0])
                 precYOverlap = np.delete(precYOverlap, minDistInd[0])
@@ -183,6 +187,15 @@ class BMCleaner:
             unoccupiedCoordsCurFL = unoccupiedCoords[isInCorrectFL(10000*(i+1)*np.ones(len(unoccupiedCoords)), unoccupiedCoords[:,0], unoccupiedCoords[:,1], self.instrument, flip=self.flip)]
             self.placedXs[toPlaceMaskCurFL] = unoccupiedCoordsCurFL[:,0]
             self.placedYs[toPlaceMaskCurFL] = unoccupiedCoordsCurFL[:,1]
+
+    def placeFailedPixelsQuick(self): 
+        toPlaceXs = np.isnan(self.placedXs) 
+        toPlaceYs = np.isnan(self.placedYs)
+        self.placedXs[toPlaceXs] = self.nCols
+        self.placedYs[toPlaceYs] = self.nRows
+    
+    def saveBeammap(self, path):
+        np.savetxt(path, np.transpose([self.resIDs, self.flags, self.placedXs.astype(int), self.placedYs.astype(int)]), fmt='%4i %4i %4i %4i')
      
 
 if __name__=='__main__':
@@ -221,6 +234,8 @@ if __name__=='__main__':
     # resolve overlaps and place failed pixels
     cleaner.resolveOverlaps()
     cleaner.placeFailedPixels()
+    #cleaner.placeFailedPixelsQuick()
+    cleaner.saveBeammap(finalPath)
 
     fig2 = plt.figure()
     ax2 = fig2.add_subplot(111)

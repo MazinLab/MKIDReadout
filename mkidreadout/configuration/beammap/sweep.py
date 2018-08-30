@@ -431,9 +431,9 @@ class ManualRoughBeammap(object):
                     getLogger('beammap').info('Gaussian fit params: ' + str(fitParams))
                 elif self.fitType == 'com':
                     offset=getPeakCoM(self.x_images[:,y,x],offset)
-                    getLogger('beammap').info('Using CoM: ' + str(offset))
+                    getLogger('beammap').info('Using CoM: ' + str(offset), 10)
                 self.x_loc[y, x] = offset
-                getLogger('beammap').info('x: {}'.format(offset), 10)
+                getLogger('beammap').info('x: {}'.format(offset))
                 self.updateTimestreamPlot(0)
 
             elif event.inaxes == self.ax_time_y:
