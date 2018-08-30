@@ -17,15 +17,19 @@ import numpy as np
 import scipy.ndimage as sciim
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
+import warnings
 from mkidreadout.utils.readDict import readDict
 from mkidreadout.configuration.beammap.flags import beamMapFlags
+from mkidreadout.configuration.beammap.utils import isInCorrectFL
 
 class BMAligner(object):
-    def __init__(self, beamListFn, nXPix, nYPix, usFactor=50):
+    def __init__(self, beamListFn, nXPix, nYPix, instrument, flip=False, usFactor=50):
         self.beamListFn = beamListFn
         self.usFactor = usFactor
         self.nXPix = nXPix
         self.nYPix = nYPix
+        self.instrument = instrument
+        self.flip = flip
         self.resIDs, self.flags, self.rawXs, self.rawYs = np.loadtxt(beamListFn, unpack=True)
         self.makeRawImage()
         self.rawImage = None
@@ -49,6 +53,7 @@ class BMAligner(object):
         if path is None:
             path = os.path.join(os.path.dirname(self.beamListFn), 'rawImageFFT.npz')
 
+        warnings.warn('Loading FFT from ' + str(path))
         fftDict = np.load(path)
         self.rawImageFFT = fftDict['rawImageFFT']
         self.rawImageFreqs = fftDict['rawImageFreqs']
@@ -166,10 +171,11 @@ class BMAligner(object):
                 shiftedXs = (self.coords[:,0] - curXOffs).astype(int)
                 shiftedYs = (self.coords[:,1] - curYOffs).astype(int)
                 
-            validInds = np.where(np.logical_and(np.logical_and(shiftedXs>0, shiftedXs<self.nXPix), 
-                np.logical_and(shiftedYs>0, shiftedYs<self.nYPix)))[0]
-            shiftedXs = shiftedXs[validInds]
-            shiftedYs = shiftedYs[validInds]
+            validMask = isInCorrectFL(self.resIDs, shiftedXs, shiftedYs, self.instrument, flip=self.flip)
+            validMask = validMask & (shiftedXs>=0) & (shiftedXs<self.nXPix) & (shiftedYs>=0) & (shiftedYs<self.nYPix)
+                
+            shiftedXs = shiftedXs[validMask]
+            shiftedYs = shiftedYs[validMask]
             goodPixMask = np.zeros((self.nXPix, self.nYPix))
             goodPixCoords = (shiftedXs, shiftedYs)
             goodPixMask[goodPixCoords] = 1
@@ -291,7 +297,7 @@ if __name__=='__main__':
     paramDict = readDict()
     paramDict.read_from_file(cfgFn)
 
-    aligner = BMAligner(paramDict['masterPositionList'], paramDict['nXPix'], paramDict['nYPix'])
+    aligner = BMAligner(paramDict['masterPositionList'], paramDict['nXPix'], paramDict['nYPix'], paramDict['instrument'], paramDict['flip'])
     aligner.makeRawImage()
     #aligner.fftRawImage()
     aligner.loadFFT()
