@@ -58,6 +58,8 @@ class BMCleaner:
         elif self.instrument.lower()=='darkness':
             self.nFL = N_FL_DARKNESS
             self.flWidth = DARKNESS_FL_WIDTH
+        else:
+            raise Exception('Provided instrument not implemented!')
     
         self.resIDs = np.array(roughBM[:,0],dtype=np.int)
         self.flags = np.array(roughBM[:,1],dtype=np.int)
@@ -72,7 +74,7 @@ class BMCleaner:
     def fixPreciseCoordinates(self):
         #fix coordinates
         self._fixOOBPixels()
-        self._fixInitialFeedlinePlacement()
+        self._fixInitialFeedlinePlacement(1)
 
 
     def placeOnGrid(self):
@@ -87,12 +89,32 @@ class BMCleaner:
         self.bmGrid = getOverlapGrid(self.preciseXs, self.preciseYs, self.flags, self.nCols, self.nRows)
 
 
-    def _fixInitialFeedlinePlacement(self, slack=0):
+    def _fixInitialFeedlinePlacement(self, slack=1):
         wayOutMask = ~isInCorrectFL(self.resIDs, self.preciseXs, self.preciseYs, self.instrument, slack, self.flip)
         self.flags[((self.flags==beamMapFlags['good']) | (self.flags==beamMapFlags['double'])) & wayOutMask] = beamMapFlags['wrongFeedline']
         self.preciseXs[self.flags==beamMapFlags['wrongFeedline']] = np.nan
         self.preciseYs[self.flags==beamMapFlags['wrongFeedline']] = np.nan
         log.info('%d pixels in wrong feedline. Flagged as bad', np.sum(self.flags==beamMapFlags['wrongFeedline']))
+
+        if slack>0:
+            flPos = getFLFromID(self.resIDs) - 1
+            if self.flip:
+                flPos = 9 - flPos
+            rightEdgeMask = flPos < getFLFromCoords(self.preciseXs, self.preciseYs, self.instrument, flip=False) - 1
+            leftEdgeMask = flPos > getFLFromCoords(self.preciseXs, self.preciseYs, self.instrument, flip=False) - 1
+            assert np.all((rightEdgeMask & leftEdgeMask) == 0), 'Error moving pixels to correct FL'
+            log.info(str(np.sum(rightEdgeMask)+np.sum(leftEdgeMask)) + ' placed in correct feedline')
+            if self.instrument=='mec':
+                self.preciseXs[rightEdgeMask] = (flPos[rightEdgeMask]+1)*self.flWidth-0.01
+                self.preciseXs[leftEdgeMask] = (flPos[leftEdgeMask])*self.flWidth+0.01
+            elif self.instrument=='darkness':
+                self.preciseYs[rightEdgeMask] = (flPos[rightEdgeMask]+1)*self.flWidth-0.01
+                self.preciseYs[leftEdgeMask] = (flPos[leftEdgeMask])*self.flWidth+0.01
+            else:
+                raise Exception('Provided instrument not implemented!')
+            validCoordMask = (~np.isnan(self.preciseXs)) & (~np.isnan(self.preciseYs))
+            assert np.all(isInCorrectFL(self.resIDs[validCoordMask], self.preciseXs[validCoordMask], self.preciseYs[validCoordMask], self.instrument, 0, self.flip)), 'bad FL cleanup!'
+
 
     def _fixOOBPixels(self, slack=1):
         wayOutMask = (self.preciseXs + slack < 0) | (self.preciseXs - slack > self.nCols - 1) | (self.preciseYs + slack < 0) | (self.preciseYs - slack > self.nRows - 1)
@@ -116,8 +138,6 @@ class BMCleaner:
         nOverlapsResolved = 0
 
         for coord in overlapCoords:
-            #if coord[0]==61 and coord[1]==22:
-            #    ipdb.set_trace()
             coordMask = (coord[0] == self.flooredXs) & (coord[1] == self.flooredYs) & ((self.flags == beamMapFlags['good']) | (self.flags == beamMapFlags['double']))
             coordInds = np.where(coordMask)[0] #indices of overlapping coordinates in beammap
     
@@ -195,6 +215,11 @@ class BMCleaner:
         self.placedYs[toPlaceYs] = self.nRows
     
     def saveBeammap(self, path):
+        assert np.all(np.isnan(self.placedXs)==False), 'NaNs in final beammap!'
+        assert np.all(np.isnan(self.placedYs)==False), 'NaNs in final beammap!'
+        log.info('N good pixels: ' + str(np.sum(self.flags==beamMapFlags['good'])))
+        log.info('N doubles: ' + str(np.sum(self.flags==beamMapFlags['double'])))
+        log.info('N failed pixels (read out but not beammapped): ' + str(np.sum((self.flags!=beamMapFlags['good']) & (self.flags!=beamMapFlags['double']) & (self.flags!=beamMapFlags['noDacTone']))))
         np.savetxt(path, np.transpose([self.resIDs, self.flags, self.placedXs.astype(int), self.placedYs.astype(int)]), fmt='%4i %4i %4i %4i')
      
 
@@ -234,7 +259,6 @@ if __name__=='__main__':
     # resolve overlaps and place failed pixels
     cleaner.resolveOverlaps()
     cleaner.placeFailedPixels()
-    #cleaner.placeFailedPixelsQuick()
     cleaner.saveBeammap(finalPath)
 
     fig2 = plt.figure()
