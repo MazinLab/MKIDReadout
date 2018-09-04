@@ -92,6 +92,7 @@ import binascii
 from mkidreadout.channelizer.binTools import castBin
 from mkidreadout.utils.readDict import readDict
 from mkidreadout.channelizer.adcTools import streamSpectrum, checkSpectrumForSpikes
+from mkidreadout.channelizer.Roach2Utils import cy_generateTones
 
 class Roach2Controls:
 
@@ -119,9 +120,10 @@ class Roach2Controls:
 
         
         #Some more parameters
-        self.freqPadValue = -1      # pad frequency lists so that we have a multiple of number of streams
+        self.freqPadValue = -1      # pad frequency channel lists so that we have a multiple of number of streams
         self.fftBinPadValue = 0     # pad fftBin selection with fftBin 0
         self.ddsFreqPadValue = -1   # 
+        self.channelPadValue = -1   # pad for stream/ch 2 freqCh indexer array
         self.v7_ready = 0
         self.lut_dump_buffer_size = self.params['lut_dump_buffer_size']
         self.thresholdList = -np.pi*np.ones(1024)
@@ -249,41 +251,41 @@ class Roach2Controls:
         """
         while(not(self.v7_ready)):
             self.v7_ready = self.fpga.read_int(self.params['v7Ready_reg'])
-            time.sleep(.2)
+            #time.sleep(.2)
         self.v7_ready = 0
         self.sendUARTCommand(self.params['mbEnableDACs'])
         
         while(not(self.v7_ready)):
             self.v7_ready = self.fpga.read_int(self.params['v7Ready_reg'])
-            time.sleep(.2)
+            #time.sleep(.2)
         self.v7_ready = 0
         self.sendUARTCommand(self.params['mbSendLUTToDAC'])
         
         while(not(self.v7_ready)):
             self.v7_ready = self.fpga.read_int(self.params['v7Ready_reg'])
-            time.sleep(.2)
+            #time.sleep(.2)
         self.v7_ready = 0
         self.sendUARTCommand(self.params['mbInitLO'])
         
         while(not(self.v7_ready)):
             self.v7_ready = self.fpga.read_int(self.params['v7Ready_reg'])
-            time.sleep(.2)
+            #time.sleep(.2)
         self.v7_ready = 0
         self.sendUARTCommand(self.params['mbInitAtten'])
 
         while(not(self.v7_ready)):
             self.v7_ready = self.fpga.read_int(self.params['v7Ready_reg'])
-            time.sleep(.2)
+            #time.sleep(.2)
         self.v7_ready = 0
         self.sendUARTCommand(self.params['mbEnFracLO'])
         
     def generateDdsTones(self, freqChannels=None, fftBinIndChannels=None, phaseList=None):
         """
-        Create and interweave dds frequencies
+        Create and interweave dds frequencies. DDS tones downsample the post-fft 
+        signal to baseband. The phase can rotate the i,q points
         
         Call setLOFreq(), generateResonatorChannels(), generateFftChanSelection() first.
-        
-        Sets self.ddsPhaseList
+
         
         INPUT:
             freqChannels - Each column contains the resonantor frequencies in a single stream. The row index is the channel number. It's padded with -1's. 
@@ -298,6 +300,12 @@ class Roach2Controls:
             'qStreamList' - q values
             'quantizedFreqList' - 2d array of dds frequencies. (same shape as freqChannels) Padded with self.ddsFreqPadValue
             'phaseList' - 2d array of phases for each frequency (same shape as freqChannels) Padded with 0's
+        
+        Attributes set:
+            self.ddsQuantizedFreqList
+            self.ddsPhaseList
+            self.ddsIStreamsList
+            self.ddsQStreamsList
         """
         #Interpret Inputs
         if freqChannels is None:
@@ -337,7 +345,7 @@ class Roach2Controls:
         nDdsSamples = self.params['nDdsSamplesPerCycle']*self.params['nQdrRows']/self.params['nCyclesToLoopToSameChannel']
         ddsFreqResolution = 1.*ddsSampleRate/nDdsSamples
         ddsQuantizedFreqList = np.round(ddsFreqList/ddsFreqResolution)*ddsFreqResolution
-        ddsQuantizedFreqList[np.where(freqChannels<0)] = self.ddsFreqPadValue     # Pad excess frequencies with -1
+        ddsQuantizedFreqList[np.where(freqChannels==self.freqPadValue)] = self.ddsFreqPadValue     # Pad excess frequencies with -1
         self.ddsQuantizedFreqList = ddsQuantizedFreqList
         
         # For each Stream, generate tones and interweave time streams for the dds time multiplexed multiplier
@@ -445,7 +453,7 @@ class Roach2Controls:
                             'bQdrFlip':True,
                             'nQdrRows':self.params['nQdrRows']}
             self.writeQdr(**writeQDRparams)
-            time.sleep(.1)
+            #time.sleep(.1)
             
         self.fpga.write_int(self.params['read_dds_reg'],1)
         
@@ -539,7 +547,7 @@ class Roach2Controls:
         """
         if combDict is None:
             try:
-                combDict = {'I':np.real(self.dacFreqComb).astype(np.int), 'Q':np.imag(self.dacFreqComb).astype(np.int), 'quantizedFreqList':self.dacQuantizedFreqList}
+                combDict = {'I':np.real(self.dacFreqComb).astype(np.int), 'Q':np.imag(self.dacFreqComb).astype(np.int)}
             except AttributeError:
                 print "Run generateDacComb() first!"
                 raise
@@ -565,10 +573,10 @@ class Roach2Controls:
         time.sleep(0.01)
         self.fpga.write_int(self.params['txEnUART_reg'],1)
         time.sleep(0.01)
-        self.fpga.write_int(self.params['txEnUART_reg'],0)
+        self.fpga.write_int(self.params['txEnUART_reg'],0,)
         time.sleep(0.01)
         #time.sleep(10)
-        self.fpga.write_int(self.params['enBRAMDump_reg'],1)
+        self.fpga.write_int(self.params['enBRAMDump_reg'],1,blindwrite=True)
 
         
         #print 'v7 ready before dump: ' + str(self.fpga.read_int(self.params['v7Ready_reg']))
@@ -595,8 +603,8 @@ class Roach2Controls:
                 print 'bram dump # ' + str(i)
             while(sending_data):
                 sending_data = self.fpga.read_int(self.params['lutDumpBusy_reg'])
-            self.fpga.blindwrite(self.params['lutBramAddr_reg'],toWriteStr,0)
-            time.sleep(0.01)
+            self.fpga.blindwrite(self.params['lutBramAddr_reg'],toWriteStr)
+            #time.sleep(0.01)
             self.fpga.write_int(self.params['lutBufferSize_reg'],len(toWriteStr))
             time.sleep(0.01)
             
@@ -608,12 +616,12 @@ class Roach2Controls:
 
             self.fpga.write_int(self.params['txEnUART_reg'],1)
             #print 'enable write'
-            time.sleep(0.05)
-            self.fpga.write_int(self.params['txEnUART_reg'],0)
+            time.sleep(0.01)
+            self.fpga.write_int(self.params['txEnUART_reg'],0,blindwrite=True)
             sending_data = 1
             self.v7_ready = 0
             
-        self.fpga.write_int(self.params['enBRAMDump_reg'],0)
+        self.fpga.write_int(self.params['enBRAMDump_reg'],0,blindwrite=True)
         
         
     
@@ -681,7 +689,7 @@ class Roach2Controls:
             
             while(not(self.v7_ready)):
                 self.v7_ready = self.fpga.read_int(self.params['v7Ready_reg'])
-                time.sleep(0.01)
+                #time.sleep(0.01)
             
             if(self.v7_ready == self.params['v7Err']):
                 raise Exception('MicroBlaze errored out.  Try reinitializing LO.')
@@ -695,7 +703,7 @@ class Roach2Controls:
     
         while(not(self.v7_ready)):      # Wait for V7 to say it's done setting LO
             self.v7_ready = self.fpga.read_int(self.params['v7Ready_reg'])
-            time.sleep(0.01)
+            #time.sleep(0.01)
 
         if(self.v7_ready == self.params['v7Err']):
             raise Exception('MicroBlaze failed to set LO!')
@@ -741,7 +749,7 @@ class Roach2Controls:
                 transferByte = (regVal>>(j*8))&255
                 while(not(self.v7_ready)):
                     self.v7_ready = self.fpga.read_int(self.params['v7Ready_reg'])
-                    time.sleep(0.01)
+                    #time.sleep(0.01)
                 self.v7_ready = 0
                 self.sendUARTCommand(transferByte)
         
@@ -771,7 +779,7 @@ class Roach2Controls:
             
             while(not(self.v7_ready)):
                 self.v7_ready = self.fpga.read_int(self.params['v7Ready_reg'])
-                time.sleep(0.01)
+                #time.sleep(0.01)
             
             if(self.v7_ready == self.params['v7Err']):
                 raise Exception('MicroBlaze errored out.  Try reinitializing LO.')
@@ -785,7 +793,7 @@ class Roach2Controls:
     
         while(not(self.v7_ready)):      # Wait for V7 to say it's done setting LO
             self.v7_ready = self.fpga.read_int(self.params['v7Ready_reg'])
-            time.sleep(0.01)
+            #time.sleep(0.01)
 
         if(self.v7_ready == self.params['v7Err']):
             raise Exception('MicroBlaze failed to set LO!')
@@ -824,28 +832,28 @@ class Roach2Controls:
         
         while(not(self.v7_ready)):
             self.v7_ready = self.fpga.read_int(self.params['v7Ready_reg'])
-            time.sleep(0.01)
+            #time.sleep(0.01)
             
         self.v7_ready = 0
         self.sendUARTCommand(self.params['mbChangeAtten'])
         
         while(not(self.v7_ready)):
             self.v7_ready = self.fpga.read_int(self.params['v7Ready_reg'])
-            time.sleep(0.01)
+            #time.sleep(0.01)
             
         self.v7_ready = 0
         self.sendUARTCommand(attenID)
         
         while(not(self.v7_ready)):
             self.v7_ready = self.fpga.read_int(self.params['v7Ready_reg'])
-            time.sleep(0.01)
+            #time.sleep(0.01)
 
         self.v7_ready = 0
         self.sendUARTCommand(attenVal)
 
         while(not(self.v7_ready)):
             self.v7_ready = self.fpga.read_int(self.params['v7Ready_reg'])
-            time.sleep(0.01)
+            #time.sleep(0.01)
         
     def snapZdok(self,nRolls=0):
         """
@@ -991,29 +999,53 @@ class Roach2Controls:
         self.loadDelayLut(delayLut2)
         self.loadDelayLut(delayLut3)            
     
-    def generateDacComb(self, freqList=None, resAttenList=None, globalDacAtten = 0, phaseList=None, iqRatioList=None, iqPhaseOffsList=None):
+    
+    def setAttenList(self, resAttenList):
+        """
+        This function sets the attribute self.attenList
+        """
+        self.attenList=resAttenList
+    
+    def generateDacComb(self, freqList=None, resAttenList=None, phaseList=None, iqRatioList=None, iqPhaseOffsList=None, avoidSpikes=True):
         """
         Creates DAC frequency comb by adding many complex frequencies together with specified amplitudes and phases.
         
-        The resAttenList holds the absolute attenuation for each resonantor signal coming out of the DAC. Zero attenuation means that the tone amplitude is set to the full dynamic range of the DAC and the DAC attenuator(s) are set to 0. Thus, all values in resAttenList must be larger than globalDacAtten. If you decrease the globalDacAtten, the amplitude in the DAC LUT decreases so that the total attenuation of the signal is the same. 
+        The resAttenList holds the absolute attenuation for each resonantor signal coming out of the DAC.
+        Zero attenuation means that the tone amplitude is set to the full dynamic range of the DAC and the 
+        DAC attenuator(s) are set to 0. Thus, all values in resAttenList must be larger than globalDacAtten. 
+        If you decrease the globalDacAtten, the amplitude in the DAC LUT decreases so that the total 
+        attenuation of the signal is the same. 
         
-        Note: Usually the attenuation values are integer dB values but technically the DAC attenuators can be set to every 1/4 dB and the amplitude in the DAC LUT can have arbitrary attenuation (quantized by number of bits).
+        Note: The freqList need not be unique. If there are repeated values in the freqList then
+        they are completely ignored when making the comb along with their corresponding attenuation, phase, etc...
         
         INPUTS:
             freqList - list of all resonator frequencies. If None, use self.freqList
-            resAttenList - list of absolute attenuation values (dB) for each resonator. If None, use 20's
-            globalDacAtten - global attenuation for entire DAC. Sum of the two DAC attenuaters on IF board
-            dacPhaseList - list of phases for each complex signal. If None, generates random phases. Old phaseList is under self.dacPhaseList
+            resAttenList - list of absolute attenuation values (dB) for each resonator.
+            phaseList - list of phases for each complex signal. If None, generates random phases.
+            iqRatioList - 
+            iqPhaseOffsList - 
+            avoidSpikes - If True, loop the generateTones() function with random phases to avoid a 90+ percentile spike in the comb
             
         OUTPUTS:
             dictionary with keywords
             I - I(t) values for frequency comb [signed 32-bit integers]
             Q - Q(t)
             quantizedFreqList - list of frequencies after digitial quantiziation
+            dacAtten - The global dac hardware attenuation in dB that should be set
+        
+        Attributes:
+            self.attenList - overwrites this if it already exists
+            self.freqList - overwrites this if it already exists
+            self.dacQuantizedFreqList - List of quantized freqs used in comb
+            self.dacPhaseList - List of phases used to generate freq comb
+            self.dacFreqComb - I(t) + j*Q(t) 
         """
         # Interpret Inputs
         if freqList is None:
-            freqList=self.freqList
+            try: freqList=self.freqList
+            except AttributeError: 
+                raise AttributeError("Provide a freqList or call generateResonatorChannels() first!")
         if len(freqList)>self.params['nChannels']:
             warnings.warn("Too many freqs provided. Can only accommodate "+str(self.params['nChannels'])+" resonators")
             freqList = freqList[:self.params['nChannels']]
@@ -1021,23 +1053,31 @@ class Roach2Controls:
         if resAttenList is None:
             try: resAttenList = self.attenList
             except AttributeError: 
-                warnings.warn("Individual resonator attenuations assumed to be 20")
-                resAttenList=np.zeros(len(freqList))+20
-        if len(resAttenList)>self.params['nChannels']:
-            warnings.warn("Too many attenuations provided. Can only accommodate "+str(self.params['nChannels'])+" resonators")
-            resAttenList = resAttenList[:self.params['nChannels']]
+                raise AttributeError("Provide an attenList or call all setAttenList() first!")
         resAttenList = np.ravel(resAttenList).flatten()
         if len(freqList) != len(resAttenList):
             raise ValueError("Need exactly one attenuation value for each resonant frequency!")
         if (phaseList is not None) and len(freqList) != len(phaseList):
             raise ValueError("Need exactly one phase value for each resonant frequency!")
-        if np.any(resAttenList < globalDacAtten):
-            raise ValueError("Impossible to attain desired resonator attenuations! Decrease the global DAC attenuation.")
+        if iqRatioList is None:
+            try:
+                iqRatioList = self.iqRatioList
+                if len(freqList) != len(iqRatioList):
+                    raise ValueError("Need exactly one iqRatio value for each resonant frequency!")
+            except AttributeError: pass
+        if iqPhaseOffsList is None:
+            try: 
+                iqPhaseOffsList = self.iqPhaseOffsList
+                if len(freqList) != len(iqPhaseOffsList):
+                    raise ValueError("Need exactly one iqPhaseOffs value for each resonant frequency!")
+            except AttributeError: pass
         self.attenList = resAttenList
         self.freqList = freqList
         
         if self.verbose:
             print 'Generating DAC comb...'
+        
+        globalDacAtten=np.amin(resAttenList)
         
         # Calculate relative amplitudes for DAC LUT
         nBitsPerSampleComponent = self.params['nBitsPerSamplePair']/2
@@ -1054,94 +1094,85 @@ class Roach2Controls:
         dacFreqList = self.freqList-self.LOFreq
         dacFreqList[np.where(dacFreqList<0.)] += self.params['dacSampleRate']  #For +/- freq
         
-        # Generate and add up individual tone time series.
-        if iqRatioList is None:
-            if hasattr(self, 'iqRatioList'):
-                iqRatioList = self.iqRatioList
-        if iqPhaseOffsList is None:
-            if hasattr(self, 'iqPhaseOffsList'):
-                iqPhaseOffsList = self.iqPhaseOffsList
+        # Make sure dac tones are unique
+        dacFreqList, args, args_inv = np.unique(dacFreqList, return_index=True, return_inverse=True)
+        self.attenList = (resAttenList[args])[args_inv]     # Force any duplicate frequencies to also have duplicate attens
+        toneParams={
+                'freqList': dacFreqList,
+                'nSamples': nSamples,
+                'sampleRate': sampleRate,
+                'amplitudeList': amplitudeList[args]}
+        if phaseList is not None:
+            toneParams['phaseList']=phaseList[args]
+        if iqRatioList is not None:
+            toneParams['iqRatioList']=iqRatioList[args]
+            self.iqRatioList = (iqRatioList[args])[args_inv]
+        if iqPhaseOffsList is not None:
+            toneParams['iqPhaseOffsList']=iqPhaseOffsList[args]
+            self.iqPhaseOffsList = (iqPhaseOffsList[args])[args_inv]
 
-        toneDict = self.generateTones(dacFreqList, nSamples, sampleRate, amplitudeList, phaseList, iqRatioList, iqPhaseOffsList)
-        self.dacQuantizedFreqList = toneDict['quantizedFreqList']
-        self.dacPhaseList = toneDict['phaseList']
-        iValues = np.array(np.round(np.sum(toneDict['I'],axis=0)),dtype=np.int)
-        qValues = np.array(np.round(np.sum(toneDict['Q'],axis=0)),dtype=np.int)
-        # plt.plot(iValues[0:1000])
-        # plt.plot(qValues[0:1000])
-        # plt.show()
-        self.dacFreqComb = iValues + 1j*qValues
+        # Generate and add up individual tone time series.
+        # This part takes the longest
+        toneDict = self.generateTones(**toneParams)
+        iValues=np.sum(toneDict['I'],axis=0)
+        qValues=np.sum(toneDict['Q'],axis=0)
         
         # check that we are utilizing the dynamic range of the DAC correctly
+        sig_i = np.std(iValues)
+        sig_q = np.std(qValues)
+        if avoidSpikes and sig_i>0 and sig_q>0:
+            expectedHighestVal_sig = scipy.special.erfinv((len(iValues)-0.1)/len(iValues))*np.sqrt(2.)   # 10% of the time there should be a point this many sigmas higher than average
+            while max(1.0*np.abs(iValues).max()/sig_i, 1.0*np.abs(qValues).max()/sig_q)>=expectedHighestVal_sig:
+                warnings.warn("The freq comb's relative phases may have added up sub-optimally. Calculating with new random phases")
+                toneParams['phaseList']=None    # If it was defined before it didn't work. So do random ones this time
+                toneDict = self.generateTones(**toneParams)
+                iValues=np.sum(toneDict['I'],axis=0)
+                qValues=np.sum(toneDict['Q'],axis=0)
+        
+        self.dacQuantizedFreqList = (toneDict['quantizedFreqList'])[args_inv]
+        self.dacPhaseList = (toneDict['phaseList'])[args_inv]
+        
         highestVal = np.max((np.abs(iValues).max(),np.abs(qValues).max()))
-        expectedHighestVal_sig = scipy.special.erfinv((len(iValues)-0.1)/len(iValues))*np.sqrt(2.)   # 10% of the time there should be a point this many sigmas higher than average
-
+        dBexcess = 20.*np.log10(1.0*highestVal/maxAmp)
+        dBexcess = np.ceil(4.*dBexcess)/4.  #rounded up to nearest 1/4 dB
+        iValues_new=np.round(iValues/10.**(dBexcess/20.)).astype(np.int)    #reduce to fit into DAC dynamic range and quantize to integer
+        qValues_new=np.round(qValues/10.**(dBexcess/20.)).astype(np.int)
+        if np.max((np.abs(iValues).max(),np.abs(qValues).max()))>maxAmp:
+            dBexcess+=0.25      # Since there's some rounding there's a small chance we need to decrease by another atten step
+            iValues_new=np.round(iValues/10.**(dBexcess/20.)).astype(np.int)
+            qValues_new=np.round(qValues/10.**(dBexcess/20.)).astype(np.int)
+        
+        globalDacAtten-=dBexcess
+        if globalDacAtten>31.75*2.:
+            dB_reduce = globalDacAtten-31.75*2.
+            warnings.warn("Unable to fully utilize DAC dynamic range by "+str(dB_reduce)+"dB")
+            globalDacAtten-=dB_reduce
+            dBexcess+=dB_reduce
+            iValues_new=np.round(iValues/10.**(dBexcess/20.)).astype(np.int)
+            qValues_new=np.round(qValues/10.**(dBexcess/20.)).astype(np.int)
+        
+        iValues = iValues_new
+        qValues = qValues_new
+        self.dacFreqComb = iValues + 1j*qValues
+        
         if self.verbose:
+            highestVal = np.max((np.abs(iValues).max(),np.abs(qValues).max()))
+            print '\tGlobal DAC atten: '+str(globalDacAtten)+'dB'
             print '\tUsing '+str(1.0*highestVal/maxAmp*100)+' percent of DAC dynamic range'
             print '\thighest: '+str(highestVal)+' out of '+str(maxAmp)
             print '\tsigma_I: '+str(np.std(iValues))+' sigma_Q: '+str(np.std(qValues))
             print '\tLargest val_I: '+str(1.0*np.abs(iValues).max()/np.std(iValues))+' sigma. Largest val_Q: '+str(1.0*np.abs(qValues).max()/np.std(qValues))+' sigma.'
             print '\tExpected val: '+str(expectedHighestVal_sig)+' sigmas'
-            #print '\n\tDac freq list: '+str(self.dacQuantizedFreqList)
-            #print '\tDac Q vals: '+str(qValues)
-            #print '\tDac I vals: '+str(iValues)
-            
-        if highestVal > expectedHighestVal_sig*np.max((np.std(iValues),np.std(qValues))):
-            warnings.warn("The freq comb's relative phases may have added up sub-optimally. You should calculate new random phases")
-        if highestVal > maxAmp:
-            dBexcess = int(np.ceil(20.*np.log10(1.0*highestVal/maxAmp)))
-            raise ValueError("Not enough dynamic range in DAC! Try decreasing the global DAC Attenuator by "+str(dBexcess)+' dB')
-        elif 1.0*maxAmp/highestVal > 10**((1)/20.):
-            # all amplitudes in DAC less than 1 dB below max allowed by dynamic range
-            warnings.warn("DAC Dynamic range not fully utilized. Increase global attenuation by: "+str(int(np.floor(20.*np.log10(1.0*maxAmp/highestVal))))+' dB')
-        
-        if self.verbose:
             print '...Done!'
 
-        '''
-        if self.debug:
-            plt.figure()
-            plt.plot(iValues)
-            plt.plot(qValues)
-            std_i = np.std(iValues)
-            std_q = np.std(qValues)
-            plt.axhline(y=std_i,color='k')
-            plt.axhline(y=2*std_i,color='k')
-            plt.axhline(y=3*std_i,color='k')
-            plt.axhline(y=expectedHighestVal_sig*std_i,color='r')
-            plt.axhline(y=expectedHighestVal_sig*std_q,color='r')
-            
-            plt.figure()
-            plt.hist(iValues,1000)
-            plt.hist(qValues,1000)
-            x_gauss = np.arange(-maxAmp,maxAmp,maxAmp/2000.)
-            i_gauss = len(iValues)/(std_i*np.sqrt(2.*np.pi))*np.exp(-x_gauss**2/(2.*std_i**2.))
-            q_gauss = len(qValues)/(std_q*np.sqrt(2.*np.pi))*np.exp(-x_gauss**2/(2.*std_q**2.))
-            plt.plot(x_gauss,i_gauss)
-            plt.plot(x_gauss,q_gauss)
-            plt.axvline(x=std_i,color='k')
-            plt.axvline(x=2*std_i,color='k')
-            plt.axvline(x=3*std_i,color='k')
-            plt.axvline(x=expectedHighestVal_sig*std_i,color='r')
-            plt.axvline(x=expectedHighestVal_sig*std_q,color='r')
-            
-            plt.figure()
-            sig = np.fft.fft(self.dacFreqComb)
-            sig_freq = np.fft.fftfreq(len(self.dacFreqComb),1./self.params['dacSampleRate'])
-            plt.plot(sig_freq, np.real(sig),'b')
-            plt.plot(sig_freq, np.imag(sig),'g')
-            for f in self.dacQuantizedFreqList:
-                x_f=f
-                if f > self.params['dacSampleRate']/2.:
-                    x_f=f-self.params['dacSampleRate']
-                plt.axvline(x=x_f, ymin=np.amin(np.real(sig)), ymax = np.amax(np.real(sig)), color='r')
-            #plt.show()
-        '''
         
-        return {'I':iValues,'Q':qValues,'quantizedFreqList':self.dacQuantizedFreqList}
+        if globalDacAtten<0.:
+            raise ValueError("Desired resonator powers are unacheivable. Increase resonator attens by "+str(-1*globalDacAtten)+"dB")
         
+        return {'I':iValues,'Q':qValues,'quantizedFreqList':self.dacQuantizedFreqList,'dacAtten':globalDacAtten}
+
     
-    def generateTones(self, freqList, nSamples, sampleRate, amplitudeList, phaseList, iqRatioList=None, iqPhaseOffsList=None):
+    def generateTones(self, freqList, nSamples, sampleRate, amplitudeList=None, phaseList=None, iqRatioList=None, iqPhaseOffsList=None):
         """
         Generate a list of complex signals with amplitudes and phases specified and frequencies quantized
         
@@ -1162,7 +1193,7 @@ class Roach2Controls:
         if amplitudeList is None:
             amplitudeList = np.asarray([1.]*len(freqList))
         if phaseList is None:
-            phaseList = np.random.uniform(0,2.*np.pi,len(freqList))
+            phaseList = np.random.uniform(0.,2.*np.pi,len(freqList))
         if iqRatioList is None:
             iqRatioList = np.ones(len(freqList))
         if iqPhaseOffsList is None:
@@ -1170,10 +1201,18 @@ class Roach2Controls:
         if len(freqList) != len(amplitudeList) or len(freqList) != len(phaseList) or len(freqList) != len(iqRatioList) or len(freqList) != len(iqPhaseOffsList):
             raise ValueError("Need exactly one phase, amplitude, and IQ correction value for each resonant frequency!")
         
+        #ts=time.time()
+        #dict_py = generateTones_py(freqList, nSamples, sampleRate, amplitudeList, phaseList, iqRatioList, iqPhaseOffsList)
+        #print "python: "+str(time.time()-ts)
+        
+        #ts=time.time()
+        return cy_generateTones(freqList, nSamples, sampleRate, amplitudeList, phaseList, iqRatioList, iqPhaseOffsList)
+        #print "cython: "+str(time.time()-ts)
+
         # Quantize the frequencies to their closest digital value
         freqResolution = sampleRate/nSamples
         quantizedFreqList = np.round(freqList/freqResolution)*freqResolution
-        iqPhaseOffsRadList = np.pi/180*iqPhaseOffsList
+        iqPhaseOffsRadList = np.pi/180.*iqPhaseOffsList
         
         # generate each signal
         iValList = []
@@ -1208,15 +1247,20 @@ class Roach2Controls:
         Try to evenly distribute the given frequencies into each stream (unless you use order='stream')
         
         INPUTS:
-            freqList - list of resonator frequencies (Assumed sorted but technically doesn't need to be)
-                       If it's not unique there could be problems later on. 
+            freqList - list of resonator frequencies (Does not need to be sorted or unique)
             order - 'F' places sequential frequencies into a single stream but forces an even distribution among streams
-                    'C' places sequential frequencies into the same channel number but forces an even distribution among streams
-                    'stream' sequentially fills stream 0 first, then stream 1, etc...
+                    'C' or 'A' places sequential frequencies into the same channel number but forces an even distribution among streams
+                    'stream' sequentially fills stream 0 first, then stream 1, etc... Usually used for debugging with single stream firmware
         OUTPUTS:
             self.freqChannels - Each column contains the resonantor frequencies in a single stream. 
                                 The row index is the channel number.
                                 It's padded with -1's. 
+        
+        Assigned Attributes:
+            self.freqList - 1d list of frequencies indexed by freqCh
+            self.freqChannels - 2d list of frequences indexed by ch,stream. Padded by self.freqPadValue
+            self.freqChannelToStreamChannel - 1d list of tuples. freqCh_i --> [ch_i, stream_i]. See getFreqChannelFromStreamChannel
+            self.streamChannelToFreqChannel - 2d list of freqCh. [ch_i, stream_i] --> freqCh_i. See getStreamChannelFromFreqChannel()
         """
         #Interpret inputs...
         if order not in ['F','C','A','stream']:  #if invalid, grab default value
@@ -1227,43 +1271,43 @@ class Roach2Controls:
             warnings.warn("Too many freqs provided. Can only accommodate "+str(self.params['nChannels'])+" resonators")
             freqList = freqList[:self.params['nChannels']]
         self.freqList = np.ravel(freqList)
-        if len(np.unique(self.freqList)) != len(self.freqList):
-            #warnings.warn("Be careful, I assumed everywhere that the frequencies were unique!")
-            raise ValueError
+        #if len(np.unique(self.freqList)) != len(self.freqList):
+        #    #warnings.warn("Be careful, I assumed everywhere that the frequencies were unique!")
+        #    raise ValueError
         self.freqChannels = self.freqList
         if self.verbose:
             print 'Generating Resonator Channels...'
         
+        # Make indexer arrays
+        self.freqChannelToStreamChannel=np.zeros((len(self.freqList),2),dtype=np.int)
+        self.streamChannelToFreqChannel=np.arange(len(freqList),dtype=np.int)
+        
+        
         #Pad with freq = -1 so that freqChannels's length is a multiple of nStreams
         nStreams = int(self.params['nChannels']/self.params['nChannelsPerStream'])        #number of processing streams. For Gen 2 readout this should be 4
-        padValue = self.freqPadValue   #pad with freq=-1
         if order == 'F':
-            padNum = (nStreams - (len(self.freqChannels) % nStreams))%nStreams  # number of empty elements to pad
+            padNum = (nStreams - (len(self.freqChannels) % nStreams))%nStreams  # number of empty elements to pad (0, 1, 2, or 3)
             for i in range(padNum):
                 ind = len(self.freqChannels)-i*np.ceil(len(self.freqChannels)*1.0/nStreams)
-                self.freqChannels=np.insert(self.freqChannels,int(ind),padValue)
+                self.freqChannels=np.insert(self.freqChannels,int(ind),self.freqPadValue)
+                self.streamChannelToFreqChannel=np.insert(self.streamChannelToFreqChannel,int(ind),self.channelPadValue)
         elif order == 'C' or order == 'A':
             padNum = (nStreams - (len(self.freqChannels) % nStreams))%nStreams  # number of empty elements to pad
-            self.freqChannels = np.append(self.freqChannels, [padValue]*(padNum))
+            self.freqChannels = np.append(self.freqChannels, [self.freqPadValue]*(padNum))
+            self.streamChannelToFreqChannel=np.append(self.streamChannelToFreqChannel, [self.channelPadValue]*(padNum))
         elif order == 'stream':
             nFreqs = len(self.freqList)
-            if nFreqs < self.params['nChannelsPerStream']:
-                padNum = nFreqs * (nStreams-1)
-            else:
-                padNum = self.params['nChannels'] - nFreqs
-            self.freqChannels=np.append(self.freqChannels,[padValue]*padNum)
+            padNum = nFreqs * (nStreams-1)
+            self.freqChannels=np.append(self.freqChannels,[self.freqPadValue]*padNum)
+            self.streamChannelToFreqChannel=np.append(self.streamChannelToFreqChannel,[self.channelPadValue]*padNum)
             order = 'F'
             
         #Split up to assign channel numbers
         self.freqChannels = np.reshape(self.freqChannels,(-1,nStreams),order)
+        self.streamChannelToFreqChannel = np.reshape(self.streamChannelToFreqChannel,(-1,nStreams),order)
+        streamCh = list(zip(*np.where(self.streamChannelToFreqChannel!=self.channelPadValue)))
+        self.freqChannelToStreamChannel[[self.streamChannelToFreqChannel[l] for l in streamCh]]=streamCh
         
-        # Make indexer arrays
-        self.freqChannelToStreamChannel=np.zeros((len(self.freqList),2),dtype=np.int)
-        self.streamChannelToFreqChannel=np.zeros(self.freqChannels.shape,dtype=np.int)-1
-        for i in range(len(self.freqList)):
-            ch_i,stream_i = np.where(self.freqChannels==self.freqList[i])
-            self.freqChannelToStreamChannel[i] = np.asarray([int(ch_i),int(stream_i)])
-            self.streamChannelToFreqChannel[ch_i,stream_i]=i
         
         if self.verbose:
             print '\tFreq Channels: ',self.freqChannels
@@ -1280,11 +1324,13 @@ class Roach2Controls:
         Call setLOFreq() and generateResonatorChannels() first.
         
         INPUTS (optional):
-            freqChannels - 2D array of frequencies where each column is the a stream and each row is a channel. If freqChannels isn't given then try to grab it from attribute. 
+            freqChannels - 2D array of frequencies where each column is a stream and each row is a channel. If freqChannels isn't given then try to grab it from attribute. 
         
         OUTPUTS:
             self.fftBinIndChannels - Array with each column containing the fftbin index of a single stream. The row index is the channel number
-            
+        
+        Attributes set:
+            self.fftBinIndChannels
         '''
         if freqChannels is None:
             try:
@@ -1306,7 +1352,7 @@ class Roach2Controls:
         binSpacing = self.params['dacSampleRate']/self.params['nFftBins']
         genBinIndex = dacQuantizedFreqChannels/binSpacing
         self.fftBinIndChannels = np.round(genBinIndex)
-        self.fftBinIndChannels[np.where(freqChannels<0)]=self.fftBinPadValue      # empty channels have freq=-1. Assign this to fftBin=0
+        self.fftBinIndChannels[np.where(freqChannels==self.freqPadValue)]=self.fftBinPadValue      # empty channels have freq=-1. Assign this to fftBin=0
         
         self.fftBinIndChannels = self.fftBinIndChannels.astype(np.int)
         
@@ -1335,6 +1381,8 @@ class Roach2Controls:
         
         nStreams = self.params['nChannels']/self.params['nChannelsPerStream']
         if self.verbose: print 'Configuring chan_sel block...\n\tCh: Stream'+str(range(len(fftBinIndChannels[0])))
+        
+        self.fpga.write_int(self.params['chanSelLoad_reg'],0) #set to zero so nothing loads while we set other registers.
         for row in range(self.params['nChannelsPerStream']):
             try:
                 fftBinInds = fftBinIndChannels[row]
@@ -1352,7 +1400,7 @@ class Roach2Controls:
             np.savetxt(self.params['debugDir']+'freqChannels.txt', self.freqChannels/10**9.,fmt='%2.25f',header="2D Array of MKID frequencies [GHz]. \nEach column represents a stream and each row is a channel")
             np.savetxt(self.params['debugDir']+'fftBinIndChannels.txt', self.fftBinIndChannels,fmt='%8i',header="2D Array of fftBin Indices. \nEach column represents a stream and each row is a channel")
         
-    def loadSingleChanSelection(self,selBinNums,chanNum=0):
+    def loadSingleChanSelection(self,selBinNums,chanNum=0, blind=True):
         """
         Assigns bin numbers to a single channel (in each stream), to configure chan_sel block
         Used by loadChanSelection()
@@ -1360,25 +1408,26 @@ class Roach2Controls:
         INPUTS:
             selBinNums: array of bin numbers (for each stream) to be assigned to chanNum (4 element int array for Gen 2 firmware)
             chanNum: the channel number to be assigned
+            blind: If true, don't check that the register writes succeeded. This is faster
         """
         nStreams = int(self.params['nChannels']/self.params['nChannelsPerStream'])        #number of processing streams. For Gen 2 readout this should be 4
         if selBinNums is None or len(selBinNums) != nStreams:
             raise TypeError,'selBinNums must have number of elements matching number of streams in firmware'
         
-        self.fpga.write_int(self.params['chanSelLoad_reg'],0) #set to zero so nothing loads while we set other registers.
+        #if not blind: self.fpga.write_int(self.params['chanSelLoad_reg'],0) #set to zero so nothing loads while we set other registers.
 
         #assign the bin number to be loaded to each stream
         for i in range(nStreams):
-            self.fpga.write_int(self.params['chanSel_regs'][i],selBinNums[i])
-        time.sleep(.001)
+            self.fpga.write_int(self.params['chanSel_regs'][i],selBinNums[i], blindwrite=blind)  #blind write means we don't check for errors
+        #time.sleep(.001)
         
         #in the register chan_sel_load, the lsb initiates the loading of the above bin numbers into memory
         #the 8 bits above the lsb indicate which channel is being loaded (for all streams)
         loadVal = (chanNum << 1) + 1
-        self.fpga.write_int(self.params['chanSelLoad_reg'],loadVal)
+        self.fpga.write_int(self.params['chanSelLoad_reg'],loadVal, blindwrite=blind)
         time.sleep(.001) #give it a chance to load
 
-        self.fpga.write_int(self.params['chanSelLoad_reg'],0) #stop loading
+        self.fpga.write_int(self.params['chanSelLoad_reg'],0,blindwrite=blind) #stop loading
         
         if self.verbose: print '\t'+str(chanNum)+': '+str(selBinNums)
     
@@ -2194,15 +2243,15 @@ class Roach2Controls:
             inByte - byte to send over UART
             blocking - if True, waits for acknowledgement AFTER command is sent
         """
-        self.fpga.write_int(self.params['inByteUART_reg'],inByte)
+        self.fpga.write_int(self.params['inByteUART_reg'],inByte,blindwrite=blocking)
+        #time.sleep(0.01)
+        self.fpga.write_int(self.params['txEnUART_reg'],1,blindwrite=blocking)
         time.sleep(0.01)
-        self.fpga.write_int(self.params['txEnUART_reg'],1)
-        time.sleep(0.01)
-        self.fpga.write_int(self.params['txEnUART_reg'],0)        
+        self.fpga.write_int(self.params['txEnUART_reg'],0,blindwrite=blocking)
         if blocking:
             while(not(self.v7_ready)):
                 self.v7_ready = self.fpga.read_int(self.params['v7Ready_reg'])
-                time.sleep(0.05)
+                #time.sleep(0.01)
             self.v7_ready = 0
         
 if __name__=='__main__':

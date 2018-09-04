@@ -870,6 +870,11 @@ class RoachSweepWindow(QMainWindow):
         #print self.ax2
         #print event.xdata
     
+    def updateDACAttenSpinBox(self, dacAtten):
+        self.spinbox_dacAttenStart.setValue(dacAtten)
+        self.changedSetting('dacatten_start', self.spinbox_dacAttenStart.value())
+        
+    
     def updateADCAttenSpinBox(self, adcAtten):
         self.spinbox_adcAtten.setValue(adcAtten)
         self.changedSetting('adcatten', self.spinbox_adcAtten.value())
