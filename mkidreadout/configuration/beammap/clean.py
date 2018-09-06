@@ -71,15 +71,25 @@ class BMCleaner:
         self.placedYs = None
         self.bmGrid = None
 
-    def fixPreciseCoordinates(self):
-        #fix coordinates
-        self._fixOOBPixels()
-        self._fixInitialFeedlinePlacement(1)
+    def fixPreciseCoordinates(self, arraySlack=1, flSlack=1):
+        '''
+        Checks precise coordinates to make sure they are within the bounds of the array
+        and in the correct feedline. Flags OOB pixels as bad and sets to NaN.
+        
+        INPUTS:
+            arraySlack - OOB pixels (array boundaries) within arraySlack of boundary are
+                placed at boundary and flagged good.
+            flSlack - OOB pixels (array boundaries) within arraySlack of FL boundary are
+                placed at boundary and flagged good.
+        '''
+        self._fixOOBPixels(arraySlack)
+        self._fixInitialFeedlinePlacement(flSlack)
 
 
     def placeOnGrid(self):
         '''
-        Places all resonators on nRowsxnCols size grid. Only do this after precise coordinates are finalized
+        Places all resonators on nRowsxnCols size grid. Only do this after precise coordinates are finalized.
+        Results are stored in self.placedXs and self.placedYs
         '''
         #lock in coordinates, set up placement tools/arrays
         self.flooredXs = self.preciseXs.astype(np.int)
@@ -199,6 +209,10 @@ class BMCleaner:
         log.info('Failed to resolve %d overlaps', np.sum(self.flags==beamMapFlags['duplicatePixel']))
 
     def placeFailedPixels(self):
+        '''
+        Places all bad pixels (NaN coordinates) in arbitrary locations on correct feedline. Should ensure
+        1-to-1 mapping between resID and coordinates.
+        '''
         toPlaceMask = np.isnan(self.placedXs) | np.isnan(self.placedYs)
         unoccupiedCoords = np.asarray(np.where(self.bmGrid==0)).T
         
@@ -209,12 +223,21 @@ class BMCleaner:
             self.placedYs[toPlaceMaskCurFL] = unoccupiedCoordsCurFL[:,1]
 
     def placeFailedPixelsQuick(self): 
+        '''
+        Places all bad pixels just outside array bounds. Use when placeFailedPixels fails but you need a 
+        quick beammap without NaNs!
+        '''
         toPlaceXs = np.isnan(self.placedXs) 
         toPlaceYs = np.isnan(self.placedYs)
         self.placedXs[toPlaceXs] = self.nCols
         self.placedYs[toPlaceYs] = self.nRows
     
     def saveBeammap(self, path):
+        '''
+        Saves beammap in standard 4 column text file format
+            INPUTS:
+                path - full path of beammap file
+        '''
         assert np.all(np.isnan(self.placedXs)==False), 'NaNs in final beammap!'
         assert np.all(np.isnan(self.placedYs)==False), 'NaNs in final beammap!'
         log.info('N good pixels: ' + str(np.sum(self.flags==beamMapFlags['good'])))
