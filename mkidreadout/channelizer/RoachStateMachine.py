@@ -596,14 +596,14 @@ class RoachStateMachine(QtCore.QObject):        #Extends QObject for use with QT
         nfreqs = len(self.roachController.freqList)
         threshSig = self.config.getfloat('Roach '+str(self.num),'numsigs_thresh')
         nSnap = self.config.getint('Roach '+str(self.num),'numsnaps_thresh')
-        thresh=[]
+        thresh=np.empty(nfreqs, dtype=object)
         for i in range(nfreqs):
-            data=[]
+            data=np.empty(nSnap, dtype=object)
             for k in range(nSnap):
                 #sys.stdout.write("\rCollecting Phase on Ch: "+str(i)+" Snap "+str(k+1)+'/'+str(nSnap))
                 #sys.stdout.flush()
-                data.append(self.getPhaseFromSnap(i))
-            thresh.append(-1*np.std(data)*threshSig)
+                data[k]=self.getPhaseFromSnap(i)
+            thresh[i]=(-1*np.std(data)*threshSig)
         #self.roachController.loadThresholds(thresh)
         #sys.stdout.write("\n")
         for i in range(nfreqs):
