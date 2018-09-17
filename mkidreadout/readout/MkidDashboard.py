@@ -314,8 +314,10 @@ class ConvertPhotonsToRGB(QtCore.QObject):
         self.image[np.where(self.image>self.maxCountCutoff)]=self.maxCountCutoff
         self.image[np.where(self.image<self.minCountCutoff)]=self.minCountCutoff
         
-        maxVal = np.amax(self.image)
-        minVal = np.amin(self.image)
+        #maxVal = np.amax(self.image)
+        #minVal = np.amin(self.image)
+        maxVal = self.maxCountCutoff
+        minVal = self.minCountCutoff
         maxVal=np.amax([minVal+1, maxVal])
         
         image2=(self.image-minVal)/(1.0*maxVal-minVal)*255.
@@ -1581,14 +1583,15 @@ class MkidDashboard(QMainWindow):
             - Call update() on the QGraphicsPixmapItem to repaint the QGraphicsScene
             
         """
-        self.imageFrame = QtGui.QFrame(parent=self)
-        self.imageFrame.setFrameShape(QtGui.QFrame.Box)
-        self.imageFrame.setFrameShadow(QtGui.QFrame.Sunken)
-        self.imageFrame.setSizePolicy(QSizePolicy.Fixed,QSizePolicy.Fixed)
+        #self.imageFrame = QtGui.QFrame(parent=self)
+        #self.imageFrame.setFrameShape(QtGui.QFrame.Box)
+        #self.imageFrame.setFrameShadow(QtGui.QFrame.Sunken)
+        #self.imageFrame.setSizePolicy(QSizePolicy.Fixed,QSizePolicy.Fixed)
         
         q_image=QImage(1,1,QImage.Format_Mono)
         q_image.fill(Qt.black)
-        grview = QGraphicsView(self.imageFrame)
+        #grview = QGraphicsView(self.imageFrame)
+        grview = QGraphicsView()
         scene = QGraphicsScene(parent=grview)
         self.grPixMap = QGraphicsPixmapItem(QPixmap(q_image), None, scene)
         self.grPixMap.mousePressEvent = self.mousePressed
@@ -1605,13 +1608,16 @@ class MkidDashboard(QMainWindow):
         grview.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
         grview.setContextMenuPolicy(Qt.CustomContextMenu)
         grview.customContextMenuRequested.connect(self.showContextMenu)
+        grview.setAlignment(Qt.AlignTop | Qt.AlignLeft)
 
         
-        layout=QHBoxLayout()
-        layout.addWidget(grview)
-        self.imageFrame.setLayout(layout)
+        #layout=QVBoxLayout()
+        #layout.addWidget(grview)
+        #layout.addStretch()
+        #self.imageFrame.setLayout(layout)
         
-        self.setCentralWidget(self.imageFrame)
+        #self.setCentralWidget(self.imageFrame)
+        self.setCentralWidget(grview)
 
     def create_menu(self):        
         self.file_menu = self.menuBar().addMenu("&File")
