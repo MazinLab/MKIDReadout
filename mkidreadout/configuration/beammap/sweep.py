@@ -798,7 +798,7 @@ if __name__ == '__main__':
 
     log.info('Starting rough beammap')
     b = RoughBeammap(thisconfig)
-    #b.loadRoughBeammap()
+    b.loadRoughBeammap()
     b.concatImages('x',False)
     b.concatImages('y',False)
     b.findLocWithCrossCorrelation('x')
