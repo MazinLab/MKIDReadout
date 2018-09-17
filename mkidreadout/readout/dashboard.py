@@ -5,39 +5,32 @@ Date:      Jul 3, 2016
 
 This is a GUI class for real time control of the MEC and DARKNESS instruments. 
  - show realtime image
- - show realtime pixel timestreams (see PixelTimestreamWindow.py)
+ - show realtime pixel timestreams (see guiwindows.PixelTimestreamWindow)
  - start/end observations
  - organize how data is saved to disk
  - pull telescope info
  - save header information
  
  CLASSES:
-    MkidDashboard - main GUI
+    MKIDDashboard - main GUI
     ImageSearcher - searches for new images on ramdisk
     ConvertPhotonsToRGB - converts a 2D list of photon counts to a QImage
  """
- 
- 
-import os, sys, time, struct, traceback
+from __future__ import print_function
+import argparse
+import sys, traceback, os
 import binascii
-from socket import inet_aton
 from functools import partial
 import subprocess
 import numpy as np
 import ConfigParser
-from PyQt4 import QtCore
 from PyQt4.QtCore import Qt
-from PyQt4 import QtGui
-from PyQt4.QtGui import *
-from mkidreadout.readout.PixelTimestreamWindow import PixelTimestreamWindow
-from mkidreadout.readout.PixelHistogramWindow import PixelHistogramWindow
+from mkidcore.corelog import getLogger
+from mkidreadout.readout.guiwindows import PixelTimestreamWindow, PixelHistogramWindow
 from mkidreadout.readout.LaserControl import LaserControl
 from mkidreadout.readout.Telescope import *
-import casperfpga
 from mkidreadout.channelizer.Roach2Controls import Roach2Controls
-from mkidreadout.readout.utils import interpolateImage
-#import sn_hardware as snh
-#from initialBeammap import xyPack,xyUnpack
+from mkidreadout.utils.utils import interpolateImage
 
 class ImageSearcher(QtCore.QObject):     #Extends QObject for use with QThreads
     """
@@ -99,7 +92,7 @@ class ImageSearcher(QtCore.QObject):     #Extends QObject for use with QThreads
                         self.imageFound.emit(image)
                         time.sleep(.01) #Give image time to process before sending next one (not really needed)
                     except:
-                        print self.path+f
+                        getLogger('').info(self.path + f)
                         traceback.print_exc()
                     if removeOldFiles:
                         os.remove(self.path+f)
@@ -123,38 +116,33 @@ class ImageSearcher(QtCore.QObject):     #Extends QObject for use with QThreads
         #image = np.asarray(struct.unpack(fmt,data), dtype=np.int)
         #image=image.reshape((self.nRows,self.nCols))
         return image
-        
+
+
 class Ditherer(QtCore.QObject):
     """
     Controls automatic dithering w/ P3K or picomotor (not yet implemented here)
     """
     finished = QtCore.pyqtSignal()
     
-    def __init__(self, ditherControllerName, ditherCfgFileName, parent=None):        
+    def __init__(self, name, ditherCfgFileName, parent=None):
         super(QtCore.QObject, self).__init__(parent)
+        self.ditherCfgFile = ''
         #Setup Dither Controller
-        print 'dither controller', ditherControllerName, ditherControllerName == 'p3k'
-        if ditherControllerName == 'p3k':
-            self.ditherController = P3KDitherControl()
-        else:
-            self.ditherController = None
-            raise Exception('P3K is the only implemented dither controller.')
-       
+        self.ditherController = None
+        raise ValueError(name+ ' is not a known dither controller.')
         self.ditherCfgFileName = ditherCfgFileName
 
     def ditherLoop(self, nXMoves=3, nYMoves=2, xSpacing=2, ySpacing=2, dt=5):
         self.ditherCfgFile = open(self.ditherCfgFileName, 'a')
         self.ditherCfgFile.write('\n')
         timeList = [int(time.time())]
-        xPosList = [0]
-        yPosList = [0]
-        curXPos = 0
-        curYPos = 0
+        xPosList, yPosList = [0], [0]
+        curXPos, curYPos = 0, 0
         yMoveSign = 1
         for i in range(nXMoves):
             self.ditherController.moveLeft(xSpacing)
             curXPos += xSpacing
-            timelist.append(int(time.time()))
+            timeList.append(int(time.time()))
             xPosList.append(curXPos)
             yPosList.append(curYPos)
             time.sleep(dt)
@@ -185,9 +173,7 @@ class Ditherer(QtCore.QObject):
 
 ''' LASERTHREAD WORK IN PROGRESS     
 class LaserCal(QtCore.QObject):
-    """
-    Controls laser cal in separate thread
-    """
+    """ Controls laser cal in separate thread"""
     finished = QtCore.pyqtSignal()
     
     def __init__(self, calCfgFileName, parent=None):        
@@ -201,8 +187,6 @@ class LaserCal(QtCore.QObject):
         # keep track of start and stop timestamp when each laser was on
         # write lists of lasers, start, and stop times to cfg file
         
-
-
     def ditherLoop(self, nXMoves=3, nYMoves=2, xSpacing=2, ySpacing=2, dt=5):
         self.ditherCfgFile = open(self.ditherCfgFileName, 'a')
         self.ditherCfgFile.write('\n')
@@ -245,6 +229,7 @@ class LaserCal(QtCore.QObject):
         self.finished.emit()
 '''
 
+
 class ConvertPhotonsToRGB(QtCore.QObject):
     """
     This class takes 2D arrays of photon counts and converts them into a QImage
@@ -281,10 +266,13 @@ class ConvertPhotonsToRGB(QtCore.QObject):
         map photons to greyscale
         """
         # first interpolate and find hot pixels
-        if self.interpolate: self.image = interpolateImage(self.image)
+        if self.interpolate:
+            self.image = interpolateImage(self.image)
         self.image[np.where(np.logical_not(np.isfinite(self.image)))] = 0   # get rid of np.nan's
-        if self.makeRed: self.redPixels = np.where(self.image>=self.maxCountCutoff)
-        else: self.redPixels=[]
+        if self.makeRed:
+            self.redPixels = np.where(self.image>=self.maxCountCutoff)
+        else:
+            self.redPixels=[]
         
         if self.stretchMode=='logarithmic': imageGrey = self.logStretch()
         elif self.stretchMode=='linear': imageGrey = self.linStretch()
@@ -305,7 +293,6 @@ class ConvertPhotonsToRGB(QtCore.QObject):
         
         image2 = 255./(np.log10(1+maxVal-minVal)) * np.log10(1+self.image - minVal)
         return image2
-        
     
     def linStretch(self):
         """
@@ -368,30 +355,27 @@ class ConvertPhotonsToRGB(QtCore.QObject):
         self.convertedImage.emit(q_im)
 
 
-
-
-class MkidDashboard(QMainWindow):
+class MKIDDashboard(QMainWindow):
     """
     Dashboard for seeing realtime DARKNESS images
     
     SIGNALS:
         newImageProcessed() - emited after processing and plotting a new image. Also whenever the current pixel selection changes
     """
-    
     newImageProcessed = QtCore.pyqtSignal()
     
-    def __init__(self, roachNums, configPath=None, observing=False, parent=None):
+    def __init__(self, roachNums, config=None, observing=False, parent=None):
         """
         INPUTS:
             roachNums - List of roach numbers to connect with
-            configPath - path to configuration file. See ConfigParser doc for making configuration file
+            config - the configuration file. See ConfigParser doc for making configuration file
             observing - indicates if packetmaster is currently writing data to disk
             parent -
         """
         self.config = ConfigParser.ConfigParser()
-        if configPath is None:
-            configPath = 'darkDash.cfg'
-        self.config.read(configPath)
+        if config is None:
+            config = 'dashboard.cfg'
+        self.config.read(config)
         # important variables
         self.threadPool=[]                          # Holds all the threads so they don't get lost. Also, they're garbage collected if they're attributes of self
         self.workers=[]                             # Holds workder objects corresponding to threads
@@ -410,7 +394,7 @@ class MkidDashboard(QMainWindow):
         self.takingFlat = -1                        # Flag for taking flat image. Indicates number of images we still need for flatField image
         
         # Initialize PacketMaster8
-        print 'Initializing packetmaster...'
+        getLogger('Dashboard').info('Initializing packetmaster...')
         packetMaster_path=self.config.get('properties','packetMaster_path')
         packetMasterLog_path = self.config.get('properties','packetMasterLog_path')
         #command = "sudo nice -n -10 %s >> %s"%(packetMaster_path, packetMasterLog_path)
@@ -424,16 +408,15 @@ class MkidDashboard(QMainWindow):
         packetMasterCfg.write(str(len(roachNums)))
         packetMasterCfg.close()
 
-
         #Laser Controller
-        print 'Setting up laser control...'
+        getLogger('Dashboard').info('Setting up laser control...')
         laserIP=self.config.get('properties','laserIPaddress')
         laserPort=self.config.getint('properties','laserPort')
         laserReceivePort = self.config.getint('properties','laserReceivePort')
         self.laserController = LaserControl(laserIP,laserPort,laserReceivePort)
         
         #telscope TCS connection
-        print 'Setting up telescope connection...'
+        getLogger('Dashboard').info('Setting up telescope connection...')
         telescopeIP=self.config.get('properties','telescopeIPaddress')
         telescopePort=self.config.getint('properties','telescopePort')
         telescopeReceivePort = self.config.getint('properties','telescopeReceivePort')
@@ -442,7 +425,7 @@ class MkidDashboard(QMainWindow):
         
 
         #Setup GUI
-        print 'Setting up GUI...'
+        getLogger('Dashboard').info('Setting up GUI...')
         super(QMainWindow, self).__init__(parent)
         self.setWindowTitle(self.config.get('properties','instrument')+' Dashboard')
         self.create_image_widget()
@@ -451,13 +434,13 @@ class MkidDashboard(QMainWindow):
         self.create_menu()  # file menu
         
         #Connect to ROACHES and initialize network port in firmware
-        print 'Connecting roaches and loading beammap...'
+        getLogger('Dashboard').info('Connecting roaches and loading beammap...')
         self.connectToRoaches(roachNums)
         self.turnOnPhotonCapture()
         self.loadBeammap()
         
         # Setup search for image files from cuber
-        print 'Setting up image searcher...'
+        getLogger('Dashboard').info('Setting up image searcher...')
         darkImageSearcher = ImageSearcher(self.config.get('properties','cuber_ramdisk'), self.config.getint('properties','ncols'),self.config.getint('properties','nrows'),parent=None)
         self.workers.append(darkImageSearcher)
         thread = QtCore.QThread(parent=self)
@@ -481,7 +464,7 @@ class MkidDashboard(QMainWindow):
             darkDitherer.finished.connect(ditherThread.quit)
             darkDitherer.finished.connect(self.stopDithering)
         except:
-            print "Could not initialize Dither thread. Disabling dithers"
+            getLogger('Dashboard').info("Could not initialize Dither thread. Disabling dithers")
             self.button_dither.setEnabled(False)
             
 
@@ -498,16 +481,14 @@ class MkidDashboard(QMainWindow):
         laserCalibrator.finished.connect(self.enableFlipper)
         '''
 
-
-        
     def turnOffPhotonCapture(self):
         """
         Tells roaches to stop photon capture
         """
         for roach in self.roachList:
             roach.fpga.write_int(self.config.get('properties','photonCapStart_reg'),0)
-        print 'Roaches stopped sending photon packets :-('
-    
+        getLogger('Dashboard').info('Roaches stopped sending photon packets :-(')
+
     def turnOnPhotonCapture(self):
         """
         Tells roaches to start photon capture
@@ -532,9 +513,8 @@ class MkidDashboard(QMainWindow):
 
             # Start photon caputure
             roach.fpga.write_int(self.config.get('properties','photonCapStart_reg'),1)
-        print 'Roaches Sending Photon Packets!'
-        
-    
+        getLogger('Dashboard').info('Roaches Sending Photon Packets!')
+
     def connectToRoaches(self, roachNums):
         """
         Connect to roaches and make sure the photon port register is set
@@ -569,15 +549,15 @@ class MkidDashboard(QMainWindow):
         try:
             resID, flag, xCoord, yCoord = np.loadtxt(self.beammapFN, usecols=[0,1,2,3], unpack=True)
         except IOError:
-            print "Could not find beammap:",self.beammapFN
+            getLogger('Dashboard').info("Could not find beammap:", self.beammapFN)
             self.beammapFN = self.config.get('properties','defaultBeammapFile')
             resID, flag, xCoord, yCoord = np.loadtxt(self.beammapFN, usecols=[0,1,2,3], unpack=True)
-            print "Loaded default beammap instead"
-            
+            getLogger('Dashboard').info("Loaded default beammap instead")
+
         for roach in self.roachList:
             freqList = self.config.get('Roach '+str(roach.num),'freqList')
-            print freqList
-                   
+            getLogger('Dashboard').info(freqList)
+
             #old version for loading freqList, causing issues 3/18/17                 
             resID_roach, freqs, _ = np.loadtxt(freqList,unpack=True)
             
@@ -602,9 +582,10 @@ class MkidDashboard(QMainWindow):
         for i in range(len(resID)):
             try: self.beammapFailed[int(yCoord[i]),int(xCoord[i])]=(flag[i]!=0)
             except IndexError: pass
-        print 'nGoodBeammapped:',self.config.getint('properties','nrows')*self.config.getint('properties','ncols') - np.sum(self.beammapFailed)
-        
-        
+        getLogger('Dashboard').info('nGoodBeammapped:',
+               self.config.getint('properties', 'nrows') * self.config.getint('properties', 'ncols') - np.sum(
+                   self.beammapFailed))
+
         '''
         #beammapFN = self.config.get('properties','beammapFile')
         beammapFN = 'None'
@@ -655,7 +636,6 @@ class MkidDashboard(QMainWindow):
     def stopDithering(self):
         self.button_dither.setEnabled(True)
 
-
     def appendImage(self,image):
         """
         Save image data to memory so we can look at a timestream
@@ -673,7 +653,7 @@ class MkidDashboard(QMainWindow):
             self.imageList = self.imageList[-1*self.config.getint('properties','num_images_to_save'):]
     
     def addDarkImage(self, photonImage):
-        print photonImage[36,32]
+        getLogger('Dashboard').info(photonImage[36, 32])
         self.spinbox_darkImage.setEnabled(False)
         if self.darkField is None or self.takingDark==self.spinbox_darkImage.value():
             self.darkField=photonImage
@@ -684,8 +664,8 @@ class MkidDashboard(QMainWindow):
             self.darkField=self.darkField/(self.config.getint('properties','num_images_for_dark')*self.config.getfloat('properties','packetmaster_image_inttime'))
             self.checkbox_darkImage.setChecked(True)
             self.spinbox_darkImage.setEnabled(True)
-        print self.darkField[36,32]
-    
+        getLogger('Dashboard').info(self.darkField[36, 32])
+
     def addFlatImage(self, photonImage):
         if self.checkbox_darkImage.isChecked() and self.darkField is not None:
             photonImage = np.array(photonImage, dtype=np.float) - self.darkField
@@ -698,7 +678,7 @@ class MkidDashboard(QMainWindow):
             self.flatField=photonImage
         self.takingFlat-=1
         if self.takingFlat ==0:
-            print "calculating weights"
+            getLogger('Dashboard').info("calculating weights")
             self.takingFlat=-1
             self.flatField=self.flatField/(self.config.getint('properties','num_images_for_flat')*self.config.getfloat('properties','packetmaster_image_inttime'))
             flatAvg=np.mean(self.flatField[np.where(self.flatField>0)])
@@ -722,9 +702,7 @@ class MkidDashboard(QMainWindow):
             self.spinbox_flatImage.setEnabled(True)
             flatFN = self.config.get('properties','flatFieldFN')
             #np.save(flatFN, self.flatField)
-            
-        
-    
+
     def convertImage(self,photonImage=None):
         """
         This function is automatically called when ImageSearcher object finds a new image file from cuber program
@@ -862,7 +840,7 @@ class MkidDashboard(QMainWindow):
             self.clicking=True
             x_pos = int(np.floor(event.pos().x()/self.config.getint('properties','image_scale')))
             y_pos = int(np.floor(event.pos().y()/self.config.getint('properties','image_scale')))
-            print 'Clicked (' + str( x_pos ) + ' , ' + str( y_pos )+ ')'
+            getLogger('Dashboard').info('Clicked (' + str(x_pos) + ' , ' + str(y_pos) + ')')
             if QtGui.QApplication.keyboardModifiers() != QtCore.Qt.ShiftModifier:
                 self.selectedPixels=set()
                 self.removeAllPixelBoxLines()
@@ -915,8 +893,8 @@ class MkidDashboard(QMainWindow):
             self.clicking=False
             x_pos = int(np.floor(event.pos().x()/self.config.getint('properties','image_scale')))
             y_pos = int(np.floor(event.pos().y()/self.config.getint('properties','image_scale')))
-            print 'Released (' + str( x_pos ) + ' , ' + str( y_pos )+ ')'
-            
+            getLogger('Dashboard').info('Released (' + str(x_pos) + ' , ' + str(y_pos) + ')')
+
             x_start, x_end = sorted([x_pos,self.pixelClicked[0]])
             y_start, y_end = sorted([y_pos,self.pixelClicked[1]])
             x_start=max(x_start,0)  #make sure we're still inside the image
@@ -939,7 +917,6 @@ class MkidDashboard(QMainWindow):
                 box=self.drawPixelBox(pixel,color='cyan',lineWidth=1)
                 #self.pixelBoxLines.append(box)
 
-    
     def drawContiguousPixelBoxes(self,color='cyan',lineWidth=1):
         """
         This function should draw polygons around sets of contiguous selected pixels
@@ -954,7 +931,6 @@ class MkidDashboard(QMainWindow):
             pixel = pixels.pop()
         
         raise NotImplementedError
-    
 
     def drawPixelBox(self, pixel1, pixel2=None, color='blue', lineWidth=3):
         """
@@ -1077,7 +1053,6 @@ class MkidDashboard(QMainWindow):
                                        str(feedline)+'\nBoard: '+board+'\nCh: '+
                                        str(freqCh))
             
-            
     def showContextMenu(self, point):
         """
         This function is called on a right click
@@ -1143,13 +1118,12 @@ class MkidDashboard(QMainWindow):
             
             data_path = self.config.get('properties','data_dir')
             start_file_loc = self.config.get('properties','cuber_ramdisk')
-            print "Starting Obs", "Start file Loc:", start_file_loc
+            getLogger('').info("Starting Obs", "Start file Loc:", start_file_loc)
             f=open(start_file_loc+'/START_tmp','w')
             f.write(data_path)
             f.close()
             os.rename(start_file_loc+'/START_tmp', start_file_loc+'/START') #sometimes packetmaseter read the START file before python finished writing the data path into it
 
-    
     def stopObs(self):
         """
         When we stop observing we need to:
@@ -1159,8 +1133,8 @@ class MkidDashboard(QMainWindow):
         """
         if self.observing:
             self.observing=False
-            print "Stop Obs"
-            
+            getLogger('Dashboard').info("Stop Obs")
+
             stop_file_loc = self.config.get('properties','cuber_ramdisk')
             f=open(stop_file_loc+'/STOP','w')
             f.close()
@@ -1175,13 +1149,12 @@ class MkidDashboard(QMainWindow):
             self.button_stop.setEnabled(False)
             
     def toggleFlipper(self):
-        print "Toggled flipper!"
+        getLogger('Dashboard').info("Toggled flipper!")
         if self.radiobutton_flipper.isChecked(): laserStr = '1'+'0'*len(self.checkbox_laser_list)
         else: laserStr = '0'+'0'*len(self.checkbox_laser_list)
         self.laserController.toggleLaser(laserStr, 500)
 
     def laserCalClicked(self):
-
         logTitle = 'laserCal'
         laserTime=self.spinbox_laserTime.value()
         #style = self.config.get('properties', 'laserCalStyle')
@@ -1242,8 +1215,8 @@ class MkidDashboard(QMainWindow):
             f.write("%s: %s" % (key, str(kwargs[key])))
             f.write('\n')
         f.close()
-        print 'Wrote log:', fn
-    
+        getLogger('Dashboard').info('Wrote log:', fn)
+
     def moveLogFiles(self):
         '''
         When we're done, move any log files in the ramdisk over to the data directory
@@ -1253,7 +1226,7 @@ class MkidDashboard(QMainWindow):
         log_path = self.config.get('properties','log_dir')
         
         command = 'mv %s*.log %s'%(ramdiskLog_path, log_path)
-        print command
+        getLogger('Dashboard').info(command)
         proc = subprocess.Popen(command,shell=True)
         proc.wait()
     
@@ -1261,7 +1234,7 @@ class MkidDashboard(QMainWindow):
         ramdiskLog_path = self.config.get('properties','log_ramdisk')
         log_path = self.config.get('properties','log_dir')
         command = 'grep "" %s*.log %s*.log | tail -%i'%(log_path,ramdiskLog_path, num)
-        print command
+        getLogger('Dashboard').info(command)
         proc = subprocess.Popen(command,shell=True)
         proc.wait()
     
@@ -1677,8 +1650,8 @@ class MkidDashboard(QMainWindow):
         self.config.set(sec,settingID,str(setting))
         #If we don't force the setting value to be a string then the configparser has trouble grabbing the value later on for some unknown reason
         newSetting = self.config.get(sec,settingID)
-        print 'setting ',settingID,' to ',newSetting
-        
+        getLogger('Dashboard').info('setting ', settingID, ' to ', newSetting)
+
     def closeEvent(self, event):
         """
         Clean up before closing
@@ -1706,50 +1679,19 @@ class MkidDashboard(QMainWindow):
         
         QtCore.QCoreApplication.instance().quit()
 
-class P3KDitherControl():
-    def __init__(self):
-        self.p3kCom = snh.P3K_COM('P3K_COM', configfile='/mnt/data0/speckle_nulling/speckle_instruments.ini')
-        self.p3kCom.getstatus()
-        self.arcsecPerPix = 0.025
 
-    def moveLeft(self, numPix):
-        self.p3kCom.sci_offset_left(numPix*self.arcsecPerPix)
-
-    def moveUp(self, numPix):
-        self.p3kCom.sci_offset_up(numPix*self.arcsecPerPix)
-
-
-#class picoDitherControl():
-#    ''' To be implemented'''
-
-
-def main():
-    app = QApplication(sys.argv)
-    args = sys.argv[1:]
-    defaultValues=None
-    if '-c' in args:
-        indx = args.index('-c')
-        defaultValues=args[indx+1]
-        try: args = args[:indx]+args[indx+2:]
-        except IndexError:args = args[:indx]
-    roachNums = np.asarray(args, dtype=np.int)
-    print defaultValues,roachNums
-    '''
-    
-    try: roachNums = np.asarray(sys.argv[1:],dtype=np.int)
-    except: pass
-    if len(sys.argv[1:]) == 2:
-        if sys.argv[1] == '-a' or sys.argv[1] == '-all':
-            roachNums = np.arange(int(sys.argv[2]),dtype=np.int)
-        elif sys.argv[2] == '-a' or sys.argv[2] == '-all':
-            roachNums = np.arange(int(sys.argv[1]),dtype=np.int)
-    '''
-    form = MkidDashboard(roachNums, defaultValues)
-    form.show()
-    app.exec_()
-
+DEFAULT_CFG_FILE = os.path.join(os.path.dirname(__file__), 'dashboard.cfg')
 
 if __name__ == "__main__":
-    main()
-        
+    app = QApplication(sys.argv)
+
+    parser = argparse.ArgumentParser(description='MKID Dashboard')
+    parser.add_argument('-c', '--config', default=DEFAULT_CFG_FILE, dest='config',
+                        type=str, help='The config file')
+    parser.add_argument('roaches', '--roaches', nargs='+', type=int, help='Roach numbers')
+    args = parser.parse_args()
+
+    form = MKIDDashboard(args.roaches, config=args.config)
+    form.show()
+    app.exec_()
 
