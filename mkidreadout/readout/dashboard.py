@@ -454,7 +454,8 @@ class MKIDDashboard(QMainWindow):
 
         # Setup dithering thread
         try:
-            darkDitherer = Ditherer(self.config.get('properties', 'ditherController'), self.config.get('properties', 'ditherCFGFile'))
+            darkDitherer = Ditherer(self.config.get('properties', 'ditherController'),
+                                    self.config.get('properties', 'ditherCFGFile'))
             self.workers.append(darkDitherer)
             ditherThread = QtCore.QThread(parent=self)
             self.threadPool.append(ditherThread)
@@ -631,7 +632,7 @@ class MKIDDashboard(QMainWindow):
 
     def startDitherThread(self):
         self.button_dither.setEnabled(False)
-        QtCore.QTimer.singleShot(10,self.threadPool[1].start) #start the thread after a second
+        QtCore.QTimer.singleShot(10, self.threadPool[1].start) #start the thread after a second
     
     def stopDithering(self):
         self.button_dither.setEnabled(True)
@@ -657,7 +658,8 @@ class MKIDDashboard(QMainWindow):
         self.spinbox_darkImage.setEnabled(False)
         if self.darkField is None or self.takingDark==self.spinbox_darkImage.value():
             self.darkField=photonImage
-        else: self.darkField=self.darkField+photonImage
+        else:
+            self.darkField=self.darkField+photonImage
         self.takingDark-=1
         if self.takingDark ==0:
             self.takingDark=-1
@@ -672,8 +674,7 @@ class MKIDDashboard(QMainWindow):
         self.spinbox_flatImage.setEnabled(False)
         
         if self.flatField is not None: 
-           self.flatField+=photonImage
-        
+            self.flatField+=photonImage
         else:
             self.flatField=photonImage
         self.takingFlat-=1
@@ -1298,7 +1299,8 @@ class MKIDDashboard(QMainWindow):
         
         autoLogTimer = QtCore.QTimer(self)
         autoLogTimer.setInterval(spinbox_autolog.value()*1000*60)
-        def writeLog(): self.writeLog(self.textbox_target.text(), textbox_log.toPlainText())
+        def writeLog():
+            self.writeLog(self.textbox_target.text(), textbox_log.toPlainText())
         autoLogTimer.timeout.connect(writeLog)
         autoLogTimer.timeout.connect(self.writeTelescopeLog)
         def changeAutoLogInterval(val):

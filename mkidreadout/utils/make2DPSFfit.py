@@ -4,7 +4,7 @@ import numpy as np
 from matplotlib import pyplot as plt
 from astropy.modeling import models, fitting
 import astropy.modeling
-from utils import interpolateImage
+from mkidreadout.utils.utils import interpolateImage
 import os, commands
 
 
