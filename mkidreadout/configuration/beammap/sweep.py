@@ -118,6 +118,7 @@ class CorrelateBeamSweep(object):
             # nGroups=np.prod(imageList.shape)*(np.prod(imageList[0].shape)-1)/(200*3000*2999)*nGoodPix/nPix     # 300 timesteps x 3000 pixels takes a lot of memory...
             nGroups = nTime * nGoodPix * (nGoodPix - 1) / (600 * 3000 * 2999.)
             nGroups = nGoodPix / 1200.
+            nGroups = max(nGroups, 1.)
             pixelComputationMask = np.random.randint(0, int(round(nGroups)), imageList[0].shape)
             # pixelComputationMask=np.repeat(range(5),2000).reshape(imageList[0].shape)
         self.compMask = np.asarray(pixelComputationMask)
@@ -799,6 +800,7 @@ if __name__ == '__main__':
     log.info('Starting rough beammap')
     b = RoughBeammap(thisconfig)
     #b.loadRoughBeammap()
+
     #b.concatImages('x',False)
     #b.concatImages('y',False)
     #b.findLocWithCrossCorrelation('x')
@@ -806,6 +808,7 @@ if __name__ == '__main__':
     #b.refinePeakLocs('x', b.config.beammap.sweep.fittype, b.x_locs, fitWindow=15)
     #b.refinePeakLocs('y', b.config.beammap.sweep.fittype, b.y_locs, fitWindow=15)
     #b.saveRoughBeammap()
+
     log.info('Stack x and y')
     b.stackImages('x')
     b.stackImages('y')
