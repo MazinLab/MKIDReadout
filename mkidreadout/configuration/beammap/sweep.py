@@ -783,12 +783,17 @@ def registersettings(cfgObj):
     cfgObj.register('beammap.sweep.sweeps', [c])
 
 
+
 if __name__ == '__main__':
     setup_logging()
     log = getLogger('Sweep')
 
     parser = argparse.ArgumentParser(description='MKID Wavelength Calibration Utility')
     parser.add_argument('cfgfile', type=str, help='The config file', default='sweep.cfg')
+    parser.add_argument('--cc', action='store_true', dest='CCMode', default=False,
+                        help='Run sweep code in CC mode')
+    parser.add_argument('--manual', action='store_true', dest='ManualMode', default=False,
+                        help='Run sweep code to generate h5 files manually')
     args = parser.parse_args()
 
     thisconfig = ConfigThing()
@@ -798,16 +803,23 @@ if __name__ == '__main__':
 
     log.info('Starting rough beammap')
     b = RoughBeammap(thisconfig)
-    #b.loadRoughBeammap()
-    #b.concatImages('x',False)
-    #b.concatImages('y',False)
-    #b.findLocWithCrossCorrelation('x')
-    #b.findLocWithCrossCorrelation('y')
-    #b.refinePeakLocs('x', b.config.beammap.sweep.fittype, b.x_locs, fitWindow=15)
-    #b.refinePeakLocs('y', b.config.beammap.sweep.fittype, b.y_locs, fitWindow=15)
-    #b.saveRoughBeammap()
-    log.info('Stack x and y')
-    b.stackImages('x')
-    b.stackImages('y')
-    log.info('Cleanup')
-    b.manualSweepCleanup()
+
+    if args.CCMode:
+        b.loadRoughBeammap()
+        b.concatImages('x',False)
+        b.concatImages('y',False)
+        b.findLocWithCrossCorrelation('x')
+        b.findLocWithCrossCorrelation('y')
+        b.refinePeakLocs('x', b.config.beammap.sweep.fittype, b.x_locs, fitWindow=15)
+        b.refinePeakLocs('y', b.config.beammap.sweep.fittype, b.y_locs, fitWindow=15)
+        b.saveRoughBeammap()
+
+    if args.ManualMode:
+        log.info('Stack x and y')
+        b.stackImages('x')
+        b.stackImages('y')
+        log.info('Cleanup')
+        b.manualSweepCleanup()
+
+    if not args.CCMode and not args.ManualMode:
+        print("Specify whether to run in manual or cc mode")
