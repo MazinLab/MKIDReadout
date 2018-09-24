@@ -118,6 +118,7 @@ class CorrelateBeamSweep(object):
             # nGroups=np.prod(imageList.shape)*(np.prod(imageList[0].shape)-1)/(200*3000*2999)*nGoodPix/nPix     # 300 timesteps x 3000 pixels takes a lot of memory...
             nGroups = nTime * nGoodPix * (nGoodPix - 1) / (600 * 3000 * 2999.)
             nGroups = nGoodPix / 1200.
+            nGroups = max(nGroups, 1.)
             pixelComputationMask = np.random.randint(0, int(round(nGroups)), imageList[0].shape)
             # pixelComputationMask=np.repeat(range(5),2000).reshape(imageList[0].shape)
         self.compMask = np.asarray(pixelComputationMask)
@@ -801,8 +802,6 @@ if __name__ == '__main__':
     log.info('Starting rough beammap')
     b = RoughBeammap(thisconfig)
 
-
-
     if args.CCMode:
         b.loadRoughBeammap()
         b.concatImages('x',False)
@@ -819,3 +818,6 @@ if __name__ == '__main__':
         b.stackImages('y')
         log.info('Cleanup')
         b.manualSweepCleanup()
+
+    if not args.CCMode and not args.ManualMode:
+        print("Specify whether to run in manual or cc mode")
