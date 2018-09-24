@@ -6,13 +6,30 @@ import scipy.optimize as opt
 
 
 class BeammapShifter(object):
-    def __init__(self, designFL, rawMapFile, psFiles, feedlines):
+    def __init__(self, designFL, rawMapFile, psFiles):
         self.design = np.flipud(np.fliplr(np.roll(np.genfromtxt(designFL), 1, 1)))
         self.rawBM = np.genfromtxt(rawMapFile)
         self.resIDwithFreq = self.readInFrequencies(psFiles)
         self.fullBM = self.matchIDtoFreq()
-        self.analyzedFeedlineNums = np.array(feedlines)
- #       self.makeAllFeedlines()
+        self.fl1 = Feedline(1, self.fullBM, self.design, 3, 3)
+        self.fl2 = Feedline(2, self.fullBM, self.design, 3, 3)
+        self.fl3 = Feedline(3, self.fullBM, self.design, 3, 3)
+        self.fl4 = Feedline(4, self.fullBM, self.design, 3, 3)
+        self.fl5 = Feedline(5, self.fullBM, self.design, 3, 3)
+        self.fl6 = Feedline(6, self.fullBM, self.design, 3, 3)
+        self.fl7 = Feedline(7, self.fullBM, self.design, 3, 3)
+        self.fl8 = Feedline(8, self.fullBM, self.design, 3, 3)
+        self.fl9 = Feedline(9, self.fullBM, self.design, 3, 3)
+        self.fl10 = Feedline(10, self.fullBM, self.design, 3, 3)
+
+        self.shiftedBeamMap = np.concatenate((self.fl1.newFeedline, self.fl2.newFeedline, self.fl3.newFeedline,
+                                              self.fl4.newFeedline, self.fl5.newFeedline, self.fl6.newFeedline,
+                                              self.fl7.newFeedline, self.fl8.newFeedline, self.fl9.newFeedline,
+                                              self.fl10.newFeedline))
+        self.designArray = np.concatenate((self.fl1.fitDesign, self.fl2.fitDesign, self.fl3.fitDesign,
+                                           self.fl4.fitDesign, self.fl5.fitDesign, self.fl6.fitDesign,
+                                           self.fl7.fitDesign, self.fl8.fitDesign, self.fl9.fitDesign,
+                                           self.fl10.fitDesign), axis=1)
 
 
     def readInFrequencies(self, PowerSweepFiles):
@@ -27,7 +44,7 @@ class BeammapShifter(object):
     def matchIDtoFreq(self):
         freqs = self.resIDwithFreq
         rawBeammap = self.rawBM
-        rawBMwithFreqs = np.full((len(self.rawBM), len(self.rawBM[0])+1), float("NaN"))
+        rawBMwithFreqs = np.full((len(self.rawBM), len(self.rawBM[0])+1), np.nan)
         for i in range(len(rawBeammap)):
             rawBMwithFreqs[i][0], rawBMwithFreqs[i][1], rawBMwithFreqs[i][2], rawBMwithFreqs[i][3] = rawBeammap[i]
         for j in range(len(freqs)):
@@ -36,16 +53,8 @@ class BeammapShifter(object):
         return rawBMwithFreqs
 
 
-    def makeAllFeedlines(self):
-        flArray = []
-        for i in range(len(self.analyzedFeedlineNums)):
-            tempFL = Feedline(self.analyzedFeedlineNums[i], self.fullBM, self.design, 3, 3)
-            flArray.append(tempFL)
-        self.feedlines = np.array(flArray)
-
-
 class Feedline(object):
-    def __init__(self, feedlinenumber, BMwithFreqs, designFL, maxXshift, maxYshift, flip=False, order=3):
+    def __init__(self, feedlinenumber, BMwithFreqs, designFL, maxXshift, maxYshift, flip=False, order=5):
         self.beammap = BMwithFreqs
         self.design = designFL
         self.flNum = feedlinenumber
@@ -56,17 +65,23 @@ class Feedline(object):
         self.feedline = self.getFeedline()
         self.resIDs = self.feedline[:, 0]
         self.flags = self.feedline[:, 1]
-        self.xcoords = np.floor(self.feedline[:, 2]-0.5)
-        self.ycoords = np.floor(self.feedline[:, 3]-0.5)
+        self.xcoords = np.floor(self.feedline[:, 2])
+        self.ycoords = np.floor(self.feedline[:, 3])
         self.frequencies = self.feedline[:, 4]
-        self.getFreqExtrema()
-        self.frequencies = self.frequencies - self.minF
-        self.makeShiftCoords()
-        self.findResidualsForAllShifts()
-        self.getBestShift()
-        self.newFeedline = np.transpose([self.feedline[:, 0], self.feedline[:, 1], self.bestshiftXcoords, self.bestshiftYcoords, self.frequencies])
-        self.fitFrequencies()
-        self.compareNearestNeighbors()
+        if not np.all(np.isnan(self.xcoords)) and not np.all(np.isnan(self.ycoords)):
+            self.getFreqExtrema()
+            self.frequencies = self.frequencies - self.minF
+            self.makeShiftCoords()
+            self.findResidualsForAllShifts()
+            self.getBestShift()
+            self.newFeedline = np.transpose([self.feedline[:, 0], self.feedline[:, 1], self.bestshiftXcoords, self.bestshiftYcoords, self.frequencies])
+            self.fitFrequencies()
+            self.compareNearestNeighbors()
+            self.countPixelsPlaced()
+        else :
+            self.newFeedline = self.feedline
+            self.fitDesign = self.design
+
 
     def getFreqExtrema (self):
         self.minF = np.min(self.frequencies[~np.isnan(self.frequencies)])
@@ -208,7 +223,7 @@ class Feedline(object):
         matchedf = []
         desf = []
         for i in range((len(xcoords))):
-            if self.isincorrectfeedlineX(xcoords[i],self.flNum, self.flipX) and self.isonarrayY(ycoords[i]):
+            if self.isincorrectfeedlineX(xcoords[i], self.flNum, self.flipX) and self.isonarrayY(ycoords[i]):
                 if not np.isnan(xcoords[i]) and not np.isnan(ycoords[i]) and not np.isnan(self.frequencies[i]):
                     x = int(xcoords[i] % 14)
                     y = int(ycoords[i] % 146)
@@ -217,15 +232,16 @@ class Feedline(object):
                     matchedf.append(self.frequencies[i])
                     desf.append(self.design[y][x])
             else:
-                temparray.append(float("NaN"))
-                matchedf.append(float("NaN"))
-                desf.append(float("NaN"))
+                temparray.append(np.nan)
+                matchedf.append(np.nan)
+                desf.append(np.nan)
+
         return np.array(temparray), np.array(matchedf), np.array(desf)
 
 
     def findResidualsForAllShifts(self):
-        self.residuals = np.full((len(self.yshifts), len(self.xshifts), len(self.xcoords)), float("NaN"))
-        self.matchedfreqs = np.full((len(self.yshifts), len(self.xshifts), 2, len(self.xcoords)), float("NaN"))
+        self.residuals = np.full((len(self.yshifts), len(self.xshifts), len(self.xcoords)), np.nan)
+        self.matchedfreqs = np.full((len(self.yshifts), len(self.xshifts), 2, len(self.xcoords)), np.nan)
         for i in range(len(self.yshifts)):
             for j in range(len(self.xshifts)):
                 self.residuals[i][j] = self.matchMeastoDes(self.shiftedXcoords[i][j], self.shiftedYcoords[i][j])[0]
@@ -284,7 +300,7 @@ class Feedline(object):
 
 
     def compareNearestNeighbors(self):
-        self.nearestNeighborFreqLocation = np.full((len(self.newFeedline), 2), float("NaN"))
+        self.nearestNeighborFreqLocation = np.full((len(self.newFeedline), 2), np.nan)
         for i in range(len(self.newFeedline)):
             if not np.isnan(self.newFeedline[i][2]) and not np.isnan(self.newFeedline[i][3]) and not np.isnan(self.newFeedline[i][4]):
                 self.nearestNeighborFreqLocation[i][0] = self.findNearestNeighborFrequency(self.newFeedline[i])[1] - 1
@@ -304,7 +320,6 @@ class Feedline(object):
         br = len(np.where((xvals == 1) & (yvals == 1))[0])
         self.wellPlacedPixels = c
         self.totalPlacedPixels = tl + t + tr + l + c + r + bl + b + br
-
 
 
     def findNearestNeighborFrequency (self, resonator):
@@ -351,6 +366,14 @@ class Feedline(object):
         plt.show()
 
 
+    def countPixelsPlaced(self):
+        counter = 0
+        for i in self.feedline:
+            if i[1] == 0 and not np.isnan(i[2]) and not np.isnan(i[3]):
+                counter = counter + 1
+        self.placedPixels = counter
+
+
 if __name__ == '__main__':
 
     designFlPath = 'mec_feedline.txt'
@@ -359,14 +382,5 @@ if __name__ == '__main__':
     feedlinesRead = [1, 5, 6, 7, 8, 9, 10]
 
 
-    shifter = BeammapShifter(designFlPath, rawBeammapPath, powerSweepPath, feedlinesRead)
-    fl1 = Feedline(1, shifter.fullBM, shifter.design, 3, 3)
-    # fl2 = Feedline(2, shifter.fullBM, shifter.design, 3, 3)
-    # fl3 = Feedline(3, shifter.fullBM, shifter.design, 3, 3)
-    # fl4 = Feedline(4, shifter.fullBM, shifter.design, 3, 3)
-    fl5 = Feedline(5, shifter.fullBM, shifter.design, 3, 3)
-    fl6 = Feedline(6, shifter.fullBM, shifter.design, 3, 3)
-    fl7 = Feedline(7, shifter.fullBM, shifter.design, 3, 3)
-    fl8 = Feedline(8, shifter.fullBM, shifter.design, 3, 3)
-    fl9 = Feedline(9, shifter.fullBM, shifter.design, 3, 3)
-    fl10 = Feedline(10, shifter.fullBM, shifter.design, 3, 3)
+    shifter = BeammapShifter(designFlPath, rawBeammapPath, powerSweepPath)
+

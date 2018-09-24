@@ -23,6 +23,7 @@ from mkidreadout.utils.readDict import readDict
 from mkidreadout.configuration.beammap.flags import beamMapFlags
 from mkidreadout.configuration.beammap.utils import isInCorrectFL, getFLFromID, getFLFromCoords
 from mkidreadout.configuration.beammap.beammap import Beammap
+from mkidreadout.configuration.beammap import shift
 
 MEC_FL_WIDTH = 14
 DARKNESS_FL_WIDTH = 25
@@ -260,16 +261,22 @@ if __name__=='__main__':
     beammapDirectory = configData['beammapDirectory']
     roughBMFile = configData['roughBMFile']
     finalBMFile = configData['finalBMFile']
+    rawBMFile = configData['rawBMFile']
+    psFiles = configData['powersweeps']
+    designFile = configData['designMapFile']
 
     #put together full input/output BM paths
     roughPath = os.path.join(beammapDirectory,roughBMFile)
     finalPath = os.path.join(beammapDirectory,finalBMFile)
-    
+    rawPath = os.path.join(beammapDirectory,rawBMFile)
+    frequencySweepPath = os.path.join(beammapDirectory,psFiles)
+
     #load location data from rough BM file
     roughBM = Beammap()
     roughBM.load(roughPath)
    
     cleaner = BMCleaner(roughBM, int(configData['numRows']), int(configData['numCols']), configData['flip'], configData['instrument'])
+    shifter = shift.BeammapShifter(designFile, rawPath, frequencySweepPath)
 
     cleaner.fixPreciseCoordinates() #fix wrong feedline and oob coordinates
     cleaner.placeOnGrid() #initial grid placement
