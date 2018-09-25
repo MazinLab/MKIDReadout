@@ -276,7 +276,7 @@ if __name__=='__main__':
     roughBM.load(roughPath)
    
     cleaner = BMCleaner(roughBM, int(configData['numRows']), int(configData['numCols']), configData['flip'], configData['instrument'])
-    shifter = shift.BeammapShifter(designFile, rawPath, frequencySweepPath)
+    shifter = shift.BeammapShifter(designFile, rawPath, frequencySweepPath, configData['instrument'])
 
     cleaner.fixPreciseCoordinates() #fix wrong feedline and oob coordinates
     cleaner.placeOnGrid() #initial grid placement
@@ -327,7 +327,3 @@ if __name__=='__main__':
     ax4.set_title('Quiver Plot showing final_coordinates -> precise_coordinates (arrows not to scale)')    
 
     plt.show()
-            
-    
-
-

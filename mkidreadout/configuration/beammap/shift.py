@@ -6,30 +6,70 @@ import scipy.optimize as opt
 
 
 class BeammapShifter(object):
-    def __init__(self, designFL, rawMapFile, psFiles):
+    def __init__(self, designFL, rawMapFile, psFiles, instrument):
+        self.instrument = instrument
         self.design = np.flipud(np.fliplr(np.roll(np.genfromtxt(designFL), 1, 1)))
         self.rawBM = np.genfromtxt(rawMapFile)
         self.resIDwithFreq = self.readInFrequencies(psFiles)
         self.fullBM = self.matchIDtoFreq()
-        self.fl1 = Feedline(1, self.fullBM, self.design, 3, 3)
-        self.fl2 = Feedline(2, self.fullBM, self.design, 3, 3)
-        self.fl3 = Feedline(3, self.fullBM, self.design, 3, 3)
-        self.fl4 = Feedline(4, self.fullBM, self.design, 3, 3)
-        self.fl5 = Feedline(5, self.fullBM, self.design, 3, 3)
-        self.fl6 = Feedline(6, self.fullBM, self.design, 3, 3)
-        self.fl7 = Feedline(7, self.fullBM, self.design, 3, 3)
-        self.fl8 = Feedline(8, self.fullBM, self.design, 3, 3)
-        self.fl9 = Feedline(9, self.fullBM, self.design, 3, 3)
-        self.fl10 = Feedline(10, self.fullBM, self.design, 3, 3)
+        self.createFeedlines()
+        self.chooseAppliedShift()
 
-        self.shiftedBeamMap = np.concatenate((self.fl1.newFeedline, self.fl2.newFeedline, self.fl3.newFeedline,
-                                              self.fl4.newFeedline, self.fl5.newFeedline, self.fl6.newFeedline,
-                                              self.fl7.newFeedline, self.fl8.newFeedline, self.fl9.newFeedline,
-                                              self.fl10.newFeedline))
-        self.designArray = np.concatenate((self.fl1.fitDesign, self.fl2.fitDesign, self.fl3.fitDesign,
-                                           self.fl4.fitDesign, self.fl5.fitDesign, self.fl6.fitDesign,
-                                           self.fl7.fitDesign, self.fl8.fitDesign, self.fl9.fitDesign,
-                                           self.fl10.fitDesign), axis=1)
+
+    def createFeedlines(self):
+        if self.instrument.lower() == 'mec':
+            self.fl1 = Feedline(1, self.fullBM, self.design, 3, 3)
+            self.fl2 = Feedline(2, self.fullBM, self.design, 3, 3)
+            self.fl3 = Feedline(3, self.fullBM, self.design, 3, 3)
+            self.fl4 = Feedline(4, self.fullBM, self.design, 3, 3)
+            self.fl5 = Feedline(5, self.fullBM, self.design, 3, 3)
+            self.fl6 = Feedline(6, self.fullBM, self.design, 3, 3)
+            self.fl7 = Feedline(7, self.fullBM, self.design, 3, 3)
+            self.fl8 = Feedline(8, self.fullBM, self.design, 3, 3)
+            self.fl9 = Feedline(9, self.fullBM, self.design, 3, 3)
+            self.fl10 = Feedline(10, self.fullBM, self.design, 3, 3)
+            self.feedlineShifts = np.array((self.fl1.bestshiftvector, self.fl2.bestshiftvector, self.fl3.bestshiftvector,
+                                            self.fl4.bestshiftvector, self.fl5.bestshiftvector, self.fl6.bestshiftvector,
+                                            self.fl7.bestshiftvector, self.fl8.bestshiftvector, self.fl9.bestshiftvector,
+                                            self.fl10.bestshiftvector))
+            self.shiftedBeamMap = np.concatenate((self.fl1.newFeedline, self.fl2.newFeedline, self.fl3.newFeedline,
+                                                  self.fl4.newFeedline, self.fl5.newFeedline, self.fl6.newFeedline,
+                                                  self.fl7.newFeedline, self.fl8.newFeedline, self.fl9.newFeedline,
+                                                  self.fl10.newFeedline))
+            self.designArray = np.concatenate((self.fl1.fitDesign, self.fl2.fitDesign, self.fl3.fitDesign,
+                                               self.fl4.fitDesign, self.fl5.fitDesign, self.fl6.fitDesign,
+                                               self.fl7.fitDesign, self.fl8.fitDesign, self.fl9.fitDesign,
+                                               self.fl10.fitDesign), axis=1)
+        elif self.instrument.lower() == 'darkness':
+            self.fl1 = Feedline(1, self.fullBM, self.design, 3, 3)
+            self.fl2 = Feedline(2, self.fullBM, self.design, 3, 3)
+            self.fl3 = Feedline(3, self.fullBM, self.design, 3, 3)
+            self.fl4 = Feedline(4, self.fullBM, self.design, 3, 3)
+            self.fl5 = Feedline(5, self.fullBM, self.design, 3, 3)
+            self.feedlineShifts = np.array((self.fl1.bestshiftvector, self.fl2.bestshiftvector, self.fl3.bestshiftvector,
+                                            self.fl4.bestshiftvector, self.fl5.bestshiftvector))
+            self.shiftedBeamMap = np.concatenate((self.fl1.newFeedline, self.fl2.newFeedline, self.fl3.newFeedline,
+                                                  self.fl4.newFeedline, self.fl5.newFeedline))
+            self.designArray = np.concatenate((self.fl1.fitDesign, self.fl2.fitDesign, self.fl3.fitDesign,
+                                               self.fl4.fitDesign, self.fl5.fitDesign), axis=1)
+        else:
+            raise Exception('Provided instrument not implemented!')
+
+
+    def chooseAppliedShift(self):
+        self.appliedShift = np.array((np.nan, np.nan))
+        xshifts = self.feedlineShifts[:, 0]
+        xshifts = xshifts[~np.isnan(xshifts)]
+        yshifts = self.feedlineShifts[:, 1]
+        yshifts = yshifts[~np.isnan(yshifts)]
+        for xshift in xshifts :
+            if len(np.where(xshift == xshifts)[0]) >= len(xshifts):
+                self.appliedShift[0] = xshift
+        for yshift in yshifts:
+            if len(np.where(yshift == yshifts)[0]) >= len(yshifts):
+                self.appliedShift[1] = yshift
+
+
 
 
     def readInFrequencies(self, PowerSweepFiles):
@@ -81,6 +121,7 @@ class Feedline(object):
         else :
             self.newFeedline = self.feedline
             self.fitDesign = self.design
+            self.bestshiftvector = np.array((np.nan, np.nan))
 
 
     def getFreqExtrema (self):
@@ -382,5 +423,5 @@ if __name__ == '__main__':
     feedlinesRead = [1, 5, 6, 7, 8, 9, 10]
 
 
-    shifter = BeammapShifter(designFlPath, rawBeammapPath, powerSweepPath)
+    shifter = BeammapShifter(designFlPath, rawBeammapPath, powerSweepPath, "MEC")
 
