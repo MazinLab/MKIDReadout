@@ -1,7 +1,8 @@
 import numpy as np
+import glob
 import matplotlib.pyplot as plt
 import mkidreadout.configuration.beammap.flags as flags
-import mkidreadout.configuration.beammap.utils as utils
+#import mkidreadout.configuration.beammap.utils as utils
 
 class Beammap:
     """
@@ -18,24 +19,46 @@ class Beammap:
         self.flags = np.empty(0)
         self.xCoords = np.empty(0)
         self.yCoords = np.empty(0)
+        self.frequencies = None
         pass
 
     def setData(self, bmData):
         """
-        Sets resIDs, flags, xCoords, yCoords to data in bmData
+        Sets resIDs, flags, xCoords, yCoords, (and optionally frequencies) to data in bmData
         INPUTS:
-            bmData - Nx4 numpy array in same format as beammap file
+            bmData - Nx4 or Nx5 numpy array in same format as beammap file
         """
-        self.resIDs = np.array(bmData[:,0])
-        self.flags = np.array(bmData[:,1])
-        self.xCoords = np.array(bmData[:,2])
-        self.yCoords = np.array(bmData[:,3])
+        if bmData.shape[1] == 4:
+            self.resIDs = np.array(bmData[:, 0])
+            self.flags = np.array(bmData[:, 1])
+            self.xCoords = np.array(bmData[:, 2])
+            self.yCoords = np.array(bmData[:, 3])
+        elif bmData.shape[1] == 5:
+            self.resIDs = np.array(bmData[:, 0])
+            self.flags = np.array(bmData[:, 1])
+            self.xCoords = np.array(bmData[:, 2])
+            self.yCoords = np.array(bmData[:, 3])
+            self.frequencies = np.array(bmData[:, 4])
+        else:
+            raise Exception("This data is not in the proper format")
 
     def load(self, filename):
         """
         Loads beammap data from filename
         """
         self.resIDs, self.flags, self.xCoords, self.yCoords = np.loadtxt(filename, unpack=True)
+
+    def loadFrequencies(self, filepath):
+        powerSweeps = glob.glob(filepath)
+        psData = np.loadtxt(powerSweeps[0])
+        for i in range(len(powerSweeps) - 1):
+            sweep = np.loadtxt(powerSweeps[i + 1])
+            psData = np.concatenate((psData, sweep))
+        # psData has the form [Resonator ID, Frequency (Hz), Attenuation (dB)]
+        self.frequencies = np.full(self.resIDs.shape, np.nan)
+        for j in range(len(psData)):
+            idx = np.where(self.resIDs == psData[j][0])[0]
+            self.frequencies[idx] = (psData[j][1] / (10 ** 6))
 
     def save(self, filename, forceIntegerCoords=False):
         """
@@ -60,4 +83,29 @@ class Beammap:
         newBeammap.xCoords = np.copy(self.xCoords)
         newBeammap.yCoords = np.copy(self.yCoords)
         return newBeammap
+
+    def get(self, attribute='', flNum=None):
+        if attribute:
+            x = self.getBeammapAttribute(attribute)
+        else:
+            x = None
+        if flNum:
+            mask = flNum == np.floor(self.resIDs / 10000)
+        else:
+            mask = np.ones_like(self.resIDs, dtype=bool)
+        return x[mask]
+
+    def getBeammapAttribute(self, attribute=''):
+        if attribute.lower() == 'resids':
+            return self.resIDs
+        elif attribute.lower() == 'flags':
+            return self.flags
+        elif attribute.lower() == 'xcoords':
+            return self.xCoords
+        elif attribute.lower() == 'ycoords':
+            return self.yCoords
+        elif attribute.lower() == 'frequencies':
+            return self.frequencies
+        else:
+            raise Exception('This is not a valid Beammap attribute')
 

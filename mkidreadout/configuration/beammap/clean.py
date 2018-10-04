@@ -259,24 +259,23 @@ if __name__=='__main__':
     configData = readDict()
     configData.read_from_file(configFileName)
     beammapDirectory = configData['beammapDirectory']
-    roughBMFile = configData['roughBMFile']
     finalBMFile = configData['finalBMFile']
     rawBMFile = configData['rawBMFile']
     psFiles = configData['powersweeps']
     designFile = configData['designMapFile']
 
     #put together full input/output BM paths
-    roughPath = os.path.join(beammapDirectory,roughBMFile)
     finalPath = os.path.join(beammapDirectory,finalBMFile)
     rawPath = os.path.join(beammapDirectory,rawBMFile)
     frequencySweepPath = os.path.join(beammapDirectory,psFiles)
 
+
     #load location data from rough BM file
-    roughBM = Beammap()
-    roughBM.load(roughPath)
+    rawBM = Beammap()
+    rawBM.load(rawPath)
    
-    cleaner = BMCleaner(roughBM, int(configData['numRows']), int(configData['numCols']), configData['flip'], configData['instrument'])
-    shifter = shift.BeammapShifter(designFile, rawPath, frequencySweepPath, configData['instrument'])
+    cleaner = BMCleaner(rawBM, int(configData['numRows']), int(configData['numCols']), configData['flip'], configData['instrument'])
+    shifter = shift.BeammapShifter(designFile, rawBM, configData['instrument'])
 
     cleaner.fixPreciseCoordinates() #fix wrong feedline and oob coordinates
     cleaner.placeOnGrid() #initial grid placement
