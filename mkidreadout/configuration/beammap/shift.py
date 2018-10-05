@@ -250,10 +250,10 @@ class Feedline(object):
     #     plt.show()
 
 
-if __name__ == '__main__':
-
-    designFlPath = '/mnt/data0/nswimmer/Repositories/mapcheckertesting/mec_feedline.txt'
-    rawBM = Beammap()
-    rawBM.load('/mnt/data0/nswimmer/Repositories/mapcheckertesting/beammapTestData/newtest/RawMapV1.txt')
-    rawBM.loadFrequencies(r'/mnt/data0/nswimmer/Repositories/mapcheckertesting/beammapTestData/newtest/ps*.txt')
-    shifter = BeammapShifter(designFlPath, rawBM, "mec")
+# if __name__ == '__main__':
+#
+#     designFlPath = '/mnt/data0/nswimmer/Repositories/mapcheckertesting/mec_feedline.txt'
+#     rawBM = Beammap()
+#     rawBM.load('/mnt/data0/nswimmer/Repositories/mapcheckertesting/beammapTestData/newtest/RawMapV1.txt')
+#     rawBM.loadFrequencies(r'/mnt/data0/nswimmer/Repositories/mapcheckertesting/beammapTestData/newtest/ps*.txt')
+#     shifter = BeammapShifter(designFlPath, rawBM, "mec")

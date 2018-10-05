@@ -273,6 +273,7 @@ if __name__=='__main__':
     #load location data from rough BM file
     rawBM = Beammap()
     rawBM.load(rawPath)
+    rawBM.loadFrequencies(frequencySweepPath)
    
     cleaner = BMCleaner(rawBM, int(configData['numRows']), int(configData['numCols']), configData['flip'], configData['instrument'])
     shifter = shift.BeammapShifter(designFile, rawBM, configData['instrument'])

@@ -19,7 +19,7 @@ class Beammap:
         self.flags = np.empty(0)
         self.xCoords = np.empty(0)
         self.yCoords = np.empty(0)
-        self.frequencies = None
+        self.frequencies = np.empty(0)
         pass
 
     def setData(self, bmData):
@@ -89,11 +89,15 @@ class Beammap:
             x = self.getBeammapAttribute(attribute)
         else:
             x = None
+            raise Exception("This attribute does not exist")
         if flNum:
             mask = flNum == np.floor(self.resIDs / 10000)
         else:
             mask = np.ones_like(self.resIDs, dtype=bool)
-        return x[mask]
+        if x.shape == mask.shape:
+            return x[mask]
+        else:
+            raise Exception('Your attribute contained no data')
 
     def getBeammapAttribute(self, attribute=''):
         if attribute.lower() == 'resids':
