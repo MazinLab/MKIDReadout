@@ -36,8 +36,10 @@ class BeammapShifter(object):
         self.feedlineShifts = np.array([f.bestshiftvector for f in self.feedlines])
         self.chooseAppliedShift()
         if np.isfinite(self.appliedShift[0]) and np.isfinite(self.appliedShift[1]):
-            shiftedData = np.concatenate([f.newFeedline for f in self.feedlines])
+            shiftedData = np.concatenate([f.feedlineData for f in self.feedlines])
             self.shiftedBeammap.setData(shiftedData)
+            self.shiftedBeammap.xCoords = self.shiftedBeammap.xCoords + self.appliedShift[0]
+            self.shiftedBeammap.yCoords = self.shiftedBeammap.yCoords + self.appliedShift[1]
             self.designArray = np.concatenate([f.fitDesign for f in self.feedlines], axis=1)
         else:
             self.shiftedBeammap = None
@@ -50,10 +52,10 @@ class BeammapShifter(object):
         yshifts = self.feedlineShifts[:, 1]
         yshifts = yshifts[np.isfinite(yshifts)]
         for xshift in xshifts:
-            if len(np.where(xshift == xshifts)[0]) == len(xshifts):
+            if len((xshift == xshifts)) >= len(xshifts) / 2:
                 self.appliedShift[0] = xshift
         for yshift in yshifts:
-            if len(np.where(yshift == yshifts)[0]) == len(yshifts):
+            if len((yshift == yshifts)) >= len(yshifts) / 2:
                 self.appliedShift[1] = yshift
         if self.appliedShift[0] == np.nan or self.appliedShift[1] == np.nan:
             raise Exception('The beammap shifting code did not find a good best shift vector :(')
@@ -80,11 +82,11 @@ class Feedline(object):
             self.makeShiftCoords()
             self.findResidualsForAllShifts()
             self.getBestShift()
-            self.newFeedline = np.transpose([self.resIDs, self.flags, self.bestshiftXcoords, self.bestshiftYcoords, self.frequencies])
+            self.feedlineData = np.transpose([self.resIDs, self.flags, self.xcoords, self.ycoords, self.frequencies])
             self.fitFrequencies()
             self.countPixelsPlaced()
         else:
-            self.newFeedline = np.transpose([self.resIDs, self.flags, self.xcoords, self.ycoords, self.frequencies])
+            self.feedlineData = np.transpose([self.resIDs, self.flags, self.xcoords, self.ycoords, self.frequencies])
             self.fitDesign = self.design
             self.bestshiftvector = np.array((np.nan, np.nan))
 
@@ -181,17 +183,17 @@ class Feedline(object):
 
     def countPixelsPlaced(self):
         counter = 0
-        for i in self.newFeedline:
+        for i in self.feedlineData:
             if i[1] == 0 and np.isfinite(i[2]) and np.isfinite(i[3]):
                 counter = counter + 1
         self.placedPixels = counter
 
     # def compareNearestNeighbors(self):
-    #     self.nearestNeighborFreqLocation = np.full((len(self.newFeedline), 2), np.nan)
-    #     for i in range(len(self.newFeedline)):
-    #         if np.isfinite(self.newFeedline[i][2]) and np.isfinite(self.newFeedline[i][3]) and np.isfinite(self.newFeedline[i][4]):
-    #             self.nearestNeighborFreqLocation[i][0] = self.findNearestNeighborFrequency(self.newFeedline[i])[1] - 1
-    #             self.nearestNeighborFreqLocation[i][1] = -1 * (self.findNearestNeighborFrequency(self.newFeedline[i])[0] - 1)
+    #     self.nearestNeighborFreqLocation = np.full((len(self.feedlineData), 2), np.nan)
+    #     for i in range(len(self.feedlineData)):
+    #         if np.isfinite(self.feedlineData[i][2]) and np.isfinite(self.feedlineData[i][3]) and np.isfinite(self.feedlineData[i][4]):
+    #             self.nearestNeighborFreqLocation[i][0] = self.findNearestNeighborFrequency(self.feedlineData[i])[1] - 1
+    #             self.nearestNeighborFreqLocation[i][1] = -1 * (self.findNearestNeighborFrequency(self.feedlineData[i])[0] - 1)
     #
     #     xvals = self.nearestNeighborFreqLocation[:, 0]
     #     yvals = self.nearestNeighborFreqLocation[:, 1]
@@ -242,8 +244,8 @@ class Feedline(object):
     #     plt.show()
     #
     # def nearestNeighborQuiver(self):
-    #     x = self.removeNaNsfromArray(self.newFeedline[:, 2])
-    #     y = self.removeNaNsfromArray(self.newFeedline[:, 3])
+    #     x = self.removeNaNsfromArray(self.feedlineData[:, 2])
+    #     y = self.removeNaNsfromArray(self.feedlineData[:, 3])
     #     u = self.removeNaNsfromArray(self.nearestNeighborFreqLocation[:, 1])
     #     v = self.removeNaNsfromArray(self.nearestNeighborFreqLocation[:, 0])
     #     plt.quiver(x, y, u, v, angles='xy', scale_units='xy', scale=1)
