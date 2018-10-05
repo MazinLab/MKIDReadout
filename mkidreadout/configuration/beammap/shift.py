@@ -25,14 +25,23 @@ class BeammapShifter(object):
         self.process()
 
     def createFeedlines(self):
+        """
+        returns an array with the proper number of feedlines for a given instument, each element of the array is a Feedline object
+        """
         if self.instrument.lower() == 'mec':
-            self.feedlines = [Feedline(i, self.beammap, self.design, 3, 3, instrument='mec') for i in range(1, 11)]
+            self.feedlines = [Feedline(i, self.beammap, self.design, instrument='mec') for i in range(1, 11)]
         elif self.instrument.lower() == 'darkness':
-            self.feedlines = [Feedline(i, self.beammap, self.design, 3, 3, instrument='darkness') for i in range(1, 6)]
+            self.feedlines = [Feedline(i, self.beammap, self.design, instrument='darkness') for i in range(1, 6)]
         else:
             raise Exception('Provided instrument not implemented!')
 
     def process(self):
+        """
+        From the feedline objects, determines if an appropriate shift was found, then applies the shift if it is
+        :returns an Applied Shift vector (will be (nan, nan) if no shift applied), a Beammap object with the coordinates
+        shifted, and the array of design frequencies(140x146 for MEC, 80x125 for DARKNESS), which the frequencies
+        appropriately fit to the data:
+        """
         self.feedlineShifts = np.array([f.bestshiftvector for f in self.feedlines])
         self.chooseAppliedShift()
         if np.isfinite(self.appliedShift[0]) and np.isfinite(self.appliedShift[1]):
@@ -47,6 +56,10 @@ class BeammapShifter(object):
             raise Exception("No shift applied: There was no best shift found")
 
     def chooseAppliedShift(self):
+        """
+        :return The applied shift found, currently deemed appropriate if the same shift is found for half or more of the
+        feedlines analyzed:
+        """
         xshifts = self.feedlineShifts[:, 0]
         xshifts = xshifts[np.isfinite(xshifts)]
         yshifts = self.feedlineShifts[:, 1]
@@ -62,7 +75,22 @@ class BeammapShifter(object):
 
 
 class Feedline(object):
-    def __init__(self, feedlinenumber, beammap, designFL, maxXshift, maxYshift, flip=False, order=5, instrument=''):
+    """
+    Needs: Feedline Number, A Beammap Object with coordinates in pixel space (not times), the design feedline text file,
+    instrument: DARKNESS or MEC
+
+    Optional Arguments: maxX/Yshifts is how far in the x or y direction that we will search for a best shift; flip is if
+    the feedlines were in numerical order (1, 2, 3...) or reverse (10, 9, 8...); Order determines what the order of
+    polynomial we try to fit the frequency data to.
+
+    Returns: Feedline data: resIDs, flags, x and y coordinates, and frequency for that resonator (if read out)
+    Design map with frequencies fitted
+    Best shift vector (x,y)
+
+    If the feedline was not read out on the array, returns unmodified feedline data and design map, best shift vector will
+    be (nan, nan)
+    """
+    def __init__(self, feedlinenumber, beammap, designFL, maxXshift=3, maxYshift=3, flip=False, order=5, instrument=''):
         self.beammap = beammap
         self.design = designFL
         self.flNum = feedlinenumber

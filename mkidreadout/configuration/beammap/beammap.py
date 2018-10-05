@@ -85,6 +85,11 @@ class Beammap:
         return newBeammap
 
     def get(self, attribute='', flNum=None):
+        """
+        :params attribute and flNum:
+        :return the values of the attribute for a single feedline (denoted by the first number of its resID:
+        for use in the beammap shifting code
+        """
         if attribute:
             x = self.getBeammapAttribute(attribute)
         else:
@@ -100,6 +105,11 @@ class Beammap:
             raise Exception('Your attribute contained no data')
 
     def getBeammapAttribute(self, attribute=''):
+        """
+        :param attribute:
+        :return list of attribute values, the length of the beammap object:
+        This is for use in the get function
+        """
         if attribute.lower() == 'resids':
             return self.resIDs
         elif attribute.lower() == 'flags':
