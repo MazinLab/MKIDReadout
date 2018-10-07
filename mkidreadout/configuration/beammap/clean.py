@@ -267,7 +267,7 @@ if __name__=='__main__':
     #put together full input/output BM paths
     finalPath = os.path.join(beammapDirectory,finalBMFile)
     rawPath = os.path.join(beammapDirectory,rawBMFile)
-    frequencySweepPath = os.path.join(beammapDirectory,psFiles)
+    frequencySweepPath = os.path.join(beammapDirectory,"ps_*.txt")
 
 
     #load location data from rough BM file

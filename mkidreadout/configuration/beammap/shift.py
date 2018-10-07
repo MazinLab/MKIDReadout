@@ -11,6 +11,8 @@ class BeammapShifter(object):
     If a good shift is found, returns: Best shift vector, Beammap object with coordinates shifted,
     and design array with frequencies fitted
     If no shift is found, returns: nothing, will raise an exception that no reliable shift was found
+
+    Designed for use in clean.py
     """
     def __init__(self, designFL, beammap, instrument):
         self.instrument = instrument
@@ -87,8 +89,8 @@ class Feedline(object):
     Design map with frequencies fitted
     Best shift vector (x,y)
 
-    If the feedline was not read out on the array, returns unmodified feedline data and design map, best shift vector will
-    be (nan, nan)
+    If the feedline was not read out on the array, returns unmodified feedline data and design map, best shift vector
+    will be (nan, nan)
     """
     def __init__(self, feedlinenumber, beammap, designFL, maxXshift=3, maxYshift=3, flip=False, order=5, instrument=''):
         self.beammap = beammap
@@ -104,9 +106,19 @@ class Feedline(object):
         self.xcoords = np.floor(beammap.get('xcoords', self.flNum))
         self.ycoords = np.floor(beammap.get('ycoords', self.flNum))
         self.frequencies = beammap.get('frequencies', self.flNum)
+        self.minFreq = np.min(self.frequencies[np.isfinite(self.frequencies)])
+        self.bestshiftvector = np.array((np.nan, np.nan))
+        self.feedlineData = None
+        self.fitDesign = None
+        self.processFeedline()
+
+    def processFeedline(self):
+        """
+        Goes through the physical shifting and frequency fitting process if a feedline was read out
+        If a feedline was not read out on the array, this function will not try to shift/fit data
+        """
         if not np.all(np.isnan(self.xcoords)) and not np.all(np.isnan(self.ycoords)):
-            self.getFreqExtrema()
-            self.frequencies = self.frequencies - self.minF
+            self.frequencies = self.frequencies - self.minFreq
             self.makeShiftCoords()
             self.findResidualsForAllShifts()
             self.getBestShift()
@@ -116,38 +128,46 @@ class Feedline(object):
         else:
             self.feedlineData = np.transpose([self.resIDs, self.flags, self.xcoords, self.ycoords, self.frequencies])
             self.fitDesign = self.design
-            self.bestshiftvector = np.array((np.nan, np.nan))
-
-    def getFreqExtrema (self):
-        self.minF = np.min(self.frequencies[np.isfinite(self.frequencies)])
-        # self.maxF = np.max(self.frequencies[np.isfinite()(self.frequencies)])
-        # self.medianF = np.median(self.frequencies[np.isfinite()(self.frequencies)])
-        # self.meanF = np.mean(self.frequencies[np.isfinite()(self.frequencies)])
 
     def makeShiftCoords (self):
+        """
+        Takes the original (x,y) coordinates and creates all of the shifted x and y coordinates based on the
+        maximum shift in x (self.maxX) and maximum shift in y (self.maxY). THe shifts will range from -maxX to +maxX
+        and -maxY to +maxY.
+        in the X-by-Y-by-N shiftedX/Ycoords arrays, the [row, column, :] index will refer to a specific shift, with the
+        third dimension being the shifted X or Y coordinates
+        """
         self.xshifts = np.linspace(-1 * self.maxX, self.maxX, (2 * self.maxX) + 1).astype(int)
         self.yshifts = np.linspace(-1 * self.maxY, self.maxY, (2 * self.maxY) + 1).astype(int)
-        self.shiftedXcoords = np.full((len(self.yshifts), len(self.xshifts), len(self.xcoords)), float('NaN'))
-        self.shiftedYcoords = np.full((len(self.yshifts), len(self.xshifts), len(self.ycoords)), float('NaN'))
+        self.shiftedXcoords = np.full((len(self.yshifts), len(self.xshifts), len(self.xcoords)), np.nan)
+        self.shiftedYcoords = np.full((len(self.yshifts), len(self.xshifts), len(self.ycoords)), np.nan)
         for i in self.yshifts:
             for j in self.xshifts:
                 self.shiftedXcoords[i][j] = self.xcoords + self.xshifts[j]
                 self.shiftedYcoords[i][j] = self.ycoords + self.yshifts[i]
 
-
-
     def matchMeastoDes(self, xcoords, ycoords):
+        """
+        Needs: a list of x coordinates and a list of y coordinates
+        Returns: The residual frequencies if the feedline was shifted to these x,y coordinates based on the design map
+        """
         temparray = []
         matchedf = []
         desf = []
         for i in range((len(xcoords))):
             if isResonatorOnCorrectFeedline(self.resIDs[i], xcoords[i], ycoords[i], self.instrument, self.flip):
                 if np.isfinite(xcoords[i]) and np.isfinite(ycoords[i]) and np.isfinite(self.frequencies[i]):
-                    x,y = placeResonatorOnFeedline(xcoords[i],ycoords[i],self.instrument)
+                    x, y = placeResonatorOnFeedline(xcoords[i], ycoords[i], self.instrument)
                     residual = self.design[y][x] - self.frequencies[i]
                     temparray.append(residual)
                     matchedf.append(self.frequencies[i])
                     desf.append(self.design[y][x])
+                else:
+                    temparray.append(np.nan)
+                    matchedf.append(np.nan)
+                    desf.append(np.nan)
+                    raise Exception("Pixel was not assigned a frequency so we could not find a residual for it. This"
+                                    "beammap may already have been cleaned")
             else:
                 temparray.append(np.nan)
                 matchedf.append(np.nan)
@@ -156,19 +176,30 @@ class Feedline(object):
         return np.array(temparray), np.array(matchedf), np.array(desf)
 
     def findResidualsForAllShifts(self):
+        """
+        For each (x,y) shift, return the frequency residuals when compared to the design feedline
+        """
         self.residuals = np.full((len(self.yshifts), len(self.xshifts), len(self.xcoords)), np.nan)
         self.matchedfreqs = np.full((len(self.yshifts), len(self.xshifts), 2, len(self.xcoords)), np.nan)
         for i in range(len(self.yshifts)):
             for j in range(len(self.xshifts)):
-                self.residuals[i][j] = self.matchMeastoDes(self.shiftedXcoords[i][j], self.shiftedYcoords[i][j])[0]
-                self.matchedfreqs[i][j][0] = self.matchMeastoDes(self.shiftedXcoords[i][j], self.shiftedYcoords[i][j])[1]
-                self.matchedfreqs[i][j][1] = self.matchMeastoDes(self.shiftedXcoords[i][j], self.shiftedYcoords[i][j])[2]
+                self.residuals[i][j], self.matchedfreqs[i][j][0], self.matchedfreqs[i][j][1] = \
+                    self.matchMeastoDes(self.shiftedXcoords[i][j], self.shiftedYcoords[i][j])[0]
 
     def removeNaNsfromArray(self, array):
         array = array[np.isfinite(array)]
         return array
 
     def getBestShift(self):
+        """
+        Calculates the standard deviation and Median Absolute Deviation standard deviation of the frequency residuals
+        for each physical shift. Then, determines what physical shift gives the minimum standard deviation (by both
+        measures) and, if the two are the same, gives the best shift vector, otherwise returns a
+        'no-shift' vector (nan,nan).
+        This also returns the x and y coordinates which correspond to that vector, and the frequency residuals. The
+        self.bestMatchedFreqs is the array of frequencies that were matched to the design array (if a resonator was
+        shifted off of the feedline it will not be counted)
+        """
         self.MAD_std = np.zeros(((2 * self.maxY + 1), (2 * self.maxX + 1)))
         self.std = np.zeros(((2 * self.maxY + 1), (2 * self.maxX + 1)))
         for i in range(len(self.yshifts)):
@@ -191,12 +222,21 @@ class Feedline(object):
             self.bestMatchedFreqs = self.matchedfreqs[(2 * self.maxY + 1) // 2][(2 * self.maxX + 1) // 2]
 
     def guessInitialParams(self):
+        """
+        From the frequency data create an initial guess of the parameters to fit the model (design frequencies) to the
+        measured frequency data. This will return the coefficients to a Nth-order polynomial as specified by self.order
+        that will be the initial guess for the non-linear least squares regression
+        """
         data = self.removeNaNsfromArray(self.bestMatchedFreqs[0])
         model = self.removeNaNsfromArray(self.bestMatchedFreqs[1])
         params = np.polyfit(model, data, self.order, full=True)[0]
         return params
 
     def makeLstSqResiduals(self, parameters):
+        """
+        Takes in the parameters for the Nth-order polynomial to fit the frequency data to, then finds the data-model
+        frequency residuals that the scipy.optimize.least_squares method needs
+        """
         p = np.poly1d(parameters)
         data = self.removeNaNsfromArray(self.bestMatchedFreqs[0])
         model = self.removeNaNsfromArray(self.bestMatchedFreqs[1])
@@ -204,83 +244,115 @@ class Feedline(object):
         return error
 
     def fitFrequencies(self):
+        """
+        Finds the non-linear least squares fit to our measured data. Modifies the model (feedline design frequency
+        array) based on the least squares solution.
+        """
         primaryGuess = self.guessInitialParams()
         self.leastSquaresSol = opt.least_squares(self.makeLstSqResiduals, primaryGuess)
         coeffs = np.poly1d(self.leastSquaresSol.x)
         self.fitDesign = coeffs(self.design)
 
     def countPixelsPlaced(self):
+        """
+        Determines how many pixels we placed on the feedline after shifting
+        """
         counter = 0
         for i in self.feedlineData:
             if i[1] == 0 and np.isfinite(i[2]) and np.isfinite(i[3]):
                 counter = counter + 1
         self.placedPixels = counter
 
-    # def compareNearestNeighbors(self):
-    #     self.nearestNeighborFreqLocation = np.full((len(self.feedlineData), 2), np.nan)
-    #     for i in range(len(self.feedlineData)):
-    #         if np.isfinite(self.feedlineData[i][2]) and np.isfinite(self.feedlineData[i][3]) and np.isfinite(self.feedlineData[i][4]):
-    #             self.nearestNeighborFreqLocation[i][0] = self.findNearestNeighborFrequency(self.feedlineData[i])[1] - 1
-    #             self.nearestNeighborFreqLocation[i][1] = -1 * (self.findNearestNeighborFrequency(self.feedlineData[i])[0] - 1)
-    #
-    #     xvals = self.nearestNeighborFreqLocation[:, 0]
-    #     yvals = self.nearestNeighborFreqLocation[:, 1]
-    #
-    #     tl = len(np.where((xvals == -1) & (yvals == -1))[0])
-    #     t = len(np.where((xvals == 0) & (yvals == -1))[0])
-    #     tr = len(np.where((xvals == 1) & (yvals == -1))[0])
-    #     l = len(np.where((xvals == -1) & (yvals == 0))[0])
-    #     c = len(np.where((xvals == 0) & (yvals == 0))[0])
-    #     r = len(np.where((xvals == 1) & (yvals == 0))[0])
-    #     bl = len(np.where((xvals == -1) & (yvals == 1))[0])
-    #     b = len(np.where((xvals == 0) & (yvals == 1))[0])
-    #     br = len(np.where((xvals == 1) & (yvals == 1))[0])
-    #     self.wellPlacedPixels = c
-    #     self.totalPlacedPixels = tl + t + tr + l + c + r + bl + b + br
-    #
-    # def findNearestNeighborFrequency (self, resonator):
-    #     resX = int(resonator[2]) % 14
-    #     resXp1 = int(resX+1) % 14
-    #     resXm1 = int(resX-1) % 14
-    #     resY = int(resonator[3]) % 146
-    #     resYp1 = int(resY+1) % 146
-    #     resYm1 = int(resY-1) % 146
-    #     nearestneighborfreqs = [[self.fitDesign[resYm1][resXm1], self.fitDesign[resYm1][resX], self.fitDesign[resYm1][resXp1]],
-    #                             [self.fitDesign[resY][resXm1], self.fitDesign[resY][resX], self.fitDesign[resY][resXp1]],
-    #                             [self.fitDesign[resYp1][resXm1], self.fitDesign[resYp1][resX], self.fitDesign[resYp1][resXp1]]]
-    #     neighborresids = np.abs(nearestneighborfreqs - resonator[4])
-    #     min_place = np.unravel_index(neighborresids.argmin(), neighborresids.shape)
-    #     return min_place
-    #
-    # def plotNearestNeighborInfo(self):
-    #     u = self.nearestNeighborFreqLocation[:, 0]
-    #     v = self.nearestNeighborFreqLocation[:, 1]
-    #
-    #     tl = len(np.where((u == -1) & (v == -1))[0])
-    #     t = len(np.where((u == 0) & (v == -1))[0])
-    #     tr = len(np.where((u == 1) & (v == -1))[0])
-    #     l = len(np.where((u == -1) & (v == 0))[0])
-    #     c = len(np.where((u == 0) & (v == 0))[0])
-    #     r = len(np.where((u == 1) & (v == 0))[0])
-    #     bl = len(np.where((u == -1) & (v == 1))[0])
-    #     b = len(np.where((u == 0) & (v == 1))[0])
-    #     br = len(np.where((u == 1) & (v == 1))[0])
-    #
-    #     heights = np.array([[tl, t, tr], [l, c, r], [bl, b, br]])
-    #     plt.imshow(heights, extent=[-heights.shape[1]/2., heights.shape[1]/2., -heights.shape[0]/2., heights.shape[0]/2. ])
-    #     plt.colorbar()
-    #     plt.show()
-    #
-    # def nearestNeighborQuiver(self):
-    #     x = self.removeNaNsfromArray(self.feedlineData[:, 2])
-    #     y = self.removeNaNsfromArray(self.feedlineData[:, 3])
-    #     u = self.removeNaNsfromArray(self.nearestNeighborFreqLocation[:, 1])
-    #     v = self.removeNaNsfromArray(self.nearestNeighborFreqLocation[:, 0])
-    #     plt.quiver(x, y, u, v, angles='xy', scale_units='xy', scale=1)
-    #     plt.show()
+    # The following functions are optional diagnostic functions to corroborate if shifting the feedline resulted in
+    # the majority of pixels being placed "well". "Well" being defined as having its frequency be closer to the
+    # frequency the design map specifies than any of its adjacent neighbors' design frequencies
+
+    def compareNearestNeighbors(self):
+        """
+        For the shifted feedline, find the number of pixels where their frequencies are closest to the design feedline (fitted)
+        as well as the number of pixels that were placed at a coordinate where its frequency is closer to that of an adjacent
+        pixel's design frequency
+        """
+        self.nearestNeighborFreqLocation = np.full((len(self.feedlineData), 2), np.nan)
+        for i in range(len(self.feedlineData)):
+            if np.isfinite(self.feedlineData[i][2]) and np.isfinite(self.feedlineData[i][3]) and np.isfinite(self.feedlineData[i][4]):
+                nearestNeighborFrequencyLocation = self.findNearestNeighborFrequency(self.feedlineData[i])
+                self.nearestNeighborFreqLocation[i][0] = nearestNeighborFrequencyLocation[1] - 1
+                self.nearestNeighborFreqLocation[i][1] = nearestNeighborFrequencyLocation[0] - 1
+
+        xvals = self.nearestNeighborFreqLocation[:, 0]
+        yvals = self.nearestNeighborFreqLocation[:, 1]
+
+        tl = len(np.where((xvals == -1) & (yvals == -1))[0])
+        t = len(np.where((xvals == 0) & (yvals == -1))[0])
+        tr = len(np.where((xvals == 1) & (yvals == -1))[0])
+        l = len(np.where((xvals == -1) & (yvals == 0))[0])
+        c = len(np.where((xvals == 0) & (yvals == 0))[0])
+        r = len(np.where((xvals == 1) & (yvals == 0))[0])
+        bl = len(np.where((xvals == -1) & (yvals == 1))[0])
+        b = len(np.where((xvals == 0) & (yvals == 1))[0])
+        br = len(np.where((xvals == 1) & (yvals == 1))[0])
+        self.wellPlacedPixels = c
+        self.totalPlacedPixels = tl + t + tr + l + c + r + bl + b + br
+
+    def findNearestNeighborFrequency (self, resonator):
+        """
+        For a given resonator, find the design frequency at each adjacent pixel and determine if the measured frequency
+        is closest to where it was placed or if it is closer to the design frequency at an adjacent pixel
+        """
+        resX, resY = placeResonatorOnFeedline(resonator[2], resonator[3], self.instrument)
+        resXp1 = int(resX+1)
+        resXm1 = int(resX-1)
+        resYp1 = int(resY+1)
+        resYm1 = int(resY-1)
+        nearestneighborfreqs = [[self.fitDesign[resYm1][resXm1], self.fitDesign[resYm1][resX], self.fitDesign[resYm1][resXp1]],
+                                [self.fitDesign[resY][resXm1], self.fitDesign[resY][resX], self.fitDesign[resY][resXp1]],
+                                [self.fitDesign[resYp1][resXm1], self.fitDesign[resYp1][resX], self.fitDesign[resYp1][resXp1]]]
+        neighborresids = np.abs(nearestneighborfreqs - resonator[4])
+        min_place = np.unravel_index(neighborresids.argmin(), neighborresids.shape)
+        return min_place
+
+    def plotNearestNeighborInfo(self):
+        """
+        Plots the data from the "nearest neighbor frequency" analysis. Each spot on the plot corresponds to where the
+        nearest neighbor frequency was in relation to a pixel. So, ideal would be that the center point is the highest
+        value, meaning we placed most pixels at a point where they most closely matched the feedline design frequency
+        array at the same point
+        """
+        u = self.nearestNeighborFreqLocation[:, 0]
+        v = self.nearestNeighborFreqLocation[:, 1]
+
+        tl = len(np.where((u == -1) & (v == -1))[0])
+        t = len(np.where((u == 0) & (v == -1))[0])
+        tr = len(np.where((u == 1) & (v == -1))[0])
+        l = len(np.where((u == -1) & (v == 0))[0])
+        c = len(np.where((u == 0) & (v == 0))[0])
+        r = len(np.where((u == 1) & (v == 0))[0])
+        bl = len(np.where((u == -1) & (v == 1))[0])
+        b = len(np.where((u == 0) & (v == 1))[0])
+        br = len(np.where((u == 1) & (v == 1))[0])
+
+        heights = np.array([[tl, t, tr], [l, c, r], [bl, b, br]])
+        plt.imshow(heights, extent=[-heights.shape[1]/2., heights.shape[1]/2., -heights.shape[0]/2., heights.shape[0]/2. ])
+        plt.colorbar()
+        plt.show()
+
+    def nearestNeighborQuiver(self):
+        """
+        Creates a quiver plot where each vector starts at where the pixel was placed and points to which of its nearest
+        neighbors' design frequencies its own frequency is closest to. If there is a (0,0) vector, that means that we
+        placed the resonator at a location where it is most closely matched to the design frequency at that location.
+        """
+        x = self.removeNaNsfromArray(self.feedlineData[:, 2])
+        y = self.removeNaNsfromArray(self.feedlineData[:, 3])
+        u = self.removeNaNsfromArray(self.nearestNeighborFreqLocation[:, 1])
+        v = self.removeNaNsfromArray(self.nearestNeighborFreqLocation[:, 0])
+        plt.quiver(x, y, u, v, angles='xy', scale_units='xy', scale=1)
+        plt.show()
 
 
 # if __name__ == '__main__':
+# USED FOR TESTING ON A LOCAL MACHINE
 #
 #     designFlPath = '/mnt/data0/nswimmer/Repositories/mapcheckertesting/mec_feedline.txt'
 #     rawBM = Beammap()
