@@ -107,6 +107,21 @@ class Feedline(object):
         self.ycoords = np.floor(beammap.get('ycoords', self.flNum))
         self.frequencies = beammap.get('frequencies', self.flNum)
         self.minFreq = np.min(self.frequencies[np.isfinite(self.frequencies)])
+        self.xshifts = np.linspace(-1 * self.maxX, self.maxX, (2 * self.maxX) + 1).astype(int)
+        self.yshifts = np.linspace(-1 * self.maxY, self.maxY, (2 * self.maxY) + 1).astype(int)
+        self.shiftedXcoords = np.full((len(self.yshifts), len(self.xshifts), len(self.xcoords)), np.nan)
+        self.shiftedYcoords = np.full((len(self.yshifts), len(self.xshifts), len(self.ycoords)), np.nan)
+        self.residuals = np.full((len(self.yshifts), len(self.xshifts), len(self.xcoords)), np.nan)
+        self.matchedfreqs = np.full((len(self.yshifts), len(self.xshifts), 2, len(self.xcoords)), np.nan)
+        self.MAD_std = np.zeros(((2 * self.maxY + 1), (2 * self.maxX + 1)))
+        self.std = np.zeros(((2 * self.maxY + 1), (2 * self.maxX + 1)))
+        self.bestshiftXcoords = None
+        self.bestshiftYcoords = None
+        self.bestshiftResiduals = None
+        self.bestMatchedFreqs = None
+        self.leastSquaresSolution = None
+        self.placedPixels = 0
+
         self.bestshiftvector = np.array((np.nan, np.nan))
         self.feedlineData = None
         self.fitDesign = None
@@ -137,10 +152,6 @@ class Feedline(object):
         in the X-by-Y-by-N shiftedX/Ycoords arrays, the [row, column, :] index will refer to a specific shift, with the
         third dimension being the shifted X or Y coordinates
         """
-        self.xshifts = np.linspace(-1 * self.maxX, self.maxX, (2 * self.maxX) + 1).astype(int)
-        self.yshifts = np.linspace(-1 * self.maxY, self.maxY, (2 * self.maxY) + 1).astype(int)
-        self.shiftedXcoords = np.full((len(self.yshifts), len(self.xshifts), len(self.xcoords)), np.nan)
-        self.shiftedYcoords = np.full((len(self.yshifts), len(self.xshifts), len(self.ycoords)), np.nan)
         for i in self.yshifts:
             for j in self.xshifts:
                 self.shiftedXcoords[i][j] = self.xcoords + self.xshifts[j]
@@ -151,36 +162,34 @@ class Feedline(object):
         Needs: a list of x coordinates and a list of y coordinates
         Returns: The residual frequencies if the feedline was shifted to these x,y coordinates based on the design map
         """
-        temparray = []
-        matchedf = []
-        desf = []
-        for i in range((len(xcoords))):
+        residuals = []  # Design - Measured
+        matchedf = []  # This is the measured frequency at the point that we are matching to the design frequency
+        desf = []  # Design frequency that matches (in physical space) the measured frequency
+        for i in range((len(self.resIDs))):
             if isResonatorOnCorrectFeedline(self.resIDs[i], xcoords[i], ycoords[i], self.instrument, self.flip):
                 if np.isfinite(xcoords[i]) and np.isfinite(ycoords[i]) and np.isfinite(self.frequencies[i]):
                     x, y = placeResonatorOnFeedline(xcoords[i], ycoords[i], self.instrument)
                     residual = self.design[y][x] - self.frequencies[i]
-                    temparray.append(residual)
+                    residuals.append(residual)
                     matchedf.append(self.frequencies[i])
                     desf.append(self.design[y][x])
                 else:
-                    temparray.append(np.nan)
+                    residuals.append(np.nan)
                     matchedf.append(np.nan)
                     desf.append(np.nan)
                     raise Exception("Pixel was not assigned a frequency so we could not find a residual for it. This"
                                     "beammap may already have been cleaned")
             else:
-                temparray.append(np.nan)
+                residuals.append(np.nan)
                 matchedf.append(np.nan)
                 desf.append(np.nan)
 
-        return np.array(temparray), np.array(matchedf), np.array(desf)
+        return np.array(residuals), np.array(matchedf), np.array(desf)
 
     def findResidualsForAllShifts(self):
         """
         For each (x,y) shift, return the frequency residuals when compared to the design feedline
         """
-        self.residuals = np.full((len(self.yshifts), len(self.xshifts), len(self.xcoords)), np.nan)
-        self.matchedfreqs = np.full((len(self.yshifts), len(self.xshifts), 2, len(self.xcoords)), np.nan)
         for i in range(len(self.yshifts)):
             for j in range(len(self.xshifts)):
                 self.residuals[i][j], self.matchedfreqs[i][j][0], self.matchedfreqs[i][j][1] = \
@@ -200,8 +209,6 @@ class Feedline(object):
         self.bestMatchedFreqs is the array of frequencies that were matched to the design array (if a resonator was
         shifted off of the feedline it will not be counted)
         """
-        self.MAD_std = np.zeros(((2 * self.maxY + 1), (2 * self.maxX + 1)))
-        self.std = np.zeros(((2 * self.maxY + 1), (2 * self.maxX + 1)))
         for i in range(len(self.yshifts)):
             for j in range(len(self.xshifts)):
                 self.MAD_std[i][j] = mad_std(self.removeNaNsfromArray(self.residuals[i][j]))
@@ -249,19 +256,17 @@ class Feedline(object):
         array) based on the least squares solution.
         """
         primaryGuess = self.guessInitialParams()
-        self.leastSquaresSol = opt.least_squares(self.makeLstSqResiduals, primaryGuess)
-        coeffs = np.poly1d(self.leastSquaresSol.x)
-        self.fitDesign = coeffs(self.design)
+        self.leastSquaresSolution = opt.least_squares(self.makeLstSqResiduals, primaryGuess)
+        coefficients = np.poly1d(self.leastSquaresSolution.x)
+        self.fitDesign = coefficients(self.design)
 
     def countPixelsPlaced(self):
         """
         Determines how many pixels we placed on the feedline after shifting
         """
-        counter = 0
-        for i in self.feedlineData:
-            if i[1] == 0 and np.isfinite(i[2]) and np.isfinite(i[3]):
-                counter = counter + 1
-        self.placedPixels = counter
+        for resonator in self.feedlineData:
+            if resonator[1] == 0 and np.isfinite(resonator[2]) and np.isfinite(resonator[3]):
+                self.placedPixels = self.placedPixels + 1
 
     # The following functions are optional diagnostic functions to corroborate if shifting the feedline resulted in
     # the majority of pixels being placed "well". "Well" being defined as having its frequency be closer to the
