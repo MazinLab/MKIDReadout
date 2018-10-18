@@ -38,6 +38,16 @@ HSFWERRORS = {0: 'No error has occurred. (cleared state)',
               5: 'An attempt to change filter positions was made while the device was already in motion.',
               6: 'An attempt to change filter positions was made before the device had been homed.'}
 
+# Get-ChildItem HKLM:\Software\Classes -ErrorAction SilentlyContinue | Where-Object {$_.PSChildName -match '^\w+\.\w+$' -and (Test-Path -Path "$($_.PSPath)\CLSID")} | Select-Object -ExpandProperty PSChildName
+# OptecHIDTools.DeviceChangeNotifier
+# OptecHIDTools.HIDMonitor
+# OptecHIDTools.HID_API_Wrapers
+# OptecHIDTools.ReadWrite_API_Wrappers
+# OptecHIDTools.Setup_API_Wrappers
+# OptecHIDTools.Win32Errors
+# OptecHID_FilterWheelAPI.FilterWheels
+# from win32com.client import Dispatch
+# fwheels = Dispatch("OptecHID_FilterWheelAPI.FilterWheels")
 
 # self.mccdaq = ct.windll.LoadLibrary(MCCDAQLIB)
 # self.lib = ct.CDLL(EPOS2Shutter.LIB_PATH)
@@ -169,10 +179,12 @@ def _setfilter(num, home=False):
     try:
         fwheels = Dispatch("OptecHID_FilterWheelAPI.FilterWheels")
         wheel = fwheels.FilterWheelList[0]
-        #wheel.FirmwareVersion
-
+        getLogger(__name__).debug('Filter Wheel FW: {}'.format(wheel.FirmwareVersion))
         if home:
+            getLogger(__name__).info('Homing...')
             wheel.HomeDevice()  #HomeDevice_Async()
+            getLogger(__name__).info('Homing complete.')
+        getLogger(__name__).info('Setting postion to {}'.format(num))
         wheel.CurrentPosition = num
         return wheel.ErrorState
     except Exception:
