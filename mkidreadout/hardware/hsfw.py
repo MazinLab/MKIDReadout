@@ -54,7 +54,7 @@ HSFWERRORS = {0: 'No error has occurred. (cleared state)',
 # self.lib.VCS_ResetDevice(self.dev_handle, self.node_id, ct.byref(err))
 # err.value
 
-log = getLogger('HSFW')  #TODO this isn't best practice but i don't think it will matter here
+_log = getLogger('HSFW')  #TODO this isn't best practice but i don't think it will matter here
 HSFW_PORT = 50000
 
 global_KILL_SERVER = False
@@ -74,7 +74,7 @@ def start_server(port, log=None):
     global global_KILL_SERVER, _log
 
     if log is None:
-    log = _log
+    	log = _log
 
     # get IP address
     host = socket.gethostbyname(socket.gethostname())
@@ -115,7 +115,7 @@ def connection_handler(conn):
 
             if data == 'exit':
                 #TODO closeout filter
-                conn.sendall('exiting')  # confirm stop to control
+                conn.sendall(b'exiting')  # confirm stop to control
                 global_KILL_SERVER = True
                 break
 
@@ -129,19 +129,22 @@ def connection_handler(conn):
                 print2socket('bad command:  {}'.format(e), the_socket=conn)
 
         except Exception as e:
-            msg = 'Server Connection Loop Exception {}: \n'.format(e) + traceback.format_exc()
-            log.error(msg)
-            conn.sendall(msg)
-            print2socket(msg, the_socket=conn)
             try:
                 enum = e.errno
             except AttributeError:
                 enum = 0
-            if enum in (errno.EBADF, errno.ECONNRESET):
+            if enum == errno.WSAECONNABORTED:
+            	getLogger(__name__).info('Connection Closed')
+            else:
+            	msg = 'Server Connection Loop Exception {}: \n'.format(e) + traceback.format_exc()
+            	getLogger(__name__).error(msg)
+            	conn.sendall(msg)
+            	print2socket(msg, the_socket=conn)
+            if enum in (errno.EBADF, errno.ECONNRESET, errno.WSAECONNABORTED):
                 # TODO closeout filter
                 break
 
-    log.info('Closing connection')
+    getLogger(__name__).info('Closing connection')
     print2socket('Closing connection', the_socket=conn)
     conn.close()
 
@@ -158,6 +161,7 @@ def connect(host, port, verbose=True):
         returns a socket connection or None
     Raises:
     """
+    log = getLogger('__name__')
     if verbose:
         log.info('Trying to connect with ' + host)
     try:
@@ -174,6 +178,8 @@ def connect(host, port, verbose=True):
 
 
 def _setfilter(num, home=False):
+    import pythoncom
+    pythoncom.CoInitialize()
     if num not in (1,2,3,4,5,6):
         return
     try:
@@ -197,7 +203,7 @@ def setfilter(fnum, home=False, host='localhost:50000'):
     host, port = host.split(':')
     conn = connect(host, port)
     try:
-        conn.sendall('{}\n'.format(-fnum if home else fnum))
+        conn.sendall('{}\n'.format(-fnum if home else fnum).encode('utf-8'))
         data = conn.recv(2048).strip()
         getLogger('HSFW').info("Response: {}".format(data))
         conn.close()
