@@ -1,5 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
+import pkg_resources as pkg
+import os
 import mkidreadout.configuration.beammap.flags as flags
 import mkidreadout.configuration.beammap.utils as utils
 
@@ -13,12 +15,38 @@ class Beammap:
         yCoords
     """
     
-    def __init__(self):
-        self.resIDs = np.empty(0)
-        self.flags = np.empty(0)
-        self.xCoords = np.empty(0)
-        self.yCoords = np.empty(0)
-        pass
+    def __init__(self, beammap):
+        """
+        Constructor.
+        
+        INPUTS:
+            beammap - either a path to beammap file, instrument name, or 
+                beammap object. 
+                    If path, loads data from beammap file. 
+                    If instrument (either 'mec' or 'darkness'), loads corresponding
+                        default beammap. 
+                    If instance of Beammap, creates a copy
+
+        """
+        if isinstance(beammap, str):
+            if os.path.isfile(beammap):
+                self.load(beammap)
+            elif beammap.lower()=='mec':
+                self.load(pkg.resource_filename(__name__, 'mec.bmap'))
+            elif beammap.lower()=='darkness':
+                self.load(pkg.resource_filename(__name__, 'darkness.bmap'))
+            else:
+                raise Exception('Must specify beammap file or instrument name')
+                
+        elif isinstance(beammap, Beammap):
+            self.resIDs = beammap.resIDs.copy()
+            self.flags = beammap.flags.copy()
+            self.xCoords = beammap.xCoords.copy()
+            self.yCoords = beammap.yCoords.copy()
+
+        else:
+            raise Exception('Input must be either Beammap instance or string')
+
 
     def setData(self, bmData):
         """
@@ -54,10 +82,5 @@ class Beammap:
         """
         Returns a deep copy of itself
         """
-        newBeammap = Beammap()
-        newBeammap.resIDs = np.copy(self.resIDs)
-        newBeammap.flags = np.copy(self.flags)
-        newBeammap.xCoords = np.copy(self.xCoords)
-        newBeammap.yCoords = np.copy(self.yCoords)
-        return newBeammap
+        return Beammap(self)
 
