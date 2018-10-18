@@ -18,10 +18,11 @@ import logging
 import argparse
 import ipdb
 import matplotlib.pyplot as plt
+import itertools
 from mkidreadout.utils.arrayPopup import plotArray
 from mkidreadout.utils.readDict import readDict
 from mkidreadout.configuration.beammap.flags import beamMapFlags
-from mkidreadout.configuration.beammap.utils import isInCorrectFL, getFLFromID, getFLFromCoords
+from mkidreadout.configuration.beammap.utils import isInCorrectFL, getFLFromID, getFLFromCoords, isResonatorOnCorrectFeedline
 from mkidreadout.configuration.beammap.beammap import Beammap
 from mkidreadout.configuration.beammap import shift
 
@@ -44,6 +45,9 @@ def getOverlapGrid(xCoords, yCoords, flags, nXPix, nYPix):
         if x >= 0 and y >= 0 and x < nXPix and y < nYPix:
             bmGrid[x, y] += 1
     return bmGrid
+
+
+
 
 
 class BMCleaner:
@@ -209,6 +213,82 @@ class BMCleaner:
         log.info('Successfully resolved %d overlaps', nOverlapsResolved)
         log.info('Failed to resolve %d overlaps', np.sum(self.flags==beamMapFlags['duplicatePixel']))
 
+    def resolveOverlapWithFrequency(self, shifterObject):
+        """
+        Given a shifted beammap object that has frequency data, resolve doubles
+        """
+        beammap = shifterObject.shiftedBeammap
+        designXcoords = shifterObject.designXCoords
+        designYcoords = shifterObject.designYCoords
+        designFrequencies = shifterObject.designFrequencies
+
+        if not hasattr(beammap, 'frequencies'):
+            raise Exception("This beammap does not have frequency data, this operation cannot be done")
+
+        overlapGrid = getOverlapGrid(beammap.xCoords, beammap.yCoords, beammap.flags, self.nCols, self.nRows)
+        overlapCoords = np.asarray(np.where(overlapGrid > 1)).T
+        numberOfOverlapsResolved = 0
+
+        for coord in overlapCoords:
+            doubles = self.getResonatorsAtCoordinate(coord[0], coord[1], beammap)
+            freqAtCoord = self.getDesignFrequencyFromCoords(designFrequencies, designXcoords, designYcoords, coord[0], coord[1])
+
+            # Create a list of coordinates that the resonators could be at (i.e. on the array and correct FL, and they do not already have a resonator on them)
+            coordsToSearch = self.generateCoordsToSearch(coord)
+            onArrayMask = ((coordsToSearch[:, 0] >= 0) & (coordsToSearch[:, 0] < self.nCols) & (coordsToSearch[:, 1] >= 0) & (coordsToSearch[:, 1] < self.nRows))
+            coordsToSearch = coordsToSearch[onArrayMask]
+            onFeedlineMask = np.zeros(len(coordsToSearch))
+            for i in range(len(coordsToSearch)):
+                onFeedlineMask[i] = isResonatorOnCorrectFeedline(doubles[0][0], coordsToSearch[i][0], coordsToSearch[i][1], self.instrument)
+            coordsToSearch = coordsToSearch[onArrayMask.astype(bool)]
+            occupationMask = np.zeros(len(coordsToSearch))
+            for i in range(len(coordsToSearch)):
+                if overlapGrid[coordsToSearch[i][0], coordsToSearch[i][1]] == 0:
+                    occupationMask[i] = True
+                else:
+                    occupationMask[i] = False
+            coordsToSearch = coordsToSearch[occupationMask.astype(bool)]
+            coordsToSearch = np.append(coordsToSearch, coord).reshape((len(coordsToSearch)+1, 2))  # Adds the overlap coordinate back to the search coords (they can be placed there)
+            freqsToSearch = (self.getDesignFrequencyFromCoords(designFrequencies, designXcoords, designYcoords, coordinate[0], coordinate[1]) for coordinate in coordsToSearch) # Design frequencies at each of the search coordinates
+
+            # Creates an array where each row corresponds to a resonator and each element corresponds to the residual at a coordinate in the coordsToSearch array
+            residuals = np.zeros((len(doubles),len(coordsToSearch)))
+            for i in range(len(doubles)):
+                for j in range(len(freqsToSearch)):
+                    residuals[i][j] = abs(doubles[i][4] - freqsToSearch[j])
+
+            # Gets an array of all possible combinations of placements of resonators in the available pixels
+            placementPossibilities = self.permuteResiduals(residuals)
+            totalResiduals = []
+            for i in placementPossibilities:
+                temparray = np.zeros(len(i)+1)
+                sumOfResiduals = 0
+                for j in range(len(i)):
+                    temparray[j] = i[j]
+                    sumOfResiduals += i[j]
+                temparray[-1] = sumOfResiduals
+                totalResiduals.append(temparray)
+            # totalResiduals has a row for each permutation of position placements, the first columns are the residuals, the final column is the sum of residuals at that configuration
+            totalResiduals = np.array(totalResiduals)
+
+            # Find where the total frequency residual is minimized (i.e. we placed the resonators in the double at the 'best' places)
+            index = np.where(totalResiduals[:, -1] == np.min(totalResiduals[:, -1]))[0][0]
+            minimumCombinedResidual = totalResiduals[index]
+
+            # Finds which coordinate each residual corresponds to for each resonator
+            indicesOfMinimumResidual = np.zeros(len(minimumCombinedResidual)-1)
+            for i in range(len(minimumCombinedResidual)-1):
+                indicesOfMinimumResidual[i] = np.where(residuals[i] == minimumCombinedResidual[i])[0]
+            if len(np.unique(indicesOfMinimumResidual)) == indicesOfMinimumResidual:
+                overlapGrid[coord[0], coord[1]] -= len(indicesOfMinimumResidual)
+                for i in range(len(doubles)):
+                    newCoordinate = coordsToSearch[int(indicesOfMinimumResidual[i])]
+                    overlapGrid[newCoordinate[0], newCoordinate[1]] += 1
+                    resonator = doubles[i]
+                    self.updateResonatorCoordinate(resonator, beammap, newCoordinate)
+                numberOfOverlapsResolved += 1
+
+
     def placeFailedPixels(self):
         '''
         Places all bad pixels (NaN coordinates) in arbitrary locations on correct feedline. Should ensure
@@ -232,7 +312,50 @@ class BMCleaner:
         toPlaceYs = np.isnan(self.placedYs)
         self.placedXs[toPlaceXs] = self.nCols
         self.placedYs[toPlaceYs] = self.nRows
-    
+
+    def getResonatorsAtCoordinate(self, xCoordinate, yCoordinate, beamMap):
+        indices = np.where((beamMap.xCoords == xCoordinate) & (beamMap.yCoords == yCoordinate))[0]
+        resonators = []
+        for idx in indices:
+            resonators.append(beamMap.getResonatorData(beamMap.resIDs[idx]))
+        return np.array(resonators)
+
+    def getDesignFrequencyFromCoords(self, designFrequencies, designArrayXvalues, designArrayYvalues, xCoord, yCoord):
+        index = int(np.where((designArrayXvalues == xCoord) & (designArrayYvalues == yCoord))[0])
+        designFrequencyAtCoordinate = designFrequencies[index]
+        return designFrequencyAtCoordinate
+
+    def generateCoordsToSearch(self, coordinate):
+        coordList = np.zeros((9, 2))
+        coordList[0] = [coordinate[0] - 1, coordinate[1] - 1]
+        coordList[1] = [coordinate[0] - 1, coordinate[1]]
+        coordList[2] = [coordinate[0] - 1, coordinate[1] + 1]
+        coordList[3] = [coordinate[0], coordinate[1] - 1]
+        coordList[4] = [coordinate[0], coordinate[1]]
+        coordList[5] = [coordinate[0], coordinate[1] + 1]
+        coordList[6] = [coordinate[0] + 1, coordinate[1] - 1]
+        coordList[7] = [coordinate[0] + 1, coordinate[1]]
+        coordList[8] = [coordinate[0] + 1, coordinate[1] + 1]
+        return coordList.astype(int)
+
+    def permuteResiduals (self, residuals):
+        if len(residuals) <= 1:
+            raise Exception ("This is trying to resolve a non-overlap")
+        elif len(residuals) == 2:
+            residualCombinations = itertools.product(residuals[0],residuals[1])
+        elif len(residuals) == 3:
+            residualCombinations = itertools.product(residuals[0],residuals[1],residuals[2])
+        elif len(residuals) == 4:
+            residualCombinations = itertools.product(residuals[0],residuals[1],residuals[2], residuals[3])
+        elif len(residuals) == 5:
+            residualCombinations = itertools.product(residuals[0],residuals[1],residuals[2], residuals[3], residuals[5])
+        return residualCombinations
+
+    def updateResonatorCoordinate (self, resonator, beammap, newCoordinate):
+        index = np.where(beammap.resIDs == resonator[0])[0]
+        beammap.xCoords[index] = newCoordinate[0]
+        beammap.yCoords[index] = newCoordinate[1]
+
     def saveBeammap(self, path):
         '''
         Saves beammap in standard 4 column text file format
@@ -277,6 +400,8 @@ if __name__=='__main__':
    
     cleaner = BMCleaner(rawBM, int(configData['numRows']), int(configData['numCols']), configData['flip'], configData['instrument'])
     shifter = shift.BeammapShifter(designFile, rawBM, configData['instrument'])
+    shifter.run()
+    cleaner.resolveOverlapWithFrequency(shifter)
 
     cleaner.fixPreciseCoordinates() #fix wrong feedline and oob coordinates
     cleaner.placeOnGrid() #initial grid placement

@@ -23,13 +23,9 @@ class BeammapShifter(object):
         self.shiftedBeammap = Beammap()
         self.feedlineShifts = None
         self.designArray = None
-        self.createFeedlines()
-        self.process()
-
-    def createFeedlines(self):
-        """
-        returns an array with the proper number of feedlines for a given instument, each element of the array is a Feedline object
-        """
+        self.designXCoords = None
+        self.designYCoords = None
+        self.designFrequencies = None
         if self.instrument.lower() == 'mec':
             self.feedlines = [Feedline(i, self.beammap, self.design, instrument='mec') for i in range(1, 11)]
         elif self.instrument.lower() == 'darkness':
@@ -37,7 +33,7 @@ class BeammapShifter(object):
         else:
             raise Exception('Provided instrument not implemented!')
 
-    def process(self):
+    def run(self):
         """
         From the feedline objects, determines if an appropriate shift was found, then applies the shift if it is
         :returns an Applied Shift vector (will be (nan, nan) if no shift applied), a Beammap object with the coordinates
@@ -52,6 +48,7 @@ class BeammapShifter(object):
             self.shiftedBeammap.xCoords = self.shiftedBeammap.xCoords + self.appliedShift[0]
             self.shiftedBeammap.yCoords = self.shiftedBeammap.yCoords + self.appliedShift[1]
             self.designArray = np.concatenate([f.fitDesign for f in self.feedlines], axis=1)
+            self.reshapeArrayWithCoordinates()
         else:
             self.shiftedBeammap = None
             self.designArray = None
@@ -74,6 +71,30 @@ class BeammapShifter(object):
                 self.appliedShift[1] = yshift
         if self.appliedShift[0] == np.nan or self.appliedShift[1] == np.nan:
             raise Exception('The beammap shifting code did not find a good best shift vector :(')
+
+    def reshapeArrayWithCoordinates(self):
+        """
+        Takes an array that is shaped like the device (x-by-y) where x and y are the number of pixels and each array
+        element is the design frequency at that point
+        returns: an object that has xCoordinates, yCoordinates, and Frequencies
+
+        The purpose of this is for lack of confusion when comparing design to measured frequencies in clean.py when
+        resolving doubles
+        """
+        xCoords = []
+        yCoords = []
+        designFrequencies = []
+        for y in range(len(self.designArray)):
+            for x in range(len(self.designArray[y])):
+                xCoords.append(x)
+                yCoords.append(y)
+                designFrequencies.append(self.designArray[y][x])
+
+        self.designXCoords = xCoords
+        self.designYCoords = yCoords
+        self.designFrequencies = designFrequencies
+
+        np.array(self.designXCoords), np.array(self.designYCoords), np.array(self.designFrequencies)
 
 
 class Feedline(object):
@@ -106,13 +127,13 @@ class Feedline(object):
         self.xcoords = np.floor(beammap.get('xcoords', self.flNum))
         self.ycoords = np.floor(beammap.get('ycoords', self.flNum))
         self.frequencies = beammap.get('frequencies', self.flNum)
-        self.minFreq = np.min(self.frequencies[np.isfinite(self.frequencies)])
         self.xshifts = np.linspace(-1 * self.maxX, self.maxX, (2 * self.maxX) + 1).astype(int)
         self.yshifts = np.linspace(-1 * self.maxY, self.maxY, (2 * self.maxY) + 1).astype(int)
         self.shiftedXcoords = np.full((len(self.yshifts), len(self.xshifts), len(self.xcoords)), np.nan)
         self.shiftedYcoords = np.full((len(self.yshifts), len(self.xshifts), len(self.ycoords)), np.nan)
-        self.residuals = np.full((len(self.yshifts), len(self.xshifts), len(self.xcoords)), np.nan)
-        self.matchedfreqs = np.full((len(self.yshifts), len(self.xshifts), 2, len(self.xcoords)), np.nan)
+        self.minFreq = None
+        self.residuals = None
+        self.matchedfreqs = None
         self.MAD_std = np.zeros(((2 * self.maxY + 1), (2 * self.maxX + 1)))
         self.std = np.zeros(((2 * self.maxY + 1), (2 * self.maxX + 1)))
         self.bestshiftXcoords = None
@@ -133,6 +154,7 @@ class Feedline(object):
         If a feedline was not read out on the array, this function will not try to shift/fit data
         """
         if not np.all(np.isnan(self.xcoords)) and not np.all(np.isnan(self.ycoords)):
+            self.minFreq = np.min(self.frequencies[np.isfinite(self.frequencies)])
             self.frequencies = self.frequencies - self.minFreq
             self.makeShiftCoords()
             self.findResidualsForAllShifts()
@@ -190,10 +212,13 @@ class Feedline(object):
         """
         For each (x,y) shift, return the frequency residuals when compared to the design feedline
         """
+        self.residuals = np.full((len(self.yshifts), len(self.xshifts), len(self.xcoords)), np.nan)
+        self.matchedfreqs = np.full((len(self.yshifts), len(self.xshifts), 2, len(self.xcoords)), np.nan)
         for i in range(len(self.yshifts)):
             for j in range(len(self.xshifts)):
-                self.residuals[i][j], self.matchedfreqs[i][j][0], self.matchedfreqs[i][j][1] = \
-                    self.matchMeastoDes(self.shiftedXcoords[i][j], self.shiftedYcoords[i][j])[0]
+                self.residuals[i][j] = self.matchMeastoDes(self.shiftedXcoords[i][j], self.shiftedYcoords[i][j])[0]
+                self.matchedfreqs[i][j][0] = self.matchMeastoDes(self.shiftedXcoords[i][j], self.shiftedYcoords[i][j])[1]
+                self.matchedfreqs[i][j][1] = self.matchMeastoDes(self.shiftedXcoords[i][j], self.shiftedYcoords[i][j])[2]
 
     def removeNaNsfromArray(self, array):
         array = array[np.isfinite(array)]

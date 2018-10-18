@@ -123,3 +123,9 @@ class Beammap:
         else:
             raise Exception('This is not a valid Beammap attribute')
 
+    def getResonatorData(self, resID):
+        index = np.where(self.resIDs == resID)[0][0]
+        resonator = [int(self.resIDs[index]), int(self.flags[index]), int(self.xCoords[index]), int(self.yCoords[index]),
+                          float(self.frequencies[index])]
+        return resonator
+
