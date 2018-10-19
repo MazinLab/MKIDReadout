@@ -56,7 +56,7 @@ HSFWERRORS = {0: 'No error has occurred. (cleared state)',
 
 _log = getLogger('HSFW')  #TODO this isn't best practice but i don't think it will matter here
 HSFW_PORT = 50000
-
+NUM_FILTERS=5
 global_KILL_SERVER = False
 
 
@@ -113,7 +113,7 @@ def connection_handler(conn):
             # if a network fault occues
             data = conn.recv(1024).strip()
 
-            if data == 'exit':
+            if 'exit' in data:
                 #TODO closeout filter
                 conn.sendall(b'exiting')  # confirm stop to control
                 global_KILL_SERVER = True
@@ -188,7 +188,7 @@ def _setfilter(num, home=False):
         getLogger(__name__).debug('Filter Wheel FW: {}'.format(wheel.FirmwareVersion))
         if home:
             getLogger(__name__).info('Homing...')
-            wheel.HomeDevice()  #HomeDevice_Async()
+            wheel.HomeDevice  #HomeDevice_Async()
             getLogger(__name__).info('Homing complete.')
         getLogger(__name__).info('Setting postion to {}'.format(num))
         wheel.CurrentPosition = num
@@ -199,9 +199,27 @@ def _setfilter(num, home=False):
         return error
 
 
-def setfilter(fnum, home=False, host='localhost:50000'):
+def setfilter(fnum, home=False, host='localhost:50000',killserver=False):
+    
+    if killserver:
+        host, port = host.split(':')
+        conn = connect(host, port)
+        conn.sendall('exit\n'.encode('utf-8'))
+        conn.sendall('exit\n'.encode('utf-8'))
+        data = conn.recv(2048).strip()
+        conn.close()
+        return data
+
+    try:
+        fnum=int(fnum)
+        if not 1<=fnum<=NUM_FILTERS:
+            raise ValueError('Not a number between 1-5')
+    except TypeError:
+        raise ValueError('Not a number between 1-5')
+
     host, port = host.split(':')
     conn = connect(host, port)
+
     try:
         conn.sendall('{}\n'.format(-fnum if home else fnum).encode('utf-8'))
         data = conn.recv(2048).strip()
