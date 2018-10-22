@@ -52,6 +52,8 @@ conex_fields = {
     'xpos': fields.Float,
     'ypos': fields.Float,
     'state': fields.String,
+    'limits': fields.Nested({'umin': fields.Float, 'umax': fields.Float,
+                             'vmin': fields.Float, 'vmax': fields.Float}),
     'last_dither': fields.Nested({'path': fields.List(fields.List(fields.Float)),
                                   'dither': fields.String,
                                   'start': fields.List(fields.Float),
@@ -70,7 +72,7 @@ class Conex(object):
                                      stopbits=stopbits, timeout=timeout, xonxoff=xonxoff)
         time.sleep(0.1)  # wait for port to open
         self.write('ID?')
-        print(self.read())
+        #print(self.read())
 
         self.status
 
@@ -101,7 +103,7 @@ class Conex(object):
         status = self.query('TS')
         getLogger('conex').debug("Status: " + status[7:-2])
         getLogger('conex').debug("Err State: " + status[3:-4])
-        return status
+        return status.strip()
 
     def write(self, command):
         """
@@ -151,6 +153,11 @@ class Conex(object):
             self._device.flush()  # wait for command to finish writing
             return self.read(bufferSize)
 
+    @property
+    def limits(self):
+        return dict(umin=self.u_lowerLimit, vmin=self.v_lowerLimit,
+                    umax=self.u_upperLimit, vmax=self.v_upperLimit)
+    
     def ready(self):
         """
         Checks the status of the conex
@@ -341,12 +348,22 @@ class ConexDummy(object):
 
 
 class ConexStatus(object):
-    def __init__(self, state='offline', pos=(np.NaN, np.NaN), status='', dither=None):
+    def __init__(self, state='offline', pos=(np.NaN, np.NaN), status='',
+                 dither=None, limits=None):
         self.state = state
         self.pos = pos
         self.status = status
         self.last_dither = dither
+        self.limits = limits
 
+    @property
+    def xpos(self):
+        return self.pos[0]
+
+    @property
+    def ypos(self):
+        return self.pos[1]
+    
     def print(self):
         print(self.state)
         print(self.pos)
@@ -394,12 +411,13 @@ class ConexManager(object):
         try:
             status = self.conex.status
             pos = self.conex.position()
+            getLogger('ConexManager').debug("Conex: {} @ pos {}".format(status,pos))
         except IOError:
             getLogger('ConexManager').error('Unable to get conex status',exc_info=True)
             self._halt = True
             self.state = 'offline'
         return ConexStatus(state=self.state, pos=pos, status=status,
-                           dither=self._dither_result)
+                           dither=self._dither_result, limits=self.conex.limits)
 
     def start_dither(self, id):
         """id is either a key into dithers or a dictionary for creating a dither """
@@ -413,6 +431,7 @@ class ConexManager(object):
 
     def start_move(self, x, y):
         self.state = 'processing'
+        getLogger('ConexManager').error("Starting move to {:.2f}, {:.2f}".format(x,y))
         self.stop(wait=True)
         self._movement_thread = Thread(target=self.move, args=(x, y,),
                                        name='Move to ({}, {})'.format(x,y))
@@ -432,6 +451,7 @@ class ConexManager(object):
         try:
             self.conex.move((x, y))
             self.wait_on_conex()
+            self.state = 'idle'
             return True
         except IOError as e:
             self.state = 'move to {:.2f}, {:.2f} failed'.format(x, y)
@@ -541,9 +561,9 @@ class MoveAPI(Resource):
 
     def __init__(self):
         self.reqparse = reqparse.RequestParser()
-        self.reqparse.add_argument('x', type=int, required=True,
+        self.reqparse.add_argument('x', type=float, required=True,
                                    help='Desired X position', location='json')
-        self.reqparse.add_argument('y', type=int, required=True,
+        self.reqparse.add_argument('y', type=float, required=True,
                                    help='Desired Y position', location='json')
         super(MoveAPI, self).__init__()
 
@@ -552,6 +572,7 @@ class MoveAPI(Resource):
 
     def post(self):
         args = self.reqparse.parse_args()
+        getLogger('ConexAPI').debug('API request to move to {:.2f}, {:.2f}'.format(args.x,args.y))
         conex_manager.start_move(args.x, args.y)
         return self.get(), 201
 
@@ -587,12 +608,12 @@ class DitherAPI(Resource):
         self.reqparse.add_argument('dither', type=dict, required=False, location='json')
 
         self.dither_parser = reqparse.RequestParser()
-        self.dither_parser.add_argument('startx', type=int, required=True, location='dither')
-        self.dither_parser.add_argument('starty', type=int, required=True, location='dither')
+        self.dither_parser.add_argument('startx', type=float, required=True, location='dither')
+        self.dither_parser.add_argument('starty', type=float, required=True, location='dither')
         self.dither_parser.add_argument('n', type=check_positive, required=True, location='dither')
         self.dither_parser.add_argument('t', type=check_positive, required=True, location='dither')
-        self.dither_parser.add_argument('endx', type=int, required=True, location='dither')
-        self.dither_parser.add_argument('endy', type=int, required=True, location='dither')
+        self.dither_parser.add_argument('endx', type=float, required=True, location='dither')
+        self.dither_parser.add_argument('endy', type=float, required=True, location='dither')
         super(DitherAPI, self).__init__()
 
     def get(self):
@@ -622,12 +643,12 @@ def dither(id='default', start=None, end=None, n=1, t=1, address='http://localho
                'n': n, 't': t}
     else:
         req = {'id': id}
-    r = requests.post(address+'/dither/', json=req)
-
+    r = requests.post(address+'/dither', json=req)
+    return r
 
 def move(x,y, address='http://localhost:5000'):
-    r = requests.post(address+'/move/', json={'x': x, 'y': y})
-
+    r = requests.post(address+'/move', json={'x': x, 'y': y})
+    return r
 
 def status(address='http://localhost:5000'):
     r = requests.get(address + '/conex')
@@ -638,6 +659,9 @@ def status(address='http://localhost:5000'):
     return ret
 
 
+def stop(address='http://localhost:5000'):
+    r = requests.post(address+'/conex', json={'command': 'stop'})
+
 if __name__=='__main__':
     api.add_resource(MoveAPI, '/move', endpoint='move')
     api.add_resource(DitherAPI, '/dither', endpoint='dither')
@@ -645,17 +669,3 @@ if __name__=='__main__':
 
     conex_manager = ConexManager(port='COM9')
     app.run(debug=True)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
