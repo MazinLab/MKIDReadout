@@ -84,6 +84,14 @@ class Beammap:
         newBeammap.yCoords = np.copy(self.yCoords)
         return newBeammap
 
+    def getResonatorsAtCoordinate(self, xCoordinate, yCoordinate):
+        indices = np.where((self.xCoords == xCoordinate) & (self.yCoords == yCoordinate))[0]
+        resonators = []
+        for idx in indices:
+            resonators.append(self.getResonatorData(self.resIDs[idx]))
+        return np.array(resonators)
+
+
     def get(self, attribute='', flNum=None):
         """
         :params attribute and flNum:
@@ -129,3 +137,35 @@ class Beammap:
                           float(self.frequencies[index])]
         return resonator
 
+
+class DesignArray:
+
+    def __init__(self):
+        self.designArray = np.empty(0)
+        self.designXCoords = np.empty(0)
+        self.designYCoords = np.empty(0)
+        self.designFrequencies = np.empty(0)
+
+    def load(self, designData):
+        self.designArray = designData
+
+    def reshape(self):
+        xCoords = []
+        yCoords = []
+        designFrequencies = []
+        for y in range(len(self.designArray)):
+            for x in range(len(self.designArray[y])):
+                xCoords.append(x)
+                yCoords.append(y)
+                designFrequencies.append(self.designArray[y][x])
+
+        self.designXCoords = np.array(xCoords)
+        self.designYCoords = np.array(yCoords)
+        self.designFrequencies = np.array(designFrequencies)
+
+    def getDesignFrequencyFromCoords(self, coordinate):
+        xCoord = coordinate[0]
+        yCoord = coordinate[1]
+        index = int(np.where((self.designXCoords == xCoord) & (self.designYCoords == yCoord))[0])
+        designFrequencyAtCoordinate = self.designFrequencies[index]
+        return designFrequencyAtCoordinate

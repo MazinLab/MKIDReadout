@@ -2,7 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from astropy.stats import mad_std
 import scipy.optimize as opt
-from mkidreadout.configuration.beammap.beammap import Beammap
+from mkidreadout.configuration.beammap.beammap import Beammap, DesignArray
 from mkidreadout.configuration.beammap.utils import isResonatorOnCorrectFeedline, placeResonatorOnFeedline
 
 class BeammapShifter(object):
@@ -22,10 +22,7 @@ class BeammapShifter(object):
         self.appliedShift = np.array((np.nan, np.nan))
         self.shiftedBeammap = Beammap()
         self.feedlineShifts = None
-        self.designArray = None
-        self.designXCoords = None
-        self.designYCoords = None
-        self.designFrequencies = None
+        self.designArray = DesignArray
         if self.instrument.lower() == 'mec':
             self.feedlines = [Feedline(i, self.beammap, self.design, instrument='mec') for i in range(1, 11)]
         elif self.instrument.lower() == 'darkness':
@@ -47,8 +44,9 @@ class BeammapShifter(object):
             self.shiftedBeammap.setData(shiftedData)
             self.shiftedBeammap.xCoords = self.shiftedBeammap.xCoords + self.appliedShift[0]
             self.shiftedBeammap.yCoords = self.shiftedBeammap.yCoords + self.appliedShift[1]
-            self.designArray = np.concatenate([f.fitDesign for f in self.feedlines], axis=1)
-            self.reshapeArrayWithCoordinates()
+            tempDesignArray = np.concatenate([f.fitDesign for f in self.feedlines], axis=1)
+            self.designArray.load(tempDesignArray)
+            self.designArray.reshape()
         else:
             self.shiftedBeammap = None
             self.designArray = None
@@ -71,30 +69,6 @@ class BeammapShifter(object):
                 self.appliedShift[1] = yshift
         if self.appliedShift[0] == np.nan or self.appliedShift[1] == np.nan:
             raise Exception('The beammap shifting code did not find a good best shift vector :(')
-
-    def reshapeArrayWithCoordinates(self):
-        """
-        Takes an array that is shaped like the device (x-by-y) where x and y are the number of pixels and each array
-        element is the design frequency at that point
-        returns: an object that has xCoordinates, yCoordinates, and Frequencies
-
-        The purpose of this is for lack of confusion when comparing design to measured frequencies in clean.py when
-        resolving doubles
-        """
-        xCoords = []
-        yCoords = []
-        designFrequencies = []
-        for y in range(len(self.designArray)):
-            for x in range(len(self.designArray[y])):
-                xCoords.append(x)
-                yCoords.append(y)
-                designFrequencies.append(self.designArray[y][x])
-
-        self.designXCoords = xCoords
-        self.designYCoords = yCoords
-        self.designFrequencies = designFrequencies
-
-        np.array(self.designXCoords), np.array(self.designYCoords), np.array(self.designFrequencies)
 
 
 class Feedline(object):

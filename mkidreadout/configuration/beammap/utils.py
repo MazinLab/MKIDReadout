@@ -9,6 +9,7 @@ from numba import jit
 import ConfigParser
 import scipy.optimize as spo
 from mkidreadout.configuration.beammap.flags import beamMapFlags
+import itertools
 
 MEC_FL_WIDTH = 14
 MEC_FL_LENGTH = 146
@@ -523,3 +524,9 @@ def placeResonatorOnFeedline(xCoord,yCoord,instrument):
         y = int(yCoord % DARKNESS_FL_WIDTH)
 
     return x,y
+
+def generateCoords(coordinate, xSlack, ySlack):
+    xCoords = np.linspace(coordinate[0]-xSlack, coordinate[0]+xSlack, 2*xSlack+1).astype(int)
+    yCoords = np.linspace(coordinate[0]-ySlack, coordinate[0]+ySlack, 2*ySlack+1).astype(int)
+    coordinateList = list(itertools.product(xCoords, yCoords))
+    return coordinateList
