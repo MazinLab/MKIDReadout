@@ -23,9 +23,12 @@ import binascii
 from functools import partial
 import subprocess
 import numpy as np
+from PyQt4 import QtCore
 from PyQt4.QtCore import Qt
-import PyQt4.QtCore as QtCore
+from PyQt4.QtGui import *
+
 import mkidcore.config
+import time
 from mkidcore.corelog import getLogger, setup_logging
 from mkidreadout.readout.guiwindows import PixelTimestreamWindow, PixelHistogramWindow
 from mkidreadout.readout.lasercontrol import LaserControl
@@ -33,7 +36,9 @@ from mkidreadout.readout.Telescope import *
 from mkidreadout.channelizer.Roach2Controls import Roach2Controls
 from mkidreadout.utils.utils import interpolateImage
 
+from mkidreadout.readout.packetmaster import Packetmaster
 import mkidreadout.hardware.conex
+from socket import inet_aton
 import mkidreadout.hardware.hsfw
 import threading
 
@@ -244,14 +249,14 @@ class ConvertPhotonsToRGB(QtCore.QObject):
         redMask[self.redPixels] = np.uint32(0)
         #           24-32 -> A  16-24 -> R     8-16 -> G      0-8 -> B
         imageRGB = (255 << 24 | image2 << 16 | redMask << 8 | redMask).flatten()    # pack into RGBA
-        q_im = QtGui.QImage(imageRGB,self.image.shape[1],self.image.shape[0],QImage.Format_RGB32)
+        q_im = QtCore.QtGui.QImage(imageRGB,self.image.shape[1],self.image.shape[0],QImage.Format_RGB32)
         
         self.convertedImage.emit(q_im)
 
 
 class MKIDDashboard(QMainWindow):
     """
-    Dashboard for seeing realtime DARKNESS images
+    Dashboard for seeing realtime images
     
     SIGNALS:
         newImageProcessed() - emited after processing and plotting a new image. Also whenever the current pixel selection changes
@@ -277,8 +282,8 @@ class MKIDDashboard(QMainWindow):
         self.histogramWindows = []                  # Holds PixelHistogramWindow objects
         self.selectedPixels=set()                   # Holds the pixels currently selected
         self.observing = observing                  # Indicates if packetmaster is currently writing data to disk
-        self.darkField = None                         # Holds a dark image for subtracting
-        self.flatField = None                         # Holds a flat image for normalizing
+        self.darkField = None                       # Holds a dark image for subtracting
+        self.flatField = None                       # Holds a flat image for normalizing
 
         self.roachList = None
 
@@ -295,8 +300,8 @@ class MKIDDashboard(QMainWindow):
             self.packetmaster = Packetmaster(self.config.roaches, ramdisk=self.packetmaster.ramdisk,
                                              detinfo=(self.config.detector.ncols, self.config.detector.nrows),
                                              nuller=self.config.packetmaster.nuller)
-            self.packetmaster.start()
         else:
+            self.packetmaster = None
             getLogger('Dashboard').info('Packetmaster not started. Start manually...')
 
         #Laser Controller
@@ -317,7 +322,7 @@ class MKIDDashboard(QMainWindow):
         self.setWindowTitle(self.config.instrument+' Dashboard')
         self.create_image_widget()
         self.create_dock_widget()
-        self.contextMenu = QtGui.QMenu(self)    # pops up on right click
+        self.contextMenu = QMenu(self)    # pops up on right click
         self.create_menu()  # file menu
         
         #Connect to ROACHES and initialize network port in firmware
@@ -550,7 +555,7 @@ class MKIDDashboard(QMainWindow):
 
     def stopDithering(self):
         r = mkidreadout.hardware.conex.stop(address=self.config.dither.url)
-        if r is not error:
+        if not r.haserrors:
             getLogger('Dashboard').info('Dither halted by user.')
             self.button_dither.setText('Start Dithering')
             self.button_dither.clicked.disconnect()
@@ -759,12 +764,12 @@ class MKIDDashboard(QMainWindow):
         INPUTS:
             event - QGraphicsSceneMouseEvent
         """
-        if event.button() == Qt.LeftButton:
+        if event.button() == QtCore.LeftButton:
             self.clicking=True
             x_pos = int(np.floor(event.pos().x()/self.config.getint('properties','image_scale')))
             y_pos = int(np.floor(event.pos().y()/self.config.getint('properties','image_scale')))
             getLogger('Dashboard').info('Clicked (' + str(x_pos) + ' , ' + str(y_pos) + ')')
-            if QtGui.QApplication.keyboardModifiers() != QtCore.Qt.ShiftModifier:
+            if QtCore.QtGui.QApplication.keyboardModifiers() != QtCore.ShiftModifier:
                 self.selectedPixels=set()
                 self.removeAllPixelBoxLines()
             self.pixelClicked=[x_pos,y_pos]
@@ -812,7 +817,7 @@ class MKIDDashboard(QMainWindow):
         INPUTS:
             event - QGraphicsSceneMouseEvent
         """
-        if event.button() == Qt.LeftButton and self.clicking:
+        if event.button() == QtCore.LeftButton and self.clicking:
             self.clicking=False
             x_pos = int(np.floor(event.pos().x()/self.config.getint('properties','image_scale')))
             y_pos = int(np.floor(event.pos().y()/self.config.getint('properties','image_scale')))
@@ -1115,7 +1120,7 @@ class MKIDDashboard(QMainWindow):
 
     def logstate(self):
         targ, cmt = self.textbox_target.text(), self.textbox_log.toPlainText()
-        state = InstrumentState(target=targ, comment=cmt, flipper=None, laser)
+        # state = InstrumentState(target=targ, comment=cmt, flipper=None, laser)
         getLogger().info(state)
 
     def printLogs(self, num=10):
@@ -1148,6 +1153,7 @@ class MKIDDashboard(QMainWindow):
         textbox_dataDir.setText(dataDir)
         textbox_dataDir.textChanged.connect(partial(self.changedSetting,'data_dir'))
         textbox_dataDir.setEnabled(False)
+
         # Start observing button
         self.button_obs = QPushButton("Start Observing")
         font = self.button_obs.font()
@@ -1155,6 +1161,7 @@ class MKIDDashboard(QMainWindow):
         self.button_obs.setFont(font)
         self.button_obs.setEnabled(not self.observing)
         self.button_obs.clicked.connect(self.startObs)
+
         # Stop observing button
         self.button_stop = QPushButton("Stop Observing")
         self.button_stop.setEnabled(self.observing)
@@ -1364,14 +1371,11 @@ class MKIDDashboard(QMainWindow):
         hbox_target.addWidget(self.textbox_target)
         #hbox_target.addStretch()
         vbox.addLayout(hbox_target)
-        
-        vbox.addWidget(textbox_log)
-        
+
         hbox_log = QHBoxLayout()
         hbox_log.addWidget(label_autolog)
         hbox_log.addWidget(spinbox_autolog)
         hbox_log.addStretch()
-        hbox_log.addWidget(button_log)
         vbox.addLayout(hbox_log)
 
         hbox_log.addWidget(self.button_dither)
@@ -1437,7 +1441,7 @@ class MKIDDashboard(QMainWindow):
         
         obs_widget.setLayout(vbox)
         obs_dock_widget.setWidget(obs_widget)
-        self.addDockWidget(Qt.LeftDockWidgetArea,obs_dock_widget)
+        self.addDockWidget(Qt.LeftDockWidgetArea, obs_dock_widget)
 
     def create_image_widget(self):
         """
@@ -1464,7 +1468,7 @@ class MKIDDashboard(QMainWindow):
         #self.imageFrame.setFrameShadow(QtGui.QFrame.Sunken)
         #self.imageFrame.setSizePolicy(QSizePolicy.Fixed,QSizePolicy.Fixed)
         
-        q_image=QImage(1,1,QImage.Format_Mono)
+        q_image=QImage(1, 1, QImage.Format_Mono)
         q_image.fill(Qt.black)
         #grview = QGraphicsView(self.imageFrame)
         grview = QGraphicsView()
@@ -1480,8 +1484,8 @@ class MKIDDashboard(QMainWindow):
         self.grPixMap.setGraphicsEffect(blurEffect)
         self.grPixMap.graphicsEffect().setEnabled(False)
         grview.setScene(scene)
-        grview.setVerticalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
-        grview.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
+        grview.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        grview.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         grview.setContextMenuPolicy(Qt.CustomContextMenu)
         grview.customContextMenuRequested.connect(self.showContextMenu)
         grview.setAlignment(Qt.AlignTop | Qt.AlignLeft)

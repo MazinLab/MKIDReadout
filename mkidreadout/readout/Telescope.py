@@ -7,11 +7,13 @@ This class grabs info from the Palomar telescope
 from socket import *
 import time, math
 import datetime
-from PyQt4 import QtGui
 from PyQt4.QtGui import *
 from PyQt4 import QtCore
 import ephem
 from mkidcore.corelog import getLogger
+
+__all__ = ['TelescopeWindow', 'Telescope']
+
 
 try:
     from SDR.DataReadout.ReadoutControls.lib.getSeeing import getPalomarSeeing  # From old SDR code
