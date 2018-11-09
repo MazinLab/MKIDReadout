@@ -22,7 +22,7 @@ class BeammapShifter(object):
         self.appliedShift = np.array((np.nan, np.nan))
         self.shiftedBeammap = Beammap()
         self.feedlineShifts = None
-        self.designArray = DesignArray
+        self.designArray = DesignArray()
         if self.instrument.lower() == 'mec':
             self.feedlines = [Feedline(i, self.beammap, self.design, instrument='mec') for i in range(1, 11)]
         elif self.instrument.lower() == 'darkness':

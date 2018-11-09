@@ -91,7 +91,6 @@ class Beammap:
             resonators.append(self.getResonatorData(self.resIDs[idx]))
         return np.array(resonators)
 
-
     def get(self, attribute='', flNum=None):
         """
         :params attribute and flNum:
@@ -137,9 +136,22 @@ class Beammap:
                           float(self.frequencies[index])]
         return resonator
 
+    def beammapDict(self):
+        return {'resID': self.resIDs, 'freqCh': self.freqs, 'xCoord': self.xCoords,
+                'yCoord': self.yCoords, 'flag': self.flags}
+
 
 class DesignArray:
-
+    """
+    Wrapper for a design array. Given an array whose elements are design frequencies, gives a
+    list of x- and y- coordinates and corresponding design frequencies. Typically used with the
+    Beammap Shifter class to allow for easy searching of modified (fitted) design frequencies
+    attr:
+    designXCoords
+    designYcoords
+    designFrequencies
+    designArray (this is the 'shaped' version of what will be turned into lists)
+    """
     def __init__(self):
         self.designArray = np.empty(0)
         self.designXCoords = np.empty(0)
@@ -147,9 +159,18 @@ class DesignArray:
         self.designFrequencies = np.empty(0)
 
     def load(self, designData):
+        """
+        Loads in data
+        :param designData:
+        :return: Set the designArray attribute
+        """
         self.designArray = designData
 
     def reshape(self):
+        """
+        Reshapes the array into lists for easy searching
+        :return:
+        """
         xCoords = []
         yCoords = []
         designFrequencies = []
@@ -164,6 +185,11 @@ class DesignArray:
         self.designFrequencies = np.array(designFrequencies)
 
     def getDesignFrequencyFromCoords(self, coordinate):
+        """
+        Given an (x, y) coordinate, return the design frequency there
+        :param coordinate:
+        :return:
+        """
         xCoord = coordinate[0]
         yCoord = coordinate[1]
         index = int(np.where((self.designXCoords == xCoord) & (self.designYCoords == yCoord))[0])

@@ -215,7 +215,8 @@ class BMCleaner:
 
     def resolveOverlapWithFrequency(self, shifterObject):
         """
-        Given a shifted beammap object that has frequency data, resolve doubles
+        Given a shifted beammap object that has frequency data, resolve doubles. Beammap object from shifterObject
+        is modified.
         """
         beammap = shifterObject.shiftedBeammap
         designMap = shifterObject.designArray
@@ -262,7 +263,7 @@ class BMCleaner:
 
             for i in range(len(placementsToSearch)):
                 for j in range(len(doubles)):
-                    residuals += abs(doubles[j][4]-freqsToSearch[placementsToSearch[i][j]])
+                    residuals[i] += abs(doubles[j][4]-freqsToSearch[placementsToSearch[i][j]])
 
             index = np.where(residuals == min(residuals))[0][0]
             bestPlacement = placementsToSearch[index]
@@ -277,6 +278,7 @@ class BMCleaner:
                 index = np.where(beammap.resIDs == resonator[0])[0]
                 beammap.xCoords[index] = newCoordinate[0]
                 beammap.yCoords[index] = newCoordinate[1]
+                beammap.flags[index] = beamMapFlags['good']
 
             numberOfOverlapsResolved += 1
 
@@ -342,13 +344,14 @@ if __name__=='__main__':
 
 
     #load location data from rough BM file
-    rawBM = Beammap()
-    rawBM.load(rawPath)
+    rawBM = Beammap(rawPath)
     rawBM.loadFrequencies(frequencySweepPath)
-   
-    cleaner = BMCleaner(rawBM, int(configData['numRows']), int(configData['numCols']), configData['flip'], configData['instrument'])
+
     shifter = shift.BeammapShifter(designFile, rawBM, configData['instrument'])
     shifter.run()
+    cleaner = BMCleaner(shifter.shiftedBeammap, int(configData['numRows']), int(configData['numCols']), configData['flip'], configData['instrument'])
+    cleaner.fixPreciseCoordinates()
+    cleaner.placeOnGrid()
     cleaner.resolveOverlapWithFrequency(shifter)
 
     cleaner.fixPreciseCoordinates() #fix wrong feedline and oob coordinates
