@@ -1,11 +1,10 @@
 import numpy as np
-import matplotlib.pyplot as plt
 import pkg_resources as pkg
-import os
-import mkidreadout.configuration.beammap.flags as flags
-import mkidreadout.configuration.beammap.utils as utils
+from glob import glob
+import copy
 
-class Beammap:
+
+class Beammap(object):
     """
     Simple wrapper for beammap file. 
     Attributes:
@@ -14,8 +13,7 @@ class Beammap:
         xCoords
         yCoords
     """
-    
-    def __init__(self, beammap):
+    def __init__(self, file=None, default='MEC'):
         """
         Constructor.
         
@@ -26,27 +24,17 @@ class Beammap:
                     If instrument (either 'mec' or 'darkness'), loads corresponding
                         default beammap. 
                     If instance of Beammap, creates a copy
-
         """
-        if isinstance(beammap, str):
-            if os.path.isfile(beammap):
-                self.load(beammap)
-            elif beammap.lower()=='mec':
-                self.load(pkg.resource_filename(__name__, 'mec.bmap'))
-            elif beammap.lower()=='darkness':
-                self.load(pkg.resource_filename(__name__, 'darkness.bmap'))
-            else:
-                raise Exception('Must specify beammap file or instrument name')
-                
-        elif isinstance(beammap, Beammap):
-            self.resIDs = beammap.resIDs.copy()
-            self.flags = beammap.flags.copy()
-            self.xCoords = beammap.xCoords.copy()
-            self.yCoords = beammap.yCoords.copy()
-
+        if file is not None:
+            self._load(file)
         else:
-            raise Exception('Input must be either Beammap instance or string')
+            try:
+                self._load(pkg.resource_filename(__name__, '{}.bmap'.format(default.lower())))
+            except IOError:
 
+                opt = ', '.join([f.rstrip('.bmap').upper()
+                                 for f in glob(pkg.resource_filename(__name__, '*.bmap'))])
+                raise ValueError('Unknown default beampmap "{}". Options: {}'.format(default, opt))
 
     def setData(self, bmData):
         """
@@ -59,7 +47,7 @@ class Beammap:
         self.xCoords = np.array(bmData[:,2])
         self.yCoords = np.array(bmData[:,3])
 
-    def load(self, filename):
+    def _load(self, filename):
         """
         Loads beammap data from filename
         """
@@ -82,5 +70,5 @@ class Beammap:
         """
         Returns a deep copy of itself
         """
-        return Beammap(self)
+        return copy.deepcopy(self)
 
