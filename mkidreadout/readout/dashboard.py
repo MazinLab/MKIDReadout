@@ -23,14 +23,20 @@ import binascii
 from functools import partial
 import subprocess
 import numpy as np
-import ConfigParser
 from PyQt4.QtCore import Qt
-from mkidcore.corelog import getLogger
+import PyQt4.QtCore as QtCore
+import mkidcore.config
+from mkidcore.corelog import getLogger, setup_logging
 from mkidreadout.readout.guiwindows import PixelTimestreamWindow, PixelHistogramWindow
-from mkidreadout.readout.LaserControl import LaserControl
+from mkidreadout.readout.lasercontrol import LaserControl
 from mkidreadout.readout.Telescope import *
 from mkidreadout.channelizer.Roach2Controls import Roach2Controls
 from mkidreadout.utils.utils import interpolateImage
+
+import mkidreadout.hardware.conex
+import mkidreadout.hardware.hsfw
+import threading
+
 
 class ImageSearcher(QtCore.QObject):     #Extends QObject for use with QThreads
     """
@@ -116,118 +122,6 @@ class ImageSearcher(QtCore.QObject):     #Extends QObject for use with QThreads
         #image = np.asarray(struct.unpack(fmt,data), dtype=np.int)
         #image=image.reshape((self.nRows,self.nCols))
         return image
-
-
-class Ditherer(QtCore.QObject):
-    """
-    Controls automatic dithering w/ P3K or picomotor (not yet implemented here)
-    """
-    finished = QtCore.pyqtSignal()
-    
-    def __init__(self, name, ditherCfgFileName, parent=None):
-        super(QtCore.QObject, self).__init__(parent)
-        self.ditherCfgFile = ''
-        #Setup Dither Controller
-        self.ditherController = None
-        raise ValueError(name+ ' is not a known dither controller.')
-        self.ditherCfgFileName = ditherCfgFileName
-
-    def ditherLoop(self, nXMoves=3, nYMoves=2, xSpacing=2, ySpacing=2, dt=5):
-        self.ditherCfgFile = open(self.ditherCfgFileName, 'a')
-        self.ditherCfgFile.write('\n')
-        timeList = [int(time.time())]
-        xPosList, yPosList = [0], [0]
-        curXPos, curYPos = 0, 0
-        yMoveSign = 1
-        for i in range(nXMoves):
-            self.ditherController.moveLeft(xSpacing)
-            curXPos += xSpacing
-            timeList.append(int(time.time()))
-            xPosList.append(curXPos)
-            yPosList.append(curYPos)
-            time.sleep(dt)
-            
-            for j in range(nYMoves):
-                self.ditherController.moveUp(yMoveSign*ySpacing)
-                curYPos += yMoveSign*ySpacing
-                timeList.append(int(time.time()))
-                xPosList.append(curXPos)
-                yPosList.append(curYPos)
-                time.sleep(dt)
-            yMoveSign*=-1
-        
-        if yMoveSign == -1:
-            self.ditherController.moveUp(-ySpacing*nYMoves)
-            time.sleep(dt)
-
-        self.ditherController.moveLeft(-xSpacing*nXMoves)
-
-        self.ditherCfgFile.write('x offsets: ' + str(xPosList) + '\n')
-        self.ditherCfgFile.write('y offsets: ' + str(yPosList) + '\n')
-        self.ditherCfgFile.write('times: ' + str(timeList) + '\n')
-        self.ditherCfgFile.close()
-        
-        self.ditherController.moveLeft(-xSpacing*nXMoves)
-        self.ditherController.moveUp(-ySpacing*nYMoves)
-        self.finished.emit()
-
-''' LASERTHREAD WORK IN PROGRESS     
-class LaserCal(QtCore.QObject):
-    """ Controls laser cal in separate thread"""
-    finished = QtCore.pyqtSignal()
-    
-    def __init__(self, calCfgFileName, parent=None):        
-        super(QtCore.QObject, self).__init__(parent)
-        #Setup Laser Controller
-        self.calCfgFileName = calCfgFileName
-
-    def laserLoop(self, calStyle, laserString, laserTime):
-        # if style is simultaneous turn on all 3 lasers at once
-        # if style is individual, turn them on one at at time
-        # keep track of start and stop timestamp when each laser was on
-        # write lists of lasers, start, and stop times to cfg file
-        
-    def ditherLoop(self, nXMoves=3, nYMoves=2, xSpacing=2, ySpacing=2, dt=5):
-        self.ditherCfgFile = open(self.ditherCfgFileName, 'a')
-        self.ditherCfgFile.write('\n')
-        timeList = [int(time.time())]
-        xPosList = [0]
-        yPosList = [0]
-        curXPos = 0
-        curYPos = 0
-        yMoveSign = 1
-        for i in range(nXMoves):
-            self.ditherController.moveLeft(xSpacing)
-            curXPos += xSpacing
-            timelist.append(int(time.time()))
-            xPosList.append(curXPos)
-            yPosList.append(curYPos)
-            time.sleep(dt)
-            
-            for j in range(nYMoves):
-                self.ditherController.moveUp(yMoveSign*ySpacing)
-                curYPos += yMoveSign*ySpacing
-                timeList.append(int(time.time()))
-                xPosList.append(curXPos)
-                yPosList.append(curYPos)
-                time.sleep(dt)
-            yMoveSign*=-1
-        
-        if yMoveSign == -1:
-            self.ditherController.moveUp(-ySpacing*nYMoves)
-            time.sleep(dt)
-
-        self.ditherController.moveLeft(-xSpacing*nXMoves)
-
-        self.ditherCfgFile.write('x offsets: ' + str(xPosList) + '\n')
-        self.ditherCfgFile.write('y offsets: ' + str(yPosList) + '\n')
-        self.ditherCfgFile.write('times: ' + str(timeList) + '\n')
-        self.ditherCfgFile.close()
-        
-        self.ditherController.moveLeft(-xSpacing*nXMoves)
-        self.ditherController.moveUp(-ySpacing*nYMoves)
-        self.finished.emit()
-'''
 
 
 class ConvertPhotonsToRGB(QtCore.QObject):
@@ -364,7 +258,7 @@ class MKIDDashboard(QMainWindow):
     """
     newImageProcessed = QtCore.pyqtSignal()
     
-    def __init__(self, roachNums, config=None, observing=False, parent=None):
+    def __init__(self, roachNums, config='./dashboard.yml', observing=False, parent=None, offline=False):
         """
         INPUTS:
             roachNums - List of roach numbers to connect with
@@ -372,10 +266,9 @@ class MKIDDashboard(QMainWindow):
             observing - indicates if packetmaster is currently writing data to disk
             parent -
         """
-        self.config = ConfigParser.ConfigParser()
-        if config is None:
-            config = 'dashboard.cfg'
-        self.config.read(config)
+        self.config = mkidcore.config.load(config)
+        self.offline = offline
+
         # important variables
         self.threadPool=[]                          # Holds all the threads so they don't get lost. Also, they're garbage collected if they're attributes of self
         self.workers=[]                             # Holds workder objects corresponding to threads
@@ -384,8 +277,11 @@ class MKIDDashboard(QMainWindow):
         self.histogramWindows = []                  # Holds PixelHistogramWindow objects
         self.selectedPixels=set()                   # Holds the pixels currently selected
         self.observing = observing                  # Indicates if packetmaster is currently writing data to disk
-        self.darkField=None                         # Holds a dark image for subtracting
-        self.flatField=None                         # Holds a flat image for normalizing
+        self.darkField = None                         # Holds a dark image for subtracting
+        self.flatField = None                         # Holds a flat image for normalizing
+
+        self.roachList = None
+
         # Often overwritten variables
         self.clicking=False                         # Flag to indicate we've pressed the left mouse button and haven't released it yet
         self.pixelClicked = None                    # Holds the pixel clicked when mouse is pressed
@@ -394,40 +290,31 @@ class MKIDDashboard(QMainWindow):
         self.takingFlat = -1                        # Flag for taking flat image. Indicates number of images we still need for flatField image
         
         # Initialize PacketMaster8
-        getLogger('Dashboard').info('Initializing packetmaster...')
-        packetMaster_path=self.config.get('properties','packetMaster_path')
-        packetMasterLog_path = self.config.get('properties','packetMasterLog_path')
-        #command = "sudo nice -n -10 %s >> %s"%(packetMaster_path, packetMasterLog_path)
-        #command = "%s >> %s"%(packetMaster_path, packetMasterLog_path)
-        #print command
-        #QtCore.QTimer.singleShot(50,partial(subprocess.Popen,command,shell=True))
-        packetMasterCfg = open(os.path.join(os.path.dirname(packetMaster_path), 'PacketMaster.cfg'), 'w')
-        packetMasterCfg.write(self.config.get('properties', 'cuber_ramdisk') + '\n')
-        packetMasterCfg.write(str(self.config.get('properties', 'ncols')) + ' ' + str(self.config.get('properties', 'nrows')) + '\n')
-        packetMasterCfg.write(str(self.config.get('properties', 'use_nuller')) + '\n')
-        packetMasterCfg.write(str(len(roachNums)))
-        packetMasterCfg.close()
+        if self.config.spawn_packetmaster and not self.offline:
+            getLogger('Dashboard').info('Initializing packetmaster...')
+            self.packetmaster = Packetmaster(self.config.roaches, ramdisk=self.packetmaster.ramdisk,
+                                             detinfo=(self.config.detector.ncols, self.config.detector.nrows),
+                                             nuller=self.config.packetmaster.nuller)
+            self.packetmaster.start()
+        else:
+            getLogger('Dashboard').info('Packetmaster not started. Start manually...')
 
         #Laser Controller
         getLogger('Dashboard').info('Setting up laser control...')
-        laserIP=self.config.get('properties','laserIPaddress')
-        laserPort=self.config.getint('properties','laserPort')
-        laserReceivePort = self.config.getint('properties','laserReceivePort')
-        self.laserController = LaserControl(laserIP,laserPort,laserReceivePort)
+        self.laserController = LaserControl(self.config.lasercontrol.ip, self.config.lasercontrol.port,
+                                            self.config.lasercontrol.receive_port)
         
         #telscope TCS connection
         getLogger('Dashboard').info('Setting up telescope connection...')
-        telescopeIP=self.config.get('properties','telescopeIPaddress')
-        telescopePort=self.config.getint('properties','telescopePort')
-        telescopeReceivePort = self.config.getint('properties','telescopeReceivePort')
-        self.telescopeController = Telescope(telescopeIP,telescopePort,telescopeReceivePort)
+        self.telescopeController = Telescope(self.config.telescope.ip, self.config.telescope.port,
+                                             self.config.telescope.receive_port)
         self.telescopeWindow = TelescopeWindow(self.telescopeController)
         
 
         #Setup GUI
         getLogger('Dashboard').info('Setting up GUI...')
         super(QMainWindow, self).__init__(parent)
-        self.setWindowTitle(self.config.get('properties','instrument')+' Dashboard')
+        self.setWindowTitle(self.config.instrument+' Dashboard')
         self.create_image_widget()
         self.create_dock_widget()
         self.contextMenu = QtGui.QMenu(self)    # pops up on right click
@@ -435,13 +322,16 @@ class MKIDDashboard(QMainWindow):
         
         #Connect to ROACHES and initialize network port in firmware
         getLogger('Dashboard').info('Connecting roaches and loading beammap...')
-        self.connectToRoaches(roachNums)
-        self.turnOnPhotonCapture()
-        self.loadBeammap()
+        if not self.offline:
+            self.connectToRoaches(roachNums)
+            self.turnOnPhotonCapture()
+            self.loadBeammap()
         
         # Setup search for image files from cuber
         getLogger('Dashboard').info('Setting up image searcher...')
-        darkImageSearcher = ImageSearcher(self.config.get('properties','cuber_ramdisk'), self.config.getint('properties','ncols'),self.config.getint('properties','nrows'),parent=None)
+        darkImageSearcher = ImageSearcher(self.config.packetmaster.ramdisk,
+                                          self.config.detector.ncols,
+                                          self.config.detector.nrows, parent=None)
         self.workers.append(darkImageSearcher)
         thread = QtCore.QThread(parent=self)
         self.threadPool.append(thread)
@@ -450,24 +340,9 @@ class MKIDDashboard(QMainWindow):
         thread.started.connect(darkImageSearcher.checkDir)
         darkImageSearcher.imageFound.connect(self.convertImage)
         darkImageSearcher.finished.connect(thread.quit)
-        QtCore.QTimer.singleShot(10,self.threadPool[0].start) #start the thread after a second
+        if not self.offline:
+            QtCore.QTimer.singleShot(10, thread.start) #start the thread after a second
 
-        # Setup dithering thread
-        try:
-            darkDitherer = Ditherer(self.config.get('properties', 'ditherController'),
-                                    self.config.get('properties', 'ditherCFGFile'))
-            self.workers.append(darkDitherer)
-            ditherThread = QtCore.QThread(parent=self)
-            self.threadPool.append(ditherThread)
-            ditherThread.setObjectName("DARKDitherer")
-            darkDitherer.moveToThread(ditherThread)
-            ditherThread.started.connect(darkDitherer.ditherLoop)
-            darkDitherer.finished.connect(ditherThread.quit)
-            darkDitherer.finished.connect(self.stopDithering)
-        except:
-            getLogger('Dashboard').info("Could not initialize Dither thread. Disabling dithers")
-            self.button_dither.setEnabled(False)
-            
 
         ''' LASERCAL WORK IN PROGRESS
         # Setup laser cal thread
@@ -525,16 +400,12 @@ class MKIDDashboard(QMainWindow):
         """
         self.roachList = []
         for roachNum in roachNums:
-            ipaddress = self.config.get('Roach '+str(roachNum),'ipaddress')
-            roachParamFile = self.config.get('Roach '+str(roachNum),'roachParamFile')
-            roach=Roach2Controls(ipaddress, roachParamFile, False, False)
-            roach.num=roachNum
+            roach=Roach2Controls(self.config.roaches.get('r{}.ip'.format(roachNum)),
+                                 self.config.roaches.fpgaparamfile, num=roachNum,
+                                 verbose=False, debug=False, config=self.config.roaches)
             roach.connect()
             roach.loadCurTimestamp()
-            
-            roach.fpga.write_int(self.config.get('properties','photonPort_reg'), self.config.getint('properties','photonCapPort'))
-            #roach.fpga.write_int(self.config.get('properties','minFramePeriod_reg'),self.config.getint('properties','minFramePeriod')) Deleted in darkquad29
-
+            roach.setPhotonCapturePort(self.config.roaches.photonCapPort)
             self.roachList.append(roach)
             
     def loadBeammap(self):
@@ -630,11 +501,62 @@ class MKIDDashboard(QMainWindow):
         print 'nGoodBeammapped:',self.config.getint('properties','nrows')*self.config.getint('properties','ncols') - np.sum(self.beammapFailed)
         '''
 
-    def startDitherThread(self):
+    def startDithering(self):
         self.button_dither.setEnabled(False)
-        QtCore.QTimer.singleShot(10, self.threadPool[1].start) #start the thread after a second
-    
+        self.button_dither.clicked.disconnect()
+        self.button_dither.setText('Stop Dithering')
+        self.button_dither.clicked.connect(self.stopDithering)
+
+        class DitherThread(QtCore.QThread):
+            def __init__(self, url, pattern, timeout=np.inf, parent=None):
+                super(QtCore.QThread, self).__init__(parent)
+                self.url = url
+                self.pattern = pattern
+                self.status = None
+                self.timeout = timeout
+
+            def run(self):
+                self.status = mkidreadout.hardware.conex.dither(id=self.pattern, address=self.url)
+                if not self.status.running:
+                    return
+
+                while True:
+                    time.sleep(.25)
+                    self.timeout-=.25
+                    self.status = mkidreadout.hardware.conex.status(self.url)
+                    if not self.status.running:
+                        break
+                    elif self.timeout<=0:
+                        self.status = mkidreadout.hardware.conex.stop(self.url)
+                        break
+
+        dither = DitherThread(self.config.dither.url, self.config.dither.pattern, parent=self)
+
+        def finish():
+            if dither.status.offline or dither.status.haserrors:
+                msg='Dither completed with errors: "{}", Conex Status="{}"'.format(
+                        dither.status.state, dither.status.conexstatus)
+                getLogger('Dashboard').error(msg)
+            else:
+                dither_result = 'Dither Path: {}\n'.format(str(dither.status.last_dither).replace('\n','\n   '))
+                getLogger('Dashboard').info(dither_result)
+            self.button_dither.clicked.disconnect()
+            self.button_dither.clicked.connect(self.startDithering)
+            self.button_dither.setText('Start Dithering')
+
+        dither.finished.connect(finish)
+        dither.start()
+        self.button_dither.setEnabled(True)
+
     def stopDithering(self):
+        r = mkidreadout.hardware.conex.stop(address=self.config.dither.url)
+        if r is not error:
+            getLogger('Dashboard').info('Dither halted by user.')
+            self.button_dither.setText('Start Dithering')
+            self.button_dither.clicked.disconnect()
+            self.button_dither.clicked.connect(self.startDithering)
+        else:
+            getLogger('Dashboard').error('Stop dither error: {}'.format(r))
         self.button_dither.setEnabled(True)
 
     def appendImage(self,image):
@@ -1151,89 +1073,54 @@ class MKIDDashboard(QMainWindow):
             
     def toggleFlipper(self):
         getLogger('Dashboard').info("Toggled flipper!")
-        if self.radiobutton_flipper.isChecked(): laserStr = '1'+'0'*len(self.checkbox_laser_list)
-        else: laserStr = '0'+'0'*len(self.checkbox_laser_list)
+        if self.radiobutton_flipper.isChecked():
+            laserStr = '1'+'0'*len(self.checkbox_laser_list)
+        else:
+            laserStr = '0'+'0'*len(self.checkbox_laser_list)
         self.laserController.toggleLaser(laserStr, 500)
+        self.logstate()
+
+    def setFilter(self, filter):
+        self.combobox_filter.removeItem(mkidreadout.hardware.hsfw.NFILTERS)
+        result = mkidreadout.hardware.hsfw.setfilter(int(filter), home=False,
+                                                     host=self.config.filter.ip)
+        if not result:
+            self.combobox_filter.insertItem(mkidreadout.hardware.hsfw.NFILTERS, 'ERROR')
+            self.combobox_filter.model().item(mkidreadout.hardware.hsfw.NFILTERS).setEnabled(False)
+            self.combobox_filter.setCurrentIndex(mkidreadout.hardware.hsfw.NFILTERS)
+        self.logstate()
 
     def laserCalClicked(self):
-        logTitle = 'laserCal'
-        laserTime=self.spinbox_laserTime.value()
-        #style = self.config.get('properties', 'laserCalStyle')
-        #eventually want to add capability with laser cal thread to do different
-        #styles of laser cal. hard code to simultaneous for now
+        laserTime = self.spinbox_laserTime.value()
         laserCalStyle = "simultaneous"
 
         #simultaneous is classic laser cal style, with all desired lasers at once
         if laserCalStyle == "simultaneous":
-            totalCalTime= laserTime
-            if self.radiobutton_flipper.isChecked(): laserStr = '1'
-            else: laserStr = '0'
+            laserStr = str(int(self.radiobutton_flipper.isChecked()))
+
             #turn off flipper control until laser cal is done
             self.radiobutton_flipper.setEnabled(False)
-        
-            for checkbox_laser in self.checkbox_laser_list:
-                if checkbox_laser.isChecked(): laserStr+='1'
-                else: laserStr+='0'
+            laserStr = ''.join([str(int(cb.isChecked())) for cb in self.checkbox_laser_list])
             self.laserController.toggleLaser(laserStr, laserTime)
-            self.writeLog(target=logTitle, ts=time.time(), time=laserTime, totalTime=totalCalTime, lasers=laserStr, style=laserCalStyle)
-            #if not self.observing:
-            #    self.startObs()
-            #    QtCore.QTimer.singleShot(laserTime*1000+1, self.stopObs)
-        
+            self.logstate()
+            getLogger('ObsLog').info('Starting a {} laser cal for {} s.'.format(laserCalStyle, laserTime))
+
         #re-enable flipper when laser cal is done
-        QtCore.QTimer.singleShot(totalCalTime*1000+1, self.enableFlipper)
+        QtCore.QTimer.singleShot(laserTime*1000+1, self.enableFlipper)
 
     def enableFlipper(self):
+        #TODO go through and make sure that ever state changing function causes a state record to be
+        # emitted, it is done for the flipper but we need a final review
         self.radiobutton_flipper.setEnabled(True)
-            
-    def writeTelescopeLog(self):
-        telescopeDict = self.telescopeController.getAllTelescopeInfo(self.textbox_target.text())
-        self.writeLog('telescope',**telescopeDict)
-    
-    def writeLog(self, target,*args, **kwargs):
-        """
-        Writes a log file
-        The file is named 'UNIXTIME_target.log'
-        
-        If we're observing, write the file to the ramdisk
-        Otherwise, write to harddrive
-        
-        INPUTS:
-            target - name of the target star
-            args - list of things to write to file
-            kwargs - list of 'keyword: values' to write to file
-        """
-        if self.observing: path = self.config.get('properties','log_ramdisk')
-        else: path = self.config.get('properties','log_dir')
-        currentTime=int(time.time())
-        if target is None or len(target)<1: fn = str(currentTime)+'.log'
-        else: fn = str(currentTime)+'_'+str(target).replace(' ','_')+'.log'
-        f=open(path+fn,'a')
-        for arg in args:
-            f.write(str(arg))
-            f.write('\n')
-        for key in kwargs:
-            f.write("%s: %s" % (key, str(kwargs[key])))
-            f.write('\n')
-        f.close()
-        getLogger('Dashboard').info('Wrote log:', fn)
 
-    def moveLogFiles(self):
-        '''
-        When we're done, move any log files in the ramdisk over to the data directory
-        We write log files to ram disk when we're collecting data so we don't slow down the hard disk writes
-        '''
-        ramdiskLog_path = self.config.get('properties','log_ramdisk')
-        log_path = self.config.get('properties','log_dir')
-        
-        command = 'mv %s*.log %s'%(ramdiskLog_path, log_path)
-        getLogger('Dashboard').info(command)
-        proc = subprocess.Popen(command,shell=True)
-        proc.wait()
-    
+    def logstate(self):
+        targ, cmt = self.textbox_target.text(), self.textbox_log.toPlainText()
+        state = InstrumentState(target=targ, comment=cmt, flipper=None, laser)
+        getLogger().info(state)
+
     def printLogs(self, num=10):
         ramdiskLog_path = self.config.get('properties','log_ramdisk')
-        log_path = self.config.get('properties','log_dir')
+        log_path = self.config.paths.logs
         command = 'grep "" %s*.log %s*.log | tail -%i'%(log_path,ramdiskLog_path, num)
         getLogger('Dashboard').info(command)
         proc = subprocess.Popen(command,shell=True)
@@ -1251,7 +1138,7 @@ class MKIDDashboard(QMainWindow):
         label_currentTime = QLabel("UTC: ")
         getCurrentTime = QtCore.QTimer(self)
         getCurrentTime.setInterval(997) # prime number :)
-        def updateCurrentTime(): label_currentTime.setText("UTC: "+str(time.time()))
+        updateCurrentTime = lambda: label_currentTime.setText("UTC: "+str(time.time()))
         getCurrentTime.timeout.connect(updateCurrentTime)
         getCurrentTime.start()
         # Mkid data directory
@@ -1275,15 +1162,28 @@ class MKIDDashboard(QMainWindow):
 
         # dithering
         self.button_dither = QPushButton("Start Dithering")
-        dither_font = font.setPointSize(12)
-        #self.button_dither.setFont(dither_font)
-        self.button_dither.clicked.connect(self.startDitherThread)
+        #self.button_dither.setFont(font.setPointSize(12))
+        self.button_dither.clicked.connect(self.startDithering)
+
+        #Filter
+        self.combobox_filter = combobox_filter = QComboBox()
+        self.combobox_filter.setMaxVisibleItems(mkidreadout.hardware.hsfw.NFILTERS+1)
+        label_filter = QLabel("Filter:")
+        combobox_filter.addItems(map(str,range(1,mkidreadout.hardware.hsfw.NFILTERS+1)))
+        result = mkidreadout.hardware.hsfw.getfilter(self.config.filter.ip)
+        if 'error' in str(result).lower():
+            self.combobox_filter.insertItem(mkidreadout.hardware.hsfw.NFILTERS, 'ERROR')
+            self.combobox_filter.model().item(mkidreadout.hardware.hsfw.NFILTERS).setEnabled(False)
+            self.combobox_filter.setCurrentIndex(mkidreadout.hardware.hsfw.NFILTERS)
+        else:
+            combobox_filter.setCurrentIndex(int(result)-1)
+        combobox_filter.setToolTip("Select a filter")
+        combobox_filter.activated[str].connect(self.setFilter)
 
         # log file
         label_target = QLabel("Target: ")
         self.textbox_target = QLineEdit()
-        textbox_log = QTextEdit()
-        button_log = QPushButton("Add Log File")
+        self.textbox_log = QTextEdit()
         
         label_autolog = QLabel("Auto log:")
         spinbox_autolog = QSpinBox()
@@ -1293,31 +1193,27 @@ class MKIDDashboard(QMainWindow):
         spinbox_autolog.setCorrectionMode(QAbstractSpinBox.CorrectToNearestValue)
         spinbox_autolog.setSuffix(' minutes')
         spinbox_autolog.setToolTip("Set to 0 to stop autologging")
-        
-        button_log.clicked.connect(lambda x: self.writeLog(self.textbox_target.text(), textbox_log.toPlainText()))
-        button_log.clicked.connect(lambda x: self.writeTelescopeLog)
-        
+
         autoLogTimer = QtCore.QTimer(self)
         autoLogTimer.setInterval(spinbox_autolog.value()*1000*60)
-        def writeLog():
-            self.writeLog(self.textbox_target.text(), textbox_log.toPlainText())
-        autoLogTimer.timeout.connect(writeLog)
-        autoLogTimer.timeout.connect(self.writeTelescopeLog)
+        autoLogTimer.timeout.connect(self.logstate)
+
         def changeAutoLogInterval(val):
-            if val<1: autoLogTimer.stop()
+            if val<1:
+                autoLogTimer.stop()
             else: 
                 autoLogTimer.setInterval(val*1000*60)
                 autoLogTimer.start()
+
         spinbox_autolog.valueChanged.connect(changeAutoLogInterval)
         autoLogTimer.start()
-                
-        
+
         #==================================
         # Image settings!
         # integration Time
-        integrationTime = self.config.getint('properties','num_images_to_add')
-        image_int_time=self.config.getfloat('properties','packetmaster_image_inttime')
-        max_int_time=self.config.getint('properties','num_images_to_save')
+        integrationTime = self.config.dashboard.average
+        image_int_time=self.config.packetmaster.int_time
+        max_int_time=self.config.dashboard.num_images_to_save
         label_integrationTime = QLabel('int time:')
         spinbox_integrationTime = QSpinBox()
         spinbox_integrationTime.setRange(1,max_int_time)
@@ -1325,7 +1221,8 @@ class MKIDDashboard(QMainWindow):
         spinbox_integrationTime.setSuffix(' * '+str(image_int_time)+' s')
         spinbox_integrationTime.setWrapping(False)
         spinbox_integrationTime.setCorrectionMode(QAbstractSpinBox.CorrectToNearestValue)
-        spinbox_integrationTime.valueChanged.connect(partial(self.changedSetting,'num_images_to_add'))    # change in config file
+        spinbox_integrationTime.valueChanged.connect(partial(self.config.update, 'dashboard.average'))    # change in
+        # config file
         
         # current num images integrated
         self.label_numIntegrated = QLabel('0/'+str(integrationTime))
@@ -1333,32 +1230,32 @@ class MKIDDashboard(QMainWindow):
         spinbox_integrationTime.valueChanged.connect(lambda x: QtCore.QTimer.singleShot(10,self.convertImage)) # remake current image after 10 ms
         
         # dark Image
-        darkIntTime=self.config.getint('properties','num_images_for_dark')
+        darkIntTime=self.config.dashboard.n_darks
         self.spinbox_darkImage = QSpinBox()
         self.spinbox_darkImage.setRange(1,max_int_time)
         self.spinbox_darkImage.setValue(darkIntTime)
         self.spinbox_darkImage.setSuffix(' * '+str(image_int_time)+' s')
         self.spinbox_darkImage.setWrapping(False)
         self.spinbox_darkImage.setCorrectionMode(QAbstractSpinBox.CorrectToNearestValue)
-        self.spinbox_darkImage.valueChanged.connect(partial(self.changedSetting,'num_images_for_dark'))    # change in config file
+        self.spinbox_darkImage.valueChanged.connect(partial(self.config.update,'dashboard.n_darks'))  # change in config file
         button_darkImage = QPushButton('Take Dark')
         def takeDark():
-            self.darkField=None
-            self.takingDark=self.spinbox_darkImage.value()
-            self.writeLog('dark', str(darkIntTime) + ' sec integration time')  #added by clint
+            self.darkField = None
+            self.takingDark = self.spinbox_darkImage.value()
         button_darkImage.clicked.connect(takeDark)
         self.checkbox_darkImage = QCheckBox()
         self.checkbox_darkImage.setChecked(False)
         
         # flat Image
-        flatIntTime=self.config.getint('properties','num_images_for_flat')
+        flatIntTime=self.config.dashboard.n_flats
         self.spinbox_flatImage = QSpinBox()
         self.spinbox_flatImage.setRange(1,max_int_time)
         self.spinbox_flatImage.setValue(flatIntTime)
         self.spinbox_flatImage.setSuffix(' * '+str(image_int_time)+' s')
         self.spinbox_flatImage.setWrapping(False)
         self.spinbox_flatImage.setCorrectionMode(QAbstractSpinBox.CorrectToNearestValue)
-        self.spinbox_flatImage.valueChanged.connect(partial(self.changedSetting,'num_images_for_flat'))    # change in config file
+        self.spinbox_flatImage.valueChanged.connect(partial(self.config.update,'dashboard.n_flats'))    # change in
+        # config file
         button_flatImage = QPushButton('Take Flat')
         def takeFlat():
             self.flatField=None
@@ -1368,8 +1265,8 @@ class MKIDDashboard(QMainWindow):
         self.checkbox_flatImage.setChecked(False)
         
         # maxCountRate
-        maxCountRate = self.config.getint('properties','max_count_rate')
-        minCountRate = self.config.getint('properties','min_count_rate')
+        maxCountRate = self.config.dashboard.max_count_rate
+        minCountRate = self.config.dashboard.min_count_rate
         label_maxCountRate = QLabel('max:')
         spinbox_maxCountRate = QSpinBox()
         spinbox_maxCountRate.setRange(minCountRate,2500)
@@ -1386,8 +1283,10 @@ class MKIDDashboard(QMainWindow):
         spinbox_minCountRate.setWrapping(False)
         spinbox_minCountRate.setCorrectionMode(QAbstractSpinBox.CorrectToNearestValue)
         # connections for max and min count rates
-        spinbox_minCountRate.valueChanged.connect(partial(self.changedSetting,'min_count_rate'))    # change in config file
-        spinbox_maxCountRate.valueChanged.connect(partial(self.changedSetting,'max_count_rate'))    # change in config file
+        spinbox_minCountRate.valueChanged.connect(partial(self.config.update,'dashboard.min_count_rate'))    # change
+        #  in config file
+        spinbox_maxCountRate.valueChanged.connect(partial(self.config.update,'dashboard.max_count_rate'))    # change
+        #  in config file
         spinbox_minCountRate.valueChanged.connect(spinbox_maxCountRate.setMinimum)  # make sure min is always less than max
         spinbox_maxCountRate.valueChanged.connect(spinbox_minCountRate.setMaximum)
         spinbox_maxCountRate.valueChanged.connect(lambda x: QtCore.QTimer.singleShot(10,self.convertImage)) # remake current image after 10 ms
@@ -1397,8 +1296,7 @@ class MKIDDashboard(QMainWindow):
         label_stretch = QLabel("Image Stretch:")
         self.combobox_stretch = QComboBox()
         self.combobox_stretch.addItems(['linear', 'logarithmic', 'histogram equalization'])
-        
-        
+
         # Checkbox for showing unbeammaped pixels
         self.checkbox_showAllPix = QCheckBox('Show All Pixels')
         self.checkbox_showAllPix.setChecked(False)
@@ -1435,11 +1333,9 @@ class MKIDDashboard(QMainWindow):
         self.spinbox_laserTime.setButtonSymbols(QAbstractSpinBox.NoButtons)
         button_laserCal = QPushButton("Start Laser Cal")
         
-        numLasers = self.config.getint('properties','numLasers')
         self.checkbox_laser_list = []
-        for i in range(numLasers):
-            laserName = self.config.get('properties','laser'+str(i))
-            checkbox_laser = QCheckBox(laserName)
+        for lname in self.config.lasercontrol.lasers:
+            checkbox_laser = QCheckBox(lname)
             checkbox_laser.setChecked(False)
             self.checkbox_laser_list.append(checkbox_laser)
 
@@ -1479,6 +1375,11 @@ class MKIDDashboard(QMainWindow):
         vbox.addLayout(hbox_log)
 
         hbox_log.addWidget(self.button_dither)
+
+        hbox_filter = QHBoxLayout()
+        hbox_filter.addWidget(label_filter)
+        hbox_filter.addWidget(combobox_filter)
+        vbox.addLayout(hbox_filter)
 
         vbox.addStretch()
         
@@ -1537,7 +1438,7 @@ class MKIDDashboard(QMainWindow):
         obs_widget.setLayout(vbox)
         obs_dock_widget.setWidget(obs_widget)
         self.addDockWidget(Qt.LeftDockWidgetArea,obs_dock_widget)
-    
+
     def create_image_widget(self):
         """
         Make image part of the GUI
@@ -1575,7 +1476,7 @@ class MKIDDashboard(QMainWindow):
         self.grPixMap.setAcceptHoverEvents(True)
         self.grPixMap.hoverMoveEvent = self.mouseMoved
         blurEffect = QGraphicsBlurEffect()
-        blurEffect.setBlurRadius(1.5*self.config.getint('properties','image_scale'))
+        blurEffect.setBlurRadius(1.5*self.config.dashboard.image_scale)
         self.grPixMap.setGraphicsEffect(blurEffect)
         self.grPixMap.graphicsEffect().setEnabled(False)
         grview.setScene(scene)
@@ -1641,7 +1542,7 @@ class MKIDDashboard(QMainWindow):
             action.setCheckable(True)
         return action
     
-    def changedSetting(self,settingID,setting,sec='properties'):
+    def changedSetting(self,settingID, setting, sec='properties'):
         """
         When a setting is changed, reflect the change in the config object which is shared across all GUI elements.
         
@@ -1649,7 +1550,7 @@ class MKIDDashboard(QMainWindow):
             settingID - the key in the configparser
             setting - the value
         """
-        self.config.set(sec,settingID,str(setting))
+        self.config.update(settingID, setting)
         #If we don't force the setting value to be a string then the configparser has trouble grabbing the value later on for some unknown reason
         newSetting = self.config.get(sec,settingID)
         getLogger('Dashboard').info('setting ', settingID, ' to ', newSetting)
@@ -1660,7 +1561,7 @@ class MKIDDashboard(QMainWindow):
         """
         if self.observing:
             self.stopObs()
-        quit_file_loc = self.config.get('properties','cuber_ramdisk')
+        quit_file_loc = self.config.packetmaster.ramdisk
         self.workers[0].search=False    # stop searching for new images
         del self.grPixMap               # Get segfault if we don't delete this. Something about signals in the queue trying to access deleted objects...
         for thread in self.threadPool:  # They should all be done at this point, but just in case
@@ -1673,7 +1574,6 @@ class MKIDDashboard(QMainWindow):
         self.telescopeWindow._want_to_close=True
         self.telescopeWindow.close()
         
-        self.moveLogFiles()             # Move any log files in the ramdisk to the hard drive
         self.hide()
         time.sleep(1)
         f=open(quit_file_loc+'/QUIT','w')   # tell packetmaster to end
@@ -1682,18 +1582,21 @@ class MKIDDashboard(QMainWindow):
         QtCore.QCoreApplication.instance().quit()
 
 
-DEFAULT_CFG_FILE = os.path.join(os.path.dirname(__file__), 'dashboard.cfg')
+DEFAULT_CFG_FILE = os.path.join(os.path.dirname(__file__), 'dashboard.yml')
 
 if __name__ == "__main__":
+    setup_logging()
     app = QApplication(sys.argv)
 
     parser = argparse.ArgumentParser(description='MKID Dashboard')
+    parser.add_argument('roaches', nargs='+', type=int, help='Roach numbers')
     parser.add_argument('-c', '--config', default=DEFAULT_CFG_FILE, dest='config',
                         type=str, help='The config file')
-    parser.add_argument('roaches', '--roaches', nargs='+', type=int, help='Roach numbers')
+    parser.add_argument('-o','--offline', default=False, dest='offline', action='store_true',  help='Run offline')
+
     args = parser.parse_args()
 
-    form = MKIDDashboard(args.roaches, config=args.config)
+    form = MKIDDashboard(args.roaches, config=args.config, offline=args.offline)
     form.show()
     app.exec_()
 

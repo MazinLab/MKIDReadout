@@ -95,7 +95,7 @@ from mkidreadout.channelizer.adcTools import streamSpectrum, checkSpectrumForSpi
 
 class Roach2Controls:
 
-    def __init__(self, ip, paramFile, verbose=False, debug=False):
+    def __init__(self, ip, paramFile, num=None, verbose=False, debug=False, config=None):
         '''
         Input:
             ip - ip address string of ROACH2
@@ -106,7 +106,9 @@ class Roach2Controls:
         #np.random.seed(1) #Make the random phase values always the same
         self.verbose=verbose
         self.debug=debug
-        
+        self.config=config
+        self.num = num
+
         self.ip = ip
         try:
             self.params = readDict()             
@@ -2216,6 +2218,9 @@ class Roach2Controls:
                 self.v7_ready = self.fpga.read_int(self.params['v7Ready_reg'])
                 time.sleep(0.05)
             self.v7_ready = 0
+
+    def setPhotonCapturePort(self, port):
+        self.fpga.write_int(self.config.photonPort_reg, int(port))
         
 if __name__=='__main__':
     if len(sys.argv) > 1:
