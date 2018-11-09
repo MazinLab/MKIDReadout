@@ -25,10 +25,10 @@ msg = msg & "Test Complete"
 import errno, sys
 from mkidcore.corelog import getLogger
 import mkidcore.safesocket as socket
-from win32com.client import Dispatch
 import traceback
 import platform
 from mkidcore.threads import start_new_thread, print2socket
+import argparse
 
 HSFWERRORS = {0: 'No error has occurred. (cleared state)',
               1: 'The 12VDC power has been disconnected from the device.',
@@ -56,7 +56,7 @@ HSFWERRORS = {0: 'No error has occurred. (cleared state)',
 
 _log = getLogger('HSFW')  #TODO this isn't best practice but i don't think it will matter here
 HSFW_PORT = 50000
-NUM_FILTERS=5
+NFILTERS=NUM_FILTERS=5
 global_KILL_SERVER = False
 
 
@@ -119,6 +119,10 @@ def connection_handler(conn):
                 global_KILL_SERVER = True
                 break
 
+            if '?' in data:
+                conn.sendall(b'{}'.format(_getfilter()))
+                continue
+
             try:
                 fnum = int(data)
                 if abs(fnum) not in (1,2,3,4,5,6):
@@ -134,12 +138,12 @@ def connection_handler(conn):
             except AttributeError:
                 enum = 0
             if enum == errno.WSAECONNABORTED:
-            	getLogger(__name__).info('Connection Closed')
+                getLogger(__name__).info('Connection Closed')
             else:
-            	msg = 'Server Connection Loop Exception {}: \n'.format(e) + traceback.format_exc()
-            	getLogger(__name__).error(msg)
-            	conn.sendall(msg)
-            	print2socket(msg, the_socket=conn)
+                msg = 'Server Connection Loop Exception {}: \n'.format(e) + traceback.format_exc()
+                getLogger(__name__).error(msg)
+                conn.sendall(msg)
+                print2socket(msg, the_socket=conn)
             if enum in (errno.EBADF, errno.ECONNRESET, errno.WSAECONNABORTED):
                 # TODO closeout filter
                 break
@@ -149,7 +153,7 @@ def connection_handler(conn):
     conn.close()
 
 
-def connect(host, port, verbose=True):
+def connect(host, port, verbose=False):
     """Starts a client socket (control computer). This will connect to the host
     and return the socket if successful
 
@@ -161,7 +165,7 @@ def connect(host, port, verbose=True):
         returns a socket connection or None
     Raises:
     """
-    log = getLogger('__name__')
+    log = getLogger(__name__)
     if verbose:
         log.info('Trying to connect with ' + host)
     try:
@@ -199,8 +203,45 @@ def _setfilter(num, home=False):
         return error
 
 
+def _getfilter():
+    import pythoncom
+    pythoncom.CoInitialize()
+    try:
+        fwheels = Dispatch("OptecHID_FilterWheelAPI.FilterWheels")
+        wheel = fwheels.FilterWheelList[0]
+        return wheel.CurrentPosition
+        #return wheel.ErrorState
+    except Exception:
+        error = traceback.format_exc()
+        getLogger(__name__).error('Caught error', exc_info=True)
+        return error
+
+
+def getfilter(host='localhost:50000'):
+    host, port = host.split(':')
+    conn = connect(host, port)
+    try:
+        conn.sendall('?\n'.encode('utf-8'))
+        data = conn.recv(2048).strip()
+        getLogger('HSFW').info("Response: {}".format(data))
+        conn.close()
+        return int(data)
+    except AttributeError:
+        msg = 'Cannot connect to filter server\n'
+        getLogger('HSFW').error(msg)
+        return 'Error: ' +msg
+    except Exception as e:
+        msg = 'Cannot get status of filter server'
+        getLogger('HSFW').error(msg, exc_info=True)
+        try:
+            conn.close()
+        except Exception as e:
+            getLogger('HSFW').error('error:', exc_info=True)
+        return 'Error: '+str(e)
+
+
 def setfilter(fnum, home=False, host='localhost:50000',killserver=False):
-    
+
     if killserver:
         host, port = host.split(':')
         conn = connect(host, port)
@@ -211,11 +252,11 @@ def setfilter(fnum, home=False, host='localhost:50000',killserver=False):
         return data
 
     try:
-        fnum=int(fnum)
-        if not 1<=fnum<=NUM_FILTERS:
-            raise ValueError('Not a number between 1-5')
+        fnum = int(fnum)
+        if not 1 <= fnum <= NUM_FILTERS:
+            raise TypeError
     except TypeError:
-        raise ValueError('Not a number between 1-5')
+        raise ValueError('Not a number between 1-{}'.format(NUM_FILTERS))
 
     host, port = host.split(':')
     conn = connect(host, port)
@@ -225,11 +266,10 @@ def setfilter(fnum, home=False, host='localhost:50000',killserver=False):
         data = conn.recv(2048).strip()
         getLogger('HSFW').info("Response: {}".format(data))
         conn.close()
-        return data
     except AttributeError:
         msg = 'Cannot connect to filter server\n'
         getLogger('HSFW').error(msg)
-        return msg
+        return False
     except Exception as e:
         msg = 'Cannot send command to filter server "Filter: {}"\n'
         getLogger('HSFW').error(msg.format(fnum), exc_info=True)
@@ -237,11 +277,19 @@ def setfilter(fnum, home=False, host='localhost:50000',killserver=False):
             conn.close()
         except Exception:
             getLogger('HSFW').error('error:', exc_info=True)
-        raise e
+        return False
 
+    return True
 
 if __name__ == '__main__':
+
+    parser = argparse.ArgumentParser(description='HSFW Server')
+    parser.add_argument('-p', type=int, dest='port', default=HSFW_PORT, help="Port on which to listen")
+    parser.parse_args()
+
     if platform.system == 'Linux':
+        print('Server application only supported on windows.')
         sys.exit(1)
-    else:
-        start_server(HSFW_PORT)
+
+    from win32com.client import Dispatch
+    start_server(parser.port)

@@ -48,7 +48,7 @@ dither_fields = {
 dither_path_fields = {'path': fields.List(fields.List(fields.Float)), 'dither':fields.String,
                    'start': fields.List(fields.Float), 'end': fields.List(fields.Float)}
 conex_fields = {
-    'status': fields.String,
+    'conexstatus': fields.String,
     'xpos': fields.Float,
     'ypos': fields.Float,
     'state': fields.String,
@@ -350,9 +350,18 @@ class ConexDummy(object):
 class ConexStatus(object):
     def __init__(self, state='offline', pos=(np.NaN, np.NaN), status='',
                  dither=None, limits=None):
+        """
+            state is a ConexManager state : 'idle' 'offline' 'processing' 'stopped/stopping'
+                                         'moving to {}, {}'
+                                         'move to {:.2f}, {:.2f} failed'
+            pos is the (x,y) pos (nan nan) if issues
+            limits are the conex limits (a dict umin umax vmin vmax)
+            dither is a dither result or None
+            conexstatus is the conex result of TS or ''
+        """
         self.state = state
         self.pos = pos
-        self.status = status
+        self.conexstatus = status
         self.last_dither = dither
         self.limits = limits
 
@@ -363,7 +372,19 @@ class ConexStatus(object):
     @property
     def ypos(self):
         return self.pos[1]
-    
+
+    @property
+    def running(self):
+        return 'moving' in self.state or 'processing' in self.state
+
+    @property
+    def haserrors(self):
+        return 'error' in self.state
+
+    @property
+    def offline(self):
+        return 'offline' in self.state
+
     def print(self):
         print(self.state)
         print(self.pos)
@@ -406,6 +427,16 @@ class ConexManager(object):
         self.state = 'idle'
 
     def status(self):
+        """
+        returns a conex status object:
+            state is a ConexManager state : 'idle' 'offline' 'processing' 'stopped/stopping'
+                                         'moving to {}, {}'
+                                         'move to {:.2f}, {:.2f} failed'
+            pos is the (x,y) pos (nan nan) if issues
+            limits are the conex limits (a dict umin umax vmin vmax)
+            dither is a dither result or None
+            conexstatus is the conex result of TS or ''
+        """
         status = ''
         pos = (np.NaN, np.NaN)
         try:
@@ -413,10 +444,10 @@ class ConexManager(object):
             pos = self.conex.position()
             getLogger('ConexManager').debug("Conex: {} @ pos {}".format(status,pos))
         except IOError:
-            getLogger('ConexManager').error('Unable to get conex status',exc_info=True)
+            getLogger('ConexManager').error('Unable to get conex status', exc_info=True)
             self._halt = True
             self.state = 'offline'
-        return ConexStatus(state=self.state, pos=pos, status=status,
+        return ConexStatus(state=self.state, pos=pos, conexstatus=status,
                            dither=self._dither_result, limits=self.conex.limits)
 
     def start_dither(self, id):
@@ -444,7 +475,7 @@ class ConexManager(object):
         self._halt = True
         if wait and self._movement_thread is not None:
             self._movement_thread.join()
-        self.state = 'stopped/stopping'
+        self.state = 'stopped'
 
     def move(self, x, y):
         self.state = 'moving to {:.2f}, {:.2f}'.format(x, y)
@@ -454,7 +485,7 @@ class ConexManager(object):
             self.state = 'idle'
             return True
         except IOError as e:
-            self.state = 'move to {:.2f}, {:.2f} failed'.format(x, y)
+            self.state = 'error: move to {:.2f}, {:.2f} failed'.format(x, y)
             getLogger('ConexManager').error('Error on move', exc_info=True)
             return False
 
@@ -637,30 +668,55 @@ dithers = {"0": Dither()}
 
 
 def dither(id='default', start=None, end=None, n=1, t=1, address='http://localhost:5000'):
-    """ Do a Dither by ID or full settings. Uses full settings if start is not None """
+    """ Do a Dither by ID or full settings. Uses full settings if start is not None
+    returns a requests result object
+    """
     if start is not None:
         req = {'startx': start[0], 'starty': start[1], 'endx': end[0], 'endy': end[1],
                'n': n, 't': t}
     else:
         req = {'id': id}
-    r = requests.post(address+'/dither', json=req)
-    return r
+    try:
+        r = requests.post(address+'/dither', json=req)
+        j = r.json()
+        ret = ConexStatus(state=j['state'], pos=(j['xpos'], j['ypos']), conexstatus=j['status'],
+                          dither=DitherPath(j['last_dither']['dither'], j['last_dither']['start'],
+                                            j['last_dither']['end'], j['last_dither']['path']))
+    except requests.ConnectionError:
+        ret = ConexStatus(state='error: unable to connect')
 
-def move(x,y, address='http://localhost:5000'):
+    return ret
+
+
+def move(x, y, address='http://localhost:5000'):
     r = requests.post(address+'/move', json={'x': x, 'y': y})
-    return r
+    j = r.json()
+    ret=ConexStatus(state=j['state'], pos=(j['xpos'],j['ypos']), conexstatus=j['status'],
+                    dither=DitherPath(j['last_dither']['dither'], j['last_dither']['start'],
+                                      j['last_dither']['end'], j['last_dither']['path']))
+    return ret
+
 
 def status(address='http://localhost:5000'):
     r = requests.get(address + '/conex')
     j = r.json()
-    ret=ConexStatus(state=j['state'], pos=(j['xpos'],j['ypos']), status=j['status'],
+    ret=ConexStatus(state=j['state'], pos=(j['xpos'],j['ypos']), conexstatus=j['status'],
                     dither=DitherPath(j['last_dither']['dither'], j['last_dither']['start'],
                                       j['last_dither']['end'], j['last_dither']['path']))
     return ret
 
 
 def stop(address='http://localhost:5000'):
-    r = requests.post(address+'/conex', json={'command': 'stop'})
+    try:
+        r = requests.post(address + '/conex', json={'command': 'stop'})
+        j = r.json()
+        ret = ConexStatus(state=j['state'], pos=(j['xpos'], j['ypos']), conexstatus=j['status'],
+                          dither=DitherPath(j['last_dither']['dither'], j['last_dither']['start'],
+                                            j['last_dither']['end'], j['last_dither']['path']))
+    except requests.ConnectionError:
+        ret = ConexStatus(state='error: unable to connect')
+
+    return ret
 
 if __name__=='__main__':
     api.add_resource(MoveAPI, '/move', endpoint='move')
