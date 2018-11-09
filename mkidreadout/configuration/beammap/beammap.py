@@ -152,7 +152,7 @@ class Beammap(object):
                 'yCoord': self.yCoords, 'flag': self.flags}
 
 
-class DesignArray:
+class DesignArray(object):
     """
     Wrapper for a design array. Given an array whose elements are design frequencies, gives a
     list of x- and y- coordinates and corresponding design frequencies. Typically used with the
