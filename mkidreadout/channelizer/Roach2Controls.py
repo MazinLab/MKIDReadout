@@ -278,6 +278,22 @@ class Roach2Controls:
             time.sleep(.2)
         self.v7_ready = 0
         self.sendUARTCommand(self.params['mbEnFracLO'])
+
+    def reInitADCDACBoard(self): 
+        """
+        Rerun startup initialization routines
+        """
+        while(not(self.v7_ready)):
+            self.v7_ready = self.fpga.read_int(self.params['v7Ready_reg'])
+            time.sleep(.2)
+        self.sendUARTCommand(0x31, True)
+        self.sendUARTCommand(0x32, True)
+        self.sendUARTCommand(0x33, True)
+        self.sendUARTCommand(0x34, True)
+        self.sendUARTCommand(0x35, True)
+        self.sendUARTCommand(0x36, True)
+        self.sendUARTCommand(0x30, True)
+        self.sendUARTCommand(self.params['mbEnableDACs'], True)
         
     def generateDdsTones(self, freqChannels=None, fftBinIndChannels=None, phaseList=None):
         """

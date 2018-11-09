@@ -7,6 +7,8 @@ Places o.o.b pixels in random position, changes flag to 1
 Places failed pixels randomly.
 Outputs final cleaned beammap with ID, flag, x, y; ready to go into dashboard
 
+TODO: refactor to actually use the Beammap class
+
 """
 
 from __future__ import print_function
@@ -20,6 +22,7 @@ from mkidreadout.utils.arrayPopup import plotArray
 from mkidreadout.utils.readDict import readDict
 from mkidreadout.configuration.beammap.flags import beamMapFlags
 from mkidreadout.configuration.beammap.utils import isInCorrectFL, getFLFromID, getFLFromCoords
+from mkidreadout.configuration.beammap.beammap import Beammap
 
 MEC_FL_WIDTH = 14
 DARKNESS_FL_WIDTH = 25
@@ -43,14 +46,11 @@ def getOverlapGrid(xCoords, yCoords, flags, nXPix, nYPix):
 
 
 class BMCleaner:
-    def __init__(self, roughBMData, nRows, nCols, flip, instrument):
-        self.nRows = int(configData['numRows'])
-        self.nCols = int(configData['numCols'])
-        self.flip = bool(configData['flip'])
-        self.roughBMFile = str(configData['roughBMFile'])
-        self.finalBMFile = str(configData['finalBMFile'])
-        self.beammapDirectory = str(configData['beammapDirectory'])
-        self.instrument = str(configData['instrument']).lower()
+    def __init__(self, roughBeammap, nRows, nCols, flip, instrument):
+        self.nRows = nRows
+        self.nCols = nCols
+        self.flip = flip
+        self.instrument = instrument.lower()
 
         if self.instrument.lower()=='mec':
             self.nFL = N_FL_MEC
@@ -61,10 +61,10 @@ class BMCleaner:
         else:
             raise Exception('Provided instrument not implemented!')
     
-        self.resIDs = np.array(roughBM[:,0],dtype=np.int)
-        self.flags = np.array(roughBM[:,1],dtype=np.int)
-        self.preciseXs = roughBM[:,2]
-        self.preciseYs = roughBM[:,3]
+        self.resIDs = roughBeammap.resIDs.astype(int)
+        self.flags = roughBeammap.flags.astype(int)
+        self.preciseXs = roughBeammap.xCoords
+        self.preciseYs = roughBeammap.yCoords
         self.flooredXs = None
         self.flooredYs = None
         self.placedXs = None
@@ -266,9 +266,10 @@ if __name__=='__main__':
     finalPath = os.path.join(beammapDirectory,finalBMFile)
     
     #load location data from rough BM file
-    roughBM = np.loadtxt(roughPath)
+    roughBM = Beammap()
+    roughBM.load(roughPath)
    
-    cleaner = BMCleaner(roughBM, configData['numRows'], configData['numCols'], configData['flip'], configData['instrument'])
+    cleaner = BMCleaner(roughBM, int(configData['numRows']), int(configData['numCols']), configData['flip'], configData['instrument'])
 
     cleaner.fixPreciseCoordinates() #fix wrong feedline and oob coordinates
     cleaner.placeOnGrid() #initial grid placement

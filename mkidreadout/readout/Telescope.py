@@ -16,9 +16,9 @@ __all__ = ['TelescopeWindow', 'Telescope']
 
 
 try:
-    from SDR.DataReadout.ReadoutControls.lib.getSeeing import getPalomarSeeing  # From old SDR code
+    from .getSeeing import getPalomarSeeing  # From old SDR code
 except:
-    print "WARNING: Cant find getPalomarSeeing from SDR repository"
+    print "WARNING: Cant find getPalomarSeeing"
     def getPalomarSeeing(): return "NAN"
 
 class TelescopeWindow(QMainWindow):

@@ -20,7 +20,7 @@ import matplotlib.patches as patches
 import warnings
 from mkidreadout.utils.readDict import readDict
 from mkidreadout.configuration.beammap.flags import beamMapFlags
-from mkidreadout.configuration.beammap.utils import isInCorrectFL
+from mkidreadout.configuration.beammap.utils import isInCorrectFL, getFLFromID, MEC_FL_WIDTH, DARKNESS_FL_WIDTH, N_FL_MEC, N_FL_DARKNESS
 
 class BMAligner(object):
     def __init__(self, beamListFn, nXPix, nYPix, instrument, flip=False, usFactor=50):
@@ -28,13 +28,23 @@ class BMAligner(object):
         self.usFactor = usFactor
         self.nXPix = nXPix
         self.nYPix = nYPix
-        self.instrument = instrument
+        self.instrument = instrument.lower()
         self.flip = flip
         self.resIDs, self.flags, self.rawXs, self.rawYs = np.loadtxt(beamListFn, unpack=True)
         self.makeRawImage()
         self.rawImage = None
         self.rawImageFFT = None
         self.rawImageFreqs = None
+
+        if instrument.lower()=='mec':
+            self.flWidth = MEC_FL_WIDTH
+            self.nFL = N_FL_MEC
+        elif instrument.lower()=='darkness':
+            self.flWidth = DARKNESS_FL_WIDTH
+            self.nFL = N_FL_DARKNESS
+
+        else:
+            raise Exception('Instrument ' + instrument + ' not implemented yet!')
 
     def makeRawImage(self):
         self.rawImage = np.zeros((int(np.max(self.rawXs[np.where(np.isfinite(self.rawXs))])*self.usFactor+2), int(np.max(self.rawYs[np.where(np.isfinite(self.rawYs))])*self.usFactor+2)))
@@ -144,11 +154,33 @@ class BMAligner(object):
 
     def findOffset(self, nMCIters=10000, maxSampDist=10, roundCoords=False):
         # find a good starting point for search, using median of 100 minimum "good" points
-        goodInds = np.where(self.flags==0)[0]
-        sortedX = np.sort(self.coords[goodInds,0])
-        sortedY = np.sort(self.coords[goodInds,1])
-        baselineXOffs = np.median(sortedX[:self.nXPix*3/4])
-        baselineYOffs = np.median(sortedY[:self.nYPix*3/4])
+        goodMask = self.flags==0
+        goodResIDs = self.resIDs[goodMask]
+        goodCoords = self.coords[goodMask,:]
+        sortedXInds = np.argsort(goodCoords[:,0])
+        sortedYInds = np.argsort(goodCoords[:,1])
+        sortedX = goodCoords[sortedXInds,0]
+        sortedY = goodCoords[sortedYInds,1]
+
+        if self.instrument=='mec':
+            yStart = 0
+            firstFL = getFLFromID(goodResIDs[sortedXInds[0]])
+            if self.flip:
+                xStart = (self.nFL - firstFL)*self.flWidth
+            else:
+                xStart = (firstFL - 1)*self.flWidth
+                print(xStart)
+
+        elif self.instrument=='darkness':
+            xStart = 0
+            firstFL = getFLFromID(goodResIDs[sortedXInds[0]])
+            if self.flip:
+                yStart = (self.nFL - firstFL)*self.flWidth
+            else:
+                yStart = (firstFL - 1)*self.flWidth
+
+        baselineXOffs = np.median(sortedX[:self.nXPix*3/4]) - xStart
+        baselineYOffs = np.median(sortedY[:self.nYPix*3/4]) - yStart
         print('Baseline X Offset:', baselineXOffs)
         print('Baseline Y Offset:', baselineYOffs)
         curXOffs = baselineXOffs
