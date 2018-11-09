@@ -11,6 +11,7 @@ from PyQt4 import QtGui
 from PyQt4.QtGui import *
 from PyQt4 import QtCore
 import ephem
+from mkidcore.corelog import getLogger
 
 try:
     from SDR.DataReadout.ReadoutControls.lib.getSeeing import getPalomarSeeing  # From old SDR code
@@ -89,7 +90,7 @@ class TelescopeWindow(QMainWindow):
             self.hide()
         
 
-class Telescope():
+class Telescope(object):
 
     def __init__(self, ipaddress="198.202.125.194", port = 5004, receivePort=1024):
         self.address = (ipaddress, port)
@@ -117,16 +118,15 @@ class Telescope():
             self.client_socket.settimeout(0.2)
             self.client_socket.connect(self.address)
         except:
-            print "Connection to TCS failed"
-            print "Telescope IP: ",self.address
+            getLogger('Telescope').error("Connection to TCS at {} failed.".format(self.address))
             return
         response = None
         try:
             self.client_socket.send(command)
             response = self.client_socket.recv(self.receivePort)
         except:
-            print "Command to TCS failed: "+str(command)
-            print "Received at: ",self.receivePort
+            getLogger('Telescope').error('Command "{}" to TCS failed.\n Recieved at {}.'.format(
+                                            command, self.receivePort))
         self.client_socket.close()
         return response
 
