@@ -3,6 +3,8 @@ import pkg_resources as pkg
 from glob import glob
 import copy
 
+_DEFAULT_ARRAY_SIZES = {'mec': (140, 146), 'darkness': (80, 125)}
+
 
 class Beammap(object):
     """
@@ -13,7 +15,7 @@ class Beammap(object):
         xCoords
         yCoords
     """
-    def __init__(self, file=None, default='MEC'):
+    def __init__(self, file=None, xydim=None, default='MEC'):
         """
         Constructor.
         
@@ -27,9 +29,14 @@ class Beammap(object):
         """
         if file is not None:
             self._load(file)
+            try:
+                self.ncols, self.nrows = xydim
+            except TypeError:
+                raise ValueError('xydim is a required parameter when loading a beammap from a file')
         else:
             try:
                 self._load(pkg.resource_filename(__name__, '{}.bmap'.format(default.lower())))
+                self.ncols, self.nrows = _DEFAULT_ARRAY_SIZES[default.lower()]
             except IOError:
 
                 opt = ', '.join([f.rstrip('.bmap').upper()
