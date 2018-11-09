@@ -1,10 +1,14 @@
 import numpy as np
+import pkg_resources as pkg
+from glob import glob
+import copy
 import glob
 import matplotlib.pyplot as plt
 import mkidreadout.configuration.beammap.flags as flags
 #import mkidreadout.configuration.beammap.utils as utils
 
-class Beammap:
+
+class Beammap(object):
     """
     Simple wrapper for beammap file. 
     Attributes:
@@ -13,14 +17,26 @@ class Beammap:
         xCoords
         yCoords
     """
-    
-    def __init__(self):
-        self.resIDs = np.empty(0)
-        self.flags = np.empty(0)
-        self.xCoords = np.empty(0)
-        self.yCoords = np.empty(0)
-        self.frequencies = np.empty(0)
-        pass
+    def __init__(self, file=None, default='MEC'):
+        """
+        Constructor.
+
+        INPUTS:
+            beammap - either a path to beammap file, instrument name, or
+                beammap object.
+                    If path, loads data from beammap file.
+                    If instrument (either 'mec' or 'darkness'), loads corresponding
+                        default beammap.
+                    If instance of Beammap, creates a copy
+        """
+        if file is not None:
+            self._load(file)
+        else:
+            try:
+                self._load(pkg.resource_filename(__name__, '{}.bmap'.format(default.lower())))
+            except IOError:
+                opt = ', '.join([f.rstrip('.bmap').upper() for f in glob(pkg.resource_filename(__name__, '*.bmap'))])
+                raise ValueError('Unknown default beampmap "{}". Options: {}'.format(default, opt))
 
     def setData(self, bmData):
         """
@@ -42,7 +58,7 @@ class Beammap:
         else:
             raise Exception("This data is not in the proper format")
 
-    def load(self, filename):
+    def _load(self, filename):
         """
         Loads beammap data from filename
         """
@@ -77,12 +93,7 @@ class Beammap:
         """
         Returns a deep copy of itself
         """
-        newBeammap = Beammap()
-        newBeammap.resIDs = np.copy(self.resIDs)
-        newBeammap.flags = np.copy(self.flags)
-        newBeammap.xCoords = np.copy(self.xCoords)
-        newBeammap.yCoords = np.copy(self.yCoords)
-        return newBeammap
+        return copy.deepcopy(self)
 
     def getResonatorsAtCoordinate(self, xCoordinate, yCoordinate):
         indices = np.where((self.xCoords == xCoordinate) & (self.yCoords == yCoordinate))[0]
