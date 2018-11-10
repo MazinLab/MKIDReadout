@@ -6,6 +6,8 @@ import select
 import threading
 from mkidcore.corelog import getLogger
 
+DEFAULT_CAPTURE_PORT = 50000  #This should be whatever is hardcoded in packetmaster -JB
+
 @yaml_object(yaml)
 class PacketMasterConfig(object):
     _template = ('{rdsk}\n'
@@ -24,11 +26,12 @@ class PacketMasterConfig(object):
 class Packetmaster(object):
     # TODO overall log configuration must configure for a 'packetmaster' log
     def __init__(self, nroaches, detinfo=(100,100), nuller=False, ramdisk=None,
-                 binary='./packetmaster', resume=False):
+                 binary='./packetmaster', resume=False, captureport=DEFAULT_CAPTURE_PORT, start=True):
         self.ramdisk = ramdisk
         self.nroaches = nroaches
         self.binary_path = binary
         self.detector = detinfo
+        self.captureport = captureport
         self.nuller = nuller
 
         self.log = getLogger('packetmaster')
@@ -43,6 +46,13 @@ class Packetmaster(object):
 
         if self._process is not None:
             if resume:
+                try:
+                    connections = [x for x in self._process.get_connections()
+                                   if x.status == psutil.CONN_LISTEN]
+                    self.captureport = connections[0].laddr.port
+                except Exception:
+                    self.log.debug('Unable to determine listening port: ', exc_info=True)
+
                 self.log.warning('Reusing existing packetmaster instance, logging will not work')
             else:
                 self.log.warning('Killing existing packetmaster instance.')
@@ -51,7 +61,8 @@ class Packetmaster(object):
 
         self._pmmonitorthread = None
 
-        self.start()
+        if start:
+            self.start()
 
     @property
     def is_running(self):

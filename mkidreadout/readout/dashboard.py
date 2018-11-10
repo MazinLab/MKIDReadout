@@ -27,6 +27,7 @@ from PyQt4 import QtCore
 from PyQt4.QtCore import Qt
 from PyQt4.QtGui import *
 
+from mkidcore.fits import addfitshdu, summarizehdu
 import mkidcore.config
 import time
 from mkidcore.corelog import getLogger, setup_logging
@@ -35,7 +36,7 @@ from mkidreadout.readout.lasercontrol import LaserControl
 from mkidreadout.readout.Telescope import *
 from mkidreadout.channelizer.Roach2Controls import Roach2Controls
 from mkidreadout.utils.utils import interpolateImage
-
+from mkidreadout.configuration.beammap.beammap import Beammap
 from mkidreadout.readout.packetmaster import Packetmaster
 import mkidreadout.hardware.conex
 from socket import inet_aton
@@ -285,23 +286,25 @@ class MKIDDashboard(QMainWindow):
         self.darkField = None                       # Holds a dark image for subtracting
         self.flatField = None                       # Holds a flat image for normalizing
 
-        self.roachList = None
+        self.roachList = []
+        self.beammap = None
 
         # Often overwritten variables
         self.clicking=False                         # Flag to indicate we've pressed the left mouse button and haven't released it yet
         self.pixelClicked = None                    # Holds the pixel clicked when mouse is pressed
         self.pixelCurrent = None                    # Holds the pixel the mouse is currently hovering on
-        self.takingDark = -1                        # Flag for taking dark image. Indicates number of images we still need for darkField image. Negative means not taking a dark
-        self.takingFlat = -1                        # Flag for taking flat image. Indicates number of images we still need for flatField image
+        self.takingDark = 0                         # Flag for taking dark image. Indicates number of images we still need for darkField image.
+        self.takingFlat = 0                         # Flag for taking flat image. Indicates number of images we still need for flatField image
         
         # Initialize PacketMaster8
-        if self.config.spawn_packetmaster and not self.offline:
-            getLogger('Dashboard').info('Initializing packetmaster...')
-            self.packetmaster = Packetmaster(self.config.roaches, ramdisk=self.packetmaster.ramdisk,
-                                             detinfo=(self.config.detector.ncols, self.config.detector.nrows),
-                                             nuller=self.config.packetmaster.nuller)
-        else:
-            self.packetmaster = None
+        getLogger('Dashboard').info('Initializing packetmaster...')
+        self.packetmaster = Packetmaster(self.config.roaches, ramdisk=self.packetmaster.ramdisk,
+                                         detinfo=(self.config.detector.ncols, self.config.detector.nrows),
+                                         nuller=self.config.packetmaster.nuller,
+                                         captureport=self.roaches.photonCapPort,
+                                         start=self.config.spawn_packetmaster and not self.offline)
+
+        if not self.packetmaster.is_running:
             getLogger('Dashboard').info('Packetmaster not started. Start manually...')
 
         #Laser Controller
@@ -328,7 +331,15 @@ class MKIDDashboard(QMainWindow):
         #Connect to ROACHES and initialize network port in firmware
         getLogger('Dashboard').info('Connecting roaches and loading beammap...')
         if not self.offline:
-            self.connectToRoaches(roachNums)
+            for roachNum in roachNums:
+                roach = Roach2Controls(self.config.roaches.get('r{}.ip'.format(roachNum)),
+                                       self.config.roaches.fpgaparamfile, num=roachNum,
+                                       verbose=False, debug=False)
+                if not roach.connect() and not roach.issetup:
+                    raise RuntimeError('Roach r{} has not been setup.'.format(roachNum))
+                roach.loadCurTimestamp()
+                roach.setPhotonCapturePort(self.packetmaster.captureport)
+                self.roachList.append(roach)
             self.turnOnPhotonCapture()
             self.loadBeammap()
         
@@ -395,23 +406,6 @@ class MKIDDashboard(QMainWindow):
             # Start photon caputure
             roach.fpga.write_int(self.config.get('properties','photonCapStart_reg'),1)
         getLogger('Dashboard').info('Roaches Sending Photon Packets!')
-
-    def connectToRoaches(self, roachNums):
-        """
-        Connect to roaches and make sure the photon port register is set
-        
-        We assume templar has already been run to set up the resonators
-        Assume roach firmware is already running
-        """
-        self.roachList = []
-        for roachNum in roachNums:
-            roach=Roach2Controls(self.config.roaches.get('r{}.ip'.format(roachNum)),
-                                 self.config.roaches.fpgaparamfile, num=roachNum,
-                                 verbose=False, debug=False, config=self.config.roaches)
-            roach.connect()
-            roach.loadCurTimestamp()
-            roach.setPhotonCapturePort(self.config.roaches.photonCapPort)
-            self.roachList.append(roach)
             
     def loadBeammap(self):
         """
@@ -422,89 +416,18 @@ class MKIDDashboard(QMainWindow):
         We set self.beammapFailed here for later use. It's a 2D boolean array with the (row,col)=(y,x) 
         indicating if that pixel is in the beammap or not
         """
-        self.beammapFN = self.config.get('properties','beammapFile')
         try:
-            resID, flag, xCoord, yCoord = np.loadtxt(self.beammapFN, usecols=[0,1,2,3], unpack=True)
+            self.beammap = Beammap(self.config.beammap)
         except IOError:
-            getLogger('Dashboard').info("Could not find beammap:", self.beammapFN)
-            self.beammapFN = self.config.get('properties','defaultBeammapFile')
-            resID, flag, xCoord, yCoord = np.loadtxt(self.beammapFN, usecols=[0,1,2,3], unpack=True)
-            getLogger('Dashboard').info("Loaded default beammap instead")
+            getLogger('Dashboard').warning("Could not find beammap %s. Using default",
+                                            self.config.beammap)
+            self.beammap = Beammap(default=self.config.instrument)
 
         for roach in self.roachList:
-            freqList = self.config.get('Roach '+str(roach.num),'freqList')
-            getLogger('Dashboard').info(freqList)
+            roach.loadBeammapCoords(self.beammap)
 
-            #old version for loading freqList, causing issues 3/18/17                 
-            resID_roach, freqs, _ = np.loadtxt(freqList,unpack=True)
-            
-            #freqArrays = np.loadtxt(freqList)
-            #resID_roach = np.atleast_1d(freqArrays[:,0])
-            #freqs = np.atleast_1d(freqArrays[:,1])      # We need an array of floats
-            #attensJunk = np.atleast_1d(freqArrays[:,2])
-            
-            #print resID_roach
-            roach.generateResonatorChannels(freqs)
-            freqCh_roach = np.arange(0,len(resID_roach))
-            #print resID
-            freqCh = np.ones(len(resID))*-2
-            for i in range(len(resID_roach)):
-                indx = np.where(resID==resID_roach[i])[0]
-                freqCh[indx] = freqCh_roach[i]
-            
-            beammapDict = {'resID':resID, 'freqCh':freqCh, 'xCoord':xCoord, 'yCoord':yCoord,'flag':flag}
-            roach.loadBeammapCoords(beammapDict)
-
-        self.beammapFailed = np.ones((self.config.getint('properties','nrows'),self.config.getint('properties','ncols')),dtype=bool)
-        for i in range(len(resID)):
-            try: self.beammapFailed[int(yCoord[i]),int(xCoord[i])]=(flag[i]!=0)
-            except IndexError: pass
-        getLogger('Dashboard').info('nGoodBeammapped:',
-               self.config.getint('properties', 'nrows') * self.config.getint('properties', 'ncols') - np.sum(
-                   self.beammapFailed))
-
-        '''
-        #beammapFN = self.config.get('properties','beammapFile')
-        beammapFN = 'None'
-        self.beammapFailed = np.ones((self.config.getint('properties','nrows'),self.config.getint('properties','ncols')),dtype=bool)
-        for roach in self.roachList:
-            freqList = self.config.get('Roach '+str(roach.num),'freqList')
-            resID, freqs, _ = np.loadtxt(freqList,unpack=True)
-            roach.generateResonatorChannels(freqs)
-            if beammapFN is 'None': # default beammap
-                beammapDict= {'feedline': self.config.getint('Roach '+str(roach.num),'feedline'),
-                              'sideband': self.config.get('Roach '+str(roach.num),'sideband'),
-                              'boardRange': self.config.get('Roach '+str(roach.num),'boardRange')}
-                roach.loadBeammapCoords(initialBeammapDict = beammapDict)
-            else:
-                beammapData =  np.loadtxt(beammapFN)
-                freqCh, flag, xCoord, yCoord =[],[],[],[]
-                
-                for i in range(len(resID)):
-                    #print beammapData[:,0]
-                    #print resID[i]
-                    #print beammapData[:,0]==resID[i]
-                    #print np.where(beammapData[:,0]==resID[i])
-                    try:
-                        indx = int(np.where(beammapData[:,0]==resID[i])[0][0])
-                        freqCh.append(i)
-                        flag.append(beammapData[indx,1])
-                        x=int(beammapData[indx,2])
-                        y=int(beammapData[indx,3])
-                        xCoord.append(x)
-                        yCoord.append(y)
-                        if beammapData[indx,1]==0:
-                            self.beammapFailed[y,x]=False
-                    except IndexError:
-                        freqCh.append(i)
-                        flag.append(1)
-                        xCoord.append(self.config.getint('properties','ncols'))
-                        yCoord.append(self.config.getint('properties','nrows'))
-                    
-                beammapDict = {'freqCh':np.copy(freqCh), 'flag':np.copy(flag), 'x':np.copy(xCoord), 'y':np.copy(yCoord)}
-                roach.loadBeammapCoords(beammapDict = beammapDict)
-        print 'nGoodBeammapped:',self.config.getint('properties','nrows')*self.config.getint('properties','ncols') - np.sum(self.beammapFailed)
-        '''
+        self.beammapFailed = self.beammap.failmask
+        getLogger('Dashboard').info('Loaded beammap: %s', self.beammap)
 
     def startDithering(self):
         self.button_dither.setEnabled(False)
@@ -524,11 +447,12 @@ class MKIDDashboard(QMainWindow):
                 self.status = mkidreadout.hardware.conex.dither(id=self.pattern, address=self.url)
                 if not self.status.running:
                     return
-
+                #TODO self.status.state, pos, conexstatus need to get synced and logged with logstate
                 while True:
                     time.sleep(.25)
                     self.timeout-=.25
                     self.status = mkidreadout.hardware.conex.status(self.url)
+
                     if not self.status.running:
                         break
                     elif self.timeout<=0:
@@ -539,7 +463,7 @@ class MKIDDashboard(QMainWindow):
 
         def finish():
             if dither.status.offline or dither.status.haserrors:
-                msg='Dither completed with errors: "{}", Conex Status="{}"'.format(
+                msg = 'Dither completed with errors: "{}", Conex Status="{}"'.format(
                         dither.status.state, dither.status.conexstatus)
                 getLogger('Dashboard').error(msg)
             else:
@@ -564,7 +488,7 @@ class MKIDDashboard(QMainWindow):
             getLogger('Dashboard').error('Stop dither error: {}'.format(r))
         self.button_dither.setEnabled(True)
 
-    def appendImage(self,image):
+    def appendImage(self, image):
         """
         Save image data to memory so we can look at a timestream
         
@@ -577,50 +501,50 @@ class MKIDDashboard(QMainWindow):
             image - 2D numpy array of photon counts
         """
         self.imageList.append(image)
-        if len(self.imageList) > self.config.getint('properties','num_images_to_save'):
-            self.imageList = self.imageList[-1*self.config.getint('properties','num_images_to_save'):]
-    
+        if len(self.imageList) > self.config.dashboard.average:
+            self.imageList = self.imageList[-self.config.dashboard.average:]
+
     def addDarkImage(self, photonImage):
-        getLogger('Dashboard').info(photonImage[36, 32])
+        getLogger('Dashboard').info(photonImage.data[36, 32])
         self.spinbox_darkImage.setEnabled(False)
-        if self.darkField is None or self.takingDark==self.spinbox_darkImage.value():
-            self.darkField=photonImage
+        if self.darkField is None or self.takingDark == self.spinbox_darkImage.value():
+            self.darkField = photonImage
         else:
-            self.darkField=self.darkField+photonImage
-        self.takingDark-=1
-        if self.takingDark ==0:
-            self.takingDark=-1
-            self.darkField=self.darkField/(self.config.getint('properties','num_images_for_dark')*self.config.getfloat('properties','packetmaster_image_inttime'))
+            self.darkField = addfitshdu(self.darkField, photonImage)
+        self.takingDark -= 1
+        if not self.takingDark:
+            self.darkField.data /= self.darkField.header.exptime
+            getLogger('ObsLog').info('Finished dark {}:\n {}'.format(self.darkField.filename,
+                                     summarizehdu(self.darkField).replace('\n', '\n  ')))
             self.checkbox_darkImage.setChecked(True)
             self.spinbox_darkImage.setEnabled(True)
-        getLogger('Dashboard').info(self.darkField[36, 32])
+        getLogger('Dashboard').info(self.darkField.data[36, 32])
 
-    def addFlatImage(self, photonImage):
+    def addFlatImage(self, photonImage, minFlat = 1., maxFlat = 2500.):
         if self.checkbox_darkImage.isChecked() and self.darkField is not None:
-            photonImage = np.array(photonImage, dtype=np.float) - self.darkField
+            photonImage = photonImage.data - self.darkField.data
+
         self.spinbox_flatImage.setEnabled(False)
         
         if self.flatField is not None: 
-            self.flatField+=photonImage
+            self.flatField += photonImage
         else:
-            self.flatField=photonImage
-        self.takingFlat-=1
-        if self.takingFlat ==0:
+            self.flatField = photonImage
+
+        self.takingFlat -= 1
+
+        if self.takingFlat == 0:
             getLogger('Dashboard').info("calculating weights")
             self.takingFlat=-1
-            self.flatField=self.flatField/(self.config.getint('properties','num_images_for_flat')*self.config.getfloat('properties','packetmaster_image_inttime'))
-            flatAvg=np.mean(self.flatField[np.where(self.flatField>0)])
-            zeros = np.where(self.flatField==0)
-            minFlat = 1.
-            maxFlat = 2500.
-            self.flatField[np.where(self.flatField<minFlat)]=minFlat
-            self.flatField[np.where(self.flatField>maxFlat)]=maxFlat
-            self.flatField[zeros]=1
+            self.flatField = self.flatField.data/self.flatField.header.exptime
+            self.flatField.data.clip(minFlat, maxFlat, out=self.flatField.data)
+            self.flatField[~self.flatField.nonzero()] = 1
+
             ###Takes the median cutting out the high frequency boards (0<=x<=20 or 60<=x<=79)
             flatToCalculateMedian=np.copy(self.flatField)
-            flatToCalculateMedian[np.where(np.logical_and(self.beammapFailed!=0, flatToCalculateMedian<=100))]=0
+            flatToCalculateMedian[self.beammapFailed & (flatToCalculateMedian<=100)] = 0
             flatToCalculateMedian=flatToCalculateMedian[:,20:60]
-            flatMedian=np.median(flatToCalculateMedian[flatToCalculateMedian!=0])
+            flatMedian=np.median(flatToCalculateMedian[flatToCalculateMedian.nonzero()])
             
             #flatMedian=np.median(self.flatField[np.where(np.logical_and(self.beammapFailed==0, self.flatField!=1))][:,20:60] )
             #flatMedian=np.median(self.flatField[np.where(np.logical_and(self.beammapFailed==0, self.flatField!=1))])
@@ -654,33 +578,29 @@ class MKIDDashboard(QMainWindow):
                 self.addFlatImage(np.copy(photonImage))
             
         # Get the (average) photon count image
-        numImages2Sum = self.config.getint('properties','num_images_to_add')
-        numImages2Sum = min(numImages2Sum,len(self.imageList))
-        image = np.sum(self.imageList[-1*numImages2Sum:],axis=0)
-        image = 1.0*image/(numImages2Sum*self.config.getfloat('properties','packetmaster_image_intTime'))
-        #minCountCutoff=self.config.getint('properties','min_count_rate')*numImages2Sum/self.config.getfloat('properties','packetmaster_image_intTime')
-        #maxCountCutoff=self.config.getint('properties','max_count_rate')*numImages2Sum/self.config.getfloat('properties','packetmaster_image_intTime')
-        minCountCutoff=self.config.getint('properties','min_count_rate')
-        maxCountCutoff=self.config.getint('properties','max_count_rate')
+        nimg = min(self.config.dashboard.average, len(self.imageList))
+        image = np.sum(self.imageList[-nimg:], axis=0, dtype=float)
+        image = image/(nimg*self.config.getfloat('properties','packetmaster_image_intTime'))
+        minCountCutoff = self.config.dashboard.min_count_rate
+        maxCountCutoff = self.config.dashboard.max_count_rate
         bias=0
         #bias=1000
         
         # Possibly subtract dark image
         if self.checkbox_darkImage.isChecked() and self.darkField is not None:
-            #print self.darkField
-            #zeroes = np.where(self.darkField>image)
-            image = image -self.darkField
-            #image[zeroes] = 0
+            image = image - self.darkField
+
         # Possibly normalize with flat image
         if self.checkbox_flatImage.isChecked():
             if self.flatField is None:
-                flatFN = self.config.get('properties','flatFieldFN')
                 try: 
-                    flatDict = np.load(flatFN)
+                    flatDict = fits.open(self.config.dashboard.flatfile)
                     self.flatField = flatDict['weights']
-                except IOError: pass
+                except IOError:
+                    pass
             if self.flatField is not None:
-                image[np.where(image>0)]=image[np.where(image>0)]*self.flatField[np.where(image>0)]
+                use= image>0
+                image[use] = image[use] * self.flatField[use]
         # Possibly remove pixels that were unbeammaped
         if not self.checkbox_showAllPix.isChecked():
             try: image[np.where(self.beammapFailed)]=-1*bias
@@ -954,9 +874,8 @@ class MKIDDashboard(QMainWindow):
         if self.pixelCurrent != None:
             val=self.getPixCountRate([self.pixelCurrent])
             self.label_pixelInfo.setText('(' + str(self.pixelCurrent[0]) + ' , ' + str(self.pixelCurrent[1]) +') : '+str(np.round(val,2))+' #/second')
-            
-            #beammapFN = self.config.get('properties','beammapFile')
-            beammapData = np.loadtxt(self.beammapFN)
+
+            beammapData = np.loadtxt(self.beammap.file)
             resID=0
             freq = 0
             feedline=0
@@ -1264,9 +1183,10 @@ class MKIDDashboard(QMainWindow):
         self.spinbox_flatImage.valueChanged.connect(partial(self.config.update,'dashboard.n_flats'))    # change in
         # config file
         button_flatImage = QPushButton('Take Flat')
+
         def takeFlat():
-            self.flatField=None
-            self.takingFlat=self.spinbox_flatImage.value()
+            self.flatField = None
+            self.takingFlat = self.spinbox_flatImage.value()
         button_flatImage.clicked.connect(takeFlat)
         self.checkbox_flatImage = QCheckBox()
         self.checkbox_flatImage.setChecked(False)

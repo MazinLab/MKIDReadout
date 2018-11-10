@@ -3,6 +3,7 @@ import pkg_resources as pkg
 from glob import glob
 import copy
 
+_DEFAULT_ARRAY_SIZES={'mec':(100,100), 'darkness': (150,150)}
 
 class Beammap(object):
     """
@@ -13,7 +14,7 @@ class Beammap(object):
         xCoords
         yCoords
     """
-    def __init__(self, file=None, default='MEC'):
+    def __init__(self, file=None, xydim=None, default='MEC'):
         """
         Constructor.
         
@@ -25,11 +26,17 @@ class Beammap(object):
                         default beammap. 
                     If instance of Beammap, creates a copy
         """
+        self.file = ''
         if file is not None:
             self._load(file)
+            try:
+                self.nrows, self.ncols = xydim
+            except TypeError:
+                raise ValueError('xydim is required when loading from file')
         else:
             try:
                 self._load(pkg.resource_filename(__name__, '{}.bmap'.format(default.lower())))
+                self.nrows, self.ncols = _DEFAULT_ARRAY_SIZES[default.lower()]
             except IOError:
 
                 opt = ', '.join([f.rstrip('.bmap').upper()
@@ -52,6 +59,7 @@ class Beammap(object):
         Loads beammap data from filename
         """
         self.resIDs, self.flags, self.xCoords, self.yCoords = np.loadtxt(filename, unpack=True)
+        self.file = filename
 
     def save(self, filename, forceIntegerCoords=False):
         """
@@ -72,3 +80,20 @@ class Beammap(object):
         """
         return copy.deepcopy(self)
 
+    @property
+    def failmask(self, ):
+        #x = np.ones((self.nrows, self.ncols), dtype=bool)
+        # for i in range(len(self.resIDs)):
+        #     try:
+        #         x[int(self.yCoords[i]), int(self.xCoords[i])] = self.flags[i] != 0
+        #     except IndexError:
+        #         pass
+
+        mask = np.ones((self.nrows, self.ncols), dtype=bool)
+        use = (int(self.yCoords) < self.nrows) & (int(self.xCoords) < self.ncols)
+        mask[int(self.yCoords[use]), int(self.xCoords[use])] = self.flags[use].nonzero()
+
+        return mask
+
+    def __str__(self):
+        return 'File: "{}"\nWell Mapped: {}'.format(self.file, self.nrows * self.ncols - self.flags.nonzero().sum())

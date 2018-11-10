@@ -92,22 +92,34 @@ import binascii
 from mkidreadout.channelizer.binTools import castBin
 from mkidreadout.utils.readDict import readDict
 from mkidreadout.channelizer.adcTools import streamSpectrum, checkSpectrumForSpikes
+from mkidcore.corelog import getLogger
 
-class Roach2Controls:
+class RoachConfigManager(object):
+    def __init__(self, ymlfile):
+        pass
 
-    def __init__(self, ip, paramFile, num=None, verbose=False, debug=False, config=None):
-        '''
+    def freqlistfor(self, roach):
+        return self.config.freqfile.format(roach=roach.num, feedline=roach.feedline,
+                                    range=roach.range)
+
+class Roach2Controls(object):
+
+    def __init__(self, ip, paramFile, feedline=1, range='a', num=112, verbose=False, debug=False,
+                 freqListFile=''):
+        """
         Input:
             ip - ip address string of ROACH2
             paramFile - param object or directory string to dictionary containing important info
             verbose - show print statements
             debug - Save some things to disk for debugging
-        '''
+        """
         #np.random.seed(1) #Make the random phase values always the same
         self.verbose=verbose
         self.debug=debug
-        self.config=config
         self.num = num
+        self.feedline = feedline
+        self.range = range
+        self.freqListFile = freqListFile.format(feedline=feedline,range=range,num=num)
 
         self.ip = ip
         try:
@@ -134,19 +146,21 @@ class Roach2Controls:
         self.fpga._timeout = 50.
         if not self.fpga.is_running():
             print 'Firmware is not running. Start firmware, calibrate, and load wave into qdr first!'
+            return False
         else:
             self.fpga.get_system_information()
+            return True
             #print self.fpga.snapshots
     
     def checkDdsShift(self):
-        '''
+        """
         This function checks the delay between the dds channels and the fft.
         It returns the difference.
         Call loadDdsShift with the difference
-        
+
         OUTPUTS:
             ddsShift - # clock cycles delay between dds and fft channels
-        '''
+        """
         self.fpga.write_int(self.params['start_reg'],1)     # Make sure fft is running
         self.fpga.write_int(self.params['read_dds_reg'],1)  # Make sure dds is running
         ddsShift_initial = self.fpga.read_int(self.params['ddsShift_reg'])
@@ -169,32 +183,32 @@ class Roach2Controls:
         return ddsShift
     
     def loadDdsShift(self,ddsShift=76):
-        '''
+        """
         Set the delay between the dds lut and the end of the fft block (firmware dependent)
-        
+
         INPUTS:
             ddsShift - # clock cycles
-        '''
+        """
         self.fpga.write_int(self.params['ddsShift_reg'],ddsShift)
         if self.verbose:
             print 'dds lag: ',ddsShift
         return ddsShift
 
     def loadBoardNum(self, boardNum=None):
-        '''
+        """
         Loads the board number (conventionally the last 3 digits of roach IP)
 
         INPUTS
             boardNum - board number
-        '''
+        """
         if boardNum is None:
             boardNum = int(self.ip.split('.')[3])
         self.fpga.write_int(self.params['boardNum_reg'], boardNum)
 
     def loadCurTimestamp(self):
-        '''
+        """
         Loads current time, in seconds since Jan 1 00:00 UTC this year
-        '''
+        """
         timestamp = int(time.time())
         curYr = datetime.datetime.utcnow().year
         yrStart = datetime.date(curYr, 1, 1)
@@ -203,15 +217,15 @@ class Roach2Controls:
         self.fpga.write_int(self.params['timestamp_reg'], timestamp)
     
     def initializeV7UART(self, waitForV7Ready = True, baud_rate = None, lut_dump_buffer_size = None):
-        '''
-        Initializes the UART connection to the Virtex 7.  Puts the V7 in Recieve mode, sets the 
+        """
+        Initializes the UART connection to the Virtex 7.  Puts the V7 in Recieve mode, sets the
         baud rate
         Defines global variables:
             self.baud_rate - baud rate of UART connection
             self.v7_ready - 1 when v7 is ready for a command
             self.lut_dump_data_period - number of clock cycles between writes to the UART
             self.lut_dump_buffer_size - size, in bytes, of each BRAM dump
-        '''
+        """
         if(baud_rate == None):
             self.baud_rate = self.params['baud_rate']
         else:
@@ -416,12 +430,11 @@ class Roach2Controls:
             print '...Done!'
         
         return {'iStreamList':iStreamList, 'qStreamList':qStreamList, 'quantizedFreqList':ddsQuantizedFreqList, 'phaseList':phaseList}
-    
-    
+
     def loadDdsLUT(self, ddsToneDict=None):
-        '''
+        """
         Load dds tones to LUT in Roach2 memory
-        
+
         INPUTS:
             ddsToneDict - from generateDdsTones()
                 dictionary with following keywords
@@ -429,7 +442,7 @@ class Roach2Controls:
                 'qStreamList' - q values
         OUTPUTS:
             allMemVals - memory values written to QDR
-        '''
+        """
         if ddsToneDict is None:
             try:
                 ddsToneDict={'iStreamList':self.ddsIStreamsList,'qStreamList':self.ddsQStreamsList}
@@ -1304,18 +1317,18 @@ class Roach2Controls:
         
         
     def generateFftChanSelection(self,freqChannels=None):
-        '''
+        """
         This calculates the fftBin index for each resonant frequency and arranges them by stream and channel.
         Used by channel selector block
         Call setLOFreq() and generateResonatorChannels() first.
-        
+
         INPUTS (optional):
-            freqChannels - 2D array of frequencies where each column is the a stream and each row is a channel. If freqChannels isn't given then try to grab it from attribute. 
-        
+            freqChannels - 2D array of frequencies where each column is the a stream and each row is a channel. If freqChannels isn't given then try to grab it from attribute.
+
         OUTPUTS:
             self.fftBinIndChannels - Array with each column containing the fftbin index of a single stream. The row index is the channel number
-            
-        '''
+
+        """
         if freqChannels is None:
             try:
                 freqChannels = self.freqChannels
@@ -1411,66 +1424,44 @@ class Roach2Controls:
         self.fpga.write_int(self.params['chanSelLoad_reg'],0) #stop loading
         
         if self.verbose: print '\t'+str(chanNum)+': '+str(selBinNums)
-    
-    #def freqChannelToStreamChannel(self, freqCh=None):
+
     def getStreamChannelFromFreqChannel(self,freqCh=None):
-        '''
+        """
         This function converts a channel indexed by the location in the freqlist
         to a stream/channel in the Firmware
-        
+
         Throws attribute error if self.freqList or self.freqChannels don't exist
         Call self.generateResonatorChannels() first
-        
+
         INPUTS:
             freqCh - index or list of indices corresponding to the resonators location in the freqList
         OUTPUTS:
             ch - list of channel numbers for resonators in firmware
             stream - stream(s) corresponding to ch
-        '''
+        """
         if freqCh is None:
             freqCh = range(len(self.freqList))
         
         channels = np.atleast_2d(self.freqChannelToStreamChannel[freqCh])[:,0]
         streams = np.atleast_2d(self.freqChannelToStreamChannel[freqCh])[:,1]
         return channels, streams
-        
-        #ch, stream = np.where(np.in1d(self.freqChannels,np.asarray(self.freqList)[freqCh]).reshape(self.freqChannels.shape))
-        #ch=[]
-        #stream=[]
-        #for i in np.atleast_1d(freqCh):
-        #    ch_i, stream_i = np.where(np.in1d(self.freqChannels,np.asarray(self.freqList)[i]).reshape(self.freqChannels.shape))
-        #    ch.append(ch_i)
-        #    stream.append(stream_i)
-        #return np.atleast_1d(ch), np.atleast_1d(stream)
-    
-    #def streamChannelToFreqChannel(self, ch, stream):
+
     def getFreqChannelFromStreamChannel(self, ch, stream):
-        '''
+        """
         This function converts a stream/ch index from the firmware
         to a channel indexed by the location in the freqList
-        
+
         Throws attribute error if self.freqList or self.freqChannels don't exist
         Call self.generateResonatorChannels() first
-        
+
         INPUTS:
             ch - value or list of channel numbers for resonators in firmware
             stream - stream(s) corresponding to ch
         OUTPUTS:
             channel - list of indices corresponding to the resonator's location in the freqList
-        '''
-        
-        freqCh = self.streamChannelToFreqChannel[ch,stream]
-        #if np.any(freqCh==-1):
-        #    raise ValueError('No freq channel exists for ch/stream:',ch[np.where(freqCh==-1)],'/',stream[np.where(freqCh==-1)]
-        return freqCh
-        
-        #freqChannels = []
-        #for i in range(len(np.atleast_1d(ch))):
-        #    freqCh_i = np.where(np.in1d(self.freqList,np.asarray(self.freqChannels)[np.atleast_1d(ch)[i],np.atleast_1d(stream)[i]]))[0]
-        #    freqChannels.append(freqCh_i)
-        #return np.atleast_1d(freqChannels)
-        #return  np.where(np.in1d(self.freqList,np.asarray(self.freqChannels)[ch,stream]))[0]
-        
+        """
+        return self.streamChannelToFreqChannel[ch,stream]
+
     def setMaxCountRate(self, cpsLimit = 2500):
         for reg in self.params['captureCPSlim_regs']:
             try:
@@ -1533,21 +1524,21 @@ class Roach2Controls:
         self.fpga.write_int(self.params['captureLoadThreshold_regs'][stream],0)
 
     def loadFIRCoeffs(self,coeffFile):
-        '''
+        """
         This function loads the FIR coefficients into the Firmware's phase filter for every resonator
         You can provide a filter for each resonator channel or just a single filter that's applied to each resonator
         Any channels without resonators have their filter taps set to 0
-        
+
         If self.freqList and self.freqChannels don't exist then it loads FIR coefficients into every channel
         Be careful, depending on how you set up the channel selection block you might assign the wrong filters to the resonators
         (see self.generateResonatorChannels() for making self.freqList, self.freqChannels)
-        
+
         INPUTS:
             coeffFile - path to plain text file that contains a 2d array
                         The i'th column corresponds to the i'th resonator in the freqList
                         If there is only one column then use it for every resonator in the freqList
-                        The j'th row is the filter's coefficient for the j'th tap 
-        '''
+                        The j'th row is the filter's coefficient for the j'th tap
+        """
         # Decide which channels to write FIRs to
         try:
             freqChans = range(len(self.freqList))
@@ -1592,12 +1583,12 @@ class Roach2Controls:
                 if stream==0: raise
 
     def takePhaseSnapshotOfFreqChannel(self, freqChan):
-        '''
+        """
         This function overloads takePhaseSnapshot
-        
+
         INPUTS:
             freqChan - the resonator channel as indexed in the freqList
-        '''
+        """
         #ch, stream = self.freqChannelToStreamChannel(freqChan)
         ch, stream = self.getStreamChannelFromFreqChannel(freqChan)
         selChanIndex = (int(stream)<<8) + int(ch)
@@ -2071,35 +2062,48 @@ class Roach2Controls:
         #Q_list2[:-2]=Q_list[2:]
         #Q_list2[-2:]=Q_list[:2]
         return {'I':I_list2, 'Q':Q_list2}
-    
-    
-    
-    def loadBeammapCoords(self,beammapDict):
+
+    def loadBeammapCoords(self, beammap, freqListFile=None):
         """
         Load the beammap coordinates x,y corresponding to each frqChannel for each stream
         
-        NOTE: we don't need to worry about loading in positions to empty stream/channel 
-			  positions since they won't trigger on photons. (no probe; dds tone is zeros; filter is zeros)
-        
+        NOTE: we don't need to worry about loading in positions to empty stream/channel
+            positions since they won't trigger on photons. (no probe; dds tone is zeros;
+            filter is zeros)
+
         INPUTS:
-            beammapDict contains:
-                'resID'  : list of unique resonator IDs     (ignored)
-                'freqCh' : list of freqCh of resonators.    (index in frequency list)
-                'xCoord' : list of x Coordinates
-                'yCoord' : list of y Coords
-                'flag'   : list of flags from beammap code  (ignored)
+            beammap object with .resID .xCoord and .yCoord, 1d arrays of all resIDs, x coords, and y coords
+
         """
-        
+
+        #Do the channel stuff here
+        freqList = self.config.roaches.freqlistfor(self)
+        if not self.freqListFile:
+            if not freqListFile:
+                raise RuntimeError('A freqListFile is required')
+        elif freqListFile:
+            getLogger(__name__).debug('Replaced freqListFile from init with %s',freqListFile)
+            self.freqListFile = freqListFile
+
+        getLogger(__name__).debug('Loading frequencies from %s',freqListFile)
+        resID_roach, freqs, _ = np.loadtxt(self.freqListFile , unpack=True)
+        self.generateResonatorChannels(freqs)
+        freqCh_roach = np.arange(0, len(resID_roach))
+        freqCh = np.ones(len(beammap.resID)) * -2
+        for rID, fCh in zip(resID_roach, freqCh_roach):
+            freqCh[beammap.resID == rID] = fCh
+        #End code brought out of dashboard
+
         allStreamChannels,allStreams = self.getStreamChannelFromFreqChannel()
         for stream in np.unique(allStreams):
             streamChannels = allStreamChannels[np.where(allStreams==stream)]
             streamCoordBits = []
             for streamChannel in streamChannels:
                 freqChannel = self.getFreqChannelFromStreamChannel(streamChannel,stream)
-                indx = np.where(np.asarray(beammapDict['freqCh'])==freqChannel)[0]
+                indx = np.where(freqCh==freqChannel)[0]
                 if len(indx)==0:
-					# If a resonator is being probed but isn't mentioned in the beammap file
-					# This shouldn't happen since all 10000 pixels should be in the beammap...
+                    # If a resonator is being probed but isn't mentioned in the beammap file
+                    # This shouldn't happen since all 10000 pixels should be in the beammap...
                     # First 20 bits are 10111111111111111111. Fake photons are 01111's. Headers have the frist 8 bits as 1's
                     x=2**self.params['nBitsXCoord'] - 1 - 2**(self.params['nBitsXCoord']-2)
                     y=2**self.params['nBitsYCoord'] - 1
@@ -2111,37 +2115,6 @@ class Roach2Controls:
                 streamCoordBits.append((int(x) << self.params['nBitsYCoord']) + int(y))
             streamCoordBits = np.array(streamCoordBits)
             self.writeBram(memName = self.params['pixelnames_bram'][stream],valuesToWrite = streamCoordBits)
-    '''    
-    def loadBeammapCoords(self,beammap=None,initialBeammapDict=None):
-        """
-        Load the beammap coordinates x,y corresponding to each frqChannel for each stream
-        INPUTS:
-            beammap - to be determined, if None, use initial beammap assignments
-            initialBeammapDict containts
-                'feedline' - the feedline for this roach
-                'sideband' - either 'pos' or 'neg' indicating whether these frequences are above or below the LO
-                'boardRange' - either 'a' or 'b' indicationg whether this board is assigned to low (a) or high (b) frequencies of a feedline
-        """
-
-        if beammap is None:
-            allStreamChannels,allStreams = self.getStreamChannelFromFreqChannel()
-            for stream in np.unique(allStreams):
-                streamChannels = allStreamChannels[np.where(allStreams==stream)]
-                streamCoordBits = []
-                for streamChannel in streamChannels:
-                    freqChannel = self.getFreqChannelFromStreamChannel(streamChannel,stream)
-
-                    coordDict = xyPack(freqChannel=freqChannel,**initialBeammapDict)
-                    x = coordDict['x']
-                    y = coordDict['y']
-                    streamCoordBits.append((x << self.params['nBitsYCoord']) + y)
-                streamCoordBits = np.array(streamCoordBits)
-                self.writeBram(memName = self.params['pixelnames_bram'][stream],valuesToWrite = streamCoordBits)
-            
-
-        else:
-            raise ValueError('loading beammaps not implemented yet')
-    '''
 
     def takeAvgIQData(self,numPts=100):
         """
@@ -2236,8 +2209,14 @@ class Roach2Controls:
             self.v7_ready = 0
 
     def setPhotonCapturePort(self, port):
-        self.fpga.write_int(self.config.photonPort_reg, int(port))
-        
+        self.fpga.write_int(self.params['photonPort_reg'], int(port))
+
+    @property
+    def issetup(self):
+        """Return true if roach has been configured by templar e.g. ready for use by dashboard"""
+        #TODO
+        return True
+
 if __name__=='__main__':
     if len(sys.argv) > 1:
         ip = sys.argv[1]

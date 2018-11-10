@@ -523,6 +523,7 @@ class ConexManager(object):
             for x, y in itertools.product(x_list, y_list):
 
                 if not self._move((x,y)):
+                    self._dither_result = DitherPath(dither, startTimes, endTimes, pos)
                     return False
 
                 startTimes.append(time.time())
@@ -570,6 +571,7 @@ class ConexManager(object):
         return True
 
     def wait_on_conex(self, timeout=15):
+        """wait until conex in position, timeout or _halt gets set"""
         movestart = time.time()
         while not self.conex.ready():
             if self._halt:

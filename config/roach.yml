@@ -1,0 +1,299 @@
+
+!configdict
+roachs: !RoachData
+
+  minFramePeriod: 125000 # min sec between sending photon data. 2kHz = 125000 clock cycles is good
+  wordsPerFrame:  100 # max size of a UDP packet of photons. 1 photon=1 word. 100 is good
+
+  hostIP: 10.0.0.51
+  photonCapPort: 50000
+
+  fpgpath: /home/kids/Firmware/darkquad29_2018_Feb_08_1046.fpg
+  fpgaparamfile: DarknessFpga_V2.param
+
+  fircoefffile: /mnt/data0/SDR/Projects/Filters/unity50.txt
+  freqfile: /mnt/data0/Darkness/20180521/ps_{roach}_FL_{feedline}_{range}_FacelessHFBigNewImg.txt
+
+  numsigs_thresh: 4.0
+  ddssynclag: 76
+  waitforv7ready: False
+
+  r115: !configdict
+    ip: 10.0.0.115
+    phaseport: 50007 #previously 'port', port phasedata is sent to
+    feedline: 4
+    range: b
+    dacatten_start: 12
+    dacatten_stop: 12
+    adcatten: 27
+    lo_freq: 7099070874.0
+  r114: !configdict
+    ipaddress: 10.0.0.114
+    phaseport: 50007 #previously 'port', port phasedata is sent to
+    feedline: 4
+    range: b
+    dacatten_start: 12
+    dacatten_stop: 12
+    adcatten: 27
+    lo_freq: 7099070874.0
+  r117: !configdict
+    ipaddress: 10.0.0.117
+    phaseport: 50007 #previously 'port', port phasedata is sent to
+    feedline: 4
+    range: b
+    dacatten_start: 12
+    dacatten_stop: 12
+    adcatten: 27
+    lo_freq: 7099070874.0
+  r116: !configdict
+    ipaddress: 10.0.0.116
+    phaseport: 50007 #previously 'port', port phasedata is sent to
+    feedline: 4
+    range: b
+    dacatten_start: 12
+    dacatten_stop: 12
+    adcatten: 27
+    lo_freq: 7099070874.0
+  r238: !configdict
+    ipaddress: 10.0.0.238
+    phaseport: 50007 #previously 'port', port phasedata is sent to
+    feedline: 4
+    range: b
+    dacatten_start: 12
+    dacatten_stop: 12
+    adcatten: 27
+    lo_freq: 7099070874.0
+  r239: !configdict
+    ipaddress: 10.0.0.239
+    phaseport: 50007 #previously 'port', port phasedata is sent to
+    feedline: 4
+    range: b
+    dacatten_start: 12
+    dacatten_stop: 12
+    adcatten: 27
+    lo_freq: 7099070874.0
+  r112: !configdict
+    ipaddress: 10.0.0.112
+    phaseport: 50007 #previously 'port', port phasedata is sent to
+    feedline: 4
+    range: b
+    dacatten_start: 12
+    dacatten_stop: 12
+    adcatten: 27
+    lo_freq: 7099070874.0
+  r234: !configdict
+    ipaddress: 10.0.0.234
+    phaseport: 50007 #previously 'port', port phasedata is sent to
+    feedline: 4
+    range: b
+    dacatten_start: 12
+    dacatten_stop: 12
+    adcatten: 27
+    lo_freq: 7099070874.0
+  r235: !configdict
+    ipaddress: 10.0.0.235
+    phaseport: 50007 #previously 'port', port phasedata is sent to
+    feedline: 4
+    range: b
+    dacatten_start: 12
+    dacatten_stop: 12
+    adcatten: 27
+    lo_freq: 7099070874.0
+  r236: !configdict
+    ipaddress: 10.0.0.236
+    phaseport: 50007 #previously 'port', port phasedata is sent to
+    feedline: 4
+    range: b
+    dacatten_start: 12
+    dacatten_stop: 12
+    adcatten: 27
+    lo_freq: 7099070874.0
+  r237: !configdict
+    ipaddress: 10.0.0.237
+    phaseport: 50007 #previously 'port', port phasedata is sent to
+    feedline: 4
+    range: b
+    dacatten_start: 12
+    dacatten_stop: 12
+    adcatten: 27
+    lo_freq: 7099070874.0
+  r119: !configdict
+    ipaddress: 10.0.0.119
+    phaseport: 50007 #previously 'port', port phasedata is sent to
+    feedline: 4
+    range: b
+    dacatten_start: 12
+    dacatten_stop: 12
+    adcatten: 27
+    lo_freq: 7099070874.0
+  r118: !configdict
+    ipaddress: 10.0.0.118
+    phaseport: 50007 #previously 'port', port phasedata is sent to
+    feedline: 4
+    range: b
+    dacatten_start: 12
+    dacatten_stop: 12
+    adcatten: 27
+    lo_freq: 7099070874.0
+  r232: !configdict
+    ipaddress: 10.0.0.232
+    phaseport: 50007 #previously 'port', port phasedata is sent to
+    feedline: 4
+    range: b
+    dacatten_start: 12
+    dacatten_stop: 12
+    adcatten: 27
+    lo_freq: 7099070874.0
+  r233: !configdict
+    ipaddress: 10.0.0.233
+    phaseport: 50007 #previously 'port', port phasedata is sent to
+    feedline: 4
+    range: b
+    dacatten_start: 12
+    dacatten_stop: 12
+    adcatten: 27
+    lo_freq: 7099070874.0
+  r230: !configdict
+    ipaddress: 10.0.0.230
+    phaseport: 50007 #previously 'port', port phasedata is sent to
+    feedline: 4
+    range: b
+    dacatten_start: 12
+    dacatten_stop: 12
+    adcatten: 27
+    lo_freq: 7099070874.0
+  r231: !configdict
+    ipaddress: 10.0.0.231
+    phaseport: 50007 #previously 'port', port phasedata is sent to
+    feedline: 4
+    range: b
+    dacatten_start: 12
+    dacatten_stop: 12
+    adcatten: 27
+    lo_freq: 7099070874.0
+  r120: !configdict
+    ipaddress: 10.0.0.120
+    phaseport: 50007 #previously 'port', port phasedata is sent to
+    feedline: 4
+    range: b
+    dacatten_start: 12
+    dacatten_stop: 12
+    adcatten: 27
+    lo_freq: 7099070874.0
+  r121: !configdict
+    ipaddress: 10.0.0.121
+    phaseport: 50007 #previously 'port', port phasedata is sent to
+    feedline: 4
+    range: b
+    dacatten_start: 12
+    dacatten_stop: 12
+    adcatten: 27
+    lo_freq: 7099070874.0
+  r122: !configdict
+    ipaddress: 10.0.0.122
+    phaseport: 50007 #previously 'port', port phasedata is sent to
+    feedline: 4
+    range: b
+    dacatten_start: 12
+    dacatten_stop: 12
+    adcatten: 27
+    lo_freq: 7099070874.0
+  r240: !configdict
+    ipaddress: 10.0.0.240
+    phaseport: 50007 #previously 'port', port phasedata is sent to
+    feedline: 4
+    range: b
+    dacatten_start: 12
+    dacatten_stop: 12
+    adcatten: 27
+    lo_freq: 7099070874.0
+  r229: !configdict
+    ipaddress: 10.0.0.229
+    phaseport: 50007 #previously 'port', port phasedata is sent to
+    feedline: 4
+    range: b
+    dacatten_start: 12
+    dacatten_stop: 12
+    adcatten: 27
+    lo_freq: 7099070874.0
+  r228: !configdict
+    ipaddress: 10.0.0.228
+    phaseport: 50007 #previously 'port', port phasedata is sent to
+    feedline: 4
+    range: b
+    dacatten_start: 12
+    dacatten_stop: 12
+    adcatten: 27
+    lo_freq: 7099070874.0
+  r227: !configdict
+    ipaddress: 10.0.0.227
+    phaseport: 50007 #previously 'port', port phasedata is sent to
+    feedline: 4
+    range: b
+    dacatten_start: 12
+    dacatten_stop: 12
+    adcatten: 27
+    lo_freq: 7099070874.0
+  r226: !configdict
+    ipaddress: 10.0.0.226
+    phaseport: 50007 #previously 'port', port phasedata is sent to
+    feedline: 4
+    range: b
+    dacatten_start: 12
+    dacatten_stop: 12
+    adcatten: 27
+    lo_freq: 7099070874.0
+  r225: !configdict
+    ipaddress: 10.0.0.225
+    phaseport: 50007 #previously 'port', port phasedata is sent to
+    feedline: 4
+    range: b
+    dacatten_start: 12
+    dacatten_stop: 12
+    adcatten: 27
+    lo_freq: 7099070874.0
+  r224: !configdict
+    ipaddress: 10.0.0.224
+    phaseport: 50007 #previously 'port', port phasedata is sent to
+    feedline: 4
+    range: b
+    dacatten_start: 12
+    dacatten_stop: 12
+    adcatten: 27
+    lo_freq: 7099070874.0
+  r223: !configdict
+    ipaddress: 10.0.0.223
+    phaseport: 50007 #previously 'port', port phasedata is sent to
+    feedline: 4
+    range: b
+    dacatten_start: 12
+    dacatten_stop: 12
+    adcatten: 27
+    lo_freq: 7099070874.0
+  r222: !configdict
+    ipaddress: 10.0.0.222
+    phaseport: 50007 #previously 'port', port phasedata is sent to
+    feedline: 4
+    range: b
+    dacatten_start: 12
+    dacatten_stop: 12
+    adcatten: 27
+    lo_freq: 7099070874.0
+  r221: !configdict
+    ipaddress: 10.0.0.221
+    phaseport: 50007 #previously 'port', port phasedata is sent to
+    feedline: 4
+    range: b
+    dacatten_start: 12
+    dacatten_stop: 12
+    adcatten: 27
+    lo_freq: 7099070874.0
+  r220: !configdict
+    ipaddress: 10.0.0.220
+    phaseport: 50007 #previously 'port', port phasedata is sent to
+    feedline: 4
+    range: b
+    dacatten_start: 12
+    dacatten_stop: 12
+    adcatten: 27
+    lo_freq: 7099070874.0
