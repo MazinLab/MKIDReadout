@@ -33,6 +33,8 @@ class Beammap(object):
                 self.ncols, self.nrows = xydim
             except TypeError:
                 raise ValueError('xydim is a required parameter when loading a beammap from a file')
+            if (self.ncols * self.nrows) != len(self.resIDs):
+                raise Exception('The dimensions of the beammap entered do not match the beammap read in')
         else:
             try:
                 self._load(pkg.resource_filename(__name__, '{}.bmap'.format(default.lower())))
