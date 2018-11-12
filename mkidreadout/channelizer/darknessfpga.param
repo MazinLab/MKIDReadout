@@ -16,6 +16,9 @@ nChannels = 1024
 nChannelsPerStream = 256        #4 streams for Gen 2 readout
 #nStreams = 4                   # nChannels/nChannelsPerStream
 
+# max size of a UDP packet of photons. 1 photon=1 word. 100 is good
+wordsPerFrame = 100
+
 #parameters for dac look-up table (lut)
 dacSampleRate = 2.e9
 nDacSamplesPerCycle = 8

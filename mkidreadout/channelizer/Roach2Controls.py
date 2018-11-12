@@ -89,6 +89,7 @@ import scipy.special
 import casperfpga
 import socket
 import binascii
+from socket import inet_aton
 from mkidreadout.channelizer.binTools import castBin
 from mkidreadout.utils.readDict import readDict
 from mkidreadout.channelizer.adcTools import streamSpectrum, checkSpectrumForSpikes
@@ -1313,9 +1314,7 @@ class Roach2Controls(object):
             print '...Done!'
 
         return self.freqChannels
-        
-        
-        
+
     def generateFftChanSelection(self,freqChannels=None):
         """
         This calculates the fftBin index for each resonant frequency and arranges them by stream and channel.
@@ -2210,6 +2209,27 @@ class Roach2Controls(object):
 
     def setPhotonCapturePort(self, port):
         self.fpga.write_int(self.params['photonPort_reg'], int(port))
+
+    def stopSendingPhotons(self):
+        self.fpga.write_int(self.params['photonCapStart_reg'], 0)
+
+    def startSendingPhotons(self, dest_ip, port):
+        dest_ip = binascii.hexlify(inet_aton(dest_ip))
+
+        self.fpga.write_int(self.params['destIP_reg'], int(dest_ip, 16))
+        self.fpga.write_int(self.params['photonPort_reg'], int(port))
+        self.fpga.write_int(self.params['wordsPerFrame_reg'],
+                            int(self.params['int(wordsPerFrame']))
+
+        # restart gbe
+        self.fpga.write_int(self.params['photonCapStart_reg'], 0)
+        self.fpga.write_int(self.params['phaseDumpEn_reg'], 0)
+        self.fpga.write_int(self.params['gbe64Rst_reg'], 1)
+        time.sleep(.01)
+        self.fpga.write_int(self.params['gbe64Rst_reg'], 0)
+
+        #Start
+        self.fpga.write_int(self.params['photonCapStart_reg'], 1)
 
     @property
     def issetup(self):

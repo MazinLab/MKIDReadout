@@ -3,10 +3,9 @@
 roachs: !RoachData
 
   minFramePeriod: 125000 # min sec between sending photon data. 2kHz = 125000 clock cycles is good
-  wordsPerFrame:  100 # max size of a UDP packet of photons. 1 photon=1 word. 100 is good
 
-  hostIP: 10.0.0.51
-  photonCapPort: 50000
+#  hostIP: 10.0.0.51
+#  photonCapPort: 50000
 
   fpgpath: /home/kids/Firmware/darkquad29_2018_Feb_08_1046.fpg
   fpgaparamfile: DarknessFpga_V2.param

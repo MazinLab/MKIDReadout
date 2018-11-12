@@ -27,7 +27,9 @@ from PyQt4 import QtCore
 from PyQt4.QtCore import Qt
 from PyQt4.QtGui import *
 
-from mkidcore.fits import addfitshdu, summarizehdu
+from astropy.io import fits
+
+from mkidcore.fits import CalFactory, summarizeimg
 import mkidcore.config
 import time
 from mkidcore.corelog import getLogger, setup_logging
@@ -39,7 +41,6 @@ from mkidreadout.utils.utils import interpolateImage
 from mkidreadout.configuration.beammap.beammap import Beammap
 from mkidreadout.readout.packetmaster import Packetmaster
 import mkidreadout.hardware.conex
-from socket import inet_aton
 import mkidreadout.hardware.hsfw
 import threading
 
@@ -281,13 +282,16 @@ class MKIDDashboard(QMainWindow):
         self.imageList=[]                           # Holds photon count image data
         self.timeStreamWindows = []                 # Holds PixelTimestreamWindow objects
         self.histogramWindows = []                  # Holds PixelHistogramWindow objects
-        self.selectedPixels=set()                   # Holds the pixels currently selected
+        self.selectedPixels = set()                 # Holds the pixels currently selected
         self.observing = observing                  # Indicates if packetmaster is currently writing data to disk
         self.darkField = None                       # Holds a dark image for subtracting
         self.flatField = None                       # Holds a flat image for normalizing
 
         self.roachList = []
         self.beammap = None
+        self.beammapFailed = None
+        self.flatFactory = None
+        self.darkFactory = None
 
         # Often overwritten variables
         self.clicking=False                         # Flag to indicate we've pressed the left mouse button and haven't released it yet
@@ -359,27 +363,13 @@ class MKIDDashboard(QMainWindow):
         if not self.offline:
             QtCore.QTimer.singleShot(10, thread.start) #start the thread after a second
 
-
-        ''' LASERCAL WORK IN PROGRESS
-        # Setup laser cal thread
-        laserCalibrator = LaserCal()
-        self.workers.append(laserCalibrator)
-        laserThread = QtCore.QThread(parent=self)
-        self.threadPool.append(laserThread)
-        laserThread.setObjectName("LaserCalibrator")
-        laserCalibrator.moveToThread(laserThread)
-        laserThread.started.connect(laserCalibrator.doLaserCal)
-        laserCalibrator.finished.connect(laserThread.quit)
-        laserCalibrator.finished.connect(self.enableFlipper)
-        '''
-
     def turnOffPhotonCapture(self):
         """
         Tells roaches to stop photon capture
         """
         for roach in self.roachList:
-            roach.fpga.write_int(self.config.get('properties','photonCapStart_reg'),0)
-        getLogger('Dashboard').info('Roaches stopped sending photon packets :-(')
+            roach.stopSendingPhotons()
+        getLogger('Dashboard').info('Roaches stopped sending photon packets')
 
     def turnOnPhotonCapture(self):
         """
@@ -388,24 +378,8 @@ class MKIDDashboard(QMainWindow):
         Have to be careful to set the registers in the correct order in case we are currently in phase capture mode
         """
         for roach in self.roachList:
-            # set up ethernet parameters
-            hostIP = self.config.get('properties','hostIP')
-            dest_ip = binascii.hexlify(inet_aton(hostIP))
-            dest_ip = int(dest_ip,16)
-            roach.fpga.write_int(self.config.get('properties','destIP_reg'),dest_ip)
-            roach.fpga.write_int(self.config.get('properties','photonPort_reg'), self.config.getint('properties','photonCapPort'))
-            roach.fpga.write_int(self.config.get('properties','wordsPerFrame_reg'),self.config.getint('properties','wordsPerFrame'))
-            
-            # restart gbe
-            roach.fpga.write_int(self.config.get('properties','photonCapStart_reg'),0)
-            roach.fpga.write_int(self.config.get('properties','phaseDumpEn_reg'),0)
-            roach.fpga.write_int(self.config.get('properties','gbe64Rst_reg'),1)
-            time.sleep(.01)
-            roach.fpga.write_int(self.config.get('properties','gbe64Rst_reg'),0)
-
-            # Start photon caputure
-            roach.fpga.write_int(self.config.get('properties','photonCapStart_reg'),1)
-        getLogger('Dashboard').info('Roaches Sending Photon Packets!')
+            roach.startSendingPhotons(self.config.packetmaster.ip, self.config.packetmaster.captureport)
+        getLogger('Dashboard').info('Roaches sending photon packets!')
             
     def loadBeammap(self):
         """
@@ -419,8 +393,7 @@ class MKIDDashboard(QMainWindow):
         try:
             self.beammap = Beammap(self.config.beammap)
         except IOError:
-            getLogger('Dashboard').warning("Could not find beammap %s. Using default",
-                                            self.config.beammap)
+            getLogger('Dashboard').warning("Could not find beammap %s. Using default", self.config.beammap)
             self.beammap = Beammap(default=self.config.instrument)
 
         for roach in self.roachList:
@@ -488,74 +461,47 @@ class MKIDDashboard(QMainWindow):
             getLogger('Dashboard').error('Stop dither error: {}'.format(r))
         self.button_dither.setEnabled(True)
 
-    def appendImage(self, image):
-        """
-        Save image data to memory so we can look at a timestream
-        
-        The number of images to keep is: self.config.getint('properties','num_images_to_save')
-        Can't look back in time longer than that.
-        
-        Called by convertImage()
-        
-        INPUTS:
-            image - 2D numpy array of photon counts
-        """
-        self.imageList.append(image)
-        if len(self.imageList) > self.config.dashboard.average:
-            self.imageList = self.imageList[-self.config.dashboard.average:]
-
     def addDarkImage(self, photonImage):
-        getLogger('Dashboard').info(photonImage.data[36, 32])
         self.spinbox_darkImage.setEnabled(False)
         if self.darkField is None or self.takingDark == self.spinbox_darkImage.value():
-            self.darkField = photonImage
+            self.darkFactory = CalFactory('dark', images=(photonImage,))
         else:
-            self.darkField = addfitshdu(self.darkField, photonImage)
+            self.darkFactory.add_image(photonImage)
+
         self.takingDark -= 1
-        if not self.takingDark:
-            self.darkField.data /= self.darkField.header.exptime
+        if self.takingDark == 0:
+            self.takingDark = -1
+
+            name = '{}_dark_{}'.format(self.config.dashboard.darkname, time.time())
+            self.darkField = self.darkFactory.generate(fname=name, name=name, badmask=self.beammapFailed)
+            self.darkField.writeto(os.path.join(self.cofig.paths.datadir, self.darkField.header.filename))
+
             getLogger('ObsLog').info('Finished dark {}:\n {}'.format(self.darkField.filename,
-                                     summarizehdu(self.darkField).replace('\n', '\n  ')))
+                                     summarizeimg(self.darkField).replace('\n', '\n  ')))
             self.checkbox_darkImage.setChecked(True)
             self.spinbox_darkImage.setEnabled(True)
-        getLogger('Dashboard').info(self.darkField.data[36, 32])
 
-    def addFlatImage(self, photonImage, minFlat = 1., maxFlat = 2500.):
-        if self.checkbox_darkImage.isChecked() and self.darkField is not None:
-            photonImage = photonImage.data - self.darkField.data
-
+    def addFlatImage(self, photonImage, minFlat=1, maxFlat=2500):
         self.spinbox_flatImage.setEnabled(False)
-        
-        if self.flatField is not None: 
-            self.flatField += photonImage
+
+        if self.flatField is None or self.takingFlat == self.spinbox_flatImage.value():
+            self.flatFactory = CalFactory('flat', images=(photonImage,), min=minFlat, max=maxFlat,
+                                          dark=self.darkField, colslice=slice(20, 60))
         else:
-            self.flatField = photonImage
+            self.flatFactory.add_image(photonImage)
 
         self.takingFlat -= 1
-
         if self.takingFlat == 0:
-            getLogger('Dashboard').info("calculating weights")
-            self.takingFlat=-1
-            self.flatField = self.flatField.data/self.flatField.header.exptime
-            self.flatField.data.clip(minFlat, maxFlat, out=self.flatField.data)
-            self.flatField[~self.flatField.nonzero()] = 1
-
-            ###Takes the median cutting out the high frequency boards (0<=x<=20 or 60<=x<=79)
-            flatToCalculateMedian=np.copy(self.flatField)
-            flatToCalculateMedian[self.beammapFailed & (flatToCalculateMedian<=100)] = 0
-            flatToCalculateMedian=flatToCalculateMedian[:,20:60]
-            flatMedian=np.median(flatToCalculateMedian[flatToCalculateMedian.nonzero()])
-            
-            #flatMedian=np.median(self.flatField[np.where(np.logical_and(self.beammapFailed==0, self.flatField!=1))][:,20:60] )
-            #flatMedian=np.median(self.flatField[np.where(np.logical_and(self.beammapFailed==0, self.flatField!=1))])
-            
-            self.flatField = 1./self.flatField*flatMedian
+            self.takingFlat = -1
+            name = '{}_flat_{}'.format(self.config.dashboard.flatname, time.time())
+            self.flatField = self.flatFactory.generate(fname=name, name=name, badmask=self.beammapFailed)
+            self.flatField.writeto(os.path.join(self.cofig.paths.datadir, self.flatField.header.filename))
+            getLogger('ObsLog').info('Finished flat {}:\n {}'.format(self.flatField.header.filename,
+                                     summarizeimg(self.darkField).replace('\n', '\n  ')))
             self.checkbox_flatImage.setChecked(True)
             self.spinbox_flatImage.setEnabled(True)
-            flatFN = self.config.get('properties','flatFieldFN')
-            #np.save(flatFN, self.flatField)
 
-    def convertImage(self,photonImage=None):
+    def convertImage(self, photonImage=None):
         """
         This function is automatically called when ImageSearcher object finds a new image file from cuber program
         We also call this function if we change the image processing controls like
@@ -570,22 +516,26 @@ class MKIDDashboard(QMainWindow):
         """
         # If there's new data, append it
         if photonImage is not None:
-            photonImage = photonImage.astype(np.int)
-            self.appendImage(np.copy(photonImage))
+            photonImage = photonImage.astype(np.int).copy()
+
+            self.imageList.append(photonImage)
+            if len(self.imageList) > self.config.dashboard.average:
+                self.imageList = self.imageList[-self.config.dashboard.average:]
+
             if self.takingDark>0:
-                self.addDarkImage(np.copy(photonImage))
+                self.addDarkImage(photonImage)
             if self.takingFlat>0:
-                self.addFlatImage(np.copy(photonImage))
+                self.addFlatImage(photonImage)
             
         # Get the (average) photon count image
         nimg = min(self.config.dashboard.average, len(self.imageList))
         image = np.sum(self.imageList[-nimg:], axis=0, dtype=float)
-        image = image/(nimg*self.config.getfloat('properties','packetmaster_image_intTime'))
+        image /= nimg*self.config.packetmaster.int_time
         minCountCutoff = self.config.dashboard.min_count_rate
         maxCountCutoff = self.config.dashboard.max_count_rate
-        bias=0
-        #bias=1000
-        
+        bias = 0
+
+
         # Possibly subtract dark image
         if self.checkbox_darkImage.isChecked() and self.darkField is not None:
             image = image - self.darkField
@@ -593,39 +543,43 @@ class MKIDDashboard(QMainWindow):
         # Possibly normalize with flat image
         if self.checkbox_flatImage.isChecked():
             if self.flatField is None:
-                try: 
-                    flatDict = fits.open(self.config.dashboard.flatfile)
-                    self.flatField = flatDict['weights']
+                try:
+                    self.flatField = fits.open(self.config.dashboard.flatfile)  # todo support path, explicit & name
                 except IOError:
                     pass
             if self.flatField is not None:
-                use= image>0
+                use = image > 0
                 image[use] = image[use] * self.flatField[use]
+
         # Possibly remove pixels that were unbeammaped
         if not self.checkbox_showAllPix.isChecked():
-            try: image[np.where(self.beammapFailed)]=-1*bias
-            except AttributeError: pass     # self.beammapFailed is only defined if we load a beammap
+            try:
+                image[self.beammapFailed] = -1*bias
+            except AttributeError, TypeError:
+                pass     # self.beammapFailed is only defined if we load a beammap
         
         if self.checkbox_darkImage.isChecked():
-            image=image+bias   # add bias so that anything that's negative after the dark isn't cutoff
+            image += bias   # add bias so that anything that's negative after the dark isn't cutoff
         
         # Set up worker object and thread
-        image[np.where(self.beammapFailed)]=np.nan
+        image[self.beammapFailed] = np.nan
         interpBool = self.checkbox_interpolate.isChecked()
-        smoothBool = self.checkbox_smooth.isChecked()       # if we're smoothing don't make pixels red
-        mode=self.combobox_stretch.currentText()
-        converter=ConvertPhotonsToRGB(image,minCountCutoff,maxCountCutoff,mode,interpBool,not smoothBool)
-        self.workers.append(converter)                       # Need local reference or else signal is lost!
+        smoothBool = self.checkbox_smooth.isChecked()  # if we're smoothing don't make pixels red
+        mode = self.combobox_stretch.currentText()
+        converter=ConvertPhotonsToRGB(image, minCountCutoff, maxCountCutoff, mode, interpBool, not smoothBool)
+        self.workers.append(converter)  # Need local reference or else signal is lost!
+
         thread = QtCore.QThread(parent=self)
-        thread_num=len(self.threadPool)
+        thread_num = len(self.threadPool)
         thread.setObjectName("convertImage_"+str(thread_num))
-        self.threadPool.append(thread)                      # Need to have local reference to thread or else it will get lost!
+        self.threadPool.append(thread)  # Need to have local reference to thread or else it will get lost!
         converter.moveToThread(thread)
         thread.started.connect(converter.stretchImage)
         converter.convertedImage.connect(lambda x: thread.quit())
         converter.convertedImage.connect(self.updateImage)
-        thread.finished.connect(partial(self.threadPool.remove,thread))         # delete these when done so we don't have a memory leak
-        thread.finished.connect(partial(self.workers.remove,converter))
+        thread.finished.connect(partial(self.threadPool.remove, thread))  # delete these when done so we don't
+        #  have a memory leak
+        thread.finished.connect(partial(self.workers.remove, converter))
         
         # When it's done converting the worker will emit a convertedImage Signal
         converter.convertedImage.connect(lambda x: self.label_numIntegrated.setText(str(numImages2Sum)+'/'+self.label_numIntegrated.text().split('/')[-1]))
@@ -953,22 +907,11 @@ class MKIDDashboard(QMainWindow):
             self.button_stop.setEnabled(True)
             
             self.turnOnPhotonCapture()
-            #for roach in self.roachList:
-            #    # restart gbe
-            #    roach.fpga.write_int(self.config.get('properties','photonCapStart_reg'),0)
-            #    roach.fpga.write_int(self.config.get('properties','phaseDumpEn_reg'),0)
-            #    roach.fpga.write_int(self.config.get('properties','gbe64Rst_reg'),1)
-            #    time.sleep(.1)
-            #    roach.fpga.write_int(self.config.get('properties','gbe64Rst_reg'),0)
-            #    # start photon capture
-            #    roach.fpga.write_int(self.config.get('properties','photonCapStart_reg'),1)
-            
-            data_path = self.config.get('properties','data_dir')
-            start_file_loc = self.config.get('properties','cuber_ramdisk')
-            getLogger('').info("Starting Obs", "Start file Loc:", start_file_loc)
-            f=open(start_file_loc+'/START_tmp','w')
-            f.write(data_path)
-            f.close()
+
+            start_file_loc = self.config.packet_master.ramdisk
+            getLogger('Dashboard').info("Starting Obs. Start file Loc: %s", start_file_loc)
+            with open(start_file_loc+'/START_tmp','w') as f:
+                f.write(self.config.paths.data)
             os.rename(start_file_loc+'/START_tmp', start_file_loc+'/START') #sometimes packetmaseter read the START file before python finished writing the data path into it
 
     def stopObs(self):
@@ -979,28 +922,16 @@ class MKIDDashboard(QMainWindow):
             - Move any log files in the ram disk to the hard disk
         """
         if self.observing:
-            self.observing=False
+            self.observing = False
             getLogger('Dashboard').info("Stop Obs")
-
-            stop_file_loc = self.config.get('properties','cuber_ramdisk')
-            f=open(stop_file_loc+'/STOP','w')
-            f.close()
-            
-            #Need to switch Firmware out of photon collect mode
-            #wait 1 ms
-            #time.sleep(.001)
-            #for roach in self.roachList:
-            #    roach.write_int(self.config.get('properties','photonCapStart_reg'),0)
-            
+            stop_file_loc = self.config.packetmaster.ramdisk
+            open(stop_file_loc+'/STOP', 'w').close()
             self.button_obs.setEnabled(True)
             self.button_stop.setEnabled(False)
             
     def toggleFlipper(self):
         getLogger('Dashboard').info("Toggled flipper!")
-        if self.radiobutton_flipper.isChecked():
-            laserStr = '1'+'0'*len(self.checkbox_laser_list)
-        else:
-            laserStr = '0'+'0'*len(self.checkbox_laser_list)
+        laserStr = str(int(self.radiobutton_flipper.isChecked()))+'0'*len(self.checkbox_laser_list)
         self.laserController.toggleLaser(laserStr, 500)
         self.logstate()
 
@@ -1138,13 +1069,13 @@ class MKIDDashboard(QMainWindow):
         # Image settings!
         # integration Time
         integrationTime = self.config.dashboard.average
-        image_int_time=self.config.packetmaster.int_time
-        max_int_time=self.config.dashboard.num_images_to_save
+        image_int_time = self.config.packetmaster.int_time
+        max_int_time = self.config.dashboard.num_images_to_save
         label_integrationTime = QLabel('int time:')
         spinbox_integrationTime = QSpinBox()
-        spinbox_integrationTime.setRange(1,max_int_time)
+        spinbox_integrationTime.setRange(1, max_int_time)
         spinbox_integrationTime.setValue(integrationTime)
-        spinbox_integrationTime.setSuffix(' * '+str(image_int_time)+' s')
+        spinbox_integrationTime.setSuffix(' * {} s'.format(image_int_time))
         spinbox_integrationTime.setWrapping(False)
         spinbox_integrationTime.setCorrectionMode(QAbstractSpinBox.CorrectToNearestValue)
         spinbox_integrationTime.valueChanged.connect(partial(self.config.update, 'dashboard.average'))    # change in
@@ -1153,18 +1084,21 @@ class MKIDDashboard(QMainWindow):
         # current num images integrated
         self.label_numIntegrated = QLabel('0/'+str(integrationTime))
         spinbox_integrationTime.valueChanged.connect(lambda x: self.label_numIntegrated.setText(self.label_numIntegrated.text().split('/')[0]+'/'+str(x)))
-        spinbox_integrationTime.valueChanged.connect(lambda x: QtCore.QTimer.singleShot(10,self.convertImage)) # remake current image after 10 ms
+        spinbox_integrationTime.valueChanged.connect(lambda x: QtCore.QTimer.singleShot(10, self.convertImage)) #
+        # remake current image after 10 ms
         
         # dark Image
         darkIntTime=self.config.dashboard.n_darks
         self.spinbox_darkImage = QSpinBox()
-        self.spinbox_darkImage.setRange(1,max_int_time)
+        self.spinbox_darkImage.setRange(1, max_int_time)
         self.spinbox_darkImage.setValue(darkIntTime)
         self.spinbox_darkImage.setSuffix(' * '+str(image_int_time)+' s')
         self.spinbox_darkImage.setWrapping(False)
         self.spinbox_darkImage.setCorrectionMode(QAbstractSpinBox.CorrectToNearestValue)
-        self.spinbox_darkImage.valueChanged.connect(partial(self.config.update,'dashboard.n_darks'))  # change in config file
+        self.spinbox_darkImage.valueChanged.connect(partial(self.config.update, 'dashboard.n_darks'))  # change in
+        # config file
         button_darkImage = QPushButton('Take Dark')
+
         def takeDark():
             self.darkField = None
             self.takingDark = self.spinbox_darkImage.value()
@@ -1210,14 +1144,15 @@ class MKIDDashboard(QMainWindow):
         spinbox_minCountRate.setWrapping(False)
         spinbox_minCountRate.setCorrectionMode(QAbstractSpinBox.CorrectToNearestValue)
         # connections for max and min count rates
-        spinbox_minCountRate.valueChanged.connect(partial(self.config.update,'dashboard.min_count_rate'))    # change
+        spinbox_minCountRate.valueChanged.connect(partial(self.config.update, 'dashboard.min_count_rate'))    # change
         #  in config file
-        spinbox_maxCountRate.valueChanged.connect(partial(self.config.update,'dashboard.max_count_rate'))    # change
+        spinbox_maxCountRate.valueChanged.connect(partial(self.config.update, 'dashboard.max_count_rate'))    # change
         #  in config file
         spinbox_minCountRate.valueChanged.connect(spinbox_maxCountRate.setMinimum)  # make sure min is always less than max
         spinbox_maxCountRate.valueChanged.connect(spinbox_minCountRate.setMaximum)
-        spinbox_maxCountRate.valueChanged.connect(lambda x: QtCore.QTimer.singleShot(10,self.convertImage)) # remake current image after 10 ms
-        spinbox_minCountRate.valueChanged.connect(lambda x: QtCore.QTimer.singleShot(10,self.convertImage)) # remake current image after 10 ms
+        convertSS = lambda x: QtCore.QTimer.singleShot(10,self.convertImage)
+        spinbox_maxCountRate.valueChanged.connect(convertSS) # remake current image after 10 ms
+        spinbox_minCountRate.valueChanged.connect(convertSS)
         
         #Drop down menu for choosing image stretch
         label_stretch = QLabel("Image Stretch:")

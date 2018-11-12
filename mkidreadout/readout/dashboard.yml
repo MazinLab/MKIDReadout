@@ -13,6 +13,8 @@ packetmaster: !configdict
   ramdisk: /mnt/ramdisk/ # ramdisk directory to look for .img file made by packetmaster3's cuber routine
   nuller: False  # 1 if speckle nulling, 0 otherwise
   int_time: 1.0 # Cuber spits out images that are integrated over this amount of time
+  ip: 10.0.0.51  #TODO this may as well be replaced by a query of the IP assuming dashboard runs on the same machine as packetmaster
+  captureport: 50000
 
 logs: !configdict
   lognames : ['packetmaster','dashboard', 'HSFW']
@@ -35,7 +37,7 @@ dashboard: !configdict
   min_count_rate: 0
   n_darks: 5 # Num images for dark image
   n_flats: 5
-  flatfile: flat.fits
+  flatname: flat
   darkfile: dark.fits
 
 # Flipper is also controlled with the laser box arduino
