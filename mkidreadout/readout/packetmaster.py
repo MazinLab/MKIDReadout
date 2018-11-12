@@ -4,6 +4,7 @@ import psutil
 import subprocess
 import select
 import threading
+import os
 from mkidcore.corelog import getLogger
 
 DEFAULT_CAPTURE_PORT = 50000  #This should be whatever is hardcoded in packetmaster -JB
@@ -112,5 +113,19 @@ class Packetmaster(object):
                                      stderr=subprocess.PIPE,
                                      shell=False, cwd=None, env=None, creationflags=0)
 
-        self._pmmonitorthread = threading.Thread(self._monitor, name='Packetmaster IO Handler')
+        self._pmmonitorthread = threading.Thread(target=self._monitor, name='Packetmaster IO Handler')
         self._pmmonitorthread.daemon = True
+        self._pmmonitorthread.start()
+
+    def startobs(self, datadir):
+        sfile = os.path.join(self.ramdisk, 'START_tmp')
+        getLogger('Packetmaster').info("Starting packet save. Start file loc: %s", sfile[:-4])
+        with open(sfile, 'w') as f:
+            f.write(datadir)
+        os.rename(sfile, sfile[:-4])  # prevent race condition
+
+    def stopobs(self):
+        open(os.path.join(self.ramdisk, 'STOP'), 'w').close()
+
+    def quit(self):
+        open(os.path.join(self.ramdisk, 'QUIT'),'w').quit()   # tell packetmaster to end

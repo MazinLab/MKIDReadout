@@ -582,7 +582,7 @@ class MKIDDashboard(QMainWindow):
         thread.finished.connect(partial(self.workers.remove, converter))
         
         # When it's done converting the worker will emit a convertedImage Signal
-        converter.convertedImage.connect(lambda x: self.label_numIntegrated.setText(str(numImages2Sum)+'/'+self.label_numIntegrated.text().split('/')[-1]))
+        converter.convertedImage.connect(lambda x: self.label_numIntegrated.setText(str(self.config.dashboard.average)+'/'+self.label_numIntegrated.text().split('/')[-1]))
         thread.start()
     
     def updateImage(self, q_image):
@@ -902,17 +902,14 @@ class MKIDDashboard(QMainWindow):
             - write START file to RAM disk for PacketMaster
         """
         if not self.observing:
-            self.observing=True
+            self.observing = True
             self.button_obs.setEnabled(False)
-            self.button_stop.setEnabled(True)
-            
+            self.button_obs.disconnect()
             self.turnOnPhotonCapture()
-
-            start_file_loc = self.config.packet_master.ramdisk
-            getLogger('Dashboard').info("Starting Obs. Start file Loc: %s", start_file_loc)
-            with open(start_file_loc+'/START_tmp','w') as f:
-                f.write(self.config.paths.data)
-            os.rename(start_file_loc+'/START_tmp', start_file_loc+'/START') #sometimes packetmaseter read the START file before python finished writing the data path into it
+            self.packetmaster.startobs(self.config.paths.data)
+            self.button_obs.setText('Stop Observing')
+            self.button_obs.connect(self.stopObs)
+            self.button_obs.setEnabled(True)
 
     def stopObs(self):
         """
@@ -923,12 +920,14 @@ class MKIDDashboard(QMainWindow):
         """
         if self.observing:
             self.observing = False
+            self.button_obs.setEnabled(False)
+            self.button_obs.disconnect()
             getLogger('Dashboard').info("Stop Obs")
-            stop_file_loc = self.config.packetmaster.ramdisk
-            open(stop_file_loc+'/STOP', 'w').close()
+            self.packetmaster.stopobs()
+            self.button_obs.setText('Start Observing')
+            self.button_obs.connect(self.startObs)
             self.button_obs.setEnabled(True)
-            self.button_stop.setEnabled(False)
-            
+
     def toggleFlipper(self):
         getLogger('Dashboard').info("Toggled flipper!")
         laserStr = str(int(self.radiobutton_flipper.isChecked()))+'0'*len(self.checkbox_laser_list)
@@ -945,22 +944,19 @@ class MKIDDashboard(QMainWindow):
             self.combobox_filter.setCurrentIndex(mkidreadout.hardware.hsfw.NFILTERS)
         self.logstate()
 
-    def laserCalClicked(self):
+    def laserCalClicked(self, laserCalStyle = "simultaneous"):
         laserTime = self.spinbox_laserTime.value()
-        laserCalStyle = "simultaneous"
 
-        #simultaneous is classic laser cal style, with all desired lasers at once
+        # simultaneous is classic laser cal style, with all desired lasers at once
         if laserCalStyle == "simultaneous":
-            laserStr = str(int(self.radiobutton_flipper.isChecked()))
-
-            #turn off flipper control until laser cal is done
+            # turn off flipper control until laser cal is done
             self.radiobutton_flipper.setEnabled(False)
             laserStr = ''.join([str(int(cb.isChecked())) for cb in self.checkbox_laser_list])
             self.laserController.toggleLaser(laserStr, laserTime)
             self.logstate()
             getLogger('ObsLog').info('Starting a {} laser cal for {} s.'.format(laserCalStyle, laserTime))
 
-        #re-enable flipper when laser cal is done
+        # re-enable flipper when laser cal is done
         QtCore.QTimer.singleShot(laserTime*1000+1, self.enableFlipper)
 
     def enableFlipper(self):
@@ -971,7 +967,8 @@ class MKIDDashboard(QMainWindow):
     def logstate(self):
         targ, cmt = self.textbox_target.text(), self.textbox_log.toPlainText()
         # state = InstrumentState(target=targ, comment=cmt, flipper=None, laser)
-        getLogger().info(state)
+        #targetname, telescope params, filter, dither x y ts state, roach info if first log
+        getLogger('ObsLog').info(state)
 
     def printLogs(self, num=10):
         ramdiskLog_path = self.config.get('properties','log_ramdisk')
@@ -1001,7 +998,7 @@ class MKIDDashboard(QMainWindow):
         dataDir = self.config.get('properties','data_dir')
         textbox_dataDir = QLineEdit()
         textbox_dataDir.setText(dataDir)
-        textbox_dataDir.textChanged.connect(partial(self.changedSetting,'data_dir'))
+        textbox_dataDir.textChanged.connect(partial(self.config.update,'paths.data'))
         textbox_dataDir.setEnabled(False)
 
         # Start observing button
@@ -1009,13 +1006,12 @@ class MKIDDashboard(QMainWindow):
         font = self.button_obs.font()
         font.setPointSize(24)
         self.button_obs.setFont(font)
-        self.button_obs.setEnabled(not self.observing)
-        self.button_obs.clicked.connect(self.startObs)
-
-        # Stop observing button
-        self.button_stop = QPushButton("Stop Observing")
-        self.button_stop.setEnabled(self.observing)
-        self.button_stop.clicked.connect(self.stopObs)
+        if self.observing:
+            self.button_obs.setText('Stop Observing')
+            self.button_obs.clicked.connect(self.stopObs)
+        else:
+            self.button_obs.setText('Start Observing')
+            self.button_obs.clicked.connect(self.startObs)
 
         # dithering
         self.button_dither = QPushButton("Start Dithering")
@@ -1219,8 +1215,7 @@ class MKIDDashboard(QMainWindow):
         hbox_dataDir.addWidget(textbox_dataDir)
         vbox.addLayout(hbox_dataDir)
         vbox.addWidget(self.button_obs)
-        vbox.addWidget(self.button_stop)
-        
+
         hbox_target = QHBoxLayout()
         hbox_target.addWidget(label_target)
         hbox_target.addWidget(self.textbox_target)
@@ -1357,24 +1352,27 @@ class MKIDDashboard(QMainWindow):
     def create_menu(self):        
         self.file_menu = self.menuBar().addMenu("&File")
         telescope_action = self.create_action("&Telescope Info", slot=self.telescopeWindow.show,shortcut="Ctrl+T", tip="Show Telescope Info")
+
+        #TODO this shortcircuts the logic in starObs/stopObs and will desync the observing button
         photonCapOn_action = self.create_action("Start &Photon Capture", slot=self.turnOnPhotonCapture,shortcut="Ctrl+P", tip="Tell Roaches to send photon packets")
         photonCapOff_action = self.create_action("Stop &Photon Capture", slot=self.turnOffPhotonCapture,shortcut="Ctrl+Shift+P", tip="Tell Roaches to stop sending photon packets")
-        viewLogs_action = self.create_action("Pring &Logs",slot=partial(self.printLogs,15),shortcut="Ctrl+L", tip="Print last 15 logs into terminal")
-        quit_action = self.create_action("&Quit", slot=self.close,shortcut="Ctrl+Q", tip="Close the application")
+        viewLogs_action = self.create_action("Pring &Logs",slot=partial(self.printLogs, 15), shortcut="Ctrl+L",
+                                             tip="Print last 15 logs into terminal")
+        quit_action = self.create_action("&Quit", slot=self.close, shortcut="Ctrl+Q", tip="Close the application")
         
         self.add_actions(self.file_menu, (telescope_action,photonCapOn_action,photonCapOff_action,viewLogs_action,None, quit_action))
 
         self.help_menu = self.menuBar().addMenu("&Help")
-        about_action = self.create_action("&About", shortcut='F1',slot=self.on_about, tip='About the demo')
+        about_action = self.create_action("&About", shortcut='F1', slot=self.on_about, tip='About the demo')
         self.add_actions(self.help_menu, (about_action,))
     
     def on_about(self):
-        msg = "DARKNESS Dashboard!!\n"\
-              "Click and drag on Pixels to select them.\n"\
-              "You can select non-contiguous pixels using SHIFT.\n"\
-              "Right click to plot the timestream of your selected pixels!\n\n"\
-              "Author: Alex Walter\n" \
-              "Date: Jul 3, 2016"
+        msg = ("{} Dashboard!!\n"
+               "Click and drag on Pixels to select them.\n"
+               "You can select non-contiguous pixels using SHIFT.\n"
+               "Right click to plot the timestream of your selected pixels!\n\n"
+               "Author: Alex Walter\n" 
+               "Date: Jul 3, 2016").format(self.config.instrument)
         QMessageBox.about(self, "MKID-ROACH2 software", msg.strip())
     
     def add_actions(self, target, actions):
@@ -1384,9 +1382,8 @@ class MKIDDashboard(QMainWindow):
             else:
                 target.addAction(action)
 
-    def create_action(  self, text, slot=None, shortcut=None, 
-                        icon=None, tip=None, checkable=False, 
-                        signal="triggered()"):
+    def create_action(self, text, slot=None, shortcut=None, icon=None, tip=None, checkable=False,
+                      signal="triggered()"):
         action = QAction(text, self)
         if icon is not None:
             action.setIcon(QIcon(":/%s.png" % icon))
@@ -1400,19 +1397,6 @@ class MKIDDashboard(QMainWindow):
         if checkable:
             action.setCheckable(True)
         return action
-    
-    def changedSetting(self,settingID, setting, sec='properties'):
-        """
-        When a setting is changed, reflect the change in the config object which is shared across all GUI elements.
-        
-        INPUTS:
-            settingID - the key in the configparser
-            setting - the value
-        """
-        self.config.update(settingID, setting)
-        #If we don't force the setting value to be a string then the configparser has trouble grabbing the value later on for some unknown reason
-        newSetting = self.config.get(sec,settingID)
-        getLogger('Dashboard').info('setting ', settingID, ' to ', newSetting)
 
     def closeEvent(self, event):
         """
@@ -1420,7 +1404,7 @@ class MKIDDashboard(QMainWindow):
         """
         if self.observing:
             self.stopObs()
-        quit_file_loc = self.config.packetmaster.ramdisk
+
         self.workers[0].search=False    # stop searching for new images
         del self.grPixMap               # Get segfault if we don't delete this. Something about signals in the queue trying to access deleted objects...
         for thread in self.threadPool:  # They should all be done at this point, but just in case
@@ -1435,9 +1419,8 @@ class MKIDDashboard(QMainWindow):
         
         self.hide()
         time.sleep(1)
-        f=open(quit_file_loc+'/QUIT','w')   # tell packetmaster to end
-        f.close()
-        
+        self.packetmaster.quit()
+
         QtCore.QCoreApplication.instance().quit()
 
 
