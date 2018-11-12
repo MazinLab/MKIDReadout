@@ -45,7 +45,15 @@ import mkidreadout.hardware.hsfw
 import threading
 
 
-class ImageSearcher(QtCore.QObject):     #Extends QObject for use with QThreads
+def add_actions(target, actions):
+    for action in actions:
+        if action is None:
+            target.addSeparator()
+        else:
+            target.addAction(action)
+
+
+class ImageSearcher(QtCore.QObject):  # Extends QObject for use with QThreads
     """
     This class looks for binary '.img' files spit out by the PacketMaster c program on the ramdisk
     
@@ -58,7 +66,7 @@ class ImageSearcher(QtCore.QObject):     #Extends QObject for use with QThreads
     """
     imageFound = QtCore.pyqtSignal(object)
     finished = QtCore.pyqtSignal()
-    
+
     def __init__(self, path, nCols, nRows, parent=None):
         """
         INPUTS:
@@ -70,9 +78,9 @@ class ImageSearcher(QtCore.QObject):     #Extends QObject for use with QThreads
         super(QtCore.QObject, self).__init__(parent)
         self.path = path
         self.nCols = nCols
-        self.nRows= nRows
-        self.search=True
-        
+        self.nRows = nRows
+        self.search = True
+
     def checkDir(self, removeOldFiles=False):
         """
         Infinite loop that keeps checking directory for an image file
@@ -84,8 +92,8 @@ class ImageSearcher(QtCore.QObject):     #Extends QObject for use with QThreads
         INPUTS:
             removeOldFiles - remove .img and .png files after we read them
         """
-        self.search=True
-        latestTime = time.time()-.5
+        self.search = True
+        latestTime = time.time() - .5
         while self.search:
             flist = []
             for f in os.listdir(self.path):
@@ -93,41 +101,41 @@ class ImageSearcher(QtCore.QObject):     #Extends QObject for use with QThreads
                     if float(f.split('.')[0]) > latestTime:
                         flist.append(f)
                     elif removeOldFiles:
-                        os.remove(self.path+f)
+                        os.remove(self.path + f)
                 elif removeOldFiles and f.endswith(".png"):
-                    os.remove(self.path+f)
-            if len(flist)>0:
+                    os.remove(self.path + f)
+            if len(flist) > 0:
                 flist.sort()
                 for f in flist:
-                    latestTime = float(f.split('.')[0])+.1
+                    latestTime = float(f.split('.')[0]) + .1
                     try:
-                        image = self.readBinToList(self.path+f)
+                        image = self.readBinToList(self.path + f)
                         self.imageFound.emit(image)
-                        time.sleep(.01) #Give image time to process before sending next one (not really needed)
+                        time.sleep(.01)  # Give image time to process before sending next one (not really needed)
                     except:
                         getLogger('').info(self.path + f)
                         traceback.print_exc()
                     if removeOldFiles:
-                        os.remove(self.path+f)
+                        os.remove(self.path + f)
         self.finished.emit()
 
-    def readBinToList(self,fn):
+    def readBinToList(self, fn):
         """
         Parses the binary image file into a numpy array
         
         INPUTS:
             fn - full filename of image file
         """
-        #fin = open(fn, "rb")
-        #data = fin.read()
-        #fmt = 'H'*(len(data)/2)   # 2 bytes per each unsigned 16 bit integer
-        #fin.close()
-         
-        image=np.fromfile(open(fn, mode='rb'),dtype=np.uint16)
-        
+        # fin = open(fn, "rb")
+        # data = fin.read()
+        # fmt = 'H'*(len(data)/2)   # 2 bytes per each unsigned 16 bit integer
+        # fin.close()
+
+        image = np.fromfile(open(fn, mode='rb'), dtype=np.uint16)
+
         image = np.transpose(np.reshape(image, (self.nCols, self.nRows)))
-        #image = np.asarray(struct.unpack(fmt,data), dtype=np.int)
-        #image=image.reshape((self.nRows,self.nCols))
+        # image = np.asarray(struct.unpack(fmt,data), dtype=np.int)
+        # image=image.reshape((self.nRows,self.nCols))
         return image
 
 
@@ -141,8 +149,9 @@ class ConvertPhotonsToRGB(QtCore.QObject):
         convertedImage - emits when it's done converting an image
     """
     convertedImage = QtCore.pyqtSignal(object)
-    
-    def __init__(self, image, minCountCutoff=0,maxCountCutoff=450, stretchMode='log',interpolate=False,makeRed=True, parent=None):
+
+    def __init__(self, image, minCountCutoff=0, maxCountCutoff=450, stretchMode='log', interpolate=False, makeRed=True,
+                 parent=None):
         """
         INPUTS:
             image - 2D numpy array of photon counts with np.nan where beammap failed
@@ -152,16 +161,16 @@ class ConvertPhotonsToRGB(QtCore.QObject):
             interpolate - interpolate over np.nan pixels
         """
         super(QtCore.QObject, self).__init__(parent)
-        self.image=np.copy(image)
-        self.minCountCutoff=minCountCutoff
-        self.maxCountCutoff=maxCountCutoff
-        #self.logStretch=logStretch
-        self.interpolate=interpolate
+        self.image = np.copy(image)
+        self.minCountCutoff = minCountCutoff
+        self.maxCountCutoff = maxCountCutoff
+        # self.logStretch=logStretch
+        self.interpolate = interpolate
         self.makeRed = makeRed
-        self.stretchMode=stretchMode
-        
-        #print '#red: ',len(self.redPixels[0])
-    
+        self.stretchMode = stretchMode
+
+        # print '#red: ',len(self.redPixels[0])
+
     def stretchImage(self):
         """
         map photons to greyscale
@@ -169,75 +178,79 @@ class ConvertPhotonsToRGB(QtCore.QObject):
         # first interpolate and find hot pixels
         if self.interpolate:
             self.image = interpolateImage(self.image)
-        self.image[np.where(np.logical_not(np.isfinite(self.image)))] = 0   # get rid of np.nan's
+        self.image[np.where(np.logical_not(np.isfinite(self.image)))] = 0  # get rid of np.nan's
         if self.makeRed:
-            self.redPixels = np.where(self.image>=self.maxCountCutoff)
+            self.redPixels = np.where(self.image >= self.maxCountCutoff)
         else:
-            self.redPixels=[]
-        
-        if self.stretchMode=='logarithmic': imageGrey = self.logStretch()
-        elif self.stretchMode=='linear': imageGrey = self.linStretch()
-        elif self.stretchMode=='histogram equalization': imageGrey = self.histEqualization()
-        else: raise ValueError
-        
+            self.redPixels = []
+
+        if self.stretchMode == 'logarithmic':
+            imageGrey = self.logStretch()
+        elif self.stretchMode == 'linear':
+            imageGrey = self.linStretch()
+        elif self.stretchMode == 'histogram equalization':
+            imageGrey = self.histEqualization()
+        else:
+            raise ValueError
+
         self.makeQPixMap(imageGrey)
-    
+
     def logStretch(self):
         """
         map photon counts to greyscale logarithmically
         """
-        self.image[np.where(self.image>self.maxCountCutoff)]=self.maxCountCutoff
-        self.image[np.where(self.image<self.minCountCutoff)]=self.minCountCutoff
+        self.image[np.where(self.image > self.maxCountCutoff)] = self.maxCountCutoff
+        self.image[np.where(self.image < self.minCountCutoff)] = self.minCountCutoff
         maxVal = np.amax(self.image)
         minVal = np.amin(self.image)
-        maxVal=np.amax([minVal+1, maxVal])
-        
-        image2 = 255./(np.log10(1+maxVal-minVal)) * np.log10(1+self.image - minVal)
+        maxVal = np.amax([minVal + 1, maxVal])
+
+        image2 = 255. / (np.log10(1 + maxVal - minVal)) * np.log10(1 + self.image - minVal)
         return image2
-    
+
     def linStretch(self):
         """
         map photon count to greyscale linearly (max 255 min 0)
         """
-        self.image[np.where(self.image>self.maxCountCutoff)]=self.maxCountCutoff
-        self.image[np.where(self.image<self.minCountCutoff)]=self.minCountCutoff
-        
-        #maxVal = np.amax(self.image)
-        #minVal = np.amin(self.image)
+        self.image[np.where(self.image > self.maxCountCutoff)] = self.maxCountCutoff
+        self.image[np.where(self.image < self.minCountCutoff)] = self.minCountCutoff
+
+        # maxVal = np.amax(self.image)
+        # minVal = np.amin(self.image)
         maxVal = self.maxCountCutoff
         minVal = self.minCountCutoff
-        maxVal=np.amax([minVal+1, maxVal])
-        
-        image2=(self.image-minVal)/(1.0*maxVal-minVal)*255.
+        maxVal = np.amax([minVal + 1, maxVal])
+
+        image2 = (self.image - minVal) / (1.0 * maxVal - minVal) * 255.
         return image2
-    
+
     def histEqualization(self):
         """
         perform a histogram Equalization. This tends to make the contrast better
         
         if self.logStretch is True the histogram uses logarithmic spaced bins
         """
-        imShape=self.image.shape
-        
-        self.image[np.where(self.image>self.maxCountCutoff)]=self.maxCountCutoff
+        imShape = self.image.shape
+
+        self.image[np.where(self.image > self.maxCountCutoff)] = self.maxCountCutoff
         maxVal = np.amax(self.image)
-        if self.logStretch: self.minCountCutoff=max(self.minCountCutoff, 1)
-        self.image[np.where(self.image<self.minCountCutoff)]=self.minCountCutoff
-        
-        bins=256
+        if self.logStretch: self.minCountCutoff = max(self.minCountCutoff, 1)
+        self.image[np.where(self.image < self.minCountCutoff)] = self.minCountCutoff
+
+        bins = 256
         if self.logStretch:
-            bins = np.logspace(np.log10(self.minCountCutoff),np.log10(maxVal),256)
+            bins = np.logspace(np.log10(self.minCountCutoff), np.log10(maxVal), 256)
         imhist, imbins = np.histogram(self.image.flatten(), bins, density=True)
-        
-        cdf = (imhist*(imbins[1:]-imbins[:-1])).cumsum()
-        cdf*=255
-        
-        image2 = np.interp(self.image.flatten(),imbins[:-1],cdf)
-        image2=image2.reshape(self.image.shape)
-        image2[np.where(self.image<=self.minCountCutoff)]=0
-        
+
+        cdf = (imhist * (imbins[1:] - imbins[:-1])).cumsum()
+        cdf *= 255
+
+        image2 = np.interp(self.image.flatten(), imbins[:-1], cdf)
+        image2 = image2.reshape(self.image.shape)
+        image2[np.where(self.image <= self.minCountCutoff)] = 0
+
         return image2
-    
+
     def makeQPixMap(self, image):
         """
         This function makes the QImage object
@@ -245,14 +258,14 @@ class ConvertPhotonsToRGB(QtCore.QObject):
         INPUTS:
             image - 2D numpy array of [0,256) grey colors
         """
-        image2=image.astype(np.uint32)
-        
+        image2 = image.astype(np.uint32)
+
         redMask = np.copy(image2)
         redMask[self.redPixels] = np.uint32(0)
         #           24-32 -> A  16-24 -> R     8-16 -> G      0-8 -> B
-        imageRGB = (255 << 24 | image2 << 16 | redMask << 8 | redMask).flatten()    # pack into RGBA
-        q_im = QtCore.QtGui.QImage(imageRGB,self.image.shape[1],self.image.shape[0],QImage.Format_RGB32)
-        
+        imageRGB = (255 << 24 | image2 << 16 | redMask << 8 | redMask).flatten()  # pack into RGBA
+        q_im = QtCore.QtGui.QImage(imageRGB, self.image.shape[1], self.image.shape[0], QImage.Format_RGB32)
+
         self.convertedImage.emit(q_im)
 
 
@@ -264,7 +277,7 @@ class MKIDDashboard(QMainWindow):
         newImageProcessed() - emited after processing and plotting a new image. Also whenever the current pixel selection changes
     """
     newImageProcessed = QtCore.pyqtSignal()
-    
+
     def __init__(self, roachNums, config='./dashboard.yml', observing=False, parent=None, offline=False):
         """
         INPUTS:
@@ -273,19 +286,20 @@ class MKIDDashboard(QMainWindow):
             observing - indicates if packetmaster is currently writing data to disk
             parent -
         """
+        super(QMainWindow, self).__init__(parent)
         self.config = mkidcore.config.load(config)
         self.offline = offline
 
         # important variables
-        self.threadPool=[]                          # Holds all the threads so they don't get lost. Also, they're garbage collected if they're attributes of self
-        self.workers=[]                             # Holds workder objects corresponding to threads
-        self.imageList=[]                           # Holds photon count image data
-        self.timeStreamWindows = []                 # Holds PixelTimestreamWindow objects
-        self.histogramWindows = []                  # Holds PixelHistogramWindow objects
-        self.selectedPixels = set()                 # Holds the pixels currently selected
-        self.observing = observing                  # Indicates if packetmaster is currently writing data to disk
-        self.darkField = None                       # Holds a dark image for subtracting
-        self.flatField = None                       # Holds a flat image for normalizing
+        self.threadPool = []  # Holds all the threads so they don't get lost. Also, they're garbage collected if they're attributes of self
+        self.workers = []  # Holds workder objects corresponding to threads
+        self.imageList = []  # Holds photon count image data
+        self.timeStreamWindows = []  # Holds PixelTimestreamWindow objects
+        self.histogramWindows = []  # Holds PixelHistogramWindow objects
+        self.selectedPixels = set()  # Holds the pixels currently selected
+        self.observing = observing  # Indicates if packetmaster is currently writing data to disk
+        self.darkField = None  # Holds a dark image for subtracting
+        self.flatField = None  # Holds a flat image for normalizing
 
         self.roachList = []
         self.beammap = None
@@ -294,45 +308,43 @@ class MKIDDashboard(QMainWindow):
         self.darkFactory = None
 
         # Often overwritten variables
-        self.clicking=False                         # Flag to indicate we've pressed the left mouse button and haven't released it yet
-        self.pixelClicked = None                    # Holds the pixel clicked when mouse is pressed
-        self.pixelCurrent = None                    # Holds the pixel the mouse is currently hovering on
-        self.takingDark = 0                         # Flag for taking dark image. Indicates number of images we still need for darkField image.
-        self.takingFlat = 0                         # Flag for taking flat image. Indicates number of images we still need for flatField image
-        
+        self.clicking = False  # Flag to indicate we've pressed the left mouse button and haven't released it yet
+        self.pixelClicked = None  # Holds the pixel clicked when mouse is pressed
+        self.pixelCurrent = None  # Holds the pixel the mouse is currently hovering on
+        self.takingDark = 0  # Flag for taking dark image. Indicates number of images we still need for darkField image.
+        self.takingFlat = 0  # Flag for taking flat image. Indicates number of images we still need for flatField image
+
         # Initialize PacketMaster8
         getLogger('Dashboard').info('Initializing packetmaster...')
-        self.packetmaster = Packetmaster(self.config.roaches, ramdisk=self.packetmaster.ramdisk,
+        self.packetmaster = Packetmaster(self.config.roaches, ramdisk=self.config.packetmaster.ramdisk,
                                          detinfo=(self.config.detector.ncols, self.config.detector.nrows),
                                          nuller=self.config.packetmaster.nuller,
-                                         captureport=self.roaches.photonCapPort,
+                                         captureport=self.config.packetmaster.captureport,
                                          start=self.config.spawn_packetmaster and not self.offline)
 
         if not self.packetmaster.is_running:
             getLogger('Dashboard').info('Packetmaster not started. Start manually...')
 
-        #Laser Controller
+        # Laser Controller
         getLogger('Dashboard').info('Setting up laser control...')
         self.laserController = LaserControl(self.config.lasercontrol.ip, self.config.lasercontrol.port,
                                             self.config.lasercontrol.receive_port)
-        
-        #telscope TCS connection
+
+        # telscope TCS connection
         getLogger('Dashboard').info('Setting up telescope connection...')
         self.telescopeController = Telescope(self.config.telescope.ip, self.config.telescope.port,
                                              self.config.telescope.receive_port)
         self.telescopeWindow = TelescopeWindow(self.telescopeController)
-        
 
-        #Setup GUI
+        # Setup GUI
         getLogger('Dashboard').info('Setting up GUI...')
-        super(QMainWindow, self).__init__(parent)
-        self.setWindowTitle(self.config.instrument+' Dashboard')
+        self.setWindowTitle(self.config.instrument + ' Dashboard')
         self.create_image_widget()
         self.create_dock_widget()
-        self.contextMenu = QMenu(self)    # pops up on right click
+        self.contextMenu = QMenu(self)  # pops up on right click
         self.create_menu()  # file menu
-        
-        #Connect to ROACHES and initialize network port in firmware
+
+        # Connect to ROACHES and initialize network port in firmware
         getLogger('Dashboard').info('Connecting roaches and loading beammap...')
         if not self.offline:
             for roachNum in roachNums:
@@ -346,7 +358,7 @@ class MKIDDashboard(QMainWindow):
                 self.roachList.append(roach)
             self.turnOnPhotonCapture()
             self.loadBeammap()
-        
+
         # Setup search for image files from cuber
         getLogger('Dashboard').info('Setting up image searcher...')
         darkImageSearcher = ImageSearcher(self.config.packetmaster.ramdisk,
@@ -361,7 +373,7 @@ class MKIDDashboard(QMainWindow):
         darkImageSearcher.imageFound.connect(self.convertImage)
         darkImageSearcher.finished.connect(thread.quit)
         if not self.offline:
-            QtCore.QTimer.singleShot(10, thread.start) #start the thread after a second
+            QtCore.QTimer.singleShot(10, thread.start)  # start the thread after a second
 
     def turnOffPhotonCapture(self):
         """
@@ -380,7 +392,7 @@ class MKIDDashboard(QMainWindow):
         for roach in self.roachList:
             roach.startSendingPhotons(self.config.packetmaster.ip, self.config.packetmaster.captureport)
         getLogger('Dashboard').info('Roaches sending photon packets!')
-            
+
     def loadBeammap(self):
         """
         This function loads the beammap into the roach firmware
@@ -420,15 +432,15 @@ class MKIDDashboard(QMainWindow):
                 self.status = mkidreadout.hardware.conex.dither(id=self.pattern, address=self.url)
                 if not self.status.running:
                     return
-                #TODO self.status.state, pos, conexstatus need to get synced and logged with logstate
+                # TODO self.status.state, pos, conexstatus need to get synced and logged with logstate
                 while True:
                     time.sleep(.25)
-                    self.timeout-=.25
+                    self.timeout -= .25
                     self.status = mkidreadout.hardware.conex.status(self.url)
 
                     if not self.status.running:
                         break
-                    elif self.timeout<=0:
+                    elif self.timeout <= 0:
                         self.status = mkidreadout.hardware.conex.stop(self.url)
                         break
 
@@ -437,10 +449,10 @@ class MKIDDashboard(QMainWindow):
         def finish():
             if dither.status.offline or dither.status.haserrors:
                 msg = 'Dither completed with errors: "{}", Conex Status="{}"'.format(
-                        dither.status.state, dither.status.conexstatus)
+                    dither.status.state, dither.status.conexstatus)
                 getLogger('Dashboard').error(msg)
             else:
-                dither_result = 'Dither Path: {}\n'.format(str(dither.status.last_dither).replace('\n','\n   '))
+                dither_result = 'Dither Path: {}\n'.format(str(dither.status.last_dither).replace('\n', '\n   '))
                 getLogger('Dashboard').info(dither_result)
             self.button_dither.clicked.disconnect()
             self.button_dither.clicked.connect(self.startDithering)
@@ -477,7 +489,8 @@ class MKIDDashboard(QMainWindow):
             self.darkField.writeto(os.path.join(self.cofig.paths.datadir, self.darkField.header.filename))
 
             getLogger('ObsLog').info('Finished dark {}:\n {}'.format(self.darkField.filename,
-                                     summarizeimg(self.darkField).replace('\n', '\n  ')))
+                                                                     summarizeimg(self.darkField).replace('\n',
+                                                                                                          '\n  ')))
             self.checkbox_darkImage.setChecked(True)
             self.spinbox_darkImage.setEnabled(True)
 
@@ -497,7 +510,8 @@ class MKIDDashboard(QMainWindow):
             self.flatField = self.flatFactory.generate(fname=name, name=name, badmask=self.beammapFailed)
             self.flatField.writeto(os.path.join(self.cofig.paths.datadir, self.flatField.header.filename))
             getLogger('ObsLog').info('Finished flat {}:\n {}'.format(self.flatField.header.filename,
-                                     summarizeimg(self.darkField).replace('\n', '\n  ')))
+                                                                     summarizeimg(self.darkField).replace('\n',
+                                                                                                          '\n  ')))
             self.checkbox_flatImage.setChecked(True)
             self.spinbox_flatImage.setEnabled(True)
 
@@ -522,19 +536,18 @@ class MKIDDashboard(QMainWindow):
             if len(self.imageList) > self.config.dashboard.average:
                 self.imageList = self.imageList[-self.config.dashboard.average:]
 
-            if self.takingDark>0:
+            if self.takingDark > 0:
                 self.addDarkImage(photonImage)
-            if self.takingFlat>0:
+            if self.takingFlat > 0:
                 self.addFlatImage(photonImage)
-            
+
         # Get the (average) photon count image
         nimg = min(self.config.dashboard.average, len(self.imageList))
         image = np.sum(self.imageList[-nimg:], axis=0, dtype=float)
-        image /= nimg*self.config.packetmaster.int_time
+        image /= nimg * self.config.packetmaster.int_time
         minCountCutoff = self.config.dashboard.min_count_rate
         maxCountCutoff = self.config.dashboard.max_count_rate
         bias = 0
-
 
         # Possibly subtract dark image
         if self.checkbox_darkImage.isChecked() and self.darkField is not None:
@@ -554,24 +567,24 @@ class MKIDDashboard(QMainWindow):
         # Possibly remove pixels that were unbeammaped
         if not self.checkbox_showAllPix.isChecked():
             try:
-                image[self.beammapFailed] = -1*bias
+                image[self.beammapFailed] = -1 * bias
             except AttributeError, TypeError:
-                pass     # self.beammapFailed is only defined if we load a beammap
-        
+                pass  # self.beammapFailed is only defined if we load a beammap
+
         if self.checkbox_darkImage.isChecked():
-            image += bias   # add bias so that anything that's negative after the dark isn't cutoff
-        
+            image += bias  # add bias so that anything that's negative after the dark isn't cutoff
+
         # Set up worker object and thread
         image[self.beammapFailed] = np.nan
         interpBool = self.checkbox_interpolate.isChecked()
         smoothBool = self.checkbox_smooth.isChecked()  # if we're smoothing don't make pixels red
         mode = self.combobox_stretch.currentText()
-        converter=ConvertPhotonsToRGB(image, minCountCutoff, maxCountCutoff, mode, interpBool, not smoothBool)
+        converter = ConvertPhotonsToRGB(image, minCountCutoff, maxCountCutoff, mode, interpBool, not smoothBool)
         self.workers.append(converter)  # Need local reference or else signal is lost!
 
         thread = QtCore.QThread(parent=self)
         thread_num = len(self.threadPool)
-        thread.setObjectName("convertImage_"+str(thread_num))
+        thread.setObjectName("convertImage_" + str(thread_num))
         self.threadPool.append(thread)  # Need to have local reference to thread or else it will get lost!
         converter.moveToThread(thread)
         thread.started.connect(converter.stretchImage)
@@ -580,11 +593,12 @@ class MKIDDashboard(QMainWindow):
         thread.finished.connect(partial(self.threadPool.remove, thread))  # delete these when done so we don't
         #  have a memory leak
         thread.finished.connect(partial(self.workers.remove, converter))
-        
+
         # When it's done converting the worker will emit a convertedImage Signal
-        converter.convertedImage.connect(lambda x: self.label_numIntegrated.setText(str(self.config.dashboard.average)+'/'+self.label_numIntegrated.text().split('/')[-1]))
+        converter.convertedImage.connect(lambda x: self.label_numIntegrated.setText(
+            str(self.config.dashboard.average) + '/' + self.label_numIntegrated.text().split('/')[-1]))
         thread.start()
-    
+
     def updateImage(self, q_image):
         """
         This function is automatically called by a ConvertPhotonsToRGB object signal connection
@@ -597,24 +611,26 @@ class MKIDDashboard(QMainWindow):
             q_image - QImage that will be displayed on GUI
         """
         # Scale the bitmap so we can see individual pixels and add to the GraphicsViewItem
-        imageScale=self.config.getint('properties','image_scale')
-        q_image=q_image.scaledToWidth(q_image.width()*imageScale)
+        imageScale = self.config.getint('properties', 'image_scale')
+        q_image = q_image.scaledToWidth(q_image.width() * imageScale)
         self.grPixMap.pixmap().convertFromImage(q_image)
-        
+
         # Possibly smooth image
-        if self.checkbox_smooth.isChecked(): self.grPixMap.graphicsEffect().setEnabled(True)
-        else: self.grPixMap.graphicsEffect().setEnabled(False)
-        
+        if self.checkbox_smooth.isChecked():
+            self.grPixMap.graphicsEffect().setEnabled(True)
+        else:
+            self.grPixMap.graphicsEffect().setEnabled(False)
+
         # Dither image
         # if self.checkbox_dither.isChecked(): print 'dithering'
 
         # Resize the GUI to fit whole image
-        borderSize=0#24   # Not sure how to get the size of the frame's border so hardcoded this for now
+        borderSize = 0  # 24   # Not sure how to get the size of the frame's border so hardcoded this for now
         imgSize = self.grPixMap.pixmap().size()
-        frameSize = QtCore.QSize(imgSize.width()+borderSize,imgSize.height()+borderSize)
+        frameSize = QtCore.QSize(imgSize.width() + borderSize, imgSize.height() + borderSize)
 
-        #self.centralWidget().resize(frameSize) #this automatically resizes window but causes array to move 
-        
+        # self.centralWidget().resize(frameSize) #this automatically resizes window but causes array to move
+
         # Show image on screen!
         self.grPixMap.update()
         # Update the labels
@@ -639,16 +655,16 @@ class MKIDDashboard(QMainWindow):
             event - QGraphicsSceneMouseEvent
         """
         if event.button() == QtCore.LeftButton:
-            self.clicking=True
-            x_pos = int(np.floor(event.pos().x()/self.config.getint('properties','image_scale')))
-            y_pos = int(np.floor(event.pos().y()/self.config.getint('properties','image_scale')))
+            self.clicking = True
+            x_pos = int(np.floor(event.pos().x() / self.config.getint('properties', 'image_scale')))
+            y_pos = int(np.floor(event.pos().y() / self.config.getint('properties', 'image_scale')))
             getLogger('Dashboard').info('Clicked (' + str(x_pos) + ' , ' + str(y_pos) + ')')
             if QtCore.QtGui.QApplication.keyboardModifiers() != QtCore.ShiftModifier:
-                self.selectedPixels=set()
+                self.selectedPixels = set()
                 self.removeAllPixelBoxLines()
-            self.pixelClicked=[x_pos,y_pos]
-            self.pixelCurrent=self.pixelClicked
-            self.movingBox=self.drawPixelBox(self.pixelClicked)
+            self.pixelClicked = [x_pos, y_pos]
+            self.pixelCurrent = self.pixelClicked
+            self.movingBox = self.drawPixelBox(self.pixelClicked)
 
     def mouseMoved(self, event):
         """
@@ -664,20 +680,21 @@ class MKIDDashboard(QMainWindow):
         INPUTS:
             event - QGraphicsSceneMouseEvent
         """
-        x_pos = int(np.floor(event.pos().x()/self.config.getint('properties','image_scale')))
-        y_pos = int(np.floor(event.pos().y()/self.config.getint('properties','image_scale')))
-        if [x_pos, y_pos] != self.pixelCurrent and x_pos>=0 and y_pos>=0 and \
-           x_pos<self.config.getint('properties','nCols') and \
-           y_pos<self.config.getint('properties','nRows'):
-               
-            self.pixelCurrent=[x_pos, y_pos]
+        x_pos = int(np.floor(event.pos().x() / self.config.getint('properties', 'image_scale')))
+        y_pos = int(np.floor(event.pos().y() / self.config.getint('properties', 'image_scale')))
+        if [x_pos, y_pos] != self.pixelCurrent and x_pos >= 0 and y_pos >= 0 and \
+                x_pos < self.config.getint('properties', 'nCols') and \
+                y_pos < self.config.getint('properties', 'nRows'):
+
+            self.pixelCurrent = [x_pos, y_pos]
             self.updateCurrentPixelLabel()
             if self.clicking:
-                try: 
+                try:
                     self.grPixMap.scene().removeItem(self.movingBox)
-                except: pass
-                self.movingBox=self.drawPixelBox(pixel1=self.pixelClicked, pixel2=[x_pos, y_pos])
-    
+                except:
+                    pass
+                self.movingBox = self.drawPixelBox(pixel1=self.pixelClicked, pixel2=[x_pos, y_pos])
+
     def mouseReleased(self, event):
         """
         Executes when we release the mouse button. Adds the selected pixels to self.selectedPixels
@@ -692,46 +709,47 @@ class MKIDDashboard(QMainWindow):
             event - QGraphicsSceneMouseEvent
         """
         if event.button() == QtCore.LeftButton and self.clicking:
-            self.clicking=False
-            x_pos = int(np.floor(event.pos().x()/self.config.getint('properties','image_scale')))
-            y_pos = int(np.floor(event.pos().y()/self.config.getint('properties','image_scale')))
+            self.clicking = False
+            x_pos = int(np.floor(event.pos().x() / self.config.getint('properties', 'image_scale')))
+            y_pos = int(np.floor(event.pos().y() / self.config.getint('properties', 'image_scale')))
             getLogger('Dashboard').info('Released (' + str(x_pos) + ' , ' + str(y_pos) + ')')
 
-            x_start, x_end = sorted([x_pos,self.pixelClicked[0]])
-            y_start, y_end = sorted([y_pos,self.pixelClicked[1]])
-            x_start=max(x_start,0)  #make sure we're still inside the image
-            y_start=max(y_start,0)
-            x_end=min(x_end,self.config.getint('properties','nCols')-1)
-            y_end=min(y_end,self.config.getint('properties','nRows')-1)
-            
-            newPixels = set((x,y) for x in range(x_start,x_end+1) for y in range(y_start,y_end+1))
-            self.selectedPixels = self.selectedPixels | newPixels   # Union of set so there are no repeats
-            try: 
+            x_start, x_end = sorted([x_pos, self.pixelClicked[0]])
+            y_start, y_end = sorted([y_pos, self.pixelClicked[1]])
+            x_start = max(x_start, 0)  # make sure we're still inside the image
+            y_start = max(y_start, 0)
+            x_end = min(x_end, self.config.getint('properties', 'nCols') - 1)
+            y_end = min(y_end, self.config.getint('properties', 'nRows') - 1)
+
+            newPixels = set((x, y) for x in range(x_start, x_end + 1) for y in range(y_start, y_end + 1))
+            self.selectedPixels = self.selectedPixels | newPixels  # Union of set so there are no repeats
+            try:
                 self.grPixMap.scene().removeItem(self.movingBox)
-                self.movingBox=None
-            except: pass
+                self.movingBox = None
+            except:
+                pass
             self.updateSelectedPixelLabels()
             # Update any pixelTimestream windows that are listening
             self.newImageProcessed.emit()
-            
-            #self.drawContiguousPixelBoxes()
-            for pixel in newPixels:
-                box=self.drawPixelBox(pixel,color='cyan',lineWidth=1)
-                #self.pixelBoxLines.append(box)
 
-    def drawContiguousPixelBoxes(self,color='cyan',lineWidth=1):
+            # self.drawContiguousPixelBoxes()
+            for pixel in newPixels:
+                box = self.drawPixelBox(pixel, color='cyan', lineWidth=1)
+                # self.pixelBoxLines.append(box)
+
+    def drawContiguousPixelBoxes(self, color='cyan', lineWidth=1):
         """
         This function should draw polygons around sets of contiguous selected pixels
         
         This is difficult...
         probably want to check if a selected pixel shares a border with another selected pixel or an unselected one
         """
-        scale=self.config.getint('properties','image_scale')
+        scale = self.config.getint('properties', 'image_scale')
         pixels = self.selectedPixels.copy()
-        
+
         for i in range(len(self.selectedPixels)):
             pixel = pixels.pop()
-        
+
         raise NotImplementedError
 
     def drawPixelBox(self, pixel1, pixel2=None, color='blue', lineWidth=3):
@@ -747,28 +765,28 @@ class MKIDDashboard(QMainWindow):
         """
         # Get upper left and lower right coordinate on graphics scene
         if pixel2 is None:
-            pixel2=pixel1
-        scale=self.config.getint('properties','image_scale')
-        x_start, x_end = sorted([pixel1[0],pixel2[0]])
-        y_start, y_end = sorted([pixel1[1],pixel2[1]])
-        x_start=x_start*scale - 1      # start box one pixel over
-        y_start=y_start*scale - 1
-        x_end=x_end*scale+scale  
-        y_end=y_end*scale+scale 
-        x_start=max(x_start,0)  #make sure we're still inside the image
-        y_start=max(y_start,0)
-        x_end=min(x_end,self.config.getint('properties','nCols')*scale)
-        y_end=min(y_end,self.config.getint('properties','nRows')*scale)
-        width = x_end-x_start
-        height = y_end-y_start
-        
+            pixel2 = pixel1
+        scale = self.config.getint('properties', 'image_scale')
+        x_start, x_end = sorted([pixel1[0], pixel2[0]])
+        y_start, y_end = sorted([pixel1[1], pixel2[1]])
+        x_start = x_start * scale - 1  # start box one pixel over
+        y_start = y_start * scale - 1
+        x_end = x_end * scale + scale
+        y_end = y_end * scale + scale
+        x_start = max(x_start, 0)  # make sure we're still inside the image
+        y_start = max(y_start, 0)
+        x_end = min(x_end, self.config.getint('properties', 'nCols') * scale)
+        y_end = min(y_end, self.config.getint('properties', 'nRows') * scale)
+        width = x_end - x_start
+        height = y_end - y_start
+
         # set up the QPen for drawing the box
-        q_color=QColor()
+        q_color = QColor()
         q_color.setNamedColor(color)
         q_pen = QPen(q_color)
         q_pen.setWidth(lineWidth)
         # Draw!
-        pixelBox=self.grPixMap.scene().addRect(x_start,y_start,width,height,q_pen)
+        pixelBox = self.grPixMap.scene().addRect(x_start, y_start, width, height, q_pen)
         return pixelBox
 
     def removeAllPixelBoxLines(self):
@@ -778,7 +796,7 @@ class MKIDDashboard(QMainWindow):
         for item in self.grPixMap.scene().items():
             if type(item) != QGraphicsPixmapItem:
                 self.grPixMap.scene().removeItem(item)
-    
+
     def getPixCountRate(self, pixelList, numImages2Sum=None, applyDark=False):
         """
         Get the count rate of a list of pixels.
@@ -789,20 +807,22 @@ class MKIDDashboard(QMainWindow):
             pixelList - a list or numpy array of pixels (not a set)
             numImages2Sum - average over this many of the last few images. If None, use the number specified on the GUI int Time box
         """
-        if len(pixelList)==0:
+        if len(pixelList) == 0:
             return 0
-        if numImages2Sum is None or numImages2Sum<1:
-            numImages2Sum = self.config.getint('properties','num_images_to_add')
-        numImages2Sum = min(numImages2Sum,len(self.imageList))
-        image = np.sum(self.imageList[-1*numImages2Sum:],axis=0)
-        image = image / (numImages2Sum*self.config.getfloat('properties','packetmaster_image_intTime'))
+        if numImages2Sum is None or numImages2Sum < 1:
+            numImages2Sum = self.config.getint('properties', 'num_images_to_add')
+        numImages2Sum = min(numImages2Sum, len(self.imageList))
+        image = np.sum(self.imageList[-1 * numImages2Sum:], axis=0)
+        image = image / (numImages2Sum * self.config.getfloat('properties', 'packetmaster_image_intTime'))
         if applyDark:
-            try: image=image-self.darkField
-            except: pass
-        pixelList=np.asarray(pixelList)
-        val = np.sum(np.asarray(image)[[pixelList[:,1],pixelList[:,0]]])
+            try:
+                image = image - self.darkField
+            except:
+                pass
+        pixelList = np.asarray(pixelList)
+        val = np.sum(np.asarray(image)[[pixelList[:, 1], pixelList[:, 0]]])
         return val
-    
+
     def updateSelectedPixelLabels(self):
         """
         This updates the labels showing the selected pixel total count rate. Can be slow ...
@@ -810,12 +830,12 @@ class MKIDDashboard(QMainWindow):
         This function is called whenever the mouse releases and when new image data is processed
         """
         if len(self.selectedPixels) > 0:
-            pixels = np.asarray([[p[0],p[1]] for p in self.selectedPixels])
-            val=self.getPixCountRate(pixels)
-            labelStr = 'Selected Pix : '+str(np.round(val,2))+' #/s'
+            pixels = np.asarray([[p[0], p[1]] for p in self.selectedPixels])
+            val = self.getPixCountRate(pixels)
+            labelStr = 'Selected Pix : ' + str(np.round(val, 2)) + ' #/s'
             if self.checkbox_darkImage.isChecked():
-                valDark = self.getPixCountRate(pixels,applyDark=True)
-                labelStr='Selected Pix : '+str(np.round(val,2))+' --> '+str(np.round(valDark,2))+' #/s'
+                valDark = self.getPixCountRate(pixels, applyDark=True)
+                labelStr = 'Selected Pix : ' + str(np.round(val, 2)) + ' --> ' + str(np.round(valDark, 2)) + ' #/s'
             self.label_selectedPixValue.setText(labelStr)
 
     def updateCurrentPixelLabel(self):
@@ -826,34 +846,40 @@ class MKIDDashboard(QMainWindow):
         This function is called when we hover to a new pixel or the image updates
         """
         if self.pixelCurrent != None:
-            val=self.getPixCountRate([self.pixelCurrent])
-            self.label_pixelInfo.setText('(' + str(self.pixelCurrent[0]) + ' , ' + str(self.pixelCurrent[1]) +') : '+str(np.round(val,2))+' #/second')
+            val = self.getPixCountRate([self.pixelCurrent])
+            self.label_pixelInfo.setText(
+                '(' + str(self.pixelCurrent[0]) + ' , ' + str(self.pixelCurrent[1]) + ') : ' + str(
+                    np.round(val, 2)) + ' #/second')
 
             beammapData = np.loadtxt(self.beammap.file)
-            resID=0
+            resID = 0
             freq = 0
-            feedline=0
-            board='a'
-            freqCh=0
+            feedline = 0
+            board = 'a'
+            freqCh = 0
             try:
-                indx = np.where((beammapData[:,2]==self.pixelCurrent[0]) & (beammapData[:,3]==self.pixelCurrent[1]))[0][0]
-                resID=beammapData[indx,0]
+                indx = \
+                np.where((beammapData[:, 2] == self.pixelCurrent[0]) & (beammapData[:, 3] == self.pixelCurrent[1]))[0][
+                    0]
+                resID = beammapData[indx, 0]
                 for roach in self.roachList:
-                    freqFN = self.config.get('Roach '+str(roach.num),'freqList')
-                    resIDs, freqs = np.loadtxt(freqFN, unpack=True, usecols=(0,1))
+                    freqFN = self.config.get('Roach ' + str(roach.num), 'freqList')
+                    resIDs, freqs = np.loadtxt(freqFN, unpack=True, usecols=(0, 1))
                     try:
-                        freqCh = int(np.where(resIDs==resID)[0][0])
+                        freqCh = int(np.where(resIDs == resID)[0][0])
                         freq = freqs[freqCh]
-                        feedline = self.config.getint('Roach '+str(roach.num),'feedline')
-                        board = self.config.get('Roach '+str(roach.num),'boardRange')
+                        feedline = self.config.getint('Roach ' + str(roach.num), 'feedline')
+                        board = self.config.get('Roach ' + str(roach.num), 'boardRange')
                         break
-                    except IndexError: pass
-            except IndexError: pass
-            self.label_pixelID.setText('ResID: '+str(resID)+'\nFreq: '+
-                                       str(freq/10**9.)+' GHz\nFeedline: '+
-                                       str(feedline)+'\nBoard: '+board+'\nCh: '+
+                    except IndexError:
+                        pass
+            except IndexError:
+                pass
+            self.label_pixelID.setText('ResID: ' + str(resID) + '\nFreq: ' +
+                                       str(freq / 10 ** 9.) + ' GHz\nFeedline: ' +
+                                       str(feedline) + '\nBoard: ' + board + '\nCh: ' +
                                        str(freqCh))
-            
+
     def showContextMenu(self, point):
         """
         This function is called on a right click
@@ -861,10 +887,10 @@ class MKIDDashboard(QMainWindow):
         We don't need to clear and add the action everytime but, eh
         """
         self.contextMenu.clear()
-        self.contextMenu.addAction('Plot Timestream',self.plotTimestream)
-        self.contextMenu.addAction('Plot Histogram',self.plotHistogram)
-        self.contextMenu.exec_(self.sender().mapToGlobal(point))       # Need to reference to global coordinate system
-    
+        self.contextMenu.addAction('Plot Timestream', self.plotTimestream)
+        self.contextMenu.addAction('Plot Histogram', self.plotHistogram)
+        self.contextMenu.exec_(self.sender().mapToGlobal(point))  # Need to reference to global coordinate system
+
     def plotTimestream(self):
         """
         This function is called when the user clicks on the Plot Timestream action in the context menu
@@ -872,14 +898,16 @@ class MKIDDashboard(QMainWindow):
         It pops up a window showing the selected pixel's timestream
         """
         if len(self.selectedPixels) > 0:
-            pixels = np.asarray([[p[0],p[1]] for p in self.selectedPixels])
-        else: pixels=[self.pixelCurrent]
-        
+            pixels = np.asarray([[p[0], p[1]] for p in self.selectedPixels])
+        else:
+            pixels = [self.pixelCurrent]
+
         window = PixelTimestreamWindow(pixels, parent=self)
         self.timeStreamWindows.append(window)
-        window.closeWindow.connect(partial(self.timeStreamWindows.remove, window))    # remove from list if the window is closed
+        window.closeWindow.connect(
+            partial(self.timeStreamWindows.remove, window))  # remove from list if the window is closed
         window.show()
-        
+
     def plotHistogram(self):
         """
         This function is called when the user clicks on the Plot Histogram action in the context menu
@@ -887,14 +915,16 @@ class MKIDDashboard(QMainWindow):
         It pops up a window showing a histogram of count rates for the selected pixels
         """
         if len(self.selectedPixels) > 0:
-            pixels = np.asarray([[p[0],p[1]] for p in self.selectedPixels])
-        else: pixels=[self.pixelCurrent]
-        
+            pixels = np.asarray([[p[0], p[1]] for p in self.selectedPixels])
+        else:
+            pixels = [self.pixelCurrent]
+
         window = PixelHistogramWindow(pixels, parent=self)
         self.histogramWindows.append(window)
-        window.closeWindow.connect(partial(self.histogramWindows.remove, window))    # remove from list if the window is closed
+        window.closeWindow.connect(
+            partial(self.histogramWindows.remove, window))  # remove from list if the window is closed
         window.show()
-    
+
     def startObs(self):
         """
         When we start to observe we have to:
@@ -904,11 +934,11 @@ class MKIDDashboard(QMainWindow):
         if not self.observing:
             self.observing = True
             self.button_obs.setEnabled(False)
-            self.button_obs.disconnect()
+            self.button_obs.clicked.disconnect()
             self.turnOnPhotonCapture()
             self.packetmaster.startobs(self.config.paths.data)
             self.button_obs.setText('Stop Observing')
-            self.button_obs.connect(self.stopObs)
+            self.button_obs.clicked.connect(self.stopObs)
             self.button_obs.setEnabled(True)
 
     def stopObs(self):
@@ -921,16 +951,16 @@ class MKIDDashboard(QMainWindow):
         if self.observing:
             self.observing = False
             self.button_obs.setEnabled(False)
-            self.button_obs.disconnect()
+            self.button_obs.clicked.disconnect()
             getLogger('Dashboard').info("Stop Obs")
             self.packetmaster.stopobs()
             self.button_obs.setText('Start Observing')
-            self.button_obs.connect(self.startObs)
+            self.button_obs.clicked.connect(self.startObs)
             self.button_obs.setEnabled(True)
 
     def toggleFlipper(self):
         getLogger('Dashboard').info("Toggled flipper!")
-        laserStr = str(int(self.radiobutton_flipper.isChecked()))+'0'*len(self.checkbox_laser_list)
+        laserStr = str(int(self.radiobutton_flipper.isChecked())) + '0' * len(self.checkbox_laser_list)
         self.laserController.toggleLaser(laserStr, 500)
         self.logstate()
 
@@ -944,7 +974,7 @@ class MKIDDashboard(QMainWindow):
             self.combobox_filter.setCurrentIndex(mkidreadout.hardware.hsfw.NFILTERS)
         self.logstate()
 
-    def laserCalClicked(self, laserCalStyle = "simultaneous"):
+    def laserCalClicked(self, laserCalStyle="simultaneous"):
         laserTime = self.spinbox_laserTime.value()
 
         # simultaneous is classic laser cal style, with all desired lasers at once
@@ -957,48 +987,48 @@ class MKIDDashboard(QMainWindow):
             getLogger('ObsLog').info('Starting a {} laser cal for {} s.'.format(laserCalStyle, laserTime))
 
         # re-enable flipper when laser cal is done
-        QtCore.QTimer.singleShot(laserTime*1000+1, self.enableFlipper)
+        QtCore.QTimer.singleShot(laserTime * 1000 + 1, self.enableFlipper)
 
     def enableFlipper(self):
-        #TODO go through and make sure that ever state changing function causes a state record to be
+        # TODO go through and make sure that ever state changing function causes a state record to be
         # emitted, it is done for the flipper but we need a final review
         self.radiobutton_flipper.setEnabled(True)
 
     def logstate(self):
         targ, cmt = self.textbox_target.text(), self.textbox_log.toPlainText()
         # state = InstrumentState(target=targ, comment=cmt, flipper=None, laser)
-        #targetname, telescope params, filter, dither x y ts state, roach info if first log
-        getLogger('ObsLog').info(state)
+        # targetname, telescope params, filter, dither x y ts state, roach info if first log
+        getLogger('ObsLog').info('foo')
 
     def printLogs(self, num=10):
-        ramdiskLog_path = self.config.get('properties','log_ramdisk')
+        ramdiskLog_path = self.config.get('properties', 'log_ramdisk')
         log_path = self.config.paths.logs
-        command = 'grep "" %s*.log %s*.log | tail -%i'%(log_path,ramdiskLog_path, num)
+        command = 'grep "" %s*.log %s*.log | tail -%i' % (log_path, ramdiskLog_path, num)
         getLogger('Dashboard').info(command)
-        proc = subprocess.Popen(command,shell=True)
+        proc = subprocess.Popen(command, shell=True)
         proc.wait()
-    
+
     def create_dock_widget(self):
         """
         Add buttons and controls
         """
         obs_dock_widget = QDockWidget(self)
         obs_dock_widget.setFeatures(QDockWidget.NoDockWidgetFeatures)
-        obs_widget=QWidget(obs_dock_widget)
-        
+        obs_widget = QWidget(obs_dock_widget)
+
         # Current time label
         label_currentTime = QLabel("UTC: ")
         getCurrentTime = QtCore.QTimer(self)
-        getCurrentTime.setInterval(997) # prime number :)
-        updateCurrentTime = lambda: label_currentTime.setText("UTC: "+str(time.time()))
+        getCurrentTime.setInterval(997)  # prime number :)
+        updateCurrentTime = lambda: label_currentTime.setText("UTC: " + str(time.time()))
         getCurrentTime.timeout.connect(updateCurrentTime)
         getCurrentTime.start()
         # Mkid data directory
         label_dataDir = QLabel('Data Dir:')
-        dataDir = self.config.get('properties','data_dir')
+        dataDir = self.config.get('properties', 'data_dir')
         textbox_dataDir = QLineEdit()
         textbox_dataDir.setText(dataDir)
-        textbox_dataDir.textChanged.connect(partial(self.config.update,'paths.data'))
+        textbox_dataDir.textChanged.connect(partial(self.config.update, 'paths.data'))
         textbox_dataDir.setEnabled(False)
 
         # Start observing button
@@ -1015,21 +1045,21 @@ class MKIDDashboard(QMainWindow):
 
         # dithering
         self.button_dither = QPushButton("Start Dithering")
-        #self.button_dither.setFont(font.setPointSize(12))
+        # self.button_dither.setFont(font.setPointSize(12))
         self.button_dither.clicked.connect(self.startDithering)
 
-        #Filter
+        # Filter
         self.combobox_filter = combobox_filter = QComboBox()
-        self.combobox_filter.setMaxVisibleItems(mkidreadout.hardware.hsfw.NFILTERS+1)
+        self.combobox_filter.setMaxVisibleItems(mkidreadout.hardware.hsfw.NFILTERS + 1)
         label_filter = QLabel("Filter:")
-        combobox_filter.addItems(map(str,range(1,mkidreadout.hardware.hsfw.NFILTERS+1)))
+        combobox_filter.addItems(map(str, range(1, mkidreadout.hardware.hsfw.NFILTERS + 1)))
         result = mkidreadout.hardware.hsfw.getfilter(self.config.filter.ip)
         if 'error' in str(result).lower():
             self.combobox_filter.insertItem(mkidreadout.hardware.hsfw.NFILTERS, 'ERROR')
             self.combobox_filter.model().item(mkidreadout.hardware.hsfw.NFILTERS).setEnabled(False)
             self.combobox_filter.setCurrentIndex(mkidreadout.hardware.hsfw.NFILTERS)
         else:
-            combobox_filter.setCurrentIndex(int(result)-1)
+            combobox_filter.setCurrentIndex(int(result) - 1)
         combobox_filter.setToolTip("Select a filter")
         combobox_filter.activated[str].connect(self.setFilter)
 
@@ -1037,31 +1067,12 @@ class MKIDDashboard(QMainWindow):
         label_target = QLabel("Target: ")
         self.textbox_target = QLineEdit()
         self.textbox_log = QTextEdit()
-        
-        label_autolog = QLabel("Auto log:")
-        spinbox_autolog = QSpinBox()
-        spinbox_autolog.setRange(0,999)
-        spinbox_autolog.setValue(5)
-        spinbox_autolog.setWrapping(False)
-        spinbox_autolog.setCorrectionMode(QAbstractSpinBox.CorrectToNearestValue)
-        spinbox_autolog.setSuffix(' minutes')
-        spinbox_autolog.setToolTip("Set to 0 to stop autologging")
-
         autoLogTimer = QtCore.QTimer(self)
-        autoLogTimer.setInterval(spinbox_autolog.value()*1000*60)
+        autoLogTimer.setInterval(5 * 1000 * 60)
         autoLogTimer.timeout.connect(self.logstate)
-
-        def changeAutoLogInterval(val):
-            if val<1:
-                autoLogTimer.stop()
-            else: 
-                autoLogTimer.setInterval(val*1000*60)
-                autoLogTimer.start()
-
-        spinbox_autolog.valueChanged.connect(changeAutoLogInterval)
         autoLogTimer.start()
 
-        #==================================
+        # ==================================
         # Image settings!
         # integration Time
         integrationTime = self.config.dashboard.average
@@ -1074,21 +1085,22 @@ class MKIDDashboard(QMainWindow):
         spinbox_integrationTime.setSuffix(' * {} s'.format(image_int_time))
         spinbox_integrationTime.setWrapping(False)
         spinbox_integrationTime.setCorrectionMode(QAbstractSpinBox.CorrectToNearestValue)
-        spinbox_integrationTime.valueChanged.connect(partial(self.config.update, 'dashboard.average'))    # change in
+        spinbox_integrationTime.valueChanged.connect(partial(self.config.update, 'dashboard.average'))  # change in
         # config file
-        
+
         # current num images integrated
-        self.label_numIntegrated = QLabel('0/'+str(integrationTime))
-        spinbox_integrationTime.valueChanged.connect(lambda x: self.label_numIntegrated.setText(self.label_numIntegrated.text().split('/')[0]+'/'+str(x)))
-        spinbox_integrationTime.valueChanged.connect(lambda x: QtCore.QTimer.singleShot(10, self.convertImage)) #
+        self.label_numIntegrated = QLabel('0/' + str(integrationTime))
+        spinbox_integrationTime.valueChanged.connect(
+            lambda x: self.label_numIntegrated.setText(self.label_numIntegrated.text().split('/')[0] + '/' + str(x)))
+        spinbox_integrationTime.valueChanged.connect(lambda x: QtCore.QTimer.singleShot(10, self.convertImage))  #
         # remake current image after 10 ms
-        
+
         # dark Image
-        darkIntTime=self.config.dashboard.n_darks
+        darkIntTime = self.config.dashboard.n_darks
         self.spinbox_darkImage = QSpinBox()
         self.spinbox_darkImage.setRange(1, max_int_time)
         self.spinbox_darkImage.setValue(darkIntTime)
-        self.spinbox_darkImage.setSuffix(' * '+str(image_int_time)+' s')
+        self.spinbox_darkImage.setSuffix(' * ' + str(image_int_time) + ' s')
         self.spinbox_darkImage.setWrapping(False)
         self.spinbox_darkImage.setCorrectionMode(QAbstractSpinBox.CorrectToNearestValue)
         self.spinbox_darkImage.valueChanged.connect(partial(self.config.update, 'dashboard.n_darks'))  # change in
@@ -1098,35 +1110,37 @@ class MKIDDashboard(QMainWindow):
         def takeDark():
             self.darkField = None
             self.takingDark = self.spinbox_darkImage.value()
+
         button_darkImage.clicked.connect(takeDark)
         self.checkbox_darkImage = QCheckBox()
         self.checkbox_darkImage.setChecked(False)
-        
+
         # flat Image
-        flatIntTime=self.config.dashboard.n_flats
+        flatIntTime = self.config.dashboard.n_flats
         self.spinbox_flatImage = QSpinBox()
-        self.spinbox_flatImage.setRange(1,max_int_time)
+        self.spinbox_flatImage.setRange(1, max_int_time)
         self.spinbox_flatImage.setValue(flatIntTime)
-        self.spinbox_flatImage.setSuffix(' * '+str(image_int_time)+' s')
+        self.spinbox_flatImage.setSuffix(' * ' + str(image_int_time) + ' s')
         self.spinbox_flatImage.setWrapping(False)
         self.spinbox_flatImage.setCorrectionMode(QAbstractSpinBox.CorrectToNearestValue)
-        self.spinbox_flatImage.valueChanged.connect(partial(self.config.update,'dashboard.n_flats'))    # change in
+        self.spinbox_flatImage.valueChanged.connect(partial(self.config.update, 'dashboard.n_flats'))  # change in
         # config file
         button_flatImage = QPushButton('Take Flat')
 
         def takeFlat():
             self.flatField = None
             self.takingFlat = self.spinbox_flatImage.value()
+
         button_flatImage.clicked.connect(takeFlat)
         self.checkbox_flatImage = QCheckBox()
         self.checkbox_flatImage.setChecked(False)
-        
+
         # maxCountRate
         maxCountRate = self.config.dashboard.max_count_rate
         minCountRate = self.config.dashboard.min_count_rate
         label_maxCountRate = QLabel('max:')
         spinbox_maxCountRate = QSpinBox()
-        spinbox_maxCountRate.setRange(minCountRate,2500)
+        spinbox_maxCountRate.setRange(minCountRate, 2500)
         spinbox_maxCountRate.setValue(maxCountRate)
         spinbox_maxCountRate.setSuffix(' #/s')
         spinbox_maxCountRate.setWrapping(False)
@@ -1134,23 +1148,24 @@ class MKIDDashboard(QMainWindow):
         # minCountRate
         label_minCountRate = QLabel('min:')
         spinbox_minCountRate = QSpinBox()
-        spinbox_minCountRate.setRange(0,maxCountRate)
+        spinbox_minCountRate.setRange(0, maxCountRate)
         spinbox_minCountRate.setValue(minCountRate)
         spinbox_minCountRate.setSuffix(' #/s')
         spinbox_minCountRate.setWrapping(False)
         spinbox_minCountRate.setCorrectionMode(QAbstractSpinBox.CorrectToNearestValue)
         # connections for max and min count rates
-        spinbox_minCountRate.valueChanged.connect(partial(self.config.update, 'dashboard.min_count_rate'))    # change
+        spinbox_minCountRate.valueChanged.connect(partial(self.config.update, 'dashboard.min_count_rate'))  # change
         #  in config file
-        spinbox_maxCountRate.valueChanged.connect(partial(self.config.update, 'dashboard.max_count_rate'))    # change
+        spinbox_maxCountRate.valueChanged.connect(partial(self.config.update, 'dashboard.max_count_rate'))  # change
         #  in config file
-        spinbox_minCountRate.valueChanged.connect(spinbox_maxCountRate.setMinimum)  # make sure min is always less than max
+        spinbox_minCountRate.valueChanged.connect(
+            spinbox_maxCountRate.setMinimum)  # make sure min is always less than max
         spinbox_maxCountRate.valueChanged.connect(spinbox_minCountRate.setMaximum)
-        convertSS = lambda x: QtCore.QTimer.singleShot(10,self.convertImage)
-        spinbox_maxCountRate.valueChanged.connect(convertSS) # remake current image after 10 ms
+        convertSS = lambda x: QtCore.QTimer.singleShot(10, self.convertImage)
+        spinbox_maxCountRate.valueChanged.connect(convertSS)  # remake current image after 10 ms
         spinbox_minCountRate.valueChanged.connect(convertSS)
-        
-        #Drop down menu for choosing image stretch
+
+        # Drop down menu for choosing image stretch
         label_stretch = QLabel("Image Stretch:")
         self.combobox_stretch = QComboBox()
         self.combobox_stretch.addItems(['linear', 'logarithmic', 'histogram equalization'])
@@ -1158,31 +1173,29 @@ class MKIDDashboard(QMainWindow):
         # Checkbox for showing unbeammaped pixels
         self.checkbox_showAllPix = QCheckBox('Show All Pixels')
         self.checkbox_showAllPix.setChecked(False)
-        
+
         # Checkbox for interpolating dead (unbeammapped) pixels
         self.checkbox_interpolate = QCheckBox('Interpolate Dead Pixels')
         self.checkbox_interpolate.setChecked(False)
         # Checkbox for Smoothing image
         self.checkbox_smooth = QCheckBox('Smooth Image')
         self.checkbox_smooth.setChecked(False)
-        
+
         # Checkbox for dithering image
         # self.checkbox_dither = QCheckBox('Dither Image')
         # self.checkbox_dither.setChecked(False)
 
-
         # Pixel info labels
-        self.label_pixelInfo=QLabel('(, ) - (, ) : 0 #/s')
+        self.label_pixelInfo = QLabel('(, ) - (, ) : 0 #/s')
         self.label_pixelInfo.setMaximumWidth(250)
         self.label_selectedPixValue = QLabel('Selected Pix : 0 #/s')
         self.label_selectedPixValue.setMaximumWidth(250)
         self.label_pixelID = QLabel('ResID: -1\nFreq: 0 GHz\nFeedline: 1\nBoard: a\nCh: 0')
 
-        
-        #=============================================
+        # =============================================
         # Laser control!
         self.spinbox_laserTime = QDoubleSpinBox()
-        self.spinbox_laserTime.setRange(1,1800)
+        self.spinbox_laserTime.setRange(1, 1800)
         self.spinbox_laserTime.setValue(300)
         self.spinbox_laserTime.setSuffix(' s')
         self.spinbox_laserTime.setSingleStep(1.)
@@ -1190,7 +1203,7 @@ class MKIDDashboard(QMainWindow):
         self.spinbox_laserTime.setCorrectionMode(QAbstractSpinBox.CorrectToNearestValue)
         self.spinbox_laserTime.setButtonSymbols(QAbstractSpinBox.NoButtons)
         button_laserCal = QPushButton("Start Laser Cal")
-        
+
         self.checkbox_laser_list = []
         for lname in self.config.lasercontrol.lasers:
             checkbox_laser = QCheckBox(lname)
@@ -1203,11 +1216,10 @@ class MKIDDashboard(QMainWindow):
         self.radiobutton_flipper = QRadioButton('SBIG Flipper [0:Pupil, 1:Image]')
         self.radiobutton_flipper.setChecked(False)
         self.radiobutton_flipper.toggled.connect(self.toggleFlipper)
-        
-        
-        #================================================
+
+        # ================================================
         # Layout on GUI
-        
+
         vbox = QVBoxLayout()
         vbox.addWidget(label_currentTime)
         hbox_dataDir = QHBoxLayout()
@@ -1219,45 +1231,41 @@ class MKIDDashboard(QMainWindow):
         hbox_target = QHBoxLayout()
         hbox_target.addWidget(label_target)
         hbox_target.addWidget(self.textbox_target)
-        #hbox_target.addStretch()
+        # hbox_target.addStretch()
         vbox.addLayout(hbox_target)
 
-        hbox_log = QHBoxLayout()
-        hbox_log.addWidget(label_autolog)
-        hbox_log.addWidget(spinbox_autolog)
-        hbox_log.addStretch()
-        vbox.addLayout(hbox_log)
-
-        hbox_log.addWidget(self.button_dither)
+        vbox.addWidget(self.textbox_log)
 
         hbox_filter = QHBoxLayout()
+        hbox_filter.addWidget(self.button_dither)
+        hbox_filter.addStretch()
         hbox_filter.addWidget(label_filter)
         hbox_filter.addWidget(combobox_filter)
         vbox.addLayout(hbox_filter)
 
         vbox.addStretch()
-        
+
         hbox_intTime = QHBoxLayout()
         hbox_intTime.addWidget(label_integrationTime)
         hbox_intTime.addWidget(spinbox_integrationTime)
         hbox_intTime.addWidget(self.label_numIntegrated)
         hbox_intTime.addStretch()
         vbox.addLayout(hbox_intTime)
-        
+
         hbox_darkImage = QHBoxLayout()
         hbox_darkImage.addWidget(self.spinbox_darkImage)
         hbox_darkImage.addWidget(button_darkImage)
         hbox_darkImage.addWidget(self.checkbox_darkImage)
         hbox_darkImage.addStretch()
         vbox.addLayout(hbox_darkImage)
-        
+
         hbox_flatImage = QHBoxLayout()
         hbox_flatImage.addWidget(self.spinbox_flatImage)
         hbox_flatImage.addWidget(button_flatImage)
         hbox_flatImage.addWidget(self.checkbox_flatImage)
         hbox_flatImage.addStretch()
         vbox.addLayout(hbox_flatImage)
-        
+
         hbox_CountRate = QHBoxLayout()
         hbox_CountRate.addWidget(label_minCountRate)
         hbox_CountRate.addWidget(spinbox_minCountRate)
@@ -1278,9 +1286,9 @@ class MKIDDashboard(QMainWindow):
         vbox.addWidget(self.label_selectedPixValue)
         vbox.addWidget(self.label_pixelInfo)
         vbox.addWidget(self.label_pixelID)
-        
+
         vbox.addStretch()
-        
+
         hbox_laser = QHBoxLayout()
         hbox_laser.addWidget(self.spinbox_laserTime)
         hbox_laser.addWidget(button_laserCal)
@@ -1288,7 +1296,7 @@ class MKIDDashboard(QMainWindow):
         for checkbox_laser in self.checkbox_laser_list:
             vbox.addWidget(checkbox_laser)
         vbox.addWidget(self.radiobutton_flipper)
-        
+
         obs_widget.setLayout(vbox)
         obs_dock_widget.setWidget(obs_widget)
         self.addDockWidget(Qt.LeftDockWidgetArea, obs_dock_widget)
@@ -1313,14 +1321,14 @@ class MKIDDashboard(QMainWindow):
             - Call update() on the QGraphicsPixmapItem to repaint the QGraphicsScene
             
         """
-        #self.imageFrame = QtGui.QFrame(parent=self)
-        #self.imageFrame.setFrameShape(QtGui.QFrame.Box)
-        #self.imageFrame.setFrameShadow(QtGui.QFrame.Sunken)
-        #self.imageFrame.setSizePolicy(QSizePolicy.Fixed,QSizePolicy.Fixed)
-        
-        q_image=QImage(1, 1, QImage.Format_Mono)
+        # self.imageFrame = QtGui.QFrame(parent=self)
+        # self.imageFrame.setFrameShape(QtGui.QFrame.Box)
+        # self.imageFrame.setFrameShadow(QtGui.QFrame.Sunken)
+        # self.imageFrame.setSizePolicy(QSizePolicy.Fixed,QSizePolicy.Fixed)
+
+        q_image = QImage(1, 1, QImage.Format_Mono)
         q_image.fill(Qt.black)
-        #grview = QGraphicsView(self.imageFrame)
+        # grview = QGraphicsView(self.imageFrame)
         grview = QGraphicsView()
         scene = QGraphicsScene(parent=grview)
         self.grPixMap = QGraphicsPixmapItem(QPixmap(q_image), None, scene)
@@ -1330,7 +1338,7 @@ class MKIDDashboard(QMainWindow):
         self.grPixMap.setAcceptHoverEvents(True)
         self.grPixMap.hoverMoveEvent = self.mouseMoved
         blurEffect = QGraphicsBlurEffect()
-        blurEffect.setBlurRadius(1.5*self.config.dashboard.image_scale)
+        blurEffect.setBlurRadius(1.5 * self.config.dashboard.image_scale)
         self.grPixMap.setGraphicsEffect(blurEffect)
         self.grPixMap.graphicsEffect().setEnabled(False)
         grview.setScene(scene)
@@ -1340,47 +1348,44 @@ class MKIDDashboard(QMainWindow):
         grview.customContextMenuRequested.connect(self.showContextMenu)
         grview.setAlignment(Qt.AlignTop | Qt.AlignLeft)
 
-        
-        #layout=QVBoxLayout()
-        #layout.addWidget(grview)
-        #layout.addStretch()
-        #self.imageFrame.setLayout(layout)
-        
-        #self.setCentralWidget(self.imageFrame)
+        # layout=QVBoxLayout()
+        # layout.addWidget(grview)
+        # layout.addStretch()
+        # self.imageFrame.setLayout(layout)
+
+        # self.setCentralWidget(self.imageFrame)
         self.setCentralWidget(grview)
 
-    def create_menu(self):        
+    def create_menu(self):
         self.file_menu = self.menuBar().addMenu("&File")
-        telescope_action = self.create_action("&Telescope Info", slot=self.telescopeWindow.show,shortcut="Ctrl+T", tip="Show Telescope Info")
+        telescope_action = self.create_action("&Telescope Info", slot=self.telescopeWindow.show, shortcut="Ctrl+T",
+                                              tip="Show Telescope Info")
 
-        #TODO this shortcircuts the logic in starObs/stopObs and will desync the observing button
-        photonCapOn_action = self.create_action("Start &Photon Capture", slot=self.turnOnPhotonCapture,shortcut="Ctrl+P", tip="Tell Roaches to send photon packets")
-        photonCapOff_action = self.create_action("Stop &Photon Capture", slot=self.turnOffPhotonCapture,shortcut="Ctrl+Shift+P", tip="Tell Roaches to stop sending photon packets")
-        viewLogs_action = self.create_action("Pring &Logs",slot=partial(self.printLogs, 15), shortcut="Ctrl+L",
+        # TODO this shortcircuts the logic in starObs/stopObs and will desync the observing button
+        photonCapOn_action = self.create_action("Start &Photon Capture", slot=self.turnOnPhotonCapture,
+                                                shortcut="Ctrl+P", tip="Tell Roaches to send photon packets")
+        photonCapOff_action = self.create_action("Stop &Photon Capture", slot=self.turnOffPhotonCapture,
+                                                 shortcut="Ctrl+Shift+P",
+                                                 tip="Tell Roaches to stop sending photon packets")
+        viewLogs_action = self.create_action("Pring &Logs", slot=partial(self.printLogs, 15), shortcut="Ctrl+L",
                                              tip="Print last 15 logs into terminal")
         quit_action = self.create_action("&Quit", slot=self.close, shortcut="Ctrl+Q", tip="Close the application")
-        
-        self.add_actions(self.file_menu, (telescope_action,photonCapOn_action,photonCapOff_action,viewLogs_action,None, quit_action))
+
+        add_actions(self.file_menu,
+                    (telescope_action, photonCapOn_action, photonCapOff_action, viewLogs_action, None, quit_action))
 
         self.help_menu = self.menuBar().addMenu("&Help")
         about_action = self.create_action("&About", shortcut='F1', slot=self.on_about, tip='About the demo')
-        self.add_actions(self.help_menu, (about_action,))
-    
+        add_actions(self.help_menu, (about_action,))
+
     def on_about(self):
         msg = ("{} Dashboard!!\n"
                "Click and drag on Pixels to select them.\n"
                "You can select non-contiguous pixels using SHIFT.\n"
                "Right click to plot the timestream of your selected pixels!\n\n"
-               "Author: Alex Walter\n" 
+               "Author: Alex Walter\n"
                "Date: Jul 3, 2016").format(self.config.instrument)
         QMessageBox.about(self, "MKID-ROACH2 software", msg.strip())
-    
-    def add_actions(self, target, actions):
-        for action in actions:
-            if action is None:
-                target.addSeparator()
-            else:
-                target.addAction(action)
 
     def create_action(self, text, slot=None, shortcut=None, icon=None, tip=None, checkable=False,
                       signal="triggered()"):
@@ -1405,18 +1410,18 @@ class MKIDDashboard(QMainWindow):
         if self.observing:
             self.stopObs()
 
-        self.workers[0].search=False    # stop searching for new images
-        del self.grPixMap               # Get segfault if we don't delete this. Something about signals in the queue trying to access deleted objects...
+        self.workers[0].search = False  # stop searching for new images
+        del self.grPixMap  # Get segfault if we don't delete this. Something about signals in the queue trying to access deleted objects...
         for thread in self.threadPool:  # They should all be done at this point, but just in case
             thread.quit()
         for window in self.timeStreamWindows:
             window.close()
         for window in self.histogramWindows:
             window.close()
-        self.turnOffPhotonCapture()     # stop sending photon packets
-        self.telescopeWindow._want_to_close=True
+        self.turnOffPhotonCapture()  # stop sending photon packets
+        self.telescopeWindow._want_to_close = True
         self.telescopeWindow.close()
-        
+
         self.hide()
         time.sleep(1)
         self.packetmaster.quit()
@@ -1434,11 +1439,9 @@ if __name__ == "__main__":
     parser.add_argument('roaches', nargs='+', type=int, help='Roach numbers')
     parser.add_argument('-c', '--config', default=DEFAULT_CFG_FILE, dest='config',
                         type=str, help='The config file')
-    parser.add_argument('-o','--offline', default=False, dest='offline', action='store_true',  help='Run offline')
-
+    parser.add_argument('-o', '--offline', default=False, dest='offline', action='store_true', help='Run offline')
     args = parser.parse_args()
 
     form = MKIDDashboard(args.roaches, config=args.config, offline=args.offline)
     form.show()
     app.exec_()
-

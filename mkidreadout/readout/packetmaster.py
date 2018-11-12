@@ -38,7 +38,7 @@ class Packetmaster(object):
         self.log = getLogger('packetmaster')
 
         packetmasters = [p.pid for p in psutil.process_iter(attrs=['pid','name'])
-                         if 'packetmaster' in p.name]
+                         if 'packetmaster' in p.name()]
         if len(packetmasters)>1:
             self.log.critical('Multiple instances of packetmaster running. Aborting.')
             raise RuntimeError('Multiple instances of packetmaster')
