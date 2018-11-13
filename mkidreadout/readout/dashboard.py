@@ -29,7 +29,7 @@ from PyQt4.QtGui import *
 
 from astropy.io import fits
 
-from mkidcore.fits import CalFactory, summarizeimg
+from mkidcore.fits import CalFactory, summarize, loadimg, combineHDU
 import mkidcore.config
 import time
 from mkidcore.corelog import getLogger, setup_logging
@@ -101,42 +101,24 @@ class ImageSearcher(QtCore.QObject):  # Extends QObject for use with QThreads
                     if float(f.split('.')[0]) > latestTime:
                         flist.append(f)
                     elif removeOldFiles:
-                        os.remove(self.path + f)
+                        os.remove(os.path.join(self.path,f))
                 elif removeOldFiles and f.endswith(".png"):
-                    os.remove(self.path + f)
-            if len(flist) > 0:
-                flist.sort()
-                for f in flist:
-                    latestTime = float(f.split('.')[0]) + .1
-                    try:
-                        image = self.readBinToList(self.path + f)
-                        self.imageFound.emit(image)
-                        time.sleep(.01)  # Give image time to process before sending next one (not really needed)
-                    except:
-                        getLogger('').info(self.path + f)
-                        traceback.print_exc()
-                    if removeOldFiles:
-                        os.remove(self.path + f)
+                    os.remove(os.path.join(self.path,f))
+
+            flist.sort()
+            for f in flist:
+                latestTime = float(f.split('.')[0]) + .1
+                file = os.path.join(self.path, f)
+                try:
+                    image = loadimg(file, self.nCols, self.nRows, returntype='hdu')
+                    self.imageFound.emit(image)
+                    # time.sleep(.01)  # Give image time to process before sending next one (not really needed)
+                except Exception:
+                    getLogger('Dashboard').error('Problem on file %s', os.path.join(self.path,f),
+                                                 exc_info=True)
+                if removeOldFiles:
+                    os.remove(file)
         self.finished.emit()
-
-    def readBinToList(self, fn):
-        """
-        Parses the binary image file into a numpy array
-        
-        INPUTS:
-            fn - full filename of image file
-        """
-        # fin = open(fn, "rb")
-        # data = fin.read()
-        # fmt = 'H'*(len(data)/2)   # 2 bytes per each unsigned 16 bit integer
-        # fin.close()
-
-        image = np.fromfile(open(fn, mode='rb'), dtype=np.uint16)
-
-        image = np.transpose(np.reshape(image, (self.nCols, self.nRows)))
-        # image = np.asarray(struct.unpack(fmt,data), dtype=np.int)
-        # image=image.reshape((self.nRows,self.nCols))
-        return image
 
 
 class ConvertPhotonsToRGB(QtCore.QObject):
@@ -294,6 +276,7 @@ class MKIDDashboard(QMainWindow):
         self.threadPool = []  # Holds all the threads so they don't get lost. Also, they're garbage collected if they're attributes of self
         self.workers = []  # Holds workder objects corresponding to threads
         self.imageList = []  # Holds photon count image data
+        self.fitsList = []
         self.timeStreamWindows = []  # Holds PixelTimestreamWindow objects
         self.histogramWindows = []  # Holds PixelHistogramWindow objects
         self.selectedPixels = set()  # Holds the pixels currently selected
@@ -306,6 +289,7 @@ class MKIDDashboard(QMainWindow):
         self.beammapFailed = None
         self.flatFactory = None
         self.darkFactory = None
+        self.sciFactory = None
 
         # Often overwritten variables
         self.clicking = False  # Flag to indicate we've pressed the left mouse button and haven't released it yet
@@ -489,7 +473,7 @@ class MKIDDashboard(QMainWindow):
             self.darkField.writeto(os.path.join(self.cofig.paths.datadir, self.darkField.header.filename))
 
             getLogger('ObsLog').info('Finished dark {}:\n {}'.format(self.darkField.filename,
-                                                                     summarizeimg(self.darkField).replace('\n',
+                                                                     summarize(self.darkField).replace('\n',
                                                                                                           '\n  ')))
             self.checkbox_darkImage.setChecked(True)
             self.spinbox_darkImage.setEnabled(True)
@@ -510,7 +494,7 @@ class MKIDDashboard(QMainWindow):
             self.flatField = self.flatFactory.generate(fname=name, name=name, badmask=self.beammapFailed)
             self.flatField.writeto(os.path.join(self.cofig.paths.datadir, self.flatField.header.filename))
             getLogger('ObsLog').info('Finished flat {}:\n {}'.format(self.flatField.header.filename,
-                                                                     summarizeimg(self.darkField).replace('\n',
+                                                                     summarize(self.darkField).replace('\n',
                                                                                                           '\n  ')))
             self.checkbox_flatImage.setChecked(True)
             self.spinbox_flatImage.setEnabled(True)
@@ -530,56 +514,51 @@ class MKIDDashboard(QMainWindow):
         """
         # If there's new data, append it
         if photonImage is not None:
-            photonImage = photonImage.astype(np.int).copy()
-
+            photonImage.header['exptime'] = self.config.packetmaster.int_time
             self.imageList.append(photonImage)
-            if len(self.imageList) > self.config.dashboard.average:
-                self.imageList = self.imageList[-self.config.dashboard.average:]
+            self.fitsList.append(photonImage)
+            self.imageList = self.imageList[-self.config.dashboard.average:]  #trust the garbage collector
 
             if self.takingDark > 0:
                 self.addDarkImage(photonImage)
-            if self.takingFlat > 0:
+            elif self.takingFlat > 0:
                 self.addFlatImage(photonImage)
+            elif self.observing:
+                self.sciFactory.add_image(photonImage)
+        elif not self.imageList:
+            return
+
+        # If we've got a full set of data package it as a fits file
+        tstart = self.fitsList[0].header.utc if self.fitsList else time.time()
+        tstamp = time.time()
+        if ((sum([i.header.exptime for i in self.fitsList]) >= self.config.dashboard.fitstime) or
+            (time.time() - tstart) >= self.config.dashboard.fitstime):
+            combineHDU(self.fitsList, fname='stream{}.fits.gz'.format(tstamp),
+                       name=str(tstamp), save=True, threaded=True)
+            self.fitsList = []
 
         # Get the (average) photon count image
-        nimg = min(self.config.dashboard.average, len(self.imageList))
-        image = np.sum(self.imageList[-nimg:], axis=0, dtype=float)
-        image /= nimg * self.config.packetmaster.int_time
-        minCountCutoff = self.config.dashboard.min_count_rate
-        maxCountCutoff = self.config.dashboard.max_count_rate
         bias = 0
-
-        # Possibly subtract dark image
-        if self.checkbox_darkImage.isChecked() and self.darkField is not None:
-            image = image - self.darkField
-
-        # Possibly normalize with flat image
-        if self.checkbox_flatImage.isChecked():
-            if self.flatField is None:
-                try:
-                    self.flatField = fits.open(self.config.dashboard.flatfile)  # todo support path, explicit & name
-                except IOError:
-                    pass
-            if self.flatField is not None:
-                use = image > 0
-                image[use] = image[use] * self.flatField[use]
-
-        # Possibly remove pixels that were unbeammaped
-        if not self.checkbox_showAllPix.isChecked():
+        if self.checkbox_flatImage.isChecked() and self.flatField is None:
             try:
-                image[self.beammapFailed] = -1 * bias
-            except AttributeError, TypeError:
-                pass  # self.beammapFailed is only defined if we load a beammap
+                self.flatField = fits.open(self.config.dashboard.flatfile)
+            except IOError:
+                getLogger('Dashboard').warning('Unable to load flat from {}'.format(self.config.dashboard.flatfile))
 
-        if self.checkbox_darkImage.isChecked():
-            image += bias  # add bias so that anything that's negative after the dark isn't cutoff
+        #TODO this really could be moved into the ConvertPhotonsToRGB thread
+        cf = CalFactory('avg', images=self.imageList[-self.config.dashboard.average:],
+                        dark=self.darkField if self.checkbox_darkImage.isChecked() else None,
+                        flat=self.flatField if self.checkbox_flatImage.isChecked() else None)
+        image = cf.generate(bias=bias if self.checkbox_darkImage.isChecked() else 0)
+        image.data[self.beammapFailed] = np.nan
 
         # Set up worker object and thread
-        image[self.beammapFailed] = np.nan
-        interpBool = self.checkbox_interpolate.isChecked()
-        smoothBool = self.checkbox_smooth.isChecked()  # if we're smoothing don't make pixels red
-        mode = self.combobox_stretch.currentText()
-        converter = ConvertPhotonsToRGB(image, minCountCutoff, maxCountCutoff, mode, interpBool, not smoothBool)
+        converter = ConvertPhotonsToRGB(image.data,
+                                        self.config.dashboard.min_count_rate,
+                                        self.config.dashboard.max_count_rate,
+                                        self.combobox_stretch.currentText(),
+                                        self.checkbox_interpolate.isChecked(),
+                                        not self.checkbox_smooth.isChecked()) # if we're smoothing don't make pixels red
         self.workers.append(converter)  # Need local reference or else signal is lost!
 
         thread = QtCore.QThread(parent=self)
@@ -732,25 +711,8 @@ class MKIDDashboard(QMainWindow):
             # Update any pixelTimestream windows that are listening
             self.newImageProcessed.emit()
 
-            # self.drawContiguousPixelBoxes()
             for pixel in newPixels:
-                box = self.drawPixelBox(pixel, color='cyan', lineWidth=1)
-                # self.pixelBoxLines.append(box)
-
-    def drawContiguousPixelBoxes(self, color='cyan', lineWidth=1):
-        """
-        This function should draw polygons around sets of contiguous selected pixels
-        
-        This is difficult...
-        probably want to check if a selected pixel shares a border with another selected pixel or an unselected one
-        """
-        scale = self.config.getint('properties', 'image_scale')
-        pixels = self.selectedPixels.copy()
-
-        for i in range(len(self.selectedPixels)):
-            pixel = pixels.pop()
-
-        raise NotImplementedError
+                self.drawPixelBox(pixel, color='cyan', lineWidth=1)
 
     def drawPixelBox(self, pixel1, pixel2=None, color='blue', lineWidth=3):
         """
@@ -766,7 +728,7 @@ class MKIDDashboard(QMainWindow):
         # Get upper left and lower right coordinate on graphics scene
         if pixel2 is None:
             pixel2 = pixel1
-        scale = self.config.getint('properties', 'image_scale')
+        scale = self.config.dashboard.image_scale
         x_start, x_end = sorted([pixel1[0], pixel2[0]])
         y_start, y_end = sorted([pixel1[1], pixel2[1]])
         x_start = x_start * scale - 1  # start box one pixel over
@@ -775,8 +737,8 @@ class MKIDDashboard(QMainWindow):
         y_end = y_end * scale + scale
         x_start = max(x_start, 0)  # make sure we're still inside the image
         y_start = max(y_start, 0)
-        x_end = min(x_end, self.config.getint('properties', 'nCols') * scale)
-        y_end = min(y_end, self.config.getint('properties', 'nRows') * scale)
+        x_end = min(x_end, self.config.detector.ncols * scale)
+        y_end = min(y_end, self.config.detector.nrows * scale)
         width = x_end - x_start
         height = y_end - y_start
 
@@ -797,7 +759,7 @@ class MKIDDashboard(QMainWindow):
             if type(item) != QGraphicsPixmapItem:
                 self.grPixMap.scene().removeItem(item)
 
-    def getPixCountRate(self, pixelList, numImages2Sum=None, applyDark=False):
+    def getPixCountRate(self, pixelList, numImages2Sum=0, applyDark=False):
         """
         Get the count rate of a list of pixels.
         Can be slow :( 
@@ -807,21 +769,15 @@ class MKIDDashboard(QMainWindow):
             pixelList - a list or numpy array of pixels (not a set)
             numImages2Sum - average over this many of the last few images. If None, use the number specified on the GUI int Time box
         """
-        if len(pixelList) == 0:
+        if not len(pixelList):
             return 0
-        if numImages2Sum is None or numImages2Sum < 1:
-            numImages2Sum = self.config.getint('properties', 'num_images_to_add')
-        numImages2Sum = min(numImages2Sum, len(self.imageList))
-        image = np.sum(self.imageList[-1 * numImages2Sum:], axis=0)
-        image = image / (numImages2Sum * self.config.getfloat('properties', 'packetmaster_image_intTime'))
-        if applyDark:
-            try:
-                image = image - self.darkField
-            except:
-                pass
+        if numImages2Sum < 1:
+            numImages2Sum = self.config.dashboard.average
+
+        cf=CalFactory('sum', images=self.imageList[-numImages2Sum:], dark=self.darkField if applyDark else None)
+        im = cf.generate()
         pixelList = np.asarray(pixelList)
-        val = np.sum(np.asarray(image)[[pixelList[:, 1], pixelList[:, 0]]])
-        return val
+        return np.sum(np.asarray(im.data)[[pixelList[:, 1], pixelList[:, 0]]])
 
     def updateSelectedPixelLabels(self):
         """
@@ -845,7 +801,7 @@ class MKIDDashboard(QMainWindow):
         
         This function is called when we hover to a new pixel or the image updates
         """
-        if self.pixelCurrent != None:
+        if self.pixelCurrent is not None:
             val = self.getPixCountRate([self.pixelCurrent])
             self.label_pixelInfo.setText(
                 '(' + str(self.pixelCurrent[0]) + ' , ' + str(self.pixelCurrent[1]) + ') : ' + str(
@@ -897,15 +853,14 @@ class MKIDDashboard(QMainWindow):
         
         It pops up a window showing the selected pixel's timestream
         """
-        if len(self.selectedPixels) > 0:
+        if len(self.selectedPixels):
             pixels = np.asarray([[p[0], p[1]] for p in self.selectedPixels])
         else:
             pixels = [self.pixelCurrent]
 
         window = PixelTimestreamWindow(pixels, parent=self)
         self.timeStreamWindows.append(window)
-        window.closeWindow.connect(
-            partial(self.timeStreamWindows.remove, window))  # remove from list if the window is closed
+        window.closeWindow.connect( partial(self.timeStreamWindows.remove, window))  # remove from list if closed
         window.show()
 
     def plotHistogram(self):
@@ -914,15 +869,13 @@ class MKIDDashboard(QMainWindow):
         
         It pops up a window showing a histogram of count rates for the selected pixels
         """
-        if len(self.selectedPixels) > 0:
+        if len(self.selectedPixels):
             pixels = np.asarray([[p[0], p[1]] for p in self.selectedPixels])
         else:
             pixels = [self.pixelCurrent]
-
         window = PixelHistogramWindow(pixels, parent=self)
         self.histogramWindows.append(window)
-        window.closeWindow.connect(
-            partial(self.histogramWindows.remove, window))  # remove from list if the window is closed
+        window.closeWindow.connect(partial(self.histogramWindows.remove, window))  # remove from list if closed
         window.show()
 
     def startObs(self):
@@ -935,7 +888,10 @@ class MKIDDashboard(QMainWindow):
             self.observing = True
             self.button_obs.setEnabled(False)
             self.button_obs.clicked.disconnect()
+            self.textbox_target.setReadOnly(True)
             self.turnOnPhotonCapture()
+            if self.takingDark<0 and self.takingFlat < 0:
+                self.sciFactory = CalFactory('sum', dark=self.darkField, flat=self.flatField)
             self.packetmaster.startobs(self.config.paths.data)
             self.button_obs.setText('Stop Observing')
             self.button_obs.clicked.connect(self.stopObs)
@@ -952,16 +908,43 @@ class MKIDDashboard(QMainWindow):
             self.observing = False
             self.button_obs.setEnabled(False)
             self.button_obs.clicked.disconnect()
-            getLogger('Dashboard').info("Stop Obs")
             self.packetmaster.stopobs()
+            getLogger('Dashboard').info("Stop Obs")
+            if self.sciFactory is not None:
+                #TODO get fram info and file name
+                self.sciFactory.generate(threaded=True,
+                                         fname=os.path.join(self.paths.data, 't{}.fits'.format(time.time())),
+                                         name=self.textbox_target.text(),
+                                         save=True, header=self.state())
+            self.textbox_target.setReadOnly(False)
             self.button_obs.setText('Start Observing')
             self.button_obs.clicked.connect(self.startObs)
             self.button_obs.setEnabled(True)
 
     def toggleFlipper(self):
-        getLogger('Dashboard').info("Toggled flipper!")
-        laserStr = str(int(self.radiobutton_flipper.isChecked())) + '0' * len(self.checkbox_laser_list)
-        self.laserController.toggleLaser(laserStr, 500)
+        getLogger('Dashboard').info("Toggling flipper!")
+        laserStr = str(int(self.checkbox_flipper.isChecked())) + '0' * len(self.checkbox_laser_list)
+
+        def flipperoff():
+            getLogger('Dashboard').info("Toggling flipper back!")
+            if self.laserController.laserOff():
+                self.checkbox_flipper.setCheckState(False)
+                self.checkbox_flipper.setText(str(self.checkbox_flipper.text()).rstrip(' ERROR'))
+            else:
+                getLogger('Dashboard').error("Toggling flipper back failed.")
+                self.checkbox_flipper.setText(str(self.checkbox_flipper.text()).rstrip(' ERROR') + ' ERROR')
+            self.logstate()
+
+        if not self.laserController.toggleLaser(laserStr):
+            getLogger('Dashboard').error("Toggling flipper failed.")
+            self.checkbox_flipper.stateChanged.disconnect()
+            self.checkbox_flipper.setText(str(self.checkbox_flipper.text()).rstrip(' ERROR')+' ERROR')
+            self.checkbox_flipper.setCheckState(not self.checkbox_flipper.isChecked())
+            self.checkbox_flipper.stateChanged.connect(self.toggleFlipper)
+        else:
+            self.checkbox_flipper.setText(str(self.checkbox_flipper.text()).rstrip(' ERROR'))
+            if self.checkbox_flipper.isChecked():
+                QtCore.QTimer.singleShot(500 * 1000, flipperoff)
         self.logstate()
 
     def setFilter(self, filter):
@@ -974,39 +957,45 @@ class MKIDDashboard(QMainWindow):
             self.combobox_filter.setCurrentIndex(mkidreadout.hardware.hsfw.NFILTERS)
         self.logstate()
 
-    def laserCalClicked(self, laserCalStyle="simultaneous"):
+    def laserCalClicked(self, _, laserCalStyle = "simultaneous"):
         laserTime = self.spinbox_laserTime.value()
+
+        def lcaldone():
+            if not self.laserController.laserOff():
+                getLogger('Dashboard').info("Laser cal done. Lasers off.")
+            else:
+                getLogger('Dashboard').error("Unable to turn lasers off.")
+            self.checkbox_flipper.setEnabled(True)
+            self.logstate()
 
         # simultaneous is classic laser cal style, with all desired lasers at once
         if laserCalStyle == "simultaneous":
             # turn off flipper control until laser cal is done
-            self.radiobutton_flipper.setEnabled(False)
-            laserStr = ''.join([str(int(cb.isChecked())) for cb in self.checkbox_laser_list])
-            self.laserController.toggleLaser(laserStr, laserTime)
+            self.checkbox_flipper.setEnabled(False)
+            laserStr = '0'+''.join([str(int(cb.isChecked())) for cb in self.checkbox_laser_list])
+
+            if self.laserController.toggleLaser(laserStr):
+                getLogger('ObsLog').info('Starting a {} laser cal for {} s.'.format(laserCalStyle, laserTime))
+                QtCore.QTimer.singleShot(laserTime * 1000, lcaldone)
+            else:
+                getLogger('ObsLog').error('Failed to start  a {} laser cal. Lasers may be on.'.format(laserCalStyle))
+                self.checkbox_flipper.setEnabled(True)
             self.logstate()
-            getLogger('ObsLog').info('Starting a {} laser cal for {} s.'.format(laserCalStyle, laserTime))
 
-        # re-enable flipper when laser cal is done
-        QtCore.QTimer.singleShot(laserTime * 1000 + 1, self.enableFlipper)
-
-    def enableFlipper(self):
-        # TODO go through and make sure that ever state changing function causes a state record to be
-        # emitted, it is done for the flipper but we need a final review
-        self.radiobutton_flipper.setEnabled(True)
+    def state(self):
+        #TODO this is the crap that populates the headers and the log, it needs to be prompt enough that
+        #it won't cause the GUI to be sluggish so polls should be used with caution
+        from datetime import datetime
+        return dict(target=self.textbox_target.text(), ditherx=np.nan, dithery=np.nan,
+                    flipper='image', filter='1', ra='00:00:00.00', dec='00:00:00.00',
+                    utc=datetime.utcnow(), roaches='raoch.yml')
 
     def logstate(self):
         targ, cmt = self.textbox_target.text(), self.textbox_log.toPlainText()
         # state = InstrumentState(target=targ, comment=cmt, flipper=None, laser)
         # targetname, telescope params, filter, dither x y ts state, roach info if first log
+        state = self.state()
         getLogger('ObsLog').info('foo')
-
-    def printLogs(self, num=10):
-        ramdiskLog_path = self.config.get('properties', 'log_ramdisk')
-        log_path = self.config.paths.logs
-        command = 'grep "" %s*.log %s*.log | tail -%i' % (log_path, ramdiskLog_path, num)
-        getLogger('Dashboard').info(command)
-        proc = subprocess.Popen(command, shell=True)
-        proc.wait()
 
     def create_dock_widget(self):
         """
@@ -1023,6 +1012,7 @@ class MKIDDashboard(QMainWindow):
         updateCurrentTime = lambda: label_currentTime.setText("UTC: " + str(time.time()))
         getCurrentTime.timeout.connect(updateCurrentTime)
         getCurrentTime.start()
+
         # Mkid data directory
         label_dataDir = QLabel('Data Dir:')
         dataDir = self.config.get('properties', 'data_dir')
@@ -1045,7 +1035,6 @@ class MKIDDashboard(QMainWindow):
 
         # dithering
         self.button_dither = QPushButton("Start Dithering")
-        # self.button_dither.setFont(font.setPointSize(12))
         self.button_dither.clicked.connect(self.startDithering)
 
         # Filter
@@ -1213,25 +1202,26 @@ class MKIDDashboard(QMainWindow):
         button_laserCal.clicked.connect(self.laserCalClicked)
 
         # Also have the pupil imager flipper controlled with laser box arduino
-        self.radiobutton_flipper = QRadioButton('SBIG Flipper [0:Pupil, 1:Image]')
-        self.radiobutton_flipper.setChecked(False)
-        self.radiobutton_flipper.toggled.connect(self.toggleFlipper)
+        self.checkbox_flipper = QCheckBox('SBIG Flipper to Image')
+        self.checkbox_flipper.setChecked(False)
+        self.checkbox_flipper.stateChanged.connect(self.toggleFlipper)
 
         # ================================================
         # Layout on GUI
 
         vbox = QVBoxLayout()
         vbox.addWidget(label_currentTime)
+
         hbox_dataDir = QHBoxLayout()
         hbox_dataDir.addWidget(label_dataDir)
         hbox_dataDir.addWidget(textbox_dataDir)
         vbox.addLayout(hbox_dataDir)
+
         vbox.addWidget(self.button_obs)
 
         hbox_target = QHBoxLayout()
         hbox_target.addWidget(label_target)
         hbox_target.addWidget(self.textbox_target)
-        # hbox_target.addStretch()
         vbox.addLayout(hbox_target)
 
         vbox.addWidget(self.textbox_log)
@@ -1274,15 +1264,16 @@ class MKIDDashboard(QMainWindow):
         hbox_CountRate.addWidget(spinbox_maxCountRate)
         hbox_CountRate.addStretch()
         vbox.addLayout(hbox_CountRate)
+
         hbox_stretch = QHBoxLayout()
         hbox_stretch.addWidget(label_stretch)
         hbox_stretch.addWidget(self.combobox_stretch)
         hbox_stretch.addStretch()
         vbox.addLayout(hbox_stretch)
+
         vbox.addWidget(self.checkbox_showAllPix)
         vbox.addWidget(self.checkbox_interpolate)
         vbox.addWidget(self.checkbox_smooth)
-        # vbox.addWidget(self.checkbox_dither)
         vbox.addWidget(self.label_selectedPixValue)
         vbox.addWidget(self.label_pixelInfo)
         vbox.addWidget(self.label_pixelID)
@@ -1295,7 +1286,7 @@ class MKIDDashboard(QMainWindow):
         vbox.addLayout(hbox_laser)
         for checkbox_laser in self.checkbox_laser_list:
             vbox.addWidget(checkbox_laser)
-        vbox.addWidget(self.radiobutton_flipper)
+        vbox.addWidget(self.checkbox_flipper)
 
         obs_widget.setLayout(vbox)
         obs_dock_widget.setWidget(obs_widget)
@@ -1367,8 +1358,6 @@ class MKIDDashboard(QMainWindow):
         photonCapOff_action = self.create_action("Stop &Photon Capture", slot=self.turnOffPhotonCapture,
                                                  shortcut="Ctrl+Shift+P",
                                                  tip="Tell Roaches to stop sending photon packets")
-        viewLogs_action = self.create_action("Pring &Logs", slot=partial(self.printLogs, 15), shortcut="Ctrl+L",
-                                             tip="Print last 15 logs into terminal")
         quit_action = self.create_action("&Quit", slot=self.close, shortcut="Ctrl+Q", tip="Close the application")
 
         add_actions(self.file_menu,

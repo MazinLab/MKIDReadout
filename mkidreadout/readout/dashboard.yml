@@ -39,6 +39,7 @@ dashboard: !configdict
   n_flats: 5
   flatname: flat
   darkfile: dark.fits
+  fitstime: 60  #
 
 # Flipper is also controlled with the laser box arduino
 lasercontrol: !configdict

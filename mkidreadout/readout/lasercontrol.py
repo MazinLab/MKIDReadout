@@ -10,12 +10,6 @@ We also have the Darkness pupil image flipper controlled with this arduino
 
 from __future__ import print_function
 from mkidcore.safesocket import *
-
-try:
-    from PyQt5 import QtCore
-except ImportError:
-    from PyQt4 import QtCore
-
 from mkidcore.corelog import getLogger, setup_logging
 
 
@@ -26,46 +20,44 @@ class LaserControl(object):
         """
         self.address = (ipaddress, port)
         self.receivePort = receivePort
-        
-        self.numLasers = 5+1    # the first number controls the flipper
-        
-        self.lastToggle = '0'*self.numLasers
-    
-    def toggleLaser(self, toggle, timeLimit=0):
+        self.numLasers = 5 + 1  # the first number controls the flipper
+        self.lastToggle = '0' * self.numLasers
+
+    def toggleLaser(self, toggle):
         """
         Change the laser on or off
         
         INPUTS:
             toggle - String with each character a 1 or 0 describing the on/off state of the laser
                      "10101" means turn lasers 1,3,5 on and 2,4 off. 
-            timeLimit - Turn the laser off after this many seconds. if <= 0 then leave on
         """
-        print(toggle, timeLimit)
-
-        if len(toggle)!=self.numLasers:
+        if len(toggle) != self.numLasers:
             raise ValueError('Toggle must be a boolean string of length n lasers')
-        self.lastToggle = toggle
-        client_socket = socket(AF_INET, SOCK_DGRAM) #Set Up the Socket
-        client_socket.settimeout(1) #only wait 1 second for a response
-        client_socket.sendto(toggle, self.address) #send command to arduino
-        if timeLimit:
-            QtCore.QTimer.singleShot(timeLimit*1000, self.laserOff)
+
+        client_socket = socket(AF_INET, SOCK_DGRAM)  # Set Up the Socket
+        client_socket.settimeout(1)  # only wait 1 second for a response
+        client_socket.sendto(toggle, self.address)  # send command to arduino
         try:
-            rec_data, addr = client_socket.recvfrom(self.receivePort) #Read response from arduino
+            rec_data, addr = client_socket.recvfrom(self.receivePort)  # Read response from arduino
             getLogger(__name__).debug(rec_data)  # Print the response from Arduino
-        except:
+            self.lastToggle = toggle
+            return True
+        except Exception:
             getLogger(__name__).warning("No response from Arduino")
-        
+            return False
+
     def laserOff(self):
-        client_socket = socket(AF_INET, SOCK_DGRAM) #Set Up the Socket
-        client_socket.settimeout(1) #only wait 1 second for a response
-        client_socket.sendto(self.lastToggle[0]+"0"*(self.numLasers-1), self.address)
+        client_socket = socket(AF_INET, SOCK_DGRAM)  # Set Up the Socket
+        client_socket.settimeout(1)  # only wait 1 second for a response
+        client_socket.sendto(self.lastToggle[0] + "0" * (self.numLasers - 1), self.address)
         try:
-            rec_data, addr = client_socket.recvfrom(self.receivePort) #Read response from arduino
-            getLogger(__name__).debug(rec_data)  #Print the response from Arduino
-        except:
+            rec_data, addr = client_socket.recvfrom(self.receivePort)  # Read response from arduino
+            getLogger(__name__).debug(rec_data)  # Print the response from Arduino
+            return True
+        except Exception:
             getLogger(__name__).warning("No response from Arduino")
-    
+            return False
+
     def laserFlash(self, onTime, offTime, timeLimit):
         raise NotImplementedError
 

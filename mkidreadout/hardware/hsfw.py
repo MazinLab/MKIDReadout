@@ -267,7 +267,7 @@ def setfilter(fnum, home=False, host='localhost:50000',killserver=False):
         getLogger('HSFW').info("Response: {}".format(data))
         conn.close()
     except AttributeError:
-        msg = 'Cannot connect to filter server\n'
+        msg = 'Cannot connect to filter server'
         getLogger('HSFW').error(msg)
         return False
     except Exception as e:
