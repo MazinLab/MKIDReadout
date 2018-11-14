@@ -46,16 +46,14 @@ def getOverlapGrid(xCoords, yCoords, flags, nXPix, nYPix):
             bmGrid[x, y] += 1
     return bmGrid
 
-
-
-
-
-class BMCleaner:
-    def __init__(self, roughBeammap, nRows, nCols, flip, instrument):
+class BMCleaner(object):
+    def __init__(self, beamMap, nRows, nCols, flip, instrument, designMapPath=None):
         self.nRows = nRows
         self.nCols = nCols
         self.flip = flip
         self.instrument = instrument.lower()
+        self.designFile = designMapPath
+        self.beamMap = beamMap
 
         if self.instrument.lower()=='mec':
             self.nFL = N_FL_MEC
@@ -66,10 +64,10 @@ class BMCleaner:
         else:
             raise Exception('Provided instrument not implemented!')
     
-        self.resIDs = roughBeammap.resIDs.astype(int)
-        self.flags = roughBeammap.flags.astype(int)
-        self.preciseXs = roughBeammap.xCoords
-        self.preciseYs = roughBeammap.yCoords
+        self.resIDs = self.beamMap.resIDs.astype(int)
+        self.flags = self.beamMap.flags.astype(int)
+        self.preciseXs = self.beamMap.xCoords
+        self.preciseYs = self.beamMap.yCoords
         self.flooredXs = None
         self.flooredYs = None
         self.placedXs = None
@@ -213,24 +211,37 @@ class BMCleaner:
         log.info('Successfully resolved %d overlaps', nOverlapsResolved)
         log.info('Failed to resolve %d overlaps', np.sum(self.flags==beamMapFlags['duplicatePixel']))
 
-    def resolveOverlapWithFrequency(self, shifterObject):
+    def resolveOverlapWithFrequency(self):
         """
-        Given a shifted beammap object that has frequency data, resolve doubles. Beammap object from shifterObject
-        is modified.
-        """
-        beammap = shifterObject.shiftedBeammap
-        designMap = shifterObject.designArray
+        Uses the beammap that was given to the BMCleaner class to first run the shifting/frequency fitting code, then uses
+        the unformation from that to resolve overlaps using the frequency information.
 
-        if not hasattr(beammap, 'frequencies'):
+        Returns: A copy of the beammap with a shift applied, overlaps resolved, and coordinates locked onto a grid.
+        """
+        if not hasattr(self.beamMap, 'frequencies'):
             raise Exception("This beammap does not have frequency data, this operation cannot be done")
+
+        shifter = shift.BeammapShifter(self.designFile, self.beamMap, self.instrument)
+        shifter.run()
+
+        self.fixPreciseCoordinates()
+        self.placeOnGrid()
+
+        beammap = shifter.shiftedBeammap
+        # original = beammap.copy()   Used for testing if the code modified the beammap properly
+        designMap = shifter.designArray
 
         overlapGrid = getOverlapGrid(beammap.xCoords, beammap.yCoords, beammap.flags, self.nCols, self.nRows)
         overlapCoords = np.asarray(np.where(overlapGrid > 1)).T
         numberOfOverlapsResolved = 0
+        nresresolved = 0
 
         for coord in overlapCoords:
             doubles = beammap.getResonatorsAtCoordinate(coord[0], coord[1])
 
+            # Creates an list of coordinates to try to place the members of the overlap on. Creates a square around the
+            # coordinate of the overlap, then removes all locations in the wrong feedline, off the array, or that are
+            # already occupied. Adds back the coordinate of the overlap, because one of them could be placed there.
             xUncertainty = 0
             yUncertainty = 0
             coordsToSearch = generateCoords(coord, xUncertainty, yUncertainty)
@@ -240,11 +251,11 @@ class BMCleaner:
                 yUncertainty += 1
                 coordsToSearch = generateCoords(coord, xUncertainty, yUncertainty)
                 onArrayMask = ((coordsToSearch[:, 0] >= 0) & (coordsToSearch[:, 0] < self.nCols) & (coordsToSearch[:, 1] >= 0) & (coordsToSearch[:, 1] < self.nRows))
-                coordsToSearch = coordsToSearch[onArrayMask]
+                coordsToSearch = coordsToSearch[onArrayMask.astype(bool)]
                 onFeedlineMask = np.zeros(len(coordsToSearch))
                 for i in range(len(coordsToSearch)):
                     onFeedlineMask[i] = isResonatorOnCorrectFeedline(doubles[0][0], coordsToSearch[i][0], coordsToSearch[i][1], self.instrument)
-                coordsToSearch = coordsToSearch[onArrayMask.astype(bool)]
+                coordsToSearch = coordsToSearch[onFeedlineMask.astype(bool)]
                 occupationMask = np.zeros(len(coordsToSearch))
                 for i in range(len(coordsToSearch)):
                     if overlapGrid[coordsToSearch[i][0], coordsToSearch[i][1]] == 0:
@@ -255,12 +266,15 @@ class BMCleaner:
                 coordsToSearch = np.append(coordsToSearch, coord).reshape((len(coordsToSearch)+1, 2))  # Adds the overlap coordinate back to the search coords (they can be placed there)
                 nCoords = len(coordsToSearch)
 
-            freqsToSearch = list(designMap.getDesignFrequencyFromCoords(coordinate for coordinate in coordsToSearch)) # Design frequencies at each of the search coordinates
+            # Generates the design frequency at the coordinates that are being tested
+            freqsToSearch = list(designMap.getDesignFrequencyFromCoords(coordinate) for coordinate in coordsToSearch) # Design frequencies at each of the search coordinates
 
+            # Creates the possible combinations to place the resonators at
             possiblePlacements = itertools.permutations((range(len(freqsToSearch))), len(doubles))
             placementsToSearch = [i for i in possiblePlacements]
             residuals = np.zeros(len(placementsToSearch))
 
+            # Generates the 'total frequency residual' of all resonators in the possible configurations
             for i in range(len(placementsToSearch)):
                 for j in range(len(doubles)):
                     residuals[i] += abs(doubles[j][4]-freqsToSearch[placementsToSearch[i][j]])
@@ -272,15 +286,23 @@ class BMCleaner:
             for i in range(len(bestPlacement)):
                 newCoordinates[i] = coordsToSearch[bestPlacement[i]]
 
+            # Updates the overlap grid to reflect the new occupancy of coordinates. Updates the shifted beammap (not the
+            # original beammap given to BMCleaner)
+            overlapGrid[coord[0], coord[1]] = 0
             for i in range(len(doubles)):
                 resonator = doubles[i]
-                newCoordinate = newCoordinates[i]
-                index = np.where(beammap.resIDs == resonator[0])[0]
+                newCoordinate = newCoordinates[i].astype(int)
+                overlapGrid[newCoordinate[0], newCoordinate[1]] += 1
+                index = np.where(self.beamMap.resIDs == resonator[0])[0]
                 beammap.xCoords[index] = newCoordinate[0]
                 beammap.yCoords[index] = newCoordinate[1]
                 beammap.flags[index] = beamMapFlags['good']
+                nresresolved += 1
 
             numberOfOverlapsResolved += 1
+
+        log.info('Successfully resolved %d overlaps', numberOfOverlapsResolved)
+        return beammap  # , original The 'original' is the beammap that the overlaps came from that is locked onto a grid
 
     def placeFailedPixels(self):
         '''
@@ -338,21 +360,16 @@ if __name__=='__main__':
     designFile = configData['designMapFile']
 
     #put together full input/output BM paths
-    finalPath = os.path.join(beammapDirectory,finalBMFile)
-    rawPath = os.path.join(beammapDirectory,rawBMFile)
-    frequencySweepPath = os.path.join(beammapDirectory,"ps_*.txt")
+    finalPath = os.path.join(beammapDirectory, finalBMFile)
+    rawPath = os.path.join(beammapDirectory, rawBMFile)
+    frequencySweepPath = os.path.join(beammapDirectory, "ps_*.txt")
 
 
     #load location data from rough BM file
     rawBM = Beammap(rawPath)
     rawBM.loadFrequencies(frequencySweepPath)
-
-    shifter = shift.BeammapShifter(designFile, rawBM, configData['instrument'])
-    shifter.run()
-    cleaner = BMCleaner(shifter.shiftedBeammap, int(configData['numRows']), int(configData['numCols']), configData['flip'], configData['instrument'])
-    cleaner.fixPreciseCoordinates()
-    cleaner.placeOnGrid()
-    cleaner.resolveOverlapWithFrequency(shifter)
+    cleaner = BMCleaner(rawBM, int(configData['numRows']), int(configData['numCols']), configData['flip'], configData['instrument'])
+    cleaner.resolveOverlapWithFrequency()
 
     cleaner.fixPreciseCoordinates() #fix wrong feedline and oob coordinates
     cleaner.placeOnGrid() #initial grid placement

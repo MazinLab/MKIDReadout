@@ -527,6 +527,6 @@ def placeResonatorOnFeedline(xCoord,yCoord,instrument):
 
 def generateCoords(coordinate, xSlack, ySlack):
     xCoords = np.linspace(coordinate[0]-xSlack, coordinate[0]+xSlack, 2*xSlack+1).astype(int)
-    yCoords = np.linspace(coordinate[0]-ySlack, coordinate[0]+ySlack, 2*ySlack+1).astype(int)
+    yCoords = np.linspace(coordinate[1]-ySlack, coordinate[1]+ySlack, 2*ySlack+1).astype(int)
     coordinateList = list(itertools.product(xCoords, yCoords))
-    return coordinateList
+    return np.array(coordinateList)
