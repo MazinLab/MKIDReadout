@@ -75,7 +75,7 @@ setuptools.setup(
     long_description_content_type="text/markdown",
     url="https://github.com/MazinLab/MKIDReadout",
     packages=setuptools.find_packages(),
-    package_data = {'mkidreadout': ('config/*.yml', 'resources/firmware/*', 'resources/firfilters/*')}
+    package_data = {'mkidreadout': ('config/*.yml', 'resources/firmware/*', 'resources/firfilters/*')},
     scripts=['mkidreadout/channelizer/initgui.py',
              'mkidreadout/channelizer/hightemplar.py',
              'mkidreadout/readout/dashboard.py',
