@@ -44,11 +44,10 @@ class InitGui(QMainWindow):
             roachNums = range(10)
         self.roachNums = np.unique(roachNums)       # sorts and removes duplicates
         self.numRoaches = len(self.roachNums)       # (int) number of roaches connected
-        self.config = ConfigParser.ConfigParser()
         if defaultValues is None:
-            defaultValues = 'initgui.cfg'
-        self.config.read(defaultValues)
-        
+            defaultValues = 'roach.yml'
+        self.config = mkidcore.config.load(defaultValues)
+
         
         #Setup GUI
         super(InitGui, self).__init__()
@@ -57,7 +56,8 @@ class InitGui(QMainWindow):
         #self.create_status_bar()
 
         #Setup Settings window
-        self.settingsWindow = InitSettingsWindow(self.roachNums, self.config, parent=None) # keep parent None for now
+        self.settingsWindow = InitSettingsWindow(self.roachNums, self.config, parent=None) # keep parent None
+        #  for now
         self.settingsWindow.resetRoach.connect(self.resetRoachState)
         self.settingsWindow.initTemplar.connect(self.initTemplar)
         QApplication.setStyle(QStyleFactory.create('plastique'))
@@ -66,7 +66,7 @@ class InitGui(QMainWindow):
         self.roaches = []
         self.roachThreads=[]
         for i in self.roachNums:
-            roach=InitStateMachine(i,self.config)
+            roach=InitStateMachine(i, self.config)
             thread = QtCore.QThread(parent=self)                                        # if parent isn't specified then need to be careful to destroy thread
             thread.setObjectName("Roach_"+str(i))                                       # process name
             roach.finishedCommand_Signal.connect(partial(self.catchRoachSignal,i))      # call catchRoachSignal when roach finishes a command
@@ -408,7 +408,7 @@ class InitGui(QMainWindow):
 #compare with https://mazinlab.atlassian.net/wiki/spaces/READ/pages/edit/36995110?draftId=36995123&draftShareId=7ee6f311-ed8a-4e6a-a4bc-1c76bf0af9c1&
 
 
-DEFAULT_CFG_FILE = os.path.join(os.path.dirname(__file__), 'initgui.cfg')
+DEFAULT_CFG_FILE = os.path.join(os.path.dirname(__file__), 'roach.yml')
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
@@ -433,11 +433,7 @@ if __name__ == "__main__":
         exit(0)
 
     timestamp = datetime.utcnow().strftime("%Y%m%d%H%M")
-    create_log('ObsLog', logfile='obslog_{}.log'.format(timestamp),
-                   console=False, mpsafe=True, propagate=False,
-                   fmt='%(asctime)s %(message)s ',
-                   level=mkidcore.corelog.DEBUG)
-    create_log('Dashboard', logfile='dashboard_{}.log'.format(timestamp),
+    create_log('Init', logfile='init_{}.log'.format(timestamp),
                    console=True, mpsafe=True, propagate=False,
                    fmt='%(asctime)s  %(levelname)s: %(message)s ',
                    level=mkidcore.corelog.DEBUG)

@@ -72,7 +72,7 @@ class InitSettingsWindow(QTabWidget):
     def finishedInitV7(self, roachNum):
         tabArg = np.where(np.asarray(self.roachNums) == roachNum)[0][0]
         self.widget(tabArg).checkbox_waitV7.setChecked(False)
-        #self.config.set('Roach '+str(self.num),'waitForV7Ready',False)
+        #self.config.set('Roach '+str(self.num),'waitForV7Ready',False)  #TODO self.num cont a class member
     
     def closeEvent(self, event):
         if self._want_to_close:
@@ -81,34 +81,27 @@ class InitSettingsWindow(QTabWidget):
             self.hide()
             
 
-
 class InitSettingsTab(QMainWindow):
     resetRoach = QtCore.pyqtSignal(int)     #Signal emmited when we change a setting so we can reload it into the ROACH2
     initTemplar = QtCore.pyqtSignal(object)
-    # nBitsRemovedInFFT = QtCore.pyqtSignal() #signal emitted when we change the number of bits removed before the FFT
 
-    def __init__(self,roachNum,config):
-        super(InitSettingsTab, self).__init__() #parent=None. This is the correct way according to the QTabWidget documentation
+    def __init__(self, roachNum, config):
+        super(InitSettingsTab, self).__init__()
         self.roachNum = roachNum
         self.config = config
         
         self.create_main_frame()
-    
-    # def changedNBitsRemoved(self, nBitsRemoved):
-    #     self.changedSetting('nBitsRemovedInFFT',nBitsRemoved)
-    #     #self.nBitsRemovedInFFT.emit()
 
     def changedSetting(self,settingID,setting):
         """
         When a setting is changed, reflect the change in the config object which is shared across all GUI elements.
         
         INPUTS:
-            settingID - the key in the configparser
+            settingID - the key in the config
             setting - the value
         """
-        self.config.set('Roach '+str(self.roachNum),settingID,str(setting))
-        #If we don't force the setting value to be a string then the configparser has trouble grabbing the value later on for some unknown reason
-        
+        self.config.update(('r{}.{}'.format(self.roachNum, settingID), setting))
+
     def create_main_frame(self):
         """
         Makes everything on the tab page
@@ -127,22 +120,21 @@ class InitSettingsTab(QMainWindow):
         label_roachNum = QLabel('Settings for roach '+str(self.roachNum))
         add2layout(vbox,label_roachNum)
         
-        ipAddress = self.config.get('Roach '+str(self.roachNum),'ipAddress')
+        ipAddress = self.config.get('r{}.ip'.format(self.roachNum))
         self.label_ipAddress = QLabel('ip address: ')
         self.label_ipAddress.setMinimumWidth(110)
         self.textbox_ipAddress = QLineEdit(ipAddress)
         self.textbox_ipAddress.setMinimumWidth(70)
-        self.textbox_ipAddress.textChanged.connect(partial(self.changedSetting,'ipAddress'))
+        self.textbox_ipAddress.textChanged.connect(partial(self.changedSetting, 'ip'))
         self.textbox_ipAddress.textChanged.connect(lambda x: self.resetRoach.emit(-1))      # reset roach state if ipAddress changes
-        add2layout(vbox,self.label_ipAddress,self.textbox_ipAddress)
+        add2layout(vbox,self.label_ipAddress, self.textbox_ipAddress)
 
-
-        fpgPath = self.config.get('Roach '+str(self.roachNum),'fpgPath')
+        fpgPath = self.config.get('r{}.fpgpath'.format(self.roachNum))
         label_fpgPath = QLabel('fpgPath: ')
         label_fpgPath.setMinimumWidth(110)
         textbox_fpgPath = QLineEdit(fpgPath)
         textbox_fpgPath.setMinimumWidth(70)
-        textbox_fpgPath.textChanged.connect(partial(self.changedSetting,'fpgPath'))
+        textbox_fpgPath.textChanged.connect(partial(self.changedSetting, 'fpgpath'))
         textbox_fpgPath.textChanged.connect(lambda x: self.resetRoach.emit(InitStateMachine.PROGRAM_V6))      # reset roach state if ipAddress changes
         add2layout(vbox, label_fpgPath, textbox_fpgPath)
 
@@ -151,12 +143,12 @@ class InitSettingsTab(QMainWindow):
         self.checkbox_waitV7.stateChanged.connect(lambda x: self.changedSetting('waitForV7Ready', self.checkbox_waitV7.isChecked()))
         add2layout(vbox,self.checkbox_waitV7)
 
-        FPGAParamFile = self.config.get('Roach '+str(self.roachNum),'FPGAParamFile')
+        FPGAParamFile = self.config.get('Roach '+str(self.roachNum),'fpgaparamfile')
         label_FPGAParamFile = QLabel('FPGAParamFile: ')
         label_FPGAParamFile.setMinimumWidth(110)
         textbox_FPGAParamFile = QLineEdit(FPGAParamFile)
         textbox_FPGAParamFile.setMinimumWidth(70)
-        textbox_FPGAParamFile.textChanged.connect(partial(self.changedSetting,'FPGAParamFile'))
+        textbox_FPGAParamFile.textChanged.connect(partial(self.changedSetting,'fpgaparamfile'))
         textbox_FPGAParamFile.textChanged.connect(lambda x: self.resetRoach.emit(-1))      # reset roach state if ipAddress changes
         add2layout(vbox, label_FPGAParamFile, textbox_FPGAParamFile)
         
@@ -169,7 +161,6 @@ class InitSettingsTab(QMainWindow):
         # spinbox_nBitsRemovedInFFT.valueChanged.connect(self.changedNBitsRemoved)
         # add2layout(vbox, label_nBitsRemovedInFFT, spinbox_nBitsRemovedInFFT)
         
-        
 
         label_note = QLabel("NOTE: Changing the ip address won't take effect until you re-connect.")
         label_note.setWordWrap(True)
@@ -179,25 +170,7 @@ class InitSettingsTab(QMainWindow):
         self.main_frame.setLayout(vbox)
         self.setCentralWidget(self.main_frame)
         
-        
 
-
-
-
-
-#class HorizontalTabWidget(QtGui.QTabBar):
-#    def paintEvent(self, event):
-#        for index in range(self.count()):
-#            painter = QtGui.QPainter()
-#            painter.begin(self)
-#            painter.setPen(QtCore.Qt.blue);
-#            painter.setFont(QtGui.QFont("Arial", 10));
-#            tabRect = self.tabRect(index)
-#            painter.drawText(tabRect, QtCore.Qt.AlignVCenter | QtCore.Qt.TextDontClip, self.tabText(index));
-#            painter.end()
-#    
-#    def sizeHint(self):
-#        return QtCore.QSize(60, 130)
 class FingerTabWidget(QtGui.QTabBar):
     """
     This class should extend QTabBar and overload the paintEvent() so that the tabs are on the left and text is horizontal

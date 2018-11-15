@@ -28,7 +28,7 @@ def getPalomarSeeing(verbose=False):
     f="current.log"
     address = "http://nera.palomar.caltech.edu/P18_seeing/%s"%f
     if verbose==True:
-        print "Grabbing file from %s"%address
+        getLogger(__name__).debug("Grabbing file from %s", address)
     if verbose== True:
         p = subprocess.Popen("wget %s"%address,shell=True)
     else:
@@ -42,8 +42,7 @@ def getPalomarSeeing(verbose=False):
     breakdown = line[0].split('\t')
     seeing = breakdown[4]
     if verbose==True:
-        print "Seeing = %s"%seeing
-        print "Deleting %s"%f
+        getLogger(__name__).debug("Seeing = {}. Deleting {}".format(seeing, f))
     os.remove(f)
     return seeing
 
@@ -76,14 +75,14 @@ class Telescope(object):
             self.client_socket.settimeout(0.2)
             self.client_socket.connect(self.address)
         except:
-            getLogger('Telescope').error("Connection to TCS at {} failed.".format(self.address))
+            getLogger(__name__).error("Connection to TCS at {} failed.".format(self.address))
             return
         response = None
         try:
             self.client_socket.send(command)
             response = self.client_socket.recv(self.receivePort)
         except:
-            getLogger('Telescope').error('Command "{}" to TCS failed.\n Recieved at {}.'.format(
+            getLogger(__name__).error('Command "{}" to TCS failed.\n Recieved at {}.'.format(
                                             command, self.receivePort))
         self.client_socket.close()
         return response

@@ -1506,7 +1506,7 @@ if __name__ == "__main__":
         from shutil import copy2
         copy2(DEFAULT_CFG_FILE, './')
         copy2(DEFAULT_ROACH_FILE, './')
-       cfg = mkidcore.config.load(args.config)
+        cfg = mkidcore.config.load(args.config)
         copy2(DEFAULT_BMAP_FILES[cfg.instrument], './')
         exit(0)
 

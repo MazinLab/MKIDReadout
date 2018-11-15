@@ -66,19 +66,16 @@ class InitStateMachine(QtCore.QObject):        #Extends QObject for use with QTh
         """
         INPUTS:
             roachNumber - 
-            config - ConfigParser Object holding all the parameters needed
+            config - configThing
         """
         super(InitStateMachine, self).__init__()
         self.state=[InitStateMachine.UNDEFINED]*InitStateMachine.NUMCOMMANDS    # This holds the state for each command type
         self.num=int(roachNumber)
         self.commandQueue=Queue()
         self.config=config
-        
-        
-        FPGAParamFile = self.config.get('Roach '+str(self.num),'FPGAParamFile')
-        ip = self.config.get('Roach '+str(self.num),'ipaddress')
-        
-        self.roachController = Roach2Controls(ip,FPGAParamFile,True,False)
+        self.roachController = Roach2Controls(self.config.get('r{}.ip'.format(self.num)),
+                                              self.config.get('r{}.fpgaparamfile'.format(self.num)),
+                                              num=self.num, verbose=True, debug=False)
     
     def addCommands(self,command):
         """
@@ -193,14 +190,13 @@ class InitStateMachine(QtCore.QObject):        #Extends QObject for use with QTh
         '''
         This function connects to the roach2 board and executes any initialization scripts
         '''
-        ipaddress = self.config.get('Roach '+str(self.num),'ipaddress')
-        self.roachController.ip = ipaddress
+        self.roachController.ip = self.config.get('r{}.ip'.format(self.num))
         self.roachController.connect()
         
         return True
     
     def programV6(self):
-        fpgPath = self.config.get('Roach '+str(self.num),'fpgPath')
+        fpgPath = self.config.get('r{}.fpgpath'.format(self.num))
         self.roachController.fpga.upload_to_ram_and_program(fpgPath)
         fpgaClockRate = self.roachController.fpga.estimate_fpga_clock()
         print 'Fpga Clock Rate:', fpgaClockRate
@@ -211,12 +207,11 @@ class InitStateMachine(QtCore.QObject):        #Extends QObject for use with QTh
         return True
         
     def initV7(self):
-        waitForV7Ready=self.config.getboolean('Roach '+str(self.num),'waitForV7Ready')
+        waitForV7Ready = self.config.get('r{}.waitForV7Ready'.format(self.num))
         self.roachController.initializeV7UART(waitForV7Ready=waitForV7Ready)
         print 'initialized uart'
         self.roachController.initV7MB()
         print 'initialized mb'
-        #self.config.set('Roach '+str(self.num),'waitForV7Ready',False)
         self.roachController.setLOFreq(2.e9)
         self.roachController.loadLOFreq()
         print 'Set LO to 2 GHz'
@@ -232,7 +227,7 @@ class InitStateMachine(QtCore.QObject):        #Extends QObject for use with QTh
         print 'switched on ADC ZDOK Cal ramp'
         time.sleep(.1)
 
-        nBitsRemovedInFFT = self.config.getint('Roach '+str(self.num),'nBitsRemovedInFFT')
+        # nBitsRemovedInFFT = self.config.get('r{}.nBitsRemovedInFFT'.format(self.num))
         self.roachController.fpga.write_int('adc_in_i_scale',2**7) #set relative IQ scaling to 1
         # if(nBitsRemovedInFFT == 0):
         #     self.roachController.setAdcScale(0.9375) #Max ADC scale value
