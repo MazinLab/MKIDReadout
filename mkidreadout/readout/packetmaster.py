@@ -27,15 +27,19 @@ class PacketMasterConfig(object):
 class Packetmaster(object):
     # TODO overall log configuration must configure for a 'packetmaster' log
     def __init__(self, nroaches, detinfo=(100,100), nuller=False, ramdisk=None,
-                 binary='./packetmaster', resume=False, captureport=DEFAULT_CAPTURE_PORT, start=True):
+                 binary='', resume=False, captureport=DEFAULT_CAPTURE_PORT, start=True):
         self.ramdisk = ramdisk
         self.nroaches = nroaches
-        self.binary_path = binary
+        if os.path.isfile(binary):
+            self.binary_path = binary
+        else:
+            self.binary_path = os.path.join(os.path.dirname(__file__), 'packetmaster', 'packetmaster')
         self.detector = detinfo
         self.captureport = captureport
         self.nuller = nuller
+        self.log = getLogger(__name__)
 
-        self.log = getLogger('packetmaster')
+        self.log.debug('Using "{}" binary'.format(self.binary_path))
 
         packetmasters = [p.pid for p in psutil.process_iter(attrs=['pid','name'])
                          if 'packetmaster' in p.name()]
@@ -63,7 +67,7 @@ class Packetmaster(object):
         self._pmmonitorthread = None
 
         if start:
-            self.start()
+            self._start()
 
     @property
     def is_running(self):
@@ -119,12 +123,13 @@ class Packetmaster(object):
 
     def startobs(self, datadir):
         sfile = os.path.join(self.ramdisk, 'START_tmp')
-        getLogger('Packetmaster').info("Starting packet save. Start file loc: %s", sfile[:-4])
+        self.log.debug("Starting packet save. Start file loc: %s", sfile[:-4])
         with open(sfile, 'w') as f:
             f.write(datadir)
         os.rename(sfile, sfile[:-4])  # prevent race condition
 
     def stopobs(self):
+        self.log.debug("Stopping packet save.")
         open(os.path.join(self.ramdisk, 'STOP'), 'w').close()
 
     def quit(self):

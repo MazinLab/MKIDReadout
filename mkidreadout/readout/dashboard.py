@@ -19,10 +19,8 @@ This is a GUI class for real time control of the MEC and DARKNESS instruments.
  """
 from __future__ import print_function
 import argparse
-import sys, traceback, os
-import binascii
+import sys, os
 from functools import partial
-import subprocess
 import numpy as np
 from PyQt4 import QtCore
 from PyQt4.QtCore import Qt
@@ -35,7 +33,7 @@ from astropy.io import fits
 from mkidcore.fits import CalFactory, summarize, loadimg, combineHDU
 import mkidcore.config
 import time
-from mkidcore.corelog import getLogger, setup_logging
+from mkidcore.corelog import getLogger, create_log
 from mkidreadout.readout.guiwindows import PixelTimestreamWindow, PixelHistogramWindow
 from mkidreadout.readout.lasercontrol import LaserControl
 from mkidreadout.readout.Telescope import *
@@ -43,9 +41,9 @@ from mkidreadout.channelizer.Roach2Controls import Roach2Controls
 from mkidreadout.utils.utils import interpolateImage
 from mkidreadout.configuration.beammap.beammap import Beammap
 from mkidreadout.readout.packetmaster import Packetmaster
+from mkidreadout.configuration.beammap.beammap import DEFAULT_BMAP_FILES
 import mkidreadout.hardware.conex
 import mkidreadout.hardware.hsfw
-import threading
 
 
 def add_actions(target, actions):
@@ -255,7 +253,6 @@ class ConvertPhotonsToRGB(QtCore.QObject):
 
 
 class TelescopeWindow(QMainWindow):
-
     def __init__(self, telescope, parent=None):
         """
         INPUTES:
@@ -378,7 +375,7 @@ class MKIDDashboard(QMainWindow):
                                          detinfo=(self.config.detector.ncols, self.config.detector.nrows),
                                          nuller=self.config.packetmaster.nuller,
                                          captureport=self.config.packetmaster.captureport,
-                                         start=self.config.spawn_packetmaster and not self.offline)
+                                         start=self.config.dashboard.spawn_packetmaster and not self.offline)
 
         if not self.packetmaster.is_running:
             getLogger('Dashboard').info('Packetmaster not started. Start manually...')
@@ -1065,7 +1062,7 @@ class MKIDDashboard(QMainWindow):
         # targetname, telescope params, filter, dither x y ts state, roach info if first log
         return dict(target=self.textbox_target.text(), ditherx=np.nan, dithery=np.nan,
                     flipper='image', filter='1', ra='00:00:00.00', dec='00:00:00.00',
-                    utc=datetime.utcnow(), roaches='roach.yml', comment='cmt')
+                    utc=datetime.utcnow().strftime("%Y%m%d%H%M%S"), roaches='roach.yml', comment='cmt')
 
     def logstate(self):
         getLogger('ObsLog').info(json.dumps(self.state()))
@@ -1495,21 +1492,6 @@ DEFAULT_CFG_FILE = os.path.join(os.path.dirname(__file__), 'dashboard.yml')
 DEFAULT_ROACH_FILE = os.path.join(os.path.dirname(__file__), 'roach.yml')
 
 if __name__ == "__main__":
-    from mkidcore.corelog import create_log
-
-    timestamp = datetime.utcnow().strftime("%Y%m%d%H%M")
-    create_log('ObsLog', logfile='obslog_{}.log'.format(timestamp),
-                   console=False, mpsafe=True, propagate=False,
-                   fmt='%(asctime)s %(message)s ',
-                   level=mkidcore.corelog.DEBUG)
-    create_log('Dashboard', logfile='dashboard_{}.log'.format(timestamp),
-                   console=True, mpsafe=True, propagate=False,
-                   fmt='%(asctime)s  %(levelname)s: %(message)s ',
-                   level=mkidcore.corelog.DEBUG)
-    create_log('mkidreadout',
-                   console=True, mpsafe=True, propagate=False,
-                   fmt='%(asctime)s %(funcName)s: %(levelname)s %(message)s ',
-                   level=mkidcore.corelog.DEBUG)
 
     parser = argparse.ArgumentParser(description='MKID Dashboard')
     parser.add_argument('roaches', nargs='+', type=int, help='Roach numbers')
@@ -1524,7 +1506,24 @@ if __name__ == "__main__":
         from shutil import copy2
         copy2(DEFAULT_CFG_FILE, './')
         copy2(DEFAULT_ROACH_FILE, './')
+        copy2(DEFAULT_ROACH_FILE, './')
+        cfg = mkidcore.config.load(args.config)
+        copy2(DEFAULT_BMAP_FILES[cfg.instrument], './')
         exit(0)
+
+    timestamp = datetime.utcnow().strftime("%Y%m%d%H%M")
+    create_log('ObsLog', logfile='obslog_{}.log'.format(timestamp),
+                   console=False, mpsafe=True, propagate=False,
+                   fmt='%(asctime)s %(message)s ',
+                   level=mkidcore.corelog.DEBUG)
+    create_log('Dashboard', logfile='dashboard_{}.log'.format(timestamp),
+                   console=True, mpsafe=True, propagate=False,
+                   fmt='%(asctime)s  %(levelname)s: %(message)s ',
+                   level=mkidcore.corelog.DEBUG)
+    create_log('mkidreadout',
+                   console=True, mpsafe=True, propagate=False,
+                   fmt='%(asctime)s %(funcName)s: %(levelname)s %(message)s ',
+                   level=mkidcore.corelog.DEBUG)
 
     app = QApplication(sys.argv)
     form = MKIDDashboard(args.roaches, config=args.config, offline=args.offline)

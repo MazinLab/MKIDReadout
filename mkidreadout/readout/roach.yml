@@ -2,9 +2,12 @@
 minFramePeriod: 125000 # min sec between sending photon data. 2kHz = 125000 clock cycles is good
 
 fpgpath: /home/kids/Firmware/darkquad29_2018_Feb_08_1046.fpg
-fpgaparamfile: DarknessFpga_V2.param
+fpgaparamfile: ''  #leave blank for the default
 
-fircoefffile: /mnt/data0/SDR/Projects/Filters/unity50.txt
+#TODO this is required, but we will add it back in in a
+# structured manner when working on code that needs it.
+#fircoefffile: /mnt/data0/SDR/Projects/Filters/unity50.txt
+
 freqfile: /mnt/data0/Darkness/20180521/ps_freqs_r{roach}FL{feedline}{range}.txt
 
 numsigs_thresh: 4.0

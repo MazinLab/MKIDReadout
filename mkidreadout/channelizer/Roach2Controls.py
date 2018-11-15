@@ -95,6 +95,7 @@ from mkidreadout.utils.readDict import readDict
 from mkidreadout.channelizer.adcTools import streamSpectrum, checkSpectrumForSpikes
 from mkidcore.corelog import getLogger
 
+
 class RoachConfigManager(object):
     def __init__(self, ymlfile):
         pass
@@ -103,9 +104,10 @@ class RoachConfigManager(object):
         return self.config.freqfile.format(roach=roach.num, feedline=roach.feedline,
                                     range=roach.range)
 
+
 class Roach2Controls(object):
 
-    def __init__(self, ip, paramFile, feedline=1, range='a', num=112, verbose=False, debug=False,
+    def __init__(self, ip, paramFile='', feedline=1, range='a', num=112, verbose=False, debug=False,
                  freqListFile=''):
         """
         Input:
@@ -124,7 +126,8 @@ class Roach2Controls(object):
 
         self.ip = ip
         try:
-            self.params = readDict()             
+            self.params = readDict()
+            paramFile = paramFile if paramFile else os.path.join(os.path.dirname(__file__), 'darknessfpga.param')
             self.params.readFromFile(paramFile)
         except TypeError:
             self.params = paramFile

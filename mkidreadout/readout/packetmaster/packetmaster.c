@@ -44,7 +44,7 @@ static sem_t quitSem; //semaphore for quit condition
 
 //#define LOGPATH "/mnt/data0/logs/"
 
-// compile with gcc -Wall -Wextra -o PacketMaster9 PacketMaster9.c -I. -lm -lrt -lpthread -O3
+// compile with gcc -Wall -Wextra -o packetmaster packetmaster.c -I. -lm -lrt -lpthread -O3
 
 struct datapacket {
     unsigned int baseline:17;

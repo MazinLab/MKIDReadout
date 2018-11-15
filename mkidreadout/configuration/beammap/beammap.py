@@ -2,8 +2,18 @@ import numpy as np
 import pkg_resources as pkg
 from glob import glob
 import copy
+import os
 
 _DEFAULT_ARRAY_SIZES={'mec':(100,100), 'darkness': (150,150)}
+
+class _BeamDict(dict):
+    def __missing__(self, key):
+        bfile = os.path.join(os.path.dirname(__file__), key.lower()+'.bmap')
+        self[key] = bfile
+        return bfile
+
+DEFAULT_BMAP_FILES  = _BeamDict()
+
 
 class Beammap(object):
     """
