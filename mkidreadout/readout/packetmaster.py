@@ -128,4 +128,4 @@ class Packetmaster(object):
         open(os.path.join(self.ramdisk, 'STOP'), 'w').close()
 
     def quit(self):
-        open(os.path.join(self.ramdisk, 'QUIT'),'w').quit()   # tell packetmaster to end
+        open(os.path.join(self.ramdisk, 'QUIT'), 'w').close()   # tell packetmaster to end

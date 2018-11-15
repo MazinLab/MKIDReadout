@@ -14,13 +14,10 @@ import itertools
 import argparse
 from flask import Flask, jsonify, abort, make_response
 from flask_restful import Api, Resource, reqparse, fields, marshal
-
 import requests, json
 
 # from flask_httpauth import HTTPBasicAuth
 
-app = Flask(__name__, static_url_path="")
-api = Api(app)
 # auth = HTTPBasicAuth()
 
 
@@ -721,6 +718,11 @@ def stop(address='http://localhost:5000'):
     return ret
 
 if __name__=='__main__':
+    from flask import Flask, jsonify, abort, make_response
+    from flask_restful import Api, Resource, reqparse, fields, marshal
+
+    app = Flask(__name__, static_url_path="")
+    api = Api(app)
     api.add_resource(MoveAPI, '/move', endpoint='move')
     api.add_resource(DitherAPI, '/dither', endpoint='dither')
     api.add_resource(ConexAPI, '/conex', endpoint='conex')

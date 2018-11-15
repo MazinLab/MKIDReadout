@@ -1,3 +1,4 @@
+#!/bin/env python
 """
 Author:    Alex Walter
 Date:      Jul 3, 2016
@@ -26,6 +27,8 @@ import numpy as np
 from PyQt4 import QtCore
 from PyQt4.QtCore import Qt
 from PyQt4.QtGui import *
+import json
+from datetime import datetime
 
 from astropy.io import fits
 
@@ -251,6 +254,77 @@ class ConvertPhotonsToRGB(QtCore.QObject):
         self.convertedImage.emit(q_im)
 
 
+class TelescopeWindow(QMainWindow):
+
+    def __init__(self, telescope, parent=None):
+        """
+        INPUTES:
+            telescope - Telescope object
+        """
+        super(QMainWindow, self).__init__(parent)
+        self.setWindowTitle(telescope.observatory)
+        self._want_to_close = False
+        self.telescope = telescope
+        self.create_main_frame()
+        updater = QtCore.QTimer(self)
+        updater.setInterval(1003)
+        updater.timeout.connect(self.updateTelescopeInfo)
+        updater.start()
+
+    def updateTelescopeInfo(self, target='sky'):
+        if not self.isVisible():
+            return
+        tel_dict = self.telescope.get_telescope_position()
+        for key in tel_dict.keys():
+            try:
+                self.label_dict[key].setText(str(tel_dict[key]))
+            except:
+                layout = self.main_frame.layout()
+                label = QLabel(key)
+                label_val = QLabel(str(tel_dict[key]))
+                hbox = QHBoxLayout()
+                hbox.addWidget(label)
+                hbox.addWidget(label_val)
+                layout.addLayout(hbox)
+                self.main_frame.setLayout(layout)
+                self.label_dict[key] = label_val
+
+    def create_main_frame(self):
+        self.main_frame = QWidget()
+        vbox = QVBoxLayout()
+
+        def add2layout(vbox, *args):
+            hbox = QHBoxLayout()
+            for arg in args:
+                hbox.addWidget(arg)
+            vbox.addLayout(hbox)
+
+        label_telescopeStatus = QLabel('Telescope Status')
+        font = label_telescopeStatus.font()
+        font.setPointSize(24)
+        label_telescopeStatus.setFont(font)
+        vbox.addWidget(label_telescopeStatus)
+
+        tel_dict = self.telescope.get_telescope_position()
+        self.label_dict = {}
+        for key in tel_dict.keys():
+            label = QLabel(key)
+            label.setMaximumWidth(150)
+            label_val = QLabel(str(tel_dict[key]))
+            label_val.setMaximumWidth(150)
+            add2layout(vbox, label, label_val)
+            self.label_dict[key] = label_val
+
+        self.main_frame.setLayout(vbox)
+        self.setCentralWidget(self.main_frame)
+
+    def closeEvent(self, event):
+        if self._want_to_close:
+            self.close()
+        else:
+            self.hide()
+
+
 class MKIDDashboard(QMainWindow):
     """
     Dashboard for seeing realtime images
@@ -330,6 +404,7 @@ class MKIDDashboard(QMainWindow):
 
         # Connect to ROACHES and initialize network port in firmware
         getLogger('Dashboard').info('Connecting roaches and loading beammap...')
+        #TODO make a list of all config files and where they are
         if not self.offline:
             for roachNum in roachNums:
                 roach = Roach2Controls(self.config.roaches.get('r{}.ip'.format(roachNum)),
@@ -472,7 +547,7 @@ class MKIDDashboard(QMainWindow):
             self.darkField = self.darkFactory.generate(fname=name, name=name, badmask=self.beammapFailed)
             self.darkField.writeto(os.path.join(self.cofig.paths.datadir, self.darkField.header.filename))
 
-            getLogger('ObsLog').info('Finished dark {}:\n {}'.format(self.darkField.filename,
+            getLogger('Dashboard').info('Finished dark {}:\n {}'.format(self.darkField.filename,
                                                                      summarize(self.darkField).replace('\n',
                                                                                                           '\n  ')))
             self.checkbox_darkImage.setChecked(True)
@@ -493,7 +568,7 @@ class MKIDDashboard(QMainWindow):
             name = '{}_flat_{}'.format(self.config.dashboard.flatname, time.time())
             self.flatField = self.flatFactory.generate(fname=name, name=name, badmask=self.beammapFailed)
             self.flatField.writeto(os.path.join(self.cofig.paths.datadir, self.flatField.header.filename))
-            getLogger('ObsLog').info('Finished flat {}:\n {}'.format(self.flatField.header.filename,
+            getLogger('Dashboard').info('Finished flat {}:\n {}'.format(self.flatField.header.filename,
                                                                      summarize(self.darkField).replace('\n',
                                                                                                           '\n  ')))
             self.checkbox_flatImage.setChecked(True)
@@ -975,27 +1050,25 @@ class MKIDDashboard(QMainWindow):
             laserStr = '0'+''.join([str(int(cb.isChecked())) for cb in self.checkbox_laser_list])
 
             if self.laserController.toggleLaser(laserStr):
-                getLogger('ObsLog').info('Starting a {} laser cal for {} s.'.format(laserCalStyle, laserTime))
+                getLogger('Dashboard').info('Starting a {} laser cal for {} s.'.format(laserCalStyle, laserTime))
                 QtCore.QTimer.singleShot(laserTime * 1000, lcaldone)
             else:
-                getLogger('ObsLog').error('Failed to start  a {} laser cal. Lasers may be on.'.format(laserCalStyle))
+                getLogger('Dashboard').error('Failed to start  a {} laser cal. Lasers may be on.'.format(laserCalStyle))
                 self.checkbox_flipper.setEnabled(True)
             self.logstate()
 
     def state(self):
         #TODO this is the crap that populates the headers and the log, it needs to be prompt enough that
         #it won't cause the GUI to be sluggish so polls should be used with caution
-        from datetime import datetime
-        return dict(target=self.textbox_target.text(), ditherx=np.nan, dithery=np.nan,
-                    flipper='image', filter='1', ra='00:00:00.00', dec='00:00:00.00',
-                    utc=datetime.utcnow(), roaches='raoch.yml')
-
-    def logstate(self):
         targ, cmt = self.textbox_target.text(), self.textbox_log.toPlainText()
         # state = InstrumentState(target=targ, comment=cmt, flipper=None, laser)
         # targetname, telescope params, filter, dither x y ts state, roach info if first log
-        state = self.state()
-        getLogger('ObsLog').info('foo')
+        return dict(target=self.textbox_target.text(), ditherx=np.nan, dithery=np.nan,
+                    flipper='image', filter='1', ra='00:00:00.00', dec='00:00:00.00',
+                    utc=datetime.utcnow(), roaches='roach.yml', comment='cmt')
+
+    def logstate(self):
+        getLogger('ObsLog').info(json.dumps(self.state()))
 
     def create_dock_widget(self):
         """
@@ -1361,7 +1434,7 @@ class MKIDDashboard(QMainWindow):
         quit_action = self.create_action("&Quit", slot=self.close, shortcut="Ctrl+Q", tip="Close the application")
 
         add_actions(self.file_menu,
-                    (telescope_action, photonCapOn_action, photonCapOff_action, viewLogs_action, None, quit_action))
+                    (telescope_action, photonCapOn_action, photonCapOff_action, None, quit_action))
 
         self.help_menu = self.menuBar().addMenu("&Help")
         about_action = self.create_action("&About", shortcut='F1', slot=self.on_about, tip='About the demo')
@@ -1419,18 +1492,41 @@ class MKIDDashboard(QMainWindow):
 
 
 DEFAULT_CFG_FILE = os.path.join(os.path.dirname(__file__), 'dashboard.yml')
+DEFAULT_ROACH_FILE = os.path.join(os.path.dirname(__file__), 'roach.yml')
 
 if __name__ == "__main__":
-    setup_logging()
-    app = QApplication(sys.argv)
+    from mkidcore.corelog import create_log
+
+    timestamp = datetime.utcnow().strftime("%Y%m%d%H%M")
+    create_log('ObsLog', logfile='obslog_{}.log'.format(timestamp),
+                   console=False, mpsafe=True, propagate=False,
+                   fmt='%(asctime)s %(message)s ',
+                   level=mkidcore.corelog.DEBUG)
+    create_log('Dashboard', logfile='dashboard_{}.log'.format(timestamp),
+                   console=True, mpsafe=True, propagate=False,
+                   fmt='%(asctime)s  %(levelname)s: %(message)s ',
+                   level=mkidcore.corelog.DEBUG)
+    create_log('mkidreadout',
+                   console=True, mpsafe=True, propagate=False,
+                   fmt='%(asctime)s %(funcName)s: %(levelname)s %(message)s ',
+                   level=mkidcore.corelog.DEBUG)
 
     parser = argparse.ArgumentParser(description='MKID Dashboard')
     parser.add_argument('roaches', nargs='+', type=int, help='Roach numbers')
     parser.add_argument('-c', '--config', default=DEFAULT_CFG_FILE, dest='config',
                         type=str, help='The config file')
     parser.add_argument('-o', '--offline', default=False, dest='offline', action='store_true', help='Run offline')
+    parser.add_argument('--gencfg', default=False, dest='genconfig', action='store_true',
+                        help='generate configs in CWD')
     args = parser.parse_args()
 
+    if args.genconfig:
+        from shutil import copy2
+        copy2(DEFAULT_CFG_FILE, './')
+        copy2(DEFAULT_ROACH_FILE, './')
+        exit(0)
+
+    app = QApplication(sys.argv)
     form = MKIDDashboard(args.roaches, config=args.config, offline=args.offline)
     form.show()
     app.exec_()

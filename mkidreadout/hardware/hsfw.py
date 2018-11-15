@@ -54,7 +54,7 @@ HSFWERRORS = {0: 'No error has occurred. (cleared state)',
 # self.lib.VCS_ResetDevice(self.dev_handle, self.node_id, ct.byref(err))
 # err.value
 
-_log = getLogger('HSFW')  #TODO this isn't best practice but i don't think it will matter here
+_log = getLogger('mkidreadout.hsfw')  #TODO this isn't best practice but i don't think it will matter here
 HSFW_PORT = 50000
 NFILTERS=NUM_FILTERS=5
 global_KILL_SERVER = False
@@ -223,20 +223,20 @@ def getfilter(host='localhost:50000'):
     try:
         conn.sendall('?\n'.encode('utf-8'))
         data = conn.recv(2048).strip()
-        getLogger('HSFW').info("Response: {}".format(data))
+        getLogger('mkidreadout.hsfw').info("Response: {}".format(data))
         conn.close()
         return int(data)
     except AttributeError:
         msg = 'Cannot connect to filter server\n'
-        getLogger('HSFW').error(msg)
+        getLogger('mkidreadout.hsfw').error(msg)
         return 'Error: ' +msg
     except Exception as e:
         msg = 'Cannot get status of filter server'
-        getLogger('HSFW').error(msg, exc_info=True)
+        getLogger('mkidreadout.hsfw').error(msg, exc_info=True)
         try:
             conn.close()
         except Exception as e:
-            getLogger('HSFW').error('error:', exc_info=True)
+            getLogger('mkidreadout.hsfw').error('error:', exc_info=True)
         return 'Error: '+str(e)
 
 
@@ -264,19 +264,19 @@ def setfilter(fnum, home=False, host='localhost:50000',killserver=False):
     try:
         conn.sendall('{}\n'.format(-fnum if home else fnum).encode('utf-8'))
         data = conn.recv(2048).strip()
-        getLogger('HSFW').info("Response: {}".format(data))
+        getLogger('mkidreadout.hsfw').info("Response: {}".format(data))
         conn.close()
     except AttributeError:
         msg = 'Cannot connect to filter server'
-        getLogger('HSFW').error(msg)
+        getLogger('mkidreadout.hsfw').error(msg)
         return False
     except Exception as e:
         msg = 'Cannot send command to filter server "Filter: {}"\n'
-        getLogger('HSFW').error(msg.format(fnum), exc_info=True)
+        getLogger('mkidreadout.hsfw').error(msg.format(fnum), exc_info=True)
         try:
             conn.close()
         except Exception:
-            getLogger('HSFW').error('error:', exc_info=True)
+            getLogger('mkidreadout.hsfw').error('error:', exc_info=True)
         return False
 
     return True
