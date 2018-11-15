@@ -16,16 +16,20 @@ NOTES:
 
 
 """
-import sys, time, traceback
+import sys, time, traceback, os, argparse
+from datetime import datetime
 from functools import partial
 import numpy as np
 import ConfigParser
 from PyQt4 import QtCore
 from PyQt4.QtCore import Qt
-from PyQt4 import QtGui
 from PyQt4.QtGui import *
+
+import mkidcore.corelog
+from mkidcore.corelog import getLogger, create_log
 from mkidreadout.channelizer.InitStateMachine import InitStateMachine
-from mkidreadout.channelizer.InitSettingsWindow import *
+from mkidreadout.channelizer.InitSettingsWindow import InitSettingsWindow
+
 
 class InitGui(QMainWindow):
     def __init__(self, roachNums=None, defaultValues=None):
@@ -56,7 +60,7 @@ class InitGui(QMainWindow):
         self.settingsWindow = InitSettingsWindow(self.roachNums, self.config, parent=None) # keep parent None for now
         self.settingsWindow.resetRoach.connect(self.resetRoachState)
         self.settingsWindow.initTemplar.connect(self.initTemplar)
-        QtGui.QApplication.setStyle(QtGui.QStyleFactory.create('plastique'))
+        QApplication.setStyle(QStyleFactory.create('plastique'))
         
         #Setup RoachStateMachine and threads for each roach
         self.roaches = []
@@ -308,7 +312,7 @@ class InitGui(QMainWindow):
                 roach_i_commandButtons.append(button)
             self.commandButtons.append(roach_i_commandButtons)
 
-        self.contextMenu = QtGui.QMenu(self)
+        self.contextMenu = QMenu(self)
 
         #command buttons/labels Layout
         hbox = QHBoxLayout()
@@ -397,23 +401,52 @@ class InitGui(QMainWindow):
         QtCore.QCoreApplication.instance().quit
 
 
-#TODO add argparser
 #todo intelligent errors on config file errors
 #TODO figure out why settings dialog shows waitforv7 as checked even if set false in initgui.cfg
 #todo improve programing detection and square greening
 #todo add all functionailty of autozdokcal.py into initgui,  make  autozdokcal work with QDR firmware too long adc snaps
 #compare with https://mazinlab.atlassian.net/wiki/spaces/READ/pages/edit/36995110?draftId=36995123&draftShareId=7ee6f311-ed8a-4e6a-a4bc-1c76bf0af9c1&
 
+
+DEFAULT_CFG_FILE = os.path.join(os.path.dirname(__file__), 'initgui.cfg')
+
 if __name__ == "__main__":
     app = QApplication(sys.argv)
-    try: roachNums = np.asarray(sys.argv[1:],dtype=np.int)
-    except: pass
-    if len(sys.argv[1:]) == 2:
-        if sys.argv[1] == '-a' or sys.argv[1] == '-all':
-            roachNums = np.arange(int(sys.argv[2]),dtype=np.int)
-        elif sys.argv[2] == '-a' or sys.argv[2] == '-all':
-            roachNums = np.arange(int(sys.argv[1]),dtype=np.int)
-    
+
+    parser = argparse.ArgumentParser(description='MKID Init GUI')
+    parser.add_argument('roaches', nargs='+', type=int, help='Roach numbers')
+    parser.add_argument('-c', '--config', default=DEFAULT_CFG_FILE, dest='config',
+                        type=str, help='The config file')
+    # parser.add_argument('-a', '--all', default=0, dest='all', type=int, action='store',
+    #                     help='????')
+    parser.add_argument('--gencfg', default=False, dest='genconfig', action='store_true',
+                        help='generate configs in CWD')
+    args = parser.parse_args()
+
+    if args.genconfig:
+        from shutil import copy2
+        copy2(DEFAULT_CFG_FILE, './')
+        # DEFAULT_ROACH_FILE = os.path.join(os.path.dirname(__file__), 'roach.yml')
+        # copy2(DEFAULT_ROACH_FILE, './')
+        # cfg = mkidcore.config.load(args.config)
+        # copy2(DEFAULT_BMAP_FILES[cfg.instrument], './')
+        exit(0)
+
+    timestamp = datetime.utcnow().strftime("%Y%m%d%H%M")
+    create_log('ObsLog', logfile='obslog_{}.log'.format(timestamp),
+                   console=False, mpsafe=True, propagate=False,
+                   fmt='%(asctime)s %(message)s ',
+                   level=mkidcore.corelog.DEBUG)
+    create_log('Dashboard', logfile='dashboard_{}.log'.format(timestamp),
+                   console=True, mpsafe=True, propagate=False,
+                   fmt='%(asctime)s  %(levelname)s: %(message)s ',
+                   level=mkidcore.corelog.DEBUG)
+    create_log('mkidreadout',
+                   console=True, mpsafe=True, propagate=False,
+                   fmt='%(asctime)s %(funcName)s: %(levelname)s %(message)s ',
+                   level=mkidcore.corelog.DEBUG)
+
+    roachNums = args.roaches if not args.all else np.arange(args.all, dtype=int)
     form = InitGui(roachNums)
     form.show()
     app.exec_()
