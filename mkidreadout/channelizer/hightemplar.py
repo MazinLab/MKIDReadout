@@ -21,7 +21,8 @@ Features to add:
  - keep log of errors and warnings in txt file
     - add to file menu (help) a viewer for log file
 """
-import sys, time, traceback, logging, re
+import sys, time, traceback, re, os
+from datetime import datetime
 from functools import partial
 import numpy as np
 import ConfigParser
@@ -29,7 +30,12 @@ from PyQt4 import QtCore
 from PyQt4.QtCore import Qt
 from PyQt4 import QtGui
 from PyQt4.QtGui import *
+import argparse
+from pkg_resources import resource_filename
+from shutil import copy2
 
+from mkidcore.corelog import getLogger, create_log
+import mkidcore.config
 from mkidreadout.channelizer.RoachStateMachine import RoachStateMachine
 from mkidreadout.channelizer.RoachSettingsWindow import RoachSettingsWindow
 from mkidreadout.channelizer.RoachPlotWindow import RoachPhaseStreamWindow, RoachSweepWindow
@@ -37,7 +43,7 @@ from mkidreadout.channelizer.RoachPlotWindow import RoachPhaseStreamWindow, Roac
 
 class TemplarConfig(object):
     def __init__(self, file=''):
-        self.log=logging.getLogger('hightemplar.config')
+        self.log=getLogger('hightemplar.config')
         self.file = file if file else 'hightemplar.cfg'
         self.log.debug('Loading {}', self.file)
         self.cp = ConfigParser.ConfigParser()
@@ -544,27 +550,38 @@ class HighTemplar(QMainWindow):
         QtCore.QCoreApplication.instance().quit
 
 
-if __name__ == "__main__":
-    app = QApplication(sys.argv)
-    args = sys.argv[1:]
-    defaultValues=None
-    if '-c' in args:
-        indx = args.index('-c')
-        defaultValues=args[indx+1]
-        try: args = args[:indx]+args[indx+2:]
-        except IndexError:args = args[:indx]
-    roachNums = np.asarray(args, dtype=np.int)
-    print defaultValues,roachNums
+DEFAULT_CFG_FILE = resource_filename('mkidreadout', os.path.join('config','roach.yml'))
 
-    '''
-    try: roachNums = np.asarray(sys.argv[1:],dtype=np.int)
-    except: pass
-    if len(sys.argv[1:]) == 2:
-        if sys.argv[1] == '-a' or sys.argv[1] == '-all':
-            roachNums = np.arange(int(sys.argv[2]),dtype=np.int)
-        elif sys.argv[2] == '-a' or sys.argv[2] == '-all':
-            roachNums = np.arange(int(sys.argv[1]),dtype=np.int)
-    '''
-    form = HighTemplar(roachNums,defaultValues)
+if __name__ == "__main__":
+
+    parser = argparse.ArgumentParser(description='MKID High Templar GUI')
+    parser.add_argument('roaches', nargs='+', type=int, help='Roach numbers')
+    parser.add_argument('-c', '--config', default=DEFAULT_CFG_FILE, dest='config',
+                        type=str, help='The config file')
+    parser.add_argument('--gencfg', default=False, dest='genconfig', action='store_true',
+                        help='generate configs in CWD')
+    args = parser.parse_args()
+
+    if args.genconfig:
+        copy2(DEFAULT_CFG_FILE, './')
+        exit(0)
+
+    timestamp = datetime.utcnow().strftime("%Y%m%d%H%M")
+    create_log('hightemplar', logfile='hightemplar_{}.log'.format(timestamp),
+               console=True, mpsafe=True, propagate=False,
+               fmt='%(asctime)s %(name)s %(levelname)s: %(message)s ',
+               level=mkidcore.corelog.DEBUG)
+    create_log('mkidreadout',
+               console=True, mpsafe=True, propagate=False,
+               fmt='%(asctime)s %(name)s %(funcName)s: %(levelname)s %(message)s ',
+               level=mkidcore.corelog.DEBUG)
+    create_log('casperfpga',
+               console=True, mpsafe=True, propagate=False,
+               fmt='%(asctime)s %(name)s %(funcName)s: %(levelname)s %(message)s ',
+               level=mkidcore.corelog.INFO)
+
+
+    app = QApplication(sys.argv)
+    form = HighTemplar(np.asarray(args.roaches, dtype=np.int), args.config)
     form.show()
     app.exec_()
