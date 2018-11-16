@@ -72,8 +72,7 @@ class InitSettingsWindow(QTabWidget):
     def finishedInitV7(self, roachNum):
         tabArg = np.where(np.asarray(self.roachNums) == roachNum)[0][0]
         self.widget(tabArg).checkbox_waitV7.setChecked(False)
-        #self.config.set('Roach '+str(self.num),'waitForV7Ready',False)  #TODO self.num cont a class member
-    
+
     def closeEvent(self, event):
         if self._want_to_close:
             self.close()
@@ -100,7 +99,7 @@ class InitSettingsTab(QMainWindow):
             settingID - the key in the config
             setting - the value
         """
-        self.config.update(('r{}.{}'.format(self.roachNum, settingID), setting))
+        self.config.update('r{}.{}'.format(self.roachNum, settingID), setting)
 
     def create_main_frame(self):
         """
@@ -138,9 +137,9 @@ class InitSettingsTab(QMainWindow):
         textbox_fpgPath.textChanged.connect(lambda x: self.resetRoach.emit(InitStateMachine.PROGRAM_V6))      # reset roach state if ipAddress changes
         add2layout(vbox, label_fpgPath, textbox_fpgPath)
 
-        self.checkbox_waitV7 = QCheckBox('waitForV7Ready')
+        self.checkbox_waitV7 = QCheckBox('waitforV7ready')
         self.checkbox_waitV7.setChecked(True)
-        self.checkbox_waitV7.stateChanged.connect(lambda x: self.changedSetting('waitForV7Ready', self.checkbox_waitV7.isChecked()))
+        self.checkbox_waitV7.stateChanged.connect(lambda x: self.changedSetting('waitforV7ready', self.checkbox_waitV7.isChecked()))
         add2layout(vbox,self.checkbox_waitV7)
 
         FPGAParamFile = self.config.get('Roach '+str(self.roachNum),'fpgaparamfile')

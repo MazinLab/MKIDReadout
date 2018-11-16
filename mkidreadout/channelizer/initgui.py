@@ -21,30 +21,30 @@ import sys, time, traceback, os, argparse
 from datetime import datetime
 from functools import partial
 import numpy as np
-import ConfigParser
+from shutil import copy2
 from PyQt4 import QtCore
 from PyQt4.QtCore import Qt
 from PyQt4.QtGui import *
+from pkg_resources import resource_filename
 
 import mkidcore.corelog
+import mkidcore.config
 from mkidcore.corelog import getLogger, create_log
 from mkidreadout.channelizer.InitStateMachine import InitStateMachine
 from mkidreadout.channelizer.InitSettingsWindow import InitSettingsWindow
 
 
 class InitGui(QMainWindow):
-    def __init__(self, roachNums=None, defaultValues='roach.yml'):
+    def __init__(self, roachNums, config='roach.yml'):
         """
         Create GUI
         
         INPUTS:
-            roachNums - list of roach numbers. ie. [0,2,3,7]
+            roachNums - list of roach numbers in the  config
             defaultValues - path to config file. See documentation on ConfigParser
         """
-        if roachNums is None or len(roachNums) == 0:
-            roachNums = range(10)
-        self.roachNums = np.unique(roachNums)  # sorts and removes duplicates
-        self.config = mkidcore.config.load(defaultValues)
+        self.roachNums = list(np.unique(roachNums))  # sorts and removes duplicates
+        self.config = mkidcore.config.load(config)
 
         # Setup GUI
         super(InitGui, self).__init__()
@@ -89,8 +89,7 @@ class InitGui(QMainWindow):
             colorStatus = self.roaches[i].addCommands(InitStateMachine.CONNECT)  # add command to roach queue
             self.colorCommandButtons(num, colorStatus)  # color the command buttons appropriately
             # QtCore.QMetaObject.invokeMethod(roach, 'executeCommands', Qt.QueuedConnection)
-            self.roachThreads[
-                i].start()  # starting the thread automatically invokes the roach's executeCommand function
+            self.roachThreads[i].start()  # starting the thread automatically invokes the roach's executeCommand function
 
     def test(self, roachNum, state):
         getLogger('Init').info("Roach " + str(roachNum) + ' - ' + str(state))
@@ -103,12 +102,9 @@ class InitGui(QMainWindow):
             command - (int) the command that finished
             roachNum - (int) the roach number
         """
-        # print e
         traceback.print_exception(*exc_info)
-        roachArg = np.where(np.asarray(self.roachNums) == roachNum)[0][0]
         getLogger('Init').info('Roach {} errored out: {}'.format(roachNum,
                                                                  InitStateMachine.parseCommand(command)))
-        # self.roachBusy[roachArg]=-1
         # self.colorCommandButtons(roaches=[roachNum],commands=[command],color='error')
         colorStatus = [None] * InitStateMachine.NUMCOMMANDS
         colorStatus[command] = "error"
@@ -123,7 +119,7 @@ class InitGui(QMainWindow):
             command - (int) the command that finished
             commandData - Data from the command. For Example, after sweep it returns a dictionary of I and Q values
         """
-        print "Finished r" + str(roachNum) + ' ' + InitStateMachine.parseCommand(command)
+        getLogger("Init").info("Finished r{} {}".format(roachNum, InitStateMachine.parseCommand(command)))
         colorStatus = [None] * InitStateMachine.NUMCOMMANDS
         colorStatus[command] = 'green'
         self.colorCommandButtons(roachNum, colorStatus)
@@ -154,7 +150,7 @@ class InitGui(QMainWindow):
         for roach_i in roachNums:
             roachArg = self.roachNums.index(roach_i)
             if self.roachThreads[roachArg].isRunning():
-                print 'Roach ' + str(roach_i) + ' is busy'
+                getLogger('Init').info('Roach {} is busy'.format(roachArg))
             elif command is None:
                 self.roachThreads[roachArg].start()
             else:
@@ -398,11 +394,9 @@ class InitGui(QMainWindow):
 # compare with https://mazinlab.atlassian.net/wiki/spaces/READ/pages/edit/36995110?draftId=36995123&draftShareId=7ee6f311-ed8a-4e6a-a4bc-1c76bf0af9c1&
 
 
-DEFAULT_CFG_FILE = os.path.join(os.path.dirname(__file__), 'roach.yml')
+DEFAULT_CFG_FILE = resource_filename('mkidreadout', os.path.join('config','roach.yml'))
 
 if __name__ == "__main__":
-    app = QApplication(sys.argv)
-
     parser = argparse.ArgumentParser(description='MKID Init GUI')
     parser.add_argument('roaches', nargs='+', type=int, help='Roach numbers')
     parser.add_argument('-c', '--config', default=DEFAULT_CFG_FILE, dest='config',
@@ -412,21 +406,24 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     if args.genconfig:
-        from shutil import copy2
-
         copy2(DEFAULT_CFG_FILE, './')
         exit(0)
 
     timestamp = datetime.utcnow().strftime("%Y%m%d%H%M")
     create_log('Init', logfile='init_{}.log'.format(timestamp),
                console=True, mpsafe=True, propagate=False,
-               fmt='%(asctime)s  %(levelname)s: %(message)s ',
+               fmt='%(asctime)s %(name)s %(levelname)s: %(message)s ',
                level=mkidcore.corelog.DEBUG)
     create_log('mkidreadout',
                console=True, mpsafe=True, propagate=False,
-               fmt='%(asctime)s %(funcName)s: %(levelname)s %(message)s ',
+               fmt='%(asctime)s %(name)s %(funcName)s: %(levelname)s %(message)s ',
                level=mkidcore.corelog.DEBUG)
+    create_log('casperfpga',
+               console=True, mpsafe=True, propagate=False,
+               fmt='%(asctime)s %(name)s %(funcName)s: %(levelname)s %(message)s ',
+               level=mkidcore.corelog.INFO)
 
+    app = QApplication(sys.argv)
     form = InitGui(args.roaches, config=args.config)
     form.show()
     app.exec_()

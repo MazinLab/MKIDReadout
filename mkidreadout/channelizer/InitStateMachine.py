@@ -7,11 +7,15 @@ import sys, time, random
 import numpy as np
 from PyQt4 import QtCore
 from Queue import Queue
-from .Roach2Controls import Roach2Controls
-from .zdokcal import loadDelayCal, findCal
-from .qdr import Qdr as myQdr
+from mkidreadout.channelizer.Roach2Controls import Roach2Controls
+from mkidreadout.channelizer.zdokcal import loadDelayCal, findCal
+from mkidreadout.channelizer.qdr import Qdr as myQdr
+from pkg_resources import resource_filename
+from mkidcore.corelog import getLogger
+import os
 
-class InitStateMachine(QtCore.QObject):        #Extends QObject for use with QThreads
+
+class InitStateMachine(QtCore.QObject):  # Extends QObject for use with QThreads
     """
     This class defines and executes commands on the readout boards using the Roach2Controls object.
     All the important stuff happens in the executeCommand() function
@@ -38,30 +42,31 @@ class InitStateMachine(QtCore.QObject):        #Extends QObject for use with QTh
     TODO:
         uncomment everything in executeCommand()
     """
-    #FINISHED_SIGNAL = QtCore.SIGNAL("finishedCommand(int,PyQt_PyObject)")
-    #ERROR_SIGNAL = QtCore.SIGNAL("commandError(int,PyQt_PyObject)")
-    finishedCommand_Signal = QtCore.pyqtSignal(int,object)
-    commandError_Signal = QtCore.pyqtSignal(int,tuple)
+    # FINISHED_SIGNAL = QtCore.SIGNAL("finishedCommand(int,PyQt_PyObject)")
+    # ERROR_SIGNAL = QtCore.SIGNAL("commandError(int,PyQt_PyObject)")
+    finishedCommand_Signal = QtCore.pyqtSignal(int, object)
+    commandError_Signal = QtCore.pyqtSignal(int, tuple)
     finished = QtCore.pyqtSignal()
     reset = QtCore.pyqtSignal(object)
-    
-    #NUMCOMMANDS = 8
-    #CONNECT,LOADFREQ,DEFINELUT,SWEEP,ROTATE,CENTER,LOADFIR,LOADTHRESHOLD = range(NUMCOMMANDS)
+
+    # NUMCOMMANDS = 8
+    # CONNECT,LOADFREQ,DEFINELUT,SWEEP,ROTATE,CENTER,LOADFIR,LOADTHRESHOLD = range(NUMCOMMANDS)
     NUMCOMMANDS = 5
-    CONNECT,PROGRAM_V6,INIT_V7,CAL_ZDOK,CAL_QDR = range(NUMCOMMANDS)
+    CONNECT, PROGRAM_V6, INIT_V7, CAL_ZDOK, CAL_QDR = range(NUMCOMMANDS)
     NUMSTATES = 4
     UNDEFINED, INPROGRESS, COMPLETED, ERROR = range(NUMSTATES)
-    
+
     @staticmethod
     def parseCommand(command):
         if command < 0: return 'Reset'
-        commandsString=['Connect','Program V6','Initialize V7','Calibrate Z-DOK','Calibrate QDR']
+        commandsString = ['Connect', 'Program V6', 'Initialize V7', 'Calibrate Z-DOK', 'Calibrate QDR']
         return commandsString[command]
+
     @staticmethod
     def parseState(state):
-        statesString=['Undefined', 'In Progress', 'Completed', 'Error']
+        statesString = ['Undefined', 'In Progress', 'Completed', 'Error']
         return statesString[state]
-    
+
     def __init__(self, roachNumber, config):
         """
         INPUTS:
@@ -69,15 +74,15 @@ class InitStateMachine(QtCore.QObject):        #Extends QObject for use with QTh
             config - configThing
         """
         super(InitStateMachine, self).__init__()
-        self.state=[InitStateMachine.UNDEFINED]*InitStateMachine.NUMCOMMANDS    # This holds the state for each command type
-        self.num=int(roachNumber)
-        self.commandQueue=Queue()
-        self.config=config
+        self.state = [InitStateMachine.UNDEFINED] * InitStateMachine.NUMCOMMANDS  # This holds the state for each command type
+        self.num = int(roachNumber)
+        self.commandQueue = Queue()
+        self.config = config
         self.roachController = Roach2Controls(self.config.get('r{}.ip'.format(self.num)),
                                               self.config.get('r{}.fpgaparamfile'.format(self.num)),
                                               num=self.num, verbose=True, debug=False)
-    
-    def addCommands(self,command):
+
+    def addCommands(self, command):
         """
         This function adds the specified command and any other neccessary commands to the command queue.
         It also sets the state for each command correctly
@@ -97,10 +102,10 @@ class InitStateMachine(QtCore.QObject):        #Extends QObject for use with QTh
         for com in range(len(self.state)):
             if self.state[com] == InitStateMachine.INPROGRESS:
                 self.pushCommand(com)
-        
+
         return self.state
-    
-    def getNextState(self,command,_n=0):
+
+    def getNextState(self, command, _n=0):
         """
         Given the current state and a command, determine the next state. This function is recursive. Don't change default value of _n
         
@@ -116,41 +121,41 @@ class InitStateMachine(QtCore.QObject):        #Extends QObject for use with QTh
         """
         if _n > 100:
             raise ValueError("Too many recursions!")
-        
+
         nextState = np.copy(self.state)
-        
-        if _n==0: # n==0 means this is the top level command
-            if command<InitStateMachine.CONNECT:
-                return [InitStateMachine.UNDEFINED]*InitStateMachine.NUMCOMMANDS
-                
+
+        if _n == 0:  # n==0 means this is the top level command
+            if command < InitStateMachine.CONNECT:
+                return [InitStateMachine.UNDEFINED] * InitStateMachine.NUMCOMMANDS
+
             # Any previously unfinished commands should be made undefined
-            args_unfinished = np.where(nextState==InitStateMachine.INPROGRESS)
+            args_unfinished = np.where(nextState == InitStateMachine.INPROGRESS)
             nextState[args_unfinished] = InitStateMachine.UNDEFINED
-            if command>=InitStateMachine.NUMCOMMANDS:
-                #Make sure everything's completed but don't explicitly run anything if they already are
-                command = InitStateMachine.NUMCOMMANDS-1
+            if command >= InitStateMachine.NUMCOMMANDS:
+                # Make sure everything's completed but don't explicitly run anything if they already are
+                command = InitStateMachine.NUMCOMMANDS - 1
                 if nextState[command] != InitStateMachine.COMPLETED: nextState[command] = InitStateMachine.INPROGRESS
             else:
-                #redo the command if explicitly asked
+                # redo the command if explicitly asked
                 nextState[command] = InitStateMachine.INPROGRESS
-            
-            #reprogramming the roach2 causes CAL_ZDOK and CAL_QDR to be undefined
-            if command==InitStateMachine.PROGRAM_V6:
-                nextState[[InitStateMachine.CAL_ZDOK, InitStateMachine.CAL_QDR]]=InitStateMachine.UNDEFINED
+
+            # reprogramming the roach2 causes CAL_ZDOK and CAL_QDR to be undefined
+            if command == InitStateMachine.PROGRAM_V6:
+                nextState[[InitStateMachine.CAL_ZDOK, InitStateMachine.CAL_QDR]] = InitStateMachine.UNDEFINED
         elif nextState[command] != InitStateMachine.COMPLETED:
             # a lower command needs to be run only if it's not already completed
             nextState[command] = InitStateMachine.INPROGRESS
-        
+
         if command <= InitStateMachine.CONNECT:
-            #We've reached the bottom of the command list, so return
+            # We've reached the bottom of the command list, so return
             return nextState
-        
-        nextState[:command] = self.getNextState(command-1,_n+1)[:command]
+
+        nextState[:command] = self.getNextState(command - 1, _n + 1)[:command]
         return nextState
-    
+
     @QtCore.pyqtSlot()
     @QtCore.pyqtSlot(int)
-    def resetStateTo(self,command=-1):
+    def resetStateTo(self, command=-1):
         """
         Reset the roach to the state given by command. ie. Pretend we just clicked command and so set higher commands as undefined. But leave the command in the current state
         
@@ -159,13 +164,14 @@ class InitStateMachine(QtCore.QObject):        #Extends QObject for use with QTh
         INPUTS:
             command - command to reset state to
         """
-        print "Resetting r"+str(self.num)+' to '+InitStateMachine.parseCommand(command)
+        getLogger(__name__).info("Resetting roach {} to {}".format(self.num,
+                                                                   InitStateMachine.parseCommand(command)))
         self.state = np.asarray(self.getNextState(command))
-        self.state[np.where(self.state==InitStateMachine.INPROGRESS)]=InitStateMachine.UNDEFINED
-        self.state[command]=InitStateMachine.UNDEFINED
+        self.state[np.where(self.state == InitStateMachine.INPROGRESS)] = InitStateMachine.UNDEFINED
+        self.state[command] = InitStateMachine.UNDEFINED
         self.reset.emit(self.state)
         self.finished.emit()
-    
+
     @QtCore.pyqtSlot()
     def executeCommands(self):
         """
@@ -174,117 +180,118 @@ class InitStateMachine(QtCore.QObject):        #Extends QObject for use with QTh
         This slot function is called by a seperate thread from HighTemplar
         """
         while self.hasCommand():
-            command=self.popCommand()
+            command = self.popCommand()
             try:
                 commandData = self.executeCommand(command)
-                #self.emit(InitStateMachine.FINISHED_SIGNAL,command,commandData)
-                self.finishedCommand_Signal.emit(command,commandData)
+                # self.emit(InitStateMachine.FINISHED_SIGNAL,command,commandData)
+                self.finishedCommand_Signal.emit(command, commandData)
             except:
                 exc_info = sys.exc_info()
-                #self.emit(InitStateMachine.ERROR_SIGNAL,command,exc_info)
-                self.commandError_Signal.emit(command,exc_info)
-                del exc_info    # if you don't delete this it may prevent garbage collection
+                # self.emit(InitStateMachine.ERROR_SIGNAL,command,exc_info)
+                self.commandError_Signal.emit(command, exc_info)
+                del exc_info  # if you don't delete this it may prevent garbage collection
         self.finished.emit()
-    
+
     def connect(self):
-        '''
-        This function connects to the roach2 board and executes any initialization scripts
-        '''
+        """This function connects to the roach2 board and executes any initialization scripts"""
         self.roachController.ip = self.config.get('r{}.ip'.format(self.num))
         self.roachController.connect()
-        
         return True
-    
+
     def programV6(self):
         fpgPath = self.config.get('r{}.fpgpath'.format(self.num))
+        if not os.path.isfile(fpgPath):
+            fpgPath = resource_filename('mkidreadout', os.path.join('resources', 'firmware', fpgPath))
         self.roachController.fpga.upload_to_ram_and_program(fpgPath)
         fpgaClockRate = self.roachController.fpga.estimate_fpga_clock()
-        print 'Fpga Clock Rate:', fpgaClockRate
+        getLogger(__name__).info('Fpga Clock Rate: %s', fpgaClockRate)
         if fpgaClockRate < 245 or fpgaClockRate > 255:
             raise Exception('V6 clock rate incorrect. Possible boot issue for ADC/DAC board')
         self.roachController.loadBoardNum(self.num)
         self.roachController.loadCurTimestamp()
         return True
-        
+
     def initV7(self):
-        waitForV7Ready = self.config.get('r{}.waitForV7Ready'.format(self.num))
-        self.roachController.initializeV7UART(waitForV7Ready=waitForV7Ready)
-        print 'initialized uart'
+        waitforv7ready = self.config.get('r{}.waitforv7ready'.format(self.num))
+        self.roachController.initializeV7UART(waitForV7Ready=waitforv7ready)
+        getLogger(__name__).info('initialized uart')
         self.roachController.initV7MB()
-        print 'initialized mb'
+        getLogger(__name__).info('initialized mb')
         self.roachController.setLOFreq(2.e9)
         self.roachController.loadLOFreq()
-        print 'Set LO to 2 GHz'
-        self.roachController.changeAtten(1, 31.75)   #DAC atten 1
-        self.roachController.changeAtten(2, 31.75)   #DAC atten 2
-        self.roachController.changeAtten(3, 31.75)   #ADC atten 1
-        self.roachController.changeAtten(4, 31.75)   #ADC atten 2
-        print 'Set RF board attenuators to maximum'
+        getLogger(__name__).info('Set LO to 2 GHz')
+        self.roachController.changeAtten(1, 31.75)  # DAC atten 1
+        self.roachController.changeAtten(2, 31.75)  # DAC atten 2
+        self.roachController.changeAtten(3, 31.75)  # ADC atten 1
+        self.roachController.changeAtten(4, 31.75)  # ADC atten 2
+        getLogger(__name__).info('Set RF board attenuators to maximum')
         return True
 
     def calZdok(self):
         self.roachController.sendUARTCommand(0x4, blocking=True)
-        print 'switched on ADC ZDOK Cal ramp'
+        getLogger(__name__).info('switched on ADC ZDOK Cal ramp')
         time.sleep(.1)
 
+        self.roachController.fpga.write_int('adc_in_i_scale', 2 ** 7)  # set relative IQ scaling to 1
         # nBitsRemovedInFFT = self.config.get('r{}.nBitsRemovedInFFT'.format(self.num))
-        self.roachController.fpga.write_int('adc_in_i_scale',2**7) #set relative IQ scaling to 1
         # if(nBitsRemovedInFFT == 0):
         #     self.roachController.setAdcScale(0.9375) #Max ADC scale value
         # else:
         #     self.roachController.setAdcScale(1./(2**nBitsRemovedInFFT))
 
-        self.roachController.fpga.write_int('run',1)
-        busDelays = [14,18,14,13]
-        busStarts = [0,14,28,42]
+        self.roachController.fpga.write_int('run', 1)
+        busDelays = [14, 18, 14, 13]
+        busStarts = [0, 14, 28, 42]
         busBitLength = 12
         for iBus in xrange(len(busDelays)):
-            delayLut = zip(np.arange(busStarts[iBus],busStarts[iBus]+busBitLength), 
-                busDelays[iBus] * np.ones(busBitLength))
-            loadDelayCal(self.roachController.fpga,delayLut)
+            delayLut = zip(np.arange(busStarts[iBus], busStarts[iBus] + busBitLength),
+                           busDelays[iBus] * np.ones(busBitLength))
+            loadDelayCal(self.roachController.fpga, delayLut)
 
         # calDict = findCal(self.roachController.fpga,nBitsRemovedInFFT)
         calDict = findCal(self.roachController.fpga)
-        print calDict
-        
+        getLogger(__name__).info("Caldict: {}".format(calDict))
+
         self.roachController.sendUARTCommand(0x5)
-        print 'switched off ADC ZDOK Cal ramp'
-        
+        getLogger(__name__).info('switched off ADC ZDOK Cal ramp')
+
         if not calDict['solutionFound']:
             raise ValueError
-            
+
         return True
-            
+
     def calQDR(self):
         bQdrFlip = True
         calVerbosity = 0
         bFailHard = False
-        #self.roachController.fpga.get_system_information()
+        # self.roachController.fpga.get_system_information()
         results = {}
-        for iQdr,qdr in enumerate(self.roachController.fpga.qdrs):
+        for iQdr, qdr in enumerate(self.roachController.fpga.qdrs):
             mqdr = myQdr.from_qdr(qdr)
-            print qdr.name
-            results[qdr.name] = mqdr.qdr_cal2(fail_hard=bFailHard,verbosity=calVerbosity)
+            getLogger(__name__).info("QDR name: {}".format(qdr.name))
+            results[qdr.name] = mqdr.qdr_cal2(fail_hard=bFailHard, verbosity=calVerbosity)
 
-        print 'Qdr cal results:',results
+        getLogger(__name__).info('Qdr cal results: %s', str(results))
         for qdrName in results.keys():
             if not results[qdrName]:
                 raise ValueError
         return True
-    
-    def executeCommand(self,command):
+
+    def executeCommand(self, command):
         """
         Executes individual commands
         
         INPUTS:
             command
         """
-        print "Roach ",self.num," Recieved/executing command: ",InitStateMachine.parseCommand(command)
+        getLogger(__name__).info("Roach {} Recieved/executing command: {}".format(self.num,
+                                                                                  InitStateMachine.parseCommand(
+                                                                                      command)))
         self.state[command] = InitStateMachine.INPROGRESS
         returnData = None
-        time.sleep(random.randint(1,3))
+        time.sleep(random.randint(1, 3))
         try:
-            
+
             if command == InitStateMachine.CONNECT:
                 returnData = self.connect()
             elif command == InitStateMachine.PROGRAM_V6:
@@ -296,27 +303,27 @@ class InitStateMachine(QtCore.QObject):        #Extends QObject for use with QTh
             elif command == InitStateMachine.CAL_QDR:
                 returnData = self.calQDR()
             else:
-                raise NotImplementedError('No command: '+str(command))
+                raise NotImplementedError('No command: ' + str(command))
             self.state[command] = InitStateMachine.COMPLETED
         except:
             self.emptyCommandQueue()
             self.state[command] = InitStateMachine.ERROR
             raise
-            
-        return returnData
-    
 
+        return returnData
 
     def hasCommand(self):
         return (not self.commandQueue.empty())
+
     def popCommand(self):
         if not self.commandQueue.empty():
             return self.commandQueue.get()
         else:
             return None
-    def pushCommand(self,command):
+
+    def pushCommand(self, command):
         self.commandQueue.put(command)
+
     def emptyCommandQueue(self):
         while not self.commandQueue.empty():
             self.commandQueue.get()
-
