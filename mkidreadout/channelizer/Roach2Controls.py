@@ -649,8 +649,6 @@ class Roach2Controls(object):
             self.v7_ready = 0
             
         self.fpga.write_int(self.params['enBRAMDump_reg'],0)
-        
-        
     
     def setLOFreq(self,LOFreq):
         """ 
@@ -2239,6 +2237,14 @@ class Roach2Controls(object):
         """Return true if roach has been configured by templar e.g. ready for use by dashboard"""
         #TODO
         return True
+
+    def tagfile(self, root, dir='', epilog=''):
+        root, ext = os.path.splitext(root)
+        el = '_'+epilog if epilog else epilog
+        file = '{root}_{roach}FL{feedline}{range}{el}.{ext}'.format(root=root, roach=self.num,
+                                                                    feedline=self.feedline,
+                                                                    range=self.range, ext=ext, el=el)
+        return os.path.join(dir,file)
 
 if __name__=='__main__':
     if len(sys.argv) > 1:

@@ -65,7 +65,7 @@ class TemplarConfig(object):
 
 
 class HighTemplar(QMainWindow):
-    def __init__(self, roachNums=None, defaultValues=None):
+    def __init__(self, roachNums=None, config='roach.yml'):
         """
         Create HighTemplar GUI
         
@@ -77,11 +77,8 @@ class HighTemplar(QMainWindow):
             roachNums = range(10)
         self.roachNums = np.unique(roachNums)       # sorts and removes duplicates
         self.numRoaches = len(self.roachNums)       # (int) number of roaches connected
-        self.config = ConfigParser.ConfigParser()
-        if defaultValues is None:
-            defaultValues = 'hightemplar.cfg'
-        self.defaultValues=defaultValues
-        self.config.read(defaultValues)
+        self.defaultValues=config
+        self.config = mkidcore.config.load(config)
         
         
         #Setup GUI
@@ -133,7 +130,7 @@ class HighTemplar(QMainWindow):
             self.sweepWindows.append(window)
         self.phaseWindows=[]
         for roach_i in self.roaches:
-            window=RoachPhaseStreamWindow(roach_i,self.config)
+            window=RoachPhaseStreamWindow(roach_i, self.config)
             window.thresholdClicked.connect(partial(self.commandButtonClicked, [roach_i.num] , RoachStateMachine.LOADTHRESHOLD))
             #window.phaseSnapClicked.connect(partial(self.commandButtonClicked, [roach_i.num] , RoachStateMachine.LOADTHRESHOLD+1))
             #window.phaseTimestreamClicked.connect(partial(self.commandButtonClicked, [roach_i.num] , RoachStateMachine.LOADTHRESHOLD+1))
@@ -541,12 +538,9 @@ class HighTemplar(QMainWindow):
         #for thread in self.threadPool:
         #    thread.quit()
         #    del thread
-        
-        newConfigFN = self.defaultValues.rsplit('.',1)[0]+'_NEW.'+ self.defaultValues.rsplit('.',1)[1]
-        with open(newConfigFN, 'wb') as configfile:
-            self.config.write(configfile)
-        
-        time.sleep(.1)
+
+        self.config.save('{0}_new.{1}'.format(*self.defaultValues.lrpartition('.')[::2]))
+
         QtCore.QCoreApplication.instance().quit
 
 
