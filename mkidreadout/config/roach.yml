@@ -8,12 +8,14 @@ fircoefffile: unity50.txt
 freqfileroot: ps_freqs.txt
 
 numsigs_thresh: 4.0
-numsnaps_thresh: 5  #TODO is this a roach or hightemplar setting
+numsnaps_thresh: 5
 ddssynclag: 76
 waitforv7ready: False
 
-
-nLongsnapFftSamples=65536
+longsnaptime: 2
+nLongsnapFftSamples: 65536
+sweeplospan: 0.5e6
+sweeplostep: 10.e3
 
 r115: !configdict
   ip: 10.0.0.115

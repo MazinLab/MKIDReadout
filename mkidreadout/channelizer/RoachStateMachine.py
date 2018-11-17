@@ -375,10 +375,10 @@ class RoachStateMachine(QtCore.QObject):  # Extends QObject for use with QThread
             QonRes -
         """
         LO_freq = self.roachController.LOFreq
-        LO_span = self.config.hightemplar.sweeplospan
+        LO_span = self.config.get('r{}.sweeplospan'.format(self.num))
         LO_start = LO_freq - LO_span / 2.
         LO_end = LO_freq + LO_span / 2.
-        LO_step = self.config.hightemplar.sweeplostep
+        LO_step = self.config.get('r{}.sweeplostep'.format(self.num))
         LO_offsets = np.arange(LO_start, LO_end, LO_step) - LO_freq
         start_DACAtten = self.config.get('r{}.dacatten_start'.format(self.num))
         stop_DACAtten  = self.config.get('r{}.dacatten_stop'.format(self.num))
@@ -386,8 +386,8 @@ class RoachStateMachine(QtCore.QObject):  # Extends QObject for use with QThread
         newADCAtten = start_ADCAtten
 
         powerSweepFile = self.roachController.tagfile(self.config.hightemplar.powersweeproot,
-                                                  dir=self.config.paths.data,
-                                                  epilog=time.strftime("%Y%m%d-%H%M%S", time.localtime()))
+                                                      dir=self.config.paths.data,
+                                                      epilog=time.strftime("%Y%m%d-%H%M%S", time.localtime()))
         for dacAtten in np.arange(start_DACAtten, stop_DACAtten + 1):
             if stop_DACAtten > start_DACAtten:
                 dacAtten1 = np.floor(dacAtten * 2) / 4.

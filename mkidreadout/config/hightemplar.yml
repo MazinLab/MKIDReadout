@@ -18,10 +18,8 @@ detector: !configdict
   nrows: 125
 
 hightemplar: !configdict
-  longsnaptime: 2
-  nLongsnapFftSamples: 65536
   longsnaproot:  ls_freqs #formerly longsnapfile need per roach extensions
   powersweeproot: ps_freqs #formerly powersweepfile need per roach extensions
-  sweeplospan: 0.5e6
-  sweeplostep: 10.e3
   roaches: !include roach.yml
+
+  sweeplostep sweeplospan longsnaptime, nLongsnapFftSamples
