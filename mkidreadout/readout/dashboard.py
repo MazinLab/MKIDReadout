@@ -401,7 +401,6 @@ class MKIDDashboard(QMainWindow):
 
         # Connect to ROACHES and initialize network port in firmware
         getLogger('Dashboard').info('Connecting roaches and loading beammap...')
-        #TODO make a list of all config files and where they are
         if not self.offline:
             for roachNum in roachNums:
                 roach = Roach2Controls(self.config.roaches.get('r{}.ip'.format(roachNum)),
@@ -961,7 +960,7 @@ class MKIDDashboard(QMainWindow):
             self.button_obs.setEnabled(False)
             self.button_obs.clicked.disconnect()
             self.textbox_target.setReadOnly(True)
-            self.turnOnPhotonCapture()
+            self.turnOnPhotonCapture()  # NB this does NOT also need to be in stop obs, roaches still send
             if self.takingDark<0 and self.takingFlat < 0:
                 self.sciFactory = CalFactory('sum', dark=self.darkField, flat=self.flatField)
             self.packetmaster.startobs(self.config.paths.data)

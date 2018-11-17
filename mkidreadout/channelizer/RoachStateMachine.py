@@ -104,10 +104,10 @@ class RoachStateMachine(QtCore.QObject):  # Extends QObject for use with QThread
         self.commandQueue = Queue()
         self.config = config
 
-        FPGAParamFile = self.config.get('r{}.fpgaparamfile'.format(self.num))
-        fl = self.config.get('r{}.feedline'.format(self.num))
-        range = self.config.get('r{}.range'.format(self.num))
-        ip = self.config.get('r{}.ip'.format(self.num))
+        FPGAParamFile = self.config.roaches.get('r{}.fpgaparamfile'.format(self.num))
+        fl = self.config.roaches.get('r{}.feedline'.format(self.num))
+        range = self.config.roaches.get('r{}.range'.format(self.num))
+        ip = self.config.roaches.get('r{}.ip'.format(self.num))
 
         self.roachController = Roach2Controls(ip, FPGAParamFile, feedline=fl, num=self.num,
                                               range=range, verbose=True, debug=False)
@@ -235,7 +235,7 @@ class RoachStateMachine(QtCore.QObject):  # Extends QObject for use with QThread
         """
         This function connects to the roach2 board and executes any initialization scripts
         """
-        ipaddress = self.config.get('r{}.ip'.format(self.num))
+        ipaddress = self.config.roaches.get('r{}.ip'.format(self.num))
         self.roachController.ip = ipaddress
         self.roachController.connect()
         # self.roachController.initV7MB()
@@ -253,8 +253,8 @@ class RoachStateMachine(QtCore.QObject):  # Extends QObject for use with QThread
             getLogger(__name__).info('old Freq: {}'.format(self.roachController.freqList))
         except:
             pass
-
-        fn = self.roach.roachController.tagfile(self.config.get('r{}.freqfileroot'.format(self.roachNum)),
+        #TODO sort out path
+        fn = self.roach.roachController.tagfile(self.config.roaches.get('r{}.freqfileroot'.format(self.roachNum)),
                                                 dir=self.config.paths.data)
         fn2 = '{0}_new.{1}'.format(*fn.lrpartition('.')[::2])
         if os.path.isfile(fn2):
@@ -310,7 +310,7 @@ class RoachStateMachine(QtCore.QObject):  # Extends QObject for use with QThread
 
         writing the QDR takes a long time! :-(
         """
-        loFreq = int(self.config.get('r{}.lo_freq'.format(self.num)))
+        loFreq = int(self.config.roaches.get('r{}.lo_freq'.format(self.num)))
         self.roachController.setLOFreq(loFreq)
         self.roachController.generateFftChanSelection()
         self.roachController.generateDdsTones()
@@ -326,8 +326,8 @@ class RoachStateMachine(QtCore.QObject):  # Extends QObject for use with QThread
         Loads ADC attens 1, 2
         """
 
-        adcAtten = self.config.get('r{}.adcatten'.format(self.num))
-        dacAtten = self.config.get('r{}.dacatten_start'.format(self.num))
+        adcAtten = self.config.roaches.get('r{}.adcatten'.format(self.num))
+        dacAtten = self.config.roaches.get('r{}.dacatten_start'.format(self.num))
         dacAtten1 = np.floor(dacAtten * 2) / 4.
         dacAtten2 = np.ceil(dacAtten * 2) / 4.
         adcAtten1 = np.floor(adcAtten * 2) / 4.
@@ -375,17 +375,17 @@ class RoachStateMachine(QtCore.QObject):  # Extends QObject for use with QThread
             QonRes -
         """
         LO_freq = self.roachController.LOFreq
-        LO_span = self.config.get('r{}.sweeplospan'.format(self.num))
+        LO_span = self.config.roaches.get('r{}.sweeplospan'.format(self.num))
         LO_start = LO_freq - LO_span / 2.
         LO_end = LO_freq + LO_span / 2.
-        LO_step = self.config.get('r{}.sweeplostep'.format(self.num))
+        LO_step = self.config.roaches.get('r{}.sweeplostep'.format(self.num))
         LO_offsets = np.arange(LO_start, LO_end, LO_step) - LO_freq
-        start_DACAtten = self.config.get('r{}.dacatten_start'.format(self.num))
-        stop_DACAtten  = self.config.get('r{}.dacatten_stop'.format(self.num))
-        start_ADCAtten = self.config.get('r{}.adcatten'.format(self.num))
+        start_DACAtten = self.config.roaches.get('r{}.dacatten_start'.format(self.num))
+        stop_DACAtten  = self.config.roaches.get('r{}.dacatten_stop'.format(self.num))
+        start_ADCAtten = self.config.roaches.get('r{}.adcatten'.format(self.num))
         newADCAtten = start_ADCAtten
 
-        powerSweepFile = self.roachController.tagfile(self.config.hightemplar.powersweeproot,
+        powerSweepFile = self.roachController.tagfile(self.config.roaches.get('r{}.longsnaproot'.format(self.num)),
                                                       dir=self.config.paths.data,
                                                       epilog=time.strftime("%Y%m%d-%H%M%S", time.localtime()))
         for dacAtten in np.arange(start_DACAtten, stop_DACAtten + 1):
@@ -590,7 +590,7 @@ class RoachStateMachine(QtCore.QObject):  # Extends QObject for use with QThread
         """
         Loads FIR coefficients from file into firmware
         """
-        firname = self.config.get('r{}.fircoefffile'.format(self.num))
+        firname = self.config.roaches.get('r{}.fircoefffile'.format(self.num))
         file = resource_filename('mkidreadout', os.path.join('resources', 'firfilters', firname))
         self.roachController.loadFIRCoeffs(file)
         return True
@@ -606,8 +606,8 @@ class RoachStateMachine(QtCore.QObject):  # Extends QObject for use with QThread
         self.roachController.setMaxCountRate()  # default is 2500
 
         nfreqs = len(self.roachController.freqList)
-        threshSig = self.config.get('r{}.numsigs_thresh'.format(self.num))
-        nSnap = self.config.get('r{}.numsnaps_thresh'.format(self.num))
+        threshSig = self.config.roaches.get('r{}.numsigs_thresh'.format(self.num))
+        nSnap = self.config.roaches.get('r{}.numsnaps_thresh'.format(self.num))
         thresh = []
         for i in range(nfreqs):
             data = []
@@ -696,7 +696,7 @@ class RoachStateMachine(QtCore.QObject):  # Extends QObject for use with QThread
         try:
             phaseSnapDict = self.roachController.takePhaseSnapshotOfFreqChannel(channel)
         except:
-            traceback.print_exc()
+            getLogger(__name__).error(exc_info=True)
             self.finished.emit()
             return
 
@@ -725,7 +725,7 @@ class RoachStateMachine(QtCore.QObject):  # Extends QObject for use with QThread
         #    self.finished.emit()
         #    return
         hostip = self.config.packetmaster.ip
-        port = self.config.get('r{}.phaseport'.format(self.num))
+        port = self.config.roaches.get('r{}.phaseport'.format(self.num))
         # ch = ch+stream*self.roachController.params['nChannelsPerStream']
         # data=self.roachController.takePhaseStreamData(selChanIndex=ch, duration=duration, hostIP=hostip)
         try:
@@ -733,7 +733,7 @@ class RoachStateMachine(QtCore.QObject):  # Extends QObject for use with QThread
                                                                          hostIP=hostip, fabric_port=port)
 
             el = 'resID{:.0f}_{}'.format(resID, time.strftime("%Y%m%d-%H%M%S", time.localtime()))
-            longSnapFN = self.roachController.tagfile(self.config.get('r{}.longsnaproot'.format(self.num)),
+            longSnapFN = self.roachController.tagfile(self.config.roaches.get('r{}.longsnaproot'.format(self.num)),
                                                       dir=self.config.paths.data, epilog=el)
             np.savez(longSnapFN, data)
         except IOError:
@@ -823,13 +823,13 @@ class RoachStateMachine(QtCore.QObject):  # Extends QObject for use with QThread
                     returnData = self.loadFreq()
                     self.finishedCommand_Signal.emit(com, returnData)
                 if com == RoachStateMachine.DEFINEROACHLUT:
-                    loFreq = int(self.config.get('r{}.lo_freq'.format(self.num)))
+                    loFreq = int(self.config.roaches.get('r{}.lo_freq'.format(self.num)))
                     self.roachController.setLOFreq(loFreq)
                     self.roachController.generateFftChanSelection()
                     self.roachController.generateDdsTones()
                     self.finishedCommand_Signal.emit(com, True)
                 if com == RoachStateMachine.DEFINEDACLUT:
-                    dacAtten = self.config.get('r{}.dacatten_start'.format(self.num))
+                    dacAtten = self.config.roaches.get('r{}.dacatten_start'.format(self.num))
                     self.roachController.generateDacComb(globalDacAtten=dacAtten)
                     self.finishedCommand_Signal.emit(com, True)
                 if com == RoachStateMachine.SWEEP:

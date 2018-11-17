@@ -14,7 +14,6 @@ Note: see http://bastibe.de/2013-05-30-speeding-up-matplotlib.html for making ma
 """
 
 import numpy as np
-import traceback
 from functools import partial
 from PyQt4.QtGui import *
 from PyQt4 import QtGui
@@ -22,6 +21,7 @@ from PyQt4 import QtCore
 from PyQt4.QtCore import Qt
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_qt4agg import FigureCanvasQTAgg as FigureCanvas
+from mkidcore.corelog import getLogger
 
 try:
     from matplotlib.backends.backend_qt4agg import NavigationToolbar2QTAgg as NavigationToolbar
@@ -418,7 +418,7 @@ class RoachPhaseStreamWindow(QMainWindow):
 
         button_allLongSnap.clicked.connect(allChPhaseStreamClicked)
 
-        #TODO make sure powersweeproot and logsnaproot get populated per roach
+        #TODO fix changedsetting in all locations. it assumes it is a roachspecific setting
         longSnapFile = self.config.get('r{}.longsnaproot'.format(self.roachNum))
         label_longSnapFile = QLabel('Long Snap Filename:')
         textbox_longSnapFile = QLineEdit(longSnapFile)
@@ -826,7 +826,7 @@ class RoachSweepWindow(QMainWindow):
         resID, _, _ = np.loadtxt(freqFile, unpack=True) #TODO use frequency file loader
         newFreqFile = '{0}_new.{1}'.format(*freqFile.lrpartition('.')[::2])
         data = np.transpose([resID, freqs, attens])
-        getLogger(__info__).info("Saving %s", newFreqFile)
+        getLogger(__name__).info("Saving %s", newFreqFile)
         np.savetxt(newFreqFile, data, '%6i  %15.9e  %4i')
 
     def changedSetting(self, settingID, setting):

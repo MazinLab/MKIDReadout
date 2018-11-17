@@ -8,7 +8,7 @@ packetmaster: !configdict
   ramdisk: /mnt/ramdisk # ramdisk directory to look for .img file made by packetmaster3's cuber routine
   nuller: False  # 1 if speckle nulling, 0 otherwise
   int_time: 1.0 # Cuber spits out images that are integrated over this amount of time
-  ip: 10.0.0.51  #TODO this may as well be replaced by a query of the IP assuming dashboard runs on the same machine as packetmaster
+  ip: 10.0.0.51
   captureport: 50000
 
 instrument : DARKNESS
