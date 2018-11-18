@@ -310,7 +310,7 @@ class RoachStateMachine(QtCore.QObject):  # Extends QObject for use with QThread
 
         writing the QDR takes a long time! :-(
         """
-        loFreq = int(self.config.roaches.get('r{}.lo_freq'.format(self.num)))
+        loFreq = self.config.roaches.get('r{}.lo_freq'.format(self.num))
         self.roachController.setLOFreq(loFreq)
         self.roachController.generateFftChanSelection()
         self.roachController.generateDdsTones()

@@ -39,18 +39,12 @@ class InitStateMachine(QtCore.QObject):  # Extends QObject for use with QThreads
     ie.. InitStateMachine.COMPLETED=2
          InitStateMachine.parseState(2)='Completed'
     
-    TODO:
-        uncomment everything in executeCommand()
     """
-    # FINISHED_SIGNAL = QtCore.SIGNAL("finishedCommand(int,PyQt_PyObject)")
-    # ERROR_SIGNAL = QtCore.SIGNAL("commandError(int,PyQt_PyObject)")
     finishedCommand_Signal = QtCore.pyqtSignal(int, object)
     commandError_Signal = QtCore.pyqtSignal(int, tuple)
     finished = QtCore.pyqtSignal()
     reset = QtCore.pyqtSignal(object)
 
-    # NUMCOMMANDS = 8
-    # CONNECT,LOADFREQ,DEFINELUT,SWEEP,ROTATE,CENTER,LOADFIR,LOADTHRESHOLD = range(NUMCOMMANDS)
     NUMCOMMANDS = 5
     CONNECT, PROGRAM_V6, INIT_V7, CAL_ZDOK, CAL_QDR = range(NUMCOMMANDS)
     NUMSTATES = 4
@@ -87,7 +81,8 @@ class InitStateMachine(QtCore.QObject):  # Extends QObject for use with QThreads
         This function adds the specified command and any other neccessary commands to the command queue.
         It also sets the state for each command correctly
         
-        This is where the state machine logic comes into play. We check what state the roach is currently in, and decide what to do next. 
+        This is where the state machine logic comes into play. We check what state the roach is currently in, and
+        decide what to do next.
         ie. If we're currently only connected, but want to sweep, we need to first load freqs, define LUTs, then sweep. 
         
         The only tricky part is that we want to load FIRs only once or when explicitly asked
@@ -96,7 +91,8 @@ class InitStateMachine(QtCore.QObject):  # Extends QObject for use with QThreads
             command - the command we want to ultimately execute
             
         OUPUTS:
-            self.state - the state for each command so the GUI can change the colors. (ie. the command will be in progress)
+            self.state - the state for each command so the GUI can change the colors.
+            (ie. the command will be in progress)
         """
         self.state = self.getNextState(command)
         for com in range(len(self.state)):
@@ -107,14 +103,17 @@ class InitStateMachine(QtCore.QObject):  # Extends QObject for use with QThreads
 
     def getNextState(self, command, _n=0):
         """
-        Given the current state and a command, determine the next state. This function is recursive. Don't change default value of _n
+        Given the current state and a command, determine the next state. This function is recursive.
+        Don't change default value of _n
         
         NOTE: if command < 0 then it resets everything (with _n=0)
-              if command >= InitStateMachine.NUMCOMMANDS then it ensures every command is completed but doesn't redo any if they're already completed
+              if command >= InitStateMachine.NUMCOMMANDS then it ensures every command is completed but doesn't redo
+              any if they're already completed
         
         Inputs:
             command - the command we want to execute. ie. InitStateMachine.loadThreshold
-            _n - Internal parameter for recursion. Determines the level of recursion. External calls should always use default value
+            _n - Internal parameter for recursion. Determines the level of recursion. External calls should always
+            use default value
         
         Outputs:
             nextState - list of states for the roach. See self.state attribute
@@ -183,11 +182,9 @@ class InitStateMachine(QtCore.QObject):  # Extends QObject for use with QThreads
             command = self.popCommand()
             try:
                 commandData = self.executeCommand(command)
-                # self.emit(InitStateMachine.FINISHED_SIGNAL,command,commandData)
                 self.finishedCommand_Signal.emit(command, commandData)
             except:
                 exc_info = sys.exc_info()
-                # self.emit(InitStateMachine.ERROR_SIGNAL,command,exc_info)
                 self.commandError_Signal.emit(command, exc_info)
                 del exc_info  # if you don't delete this it may prevent garbage collection
         self.finished.emit()
@@ -284,11 +281,8 @@ class InitStateMachine(QtCore.QObject):  # Extends QObject for use with QThreads
         INPUTS:
             command
         """
-        getLogger(__name__).info("Roach {} Recieved/executing command: {}".format(self.num,
-                                                                                  InitStateMachine.parseCommand(
-                                                                                      command)))
+        getLogger(__name__).info("Roach {} Executing command: {}".format(self.num, InitStateMachine.parseCommand(command)))
         self.state[command] = InitStateMachine.INPROGRESS
-        returnData = None
         time.sleep(random.randint(1, 3))
         try:
 
@@ -313,7 +307,7 @@ class InitStateMachine(QtCore.QObject):  # Extends QObject for use with QThreads
         return returnData
 
     def hasCommand(self):
-        return (not self.commandQueue.empty())
+        return not self.commandQueue.empty()
 
     def popCommand(self):
         if not self.commandQueue.empty():

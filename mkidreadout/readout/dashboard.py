@@ -464,7 +464,9 @@ class MKIDDashboard(QMainWindow):
             self.beammap = Beammap(default=self.config.instrument)
 
         for roach in self.roachList:
-            roach.loadBeammapCoords(self.beammap)
+            ffile = roach.tagfile(self.config.roaches.get('r{}.freqfileroot'),
+                                  dir=self.config.paths.data)
+            roach.loadBeammapCoords(self.beammap, freqListFile=ffile)
 
         self.beammapFailed = self.beammap.failmask
         getLogger('Dashboard').info('Loaded beammap: %s', self.beammap)

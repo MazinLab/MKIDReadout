@@ -649,11 +649,11 @@ class Roach2Controls(object):
             
         self.fpga.write_int(self.params['enBRAMDump_reg'],0)
     
-    def setLOFreq(self,LOFreq):
+    def setLOFreq(self, LOFreq):
         """ 
         Sets the attribute LOFreq (in Hz)
         """
-        self.LOFreq = LOFreq
+        self.LOFreq = round(LOFreq/(2.0**-16)*1e6)*(2.0**-16)*1e6
     
     def loadLOFreq(self,LOFreq=None):
         """
@@ -2076,7 +2076,6 @@ class Roach2Controls(object):
         """
 
         #Do the channel stuff here
-        freqList = self.config.roaches.freqlistfor(self)
         if not self.freqListFile:
             if not freqListFile:
                 raise RuntimeError('A freqListFile is required')
@@ -2107,8 +2106,8 @@ class Roach2Controls(object):
                     x=2**self.params['nBitsXCoord'] - 1 - 2**(self.params['nBitsXCoord']-2)
                     y=2**self.params['nBitsYCoord'] - 1
                 else:
-                    x=beammapDict['xCoord'][indx[0]]
-                    y=beammapDict['yCoord'][indx[0]]
+                    x=beammap.xCoord[indx[0]]
+                    y=beammap.yCoord[indx[0]]
                 x = max(0,min(2**self.params['nBitsXCoord'] - 1, x))    # clip to between 0 and 2^10-1
                 y = max(0,min(2**self.params['nBitsYCoord'] - 1, y))
                 streamCoordBits.append((int(x) << self.params['nBitsYCoord']) + int(y))
