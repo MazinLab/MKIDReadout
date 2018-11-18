@@ -91,7 +91,7 @@ import socket
 import binascii
 from socket import inet_aton
 from mkidreadout.channelizer.binTools import castBin
-from mkidreadout.utils.readDict import readDict
+from mkidcore.readdict import ReadDict
 from mkidreadout.channelizer.adcTools import streamSpectrum, checkSpectrumForSpikes
 from mkidcore.corelog import getLogger
 
@@ -126,9 +126,8 @@ class Roach2Controls(object):
 
         self.ip = ip
         try:
-            self.params = readDict()
             paramFile = paramFile if paramFile else os.path.join(os.path.dirname(__file__), 'darknessfpga.param')
-            self.params.readFromFile(paramFile)
+            self.params = ReadDict(paramFile)
         except TypeError:
             self.params = paramFile
         

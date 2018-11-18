@@ -9,14 +9,14 @@ modelDir specified in config file.
 '''
 
 from PSFitNNModel import *
-from mkidreadout.utils.readDict import readDict
+from mkidcore.readdict import ReadDict
 
 if len(sys.argv)<2:
     print 'Must supply config file!'
     exit(1)
 
 mlDictFile = sys.argv[1]
-mlDict = readDict()
+mlDict = ReadDict()
 mlDict.readFromFile(mlDictFile)
 
 mlClass = mlClassification(mlDict)

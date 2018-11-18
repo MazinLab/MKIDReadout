@@ -13,7 +13,7 @@ import tensorflow as tf
 import os, sys
 from PSFitMLData import PSFitMLData
 import PSFitMLTools as mlt
-from mkidreadout.utils.readDict import readDict
+from mkidcore.readdict import ReadDict
 
 
 def findPowers(mlDict, h5FileName, outputFN=None):
@@ -115,7 +115,7 @@ if __name__=='__main__':
         print 'Must specify ML config file and h5 file in MKID_DATA_DIR!'
         exit(1)
 
-    mlDict = readDict()
+    mlDict = ReadDict()
     mlDict.readFromFile(sys.argv[1])
 
     h5FileName=sys.argv[2]

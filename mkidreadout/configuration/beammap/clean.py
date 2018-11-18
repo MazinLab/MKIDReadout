@@ -16,10 +16,8 @@ import numpy as np
 import os
 import logging
 import argparse
-import ipdb
 import matplotlib.pyplot as plt
-from mkidreadout.utils.arrayPopup import plotArray
-from mkidreadout.utils.readDict import readDict
+from mkidcore.readdict import ReadDict
 from mkidreadout.configuration.beammap.flags import beamMapFlags
 from mkidreadout.configuration.beammap.utils import isInCorrectFL, getFLFromID, getFLFromCoords
 from mkidreadout.configuration.beammap.beammap import Beammap
@@ -255,7 +253,7 @@ if __name__=='__main__':
     log.setLevel(logging.INFO)
     
     # Open config file
-    configData = readDict()
+    configData = ReadDict()
     configData.read_from_file(configFileName)
     beammapDirectory = configData['beammapDirectory']
     roughBMFile = configData['roughBMFile']
