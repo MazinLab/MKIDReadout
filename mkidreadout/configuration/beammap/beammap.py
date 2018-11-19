@@ -48,7 +48,6 @@ class Beammap(object):
                 self._load(pkg.resource_filename(__name__, '{}.bmap'.format(default.lower())))
                 self.nrows, self.ncols = _DEFAULT_ARRAY_SIZES[default.lower()]
             except IOError:
-
                 opt = ', '.join([f.rstrip('.bmap').upper()
                                  for f in glob(pkg.resource_filename(__name__, '*.bmap'))])
                 raise ValueError('Unknown default beampmap "{}". Options: {}'.format(default, opt))
@@ -92,18 +91,10 @@ class Beammap(object):
 
     @property
     def failmask(self, ):
-        #x = np.ones((self.nrows, self.ncols), dtype=bool)
-        # for i in range(len(self.resIDs)):
-        #     try:
-        #         x[int(self.yCoords[i]), int(self.xCoords[i])] = self.flags[i] != 0
-        #     except IndexError:
-        #         pass
-
         mask = np.ones((self.nrows, self.ncols), dtype=bool)
-        use = (int(self.yCoords) < self.nrows) & (int(self.xCoords) < self.ncols)
-        mask[int(self.yCoords[use]), int(self.xCoords[use])] = self.flags[use].nonzero()
-
+        use = (self.yCoords.astype(int) < self.nrows) & (self.xCoords.astype(int) < self.ncols)
+        mask[self.yCoords[use].astype(int), self.xCoords[use].astype(int)] = self.flags[use] != 0
         return mask
 
     def __str__(self):
-        return 'File: "{}"\nWell Mapped: {}'.format(self.file, self.nrows * self.ncols - self.flags.nonzero().sum())
+        return 'File: "{}"\nWell Mapped: {}'.format(self.file, self.nrows * self.ncols - (self.flags!=0).sum())

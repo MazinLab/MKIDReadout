@@ -426,7 +426,7 @@ class Roach2Controls(object):
         self.ddsIStreamsList = iStreamList
         self.ddsQStreamsList = qStreamList
 
-        lines = ['\tDDS freqs: {}'.format(self.ddsQuantizedFreqList)]
+        lines = ['\tDDS freqs: \n{}'.format(self.ddsQuantizedFreqList)]
         for i in range(nStreams):
             lines.append('\tStream {} I vals: {}'.format(i, self.ddsIStreamsList[i]))
             lines.append('\tStream {} Q vals: {}'.format(i, self.ddsQStreamsList[i]))
@@ -1159,8 +1159,10 @@ class Roach2Controls(object):
                 "Not enough dynamic range in DAC! Try decreasing the global DAC Attenuator by " + str(dBexcess) + ' dB')
         elif 1.0 * maxAmp / highestVal > 10 ** (1 / 20.):
             # all amplitudes in DAC less than 1 dB below max allowed by dynamic range
-            warnings.warn("DAC Dynamic range not fully utilized. Increase global attenuation by: " + str(
-                int(np.floor(20. * np.log10(1.0 * maxAmp / highestVal)))) + ' dB')
+            amtup = int(np.floor(20. * np.log10(1.0 * maxAmp / highestVal)))
+            getLogger(__name__).warning("DAC Dynamic range not fully utilized. "
+                                        "Increase global attenuation by {} dB.".format(amtup))
+            warnings.warn("DAC Dynamic range not fully utilized. Increase global attenuation by {} dB".format(amtup))
 
         getLogger(__name__).debug('...Done!')
 
@@ -2120,15 +2122,20 @@ class Roach2Controls(object):
                 raise RuntimeError('A freqListFile is required')
         elif freqListFile:
             getLogger(__name__).debug('Replaced freqListFile from init with %s', freqListFile)
+
+        if freqListFile:
             self.freqListFile = freqListFile
 
         getLogger(__name__).debug('Loading frequencies from %s', freqListFile)
-        resID_roach, freqs, _ = np.loadtxt(self.freqListFile, unpack=True)
+        try:
+            resID_roach, freqs, _ = np.loadtxt(self.freqListFile, unpack=True)
+        except IOError as e:
+            getLogger(__name__).error('unable to load freqs {}'.format(os.path.isfile(freqListFile)),exc_info=True)
         self.generateResonatorChannels(freqs)
         freqCh_roach = np.arange(0, len(resID_roach))
-        freqCh = np.ones(len(beammap.resID)) * -2
+        freqCh = np.ones(len(beammap.resIDs)) * -2
         for rID, fCh in zip(resID_roach, freqCh_roach):
-            freqCh[beammap.resID == rID] = fCh
+            freqCh[beammap.resIDs == rID] = fCh
         # End code brought out of dashboard
 
         allStreamChannels, allStreams = self.getStreamChannelFromFreqChannel()
@@ -2145,8 +2152,8 @@ class Roach2Controls(object):
                     x = 2 ** self.params['nBitsXCoord'] - 1 - 2 ** (self.params['nBitsXCoord'] - 2)
                     y = 2 ** self.params['nBitsYCoord'] - 1
                 else:
-                    x = beammap.xCoord[indx[0]]
-                    y = beammap.yCoord[indx[0]]
+                    x = beammap.xCoords[indx[0]]
+                    y = beammap.yCoords[indx[0]]
                 x = max(0, min(2 ** self.params['nBitsXCoord'] - 1, x))  # clip to between 0 and 2^10-1
                 y = max(0, min(2 ** self.params['nBitsYCoord'] - 1, y))
                 streamCoordBits.append((int(x) << self.params['nBitsYCoord']) + int(y))
@@ -2257,8 +2264,7 @@ class Roach2Controls(object):
 
         self.fpga.write_int(self.params['destIP_reg'], int(dest_ip, 16))
         self.fpga.write_int(self.params['photonPort_reg'], int(port))
-        self.fpga.write_int(self.params['wordsPerFrame_reg'],
-                            int(self.params['int(wordsPerFrame']))
+        self.fpga.write_int(self.params['wordsPerFrame_reg'], int(self.params['wordsPerFrame']))
 
         # restart gbe
         self.fpga.write_int(self.params['photonCapStart_reg'], 0)

@@ -568,14 +568,14 @@ class RoachSweepWindow(QMainWindow):
         self.rotatedList[-1] = data
 
     def makePlot(self, **kwargs):
-        getLogger(_info__).info("Making sweep plot")
+        getLogger(__name__).info("Making sweep plot")
         self.ax.clear()
         self.ax2.clear()
         numData2Show = min(self.numData2Show, len(self.dataList))
         ch = self.spinbox_channel.value()
         c, s = self.roach.roachController.getStreamChannelFromFreqChannel(ch)
-        getLogger(_info__).info('ch: {}   freq[ch]: {}'.format(ch, self.roach.roachController.freqList[ch]))
-        getLogger(_info__).info('ch/stream: {}/{}   freq[ch,stream]: {}'.format(c, s,
+        getLogger(__name__).info('ch: {}   freq[ch]: {}'.format(ch, self.roach.roachController.freqList[ch]))
+        getLogger(__name__).info('ch/stream: {}/{}   freq[ch,stream]: {}'.format(c, s,
                                 self.roach.roachController.freqChannels[c, s]))
 
         for i in range(len(self.dataList) - numData2Show, len(self.dataList)):
@@ -608,7 +608,7 @@ class RoachSweepWindow(QMainWindow):
                 self.ax2.plot(freqs, vel, fmt, alpha=kwargs['alpha'])
                 # self.ax2.semilogy(freqs, np.sqrt(I[ch]**2 + Q[ch]**2),fmt,alpha=kwargs['alpha'])
             except:
-                getLogger(_info__).info("Couldn't make IQ velocity plot", exc_info=True)
+                getLogger(__name__).info("Couldn't make IQ velocity plot", exc_info=True)
             self.ax2.axvline(x=self.roach.roachController.freqList[ch], color='r')
 
             if self.rotatedList[i] is not None:
@@ -619,7 +619,7 @@ class RoachSweepWindow(QMainWindow):
                 avgI = np.average(iOnRes2)
                 avgQ = np.average(qOnRes2)
                 rotation = self.rotatedList[i]['rotation']
-                getLogger(_info__).info('Rotated ch {} by {} deg'.format(ch, -180*rotation[ch]/np.pi))
+                getLogger(__name__).info('Rotated ch {} by {} deg'.format(ch, -180*rotation[ch]/np.pi))
 
                 self.ax.plot(iOnRes2, qOnRes2, 'r.', alpha=kwargs['alpha'])
                 self.ax.plot([center2[0], avgI], [center2[1], avgQ], 'r--', alpha=kwargs['alpha'])
@@ -635,7 +635,7 @@ class RoachSweepWindow(QMainWindow):
         self.ax2.set_ylabel('IQ velocity')
 
     def draw(self):
-        getLogger(_info__).debug('r{} drawing data - {}'.format(self.roachNum, self.counter))
+        getLogger(__name__).debug('r{} drawing data - {}'.format(self.roachNum, self.counter))
         self.canvas.draw()
         self.canvas.flush_events()
 
@@ -792,9 +792,9 @@ class RoachSweepWindow(QMainWindow):
         attens = self.roach.roachController.attenList
         ch = self.spinbox_channel.value()
 
-        #getLogger(_info__).debug('P:Old freq: {}'.format(freqs[ch]))
+        #getLogger(__name__).debug('P:Old freq: {}'.format(freqs[ch]))
         newFreq = float(self.textbox_modifyFreq.text())
-        #getLogger(_info__).debug('P:New freq: {}'.format(newFreq))
+        #getLogger(__name__).debug('P:New freq: {}'.format(newFreq))
         newAtten = self.spinbox_modifyAtten.value()
         if newFreq != freqs[ch]:
             self.resetRoach.emit(RoachStateMachine.LOADFREQ)

@@ -405,6 +405,8 @@ class MKIDDashboard(QMainWindow):
             for roachNum in roachNums:
                 roach = Roach2Controls(self.config.roaches.get('r{}.ip'.format(roachNum)),
                                        self.config.roaches.fpgaparamfile, num=roachNum,
+                                       feedline=self.config.roaches.get('r{}.feedline'.format(roachNum)),
+                                       range=self.config.roaches.get('r{}.range'.format(roachNum)),
                                        verbose=False, debug=False)
                 if not roach.connect() and not roach.issetup:
                     raise RuntimeError('Roach r{} has not been setup.'.format(roachNum))
@@ -459,12 +461,15 @@ class MKIDDashboard(QMainWindow):
         """
         try:
             self.beammap = Beammap(self.config.beammap)
+        except KeyError:
+            getLogger('Dashboard').warning("No beammap specified in config, using default")
+            self.beammap = Beammap(default=self.config.instrument)
         except IOError:
             getLogger('Dashboard').warning("Could not find beammap %s. Using default", self.config.beammap)
             self.beammap = Beammap(default=self.config.instrument)
 
         for roach in self.roachList:
-            ffile = roach.tagfile(self.config.roaches.get('r{}.freqfileroot'),
+            ffile = roach.tagfile(self.config.roaches.get('r{}.freqfileroot'.format(roach.num)),
                                   dir=self.config.paths.data)
             roach.loadBeammapCoords(self.beammap, freqListFile=ffile)
 
@@ -778,7 +783,7 @@ class MKIDDashboard(QMainWindow):
             try:
                 self.grPixMap.scene().removeItem(self.movingBox)
                 self.movingBox = None
-            except:
+            except Exception:
                 pass
             self.updateSelectedPixelLabels()
             # Update any pixelTimestream windows that are listening
@@ -1422,18 +1427,8 @@ class MKIDDashboard(QMainWindow):
         self.file_menu = self.menuBar().addMenu("&File")
         telescope_action = self.create_action("&Telescope Info", slot=self.telescopeWindow.show, shortcut="Ctrl+T",
                                               tip="Show Telescope Info")
-
-        # TODO this shortcircuts the logic in starObs/stopObs and will desync the observing button
-        photonCapOn_action = self.create_action("Start &Photon Capture", slot=self.turnOnPhotonCapture,
-                                                shortcut="Ctrl+P", tip="Tell Roaches to send photon packets")
-        photonCapOff_action = self.create_action("Stop &Photon Capture", slot=self.turnOffPhotonCapture,
-                                                 shortcut="Ctrl+Shift+P",
-                                                 tip="Tell Roaches to stop sending photon packets")
         quit_action = self.create_action("&Quit", slot=self.close, shortcut="Ctrl+Q", tip="Close the application")
-
-        add_actions(self.file_menu,
-                    (telescope_action, photonCapOn_action, photonCapOff_action, None, quit_action))
-
+        add_actions(self.file_menu, (telescope_action, None, quit_action))
         self.help_menu = self.menuBar().addMenu("&Help")
         about_action = self.create_action("&About", shortcut='F1', slot=self.on_about, tip='About the demo')
         add_actions(self.help_menu, (about_action,))
@@ -1484,7 +1479,7 @@ class MKIDDashboard(QMainWindow):
 
         self.hide()
         time.sleep(1)
-        self.packetmaster.quit()
+        self.packetmaster.quit() #TODO consider adding a forced kill
 
         QtCore.QCoreApplication.instance().quit()
 
