@@ -544,7 +544,7 @@ class HighTemplar(QMainWindow):
         #    thread.quit()
         #    del thread
 
-        self.config.save('{0}_new.{1}'.format(*self.defaultValues.partition('.')[::2]))
+        self.config.save('{0}_new.{1}'.format(*self.defaultValues.rpartition('.')[::2]))
 
         QtCore.QCoreApplication.instance().quit
 

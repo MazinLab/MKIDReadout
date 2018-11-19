@@ -813,7 +813,7 @@ class RoachStateMachine(QtCore.QObject):  # Extends QObject for use with QThread
                     returnData = self.loadFreq()
                     self.finishedCommand_Signal.emit(com, returnData)
                 if com == RoachStateMachine.DEFINEROACHLUT:
-                    loFreq = int(self.config.roaches.get('r{}.lo_freq'.format(self.num)))
+                    loFreq = self.config.roaches.get('r{}.lo_freq'.format(self.num))
                     self.roachController.setLOFreq(loFreq)
                     self.roachController.generateFftChanSelection()
                     self.roachController.generateDdsTones()

@@ -138,7 +138,7 @@ class IQsweep:
 
     def FitLoopMP(self):                    # Fit the sweep using the full IQ data with MPFIT!
      
-        import mkidreadout.utils.mpfit as mpfit
+        import mkidcore.mpfit as mpfit
         # find center from IQ max
         vel = np.sqrt((self.I[0:self.fsteps-2]-self.I[1:self.fsteps-1])**2 + (self.Q[0:self.fsteps-2]-self.Q[1:self.fsteps-1])**2)
         svel = smooth(vel)
@@ -241,7 +241,7 @@ class IQsweep:
             if x > 5:
                 parinfo[5]['value'] = np.random.uniform(-1,1)*np.pi
             # fit!
-            m = mpfit.mpfit(RESDIFFMP,functkw=fa,parinfo=parinfo,quiet=1)
+            m = mpfit.mpfit(RESDIFFMP, functkw=fa, parinfo=parinfo, quiet=1)
             popt = m.params        
             newchisq = m.fnorm            
             if newchisq < chisq:
@@ -289,7 +289,7 @@ class IQsweep:
         self.ff = self.freq[low:high]
     
     def FitMagMP(self):                       # Fit the sweep using just the magnitude data
-        import mkidreadout.utils.mpfit as mpfit
+        import mkidcore.mpfit as mpfit
         # find center from IQ max
         vel = np.sqrt((self.I[0:self.fsteps-2]-self.I[1:self.fsteps-1])**2 + (self.Q[0:self.fsteps-2]-self.Q[1:self.fsteps-1])**2)
         svel = smooth(vel)
@@ -335,7 +335,7 @@ class IQsweep:
                 Qtry = 5000.0
             parinfo[0]['value'] = Qtry
             # fit!
-            m = mpfit.mpfit(MAGDIFFMP,functkw=fa,parinfo=parinfo,quiet=1)
+            m = mpfit.mpfit(MAGDIFFMP, functkw=fa, parinfo=parinfo, quiet=1)
             popt = m.params        
             newchisq = m.fnorm            
             #print newchisq

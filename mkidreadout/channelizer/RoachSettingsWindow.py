@@ -99,8 +99,7 @@ class RoachSettingsTab(QMainWindow):
             settingID - the key in the configparser
             setting - the value
         """
-        self.config.update('r{}.{}'.format(self.roachNum, settingID), str(setting))
-        # If we don't force the setting value to be a string then the configparser has trouble grabbing the value later on for some unknown reason
+        self.config.update('r{}.{}'.format(self.roachNum, settingID), setting)
 
     def create_main_frame(self):
         """
