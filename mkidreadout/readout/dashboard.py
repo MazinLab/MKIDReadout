@@ -27,6 +27,7 @@ from PyQt4.QtCore import Qt
 from PyQt4.QtGui import *
 import json
 from datetime import datetime
+from pkg_resources import resource_filename
 
 from astropy.io import fits
 
@@ -668,7 +669,7 @@ class MKIDDashboard(QMainWindow):
             q_image - QImage that will be displayed on GUI
         """
         # Scale the bitmap so we can see individual pixels and add to the GraphicsViewItem
-        imageScale = self.config.getint('properties', 'image_scale')
+        imageScale = self.config.dashboard.image_scale
         q_image = q_image.scaledToWidth(q_image.width() * imageScale)
         self.grPixMap.pixmap().convertFromImage(q_image)
 
@@ -713,8 +714,8 @@ class MKIDDashboard(QMainWindow):
         """
         if event.button() == QtCore.LeftButton:
             self.clicking = True
-            x_pos = int(np.floor(event.pos().x() / self.config.getint('properties', 'image_scale')))
-            y_pos = int(np.floor(event.pos().y() / self.config.getint('properties', 'image_scale')))
+            x_pos = int(np.floor(event.pos().x() / self.config.dashboard.image_scale))
+            y_pos = int(np.floor(event.pos().y() / self.config.dashboard.image_scale))
             getLogger('Dashboard').info('Clicked (' + str(x_pos) + ' , ' + str(y_pos) + ')')
             if QtCore.QtGui.QApplication.keyboardModifiers() != QtCore.ShiftModifier:
                 self.selectedPixels = set()
@@ -737,11 +738,12 @@ class MKIDDashboard(QMainWindow):
         INPUTS:
             event - QGraphicsSceneMouseEvent
         """
-        x_pos = int(np.floor(event.pos().x() / self.config.getint('properties', 'image_scale')))
-        y_pos = int(np.floor(event.pos().y() / self.config.getint('properties', 'image_scale')))
-        if [x_pos, y_pos] != self.pixelCurrent and x_pos >= 0 and y_pos >= 0 and \
-                x_pos < self.config.getint('properties', 'nCols') and \
-                y_pos < self.config.getint('properties', 'nRows'):
+        x_pos = int(np.floor(event.pos().x() / self.config.dashboard.image_scale))
+        y_pos = int(np.floor(event.pos().y() / self.config.dashboard.image_scale))
+        if ((x_pos, y_pos) != self.pixelCurrent and
+            x_pos >= 0 and y_pos >= 0 and
+            x_pos < self.config.detector.ncols and
+            y_pos < self.config.detector.nrows):
 
             self.pixelCurrent = [x_pos, y_pos]
             self.updateCurrentPixelLabel()
@@ -767,16 +769,16 @@ class MKIDDashboard(QMainWindow):
         """
         if event.button() == QtCore.LeftButton and self.clicking:
             self.clicking = False
-            x_pos = int(np.floor(event.pos().x() / self.config.getint('properties', 'image_scale')))
-            y_pos = int(np.floor(event.pos().y() / self.config.getint('properties', 'image_scale')))
+            x_pos = int(np.floor(event.pos().x() / self.config.dashboard.image_scale))
+            y_pos = int(np.floor(event.pos().y() / self.config.dashboard.image_scale))
             getLogger('Dashboard').info('Released (' + str(x_pos) + ' , ' + str(y_pos) + ')')
 
             x_start, x_end = sorted([x_pos, self.pixelClicked[0]])
             y_start, y_end = sorted([y_pos, self.pixelClicked[1]])
             x_start = max(x_start, 0)  # make sure we're still inside the image
             y_start = max(y_start, 0)
-            x_end = min(x_end, self.config.getint('properties', 'nCols') - 1)
-            y_end = min(y_end, self.config.getint('properties', 'nRows') - 1)
+            x_end = min(x_end, self.config.detector.ncols - 1)
+            y_end = min(y_end, self.config.detector.nrows - 1)
 
             newPixels = set((x, y) for x in range(x_start, x_end + 1) for y in range(y_start, y_end + 1))
             self.selectedPixels = self.selectedPixels | newPixels  # Union of set so there are no repeats
@@ -897,13 +899,14 @@ class MKIDDashboard(QMainWindow):
                     0]
                 resID = beammapData[indx, 0]
                 for roach in self.roachList:
-                    freqFN = self.config.get('Roach ' + str(roach.num), 'freqList')
+                    freqFN = self.config.get('r{}.freqfileroot'.format(roach.num))
+                    freqFN = roach.tagfile(freqFN, dir=self.config.paths.data)
                     resIDs, freqs = np.loadtxt(freqFN, unpack=True, usecols=(0, 1))
                     try:
                         freqCh = int(np.where(resIDs == resID)[0][0])
                         freq = freqs[freqCh]
-                        feedline = self.config.getint('Roach ' + str(roach.num), 'feedline')
-                        board = self.config.get('Roach ' + str(roach.num), 'boardRange')
+                        feedline = self.config.get('r{}.feedline'.format(roach.num))
+                        board = self.config.get('r{}.range'.format(roach.num))
                         break
                     except IndexError:
                         pass
@@ -1091,7 +1094,7 @@ class MKIDDashboard(QMainWindow):
 
         # Mkid data directory
         label_dataDir = QLabel('Data Dir:')
-        dataDir = self.config.get('properties', 'data_dir')
+        dataDir = self.config.paths.data
         textbox_dataDir = QLineEdit()
         textbox_dataDir.setText(dataDir)
         textbox_dataDir.textChanged.connect(partial(self.config.update, 'paths.data'))
@@ -1484,8 +1487,8 @@ class MKIDDashboard(QMainWindow):
         QtCore.QCoreApplication.instance().quit()
 
 
-DEFAULT_CFG_FILE = os.path.join(os.path.dirname(__file__), 'dashboard.yml')
-DEFAULT_ROACH_FILE = os.path.join(os.path.dirname(__file__), 'roach.yml')
+DEFAULT_CFG_FILE = resource_filename('mkidreadout', os.path.join('config','dashboard.yml'))
+DEFAULT_ROACH_FILE = resource_filename('mkidreadout', os.path.join('config','roach.yml'))
 
 if __name__ == "__main__":
 
