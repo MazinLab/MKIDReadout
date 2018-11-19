@@ -1327,7 +1327,7 @@ class Roach2Controls(object):
             self.freqChannelToStreamChannel[i] = np.asarray([int(ch_i), int(stream_i)])
             self.streamChannelToFreqChannel[ch_i, stream_i] = i
 
-        getLogger(__name__).debug('\tFreq Channels: ', self.freqChannels)
+        getLogger(__name__).debug('\tFreq Channels: %s', self.freqChannels)
         getLogger(__name__).debug('...Done!')
 
         return self.freqChannels
@@ -2269,9 +2269,8 @@ class Roach2Controls(object):
     def tagfile(self, root, dir='', epilog=''):
         root, ext = os.path.splitext(root)
         el = '_' + epilog if epilog else epilog
-        file = '{root}_{roach}FL{feedline}{range}{el}.{ext}'.format(root=root, roach=self.num,
-                                                                    feedline=self.feedline,
-                                                                    range=self.range, ext=ext, el=el)
+        file = '{root}_{roach}FL{feedline}{range}{el}{ext}'.format(root=root, roach=self.num, feedline=self.feedline,
+                                                                   range=self.range, ext=ext, el=el)
         return os.path.join(dir, file)
 
 
@@ -2288,7 +2287,7 @@ if __name__ == '__main__':
     getLogger(__name__).info(params)
 
     # warnings.filterwarnings('error')
-    # freqList = [7.32421875e9, 8.e9, 9.e9, 10.e9,11.e9,12.e9,13.e9,14.e9,15e9,16e9,17.e9,18.e9,19.e9,20.e9,21.e9,22.e9,23.e9]
+    # freqList = [7.32421875e9, 8.e9, 9.e91330, 10.e9,11.e9,12.e9,13.e9,14.e9,15e9,16e9,17.e9,18.e9,19.e9,20.e9,21.e9,22.e9,23.e9]
     # nFreqs=17
     # loFreq = 4.6873455e9
     # loFreq = 6.7354026e9

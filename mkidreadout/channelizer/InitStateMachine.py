@@ -253,12 +253,11 @@ class InitStateMachine(QtCore.QObject):  # Extends QObject for use with QThreads
         getLogger(__name__).info('switched off ADC ZDOK Cal ramp')
 
         if not calDict['solutionFound']:
-            raise ValueError
+            raise ValueError('No Z-DOK calibration solution found')
 
         return True
 
     def calQDR(self):
-        bQdrFlip = True
         calVerbosity = 0
         bFailHard = False
         # self.roachController.fpga.get_system_information()
@@ -271,7 +270,7 @@ class InitStateMachine(QtCore.QObject):  # Extends QObject for use with QThreads
         getLogger(__name__).info('Qdr cal results: %s', str(results))
         for qdrName in results.keys():
             if not results[qdrName]:
-                raise ValueError
+                raise ValueError('Unable to calibrate QDR')
         return True
 
     def executeCommand(self, command):
@@ -310,10 +309,7 @@ class InitStateMachine(QtCore.QObject):  # Extends QObject for use with QThreads
         return not self.commandQueue.empty()
 
     def popCommand(self):
-        if not self.commandQueue.empty():
-            return self.commandQueue.get()
-        else:
-            return None
+        return self.commandQueue.get() if not self.commandQueue.empty() else None
 
     def pushCommand(self, command):
         self.commandQueue.put(command)

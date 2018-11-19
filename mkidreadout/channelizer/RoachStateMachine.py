@@ -244,7 +244,6 @@ class RoachStateMachine(QtCore.QObject):  # Extends QObject for use with QThread
             getLogger(__name__).info('old Freq: {}'.format(self.roachController.freqList))
         except:
             pass
-        #TODO sort out path
         fn = self.roachController.tagfile(self.config.roaches.get('r{}.freqfileroot'.format(self.num)),
                                           dir=self.config.paths.data)
         fn2 = '{0}_new.{1}'.format(*fn.rpartition('.')[::2])
@@ -281,8 +280,8 @@ class RoachStateMachine(QtCore.QObject):  # Extends QObject for use with QThread
         phaseOffsList = iqRatioList[argsSorted]
         iqRatioList = iqRatioList[argsSorted]
         for i in range(len(freqs)):
-            getLogger(__name__).info("%s %s %s %s %s %s",i, resIDs[i], freqs[i], attens[i], phaseOffsList[i],
-                                     iqRatioList[i])
+            getLogger(__name__).info("{} {} {} {} {} {}".format(i, resIDs[i], freqs[i], attens[i], phaseOffsList[i],
+                                                                iqRatioList[i]))
 
         self.roachController.generateResonatorChannels(freqs)
         self.roachController.attenList = attens

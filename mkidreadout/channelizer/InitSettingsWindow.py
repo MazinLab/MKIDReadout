@@ -1,5 +1,3 @@
-
-
 """
 Author: Alex Walter
 Date: May 18, 2016
@@ -12,7 +10,6 @@ from PyQt4.QtGui import *
 from PyQt4 import QtGui
 from PyQt4 import QtCore
 from PyQt4.QtCore import Qt
-import ConfigParser
 from InitStateMachine import InitStateMachine
 
 
@@ -28,12 +25,13 @@ class InitSettingsWindow(QTabWidget):
         The first parameter is the roach number
         The second parameter is data
     """
-    
-    resetRoach = QtCore.pyqtSignal(int,int)     
-    initTemplar = QtCore.pyqtSignal(int,object)
+
+    resetRoach = QtCore.pyqtSignal(int, int)
+    initTemplar = QtCore.pyqtSignal(int, object)
+
     # nBitsRemovedInFFT = QtCore.pyqtSignal(int)
-    
-    def __init__(self,roachNums,config,parent=None):
+
+    def __init__(self, roachNums, config, parent=None):
         """
         Creates settings window GUI
         
@@ -44,31 +42,29 @@ class InitSettingsWindow(QTabWidget):
         """
         super(InitSettingsWindow, self).__init__(parent)
         self.setWindowTitle('Settings')
-        #self.setTabBar(HorizontalTabWidget())
-        #self.setTabBar(FingerTabWidget(parent=self,width=100,height=25))
+        # self.setTabBar(HorizontalTabWidget())
+        # self.setTabBar(FingerTabWidget(parent=self,width=100,height=25))
         self.setUsesScrollButtons(False)
         self._want_to_close = False
         self.roachNums = roachNums
         self.config = config
-        
+
         for roachNum in self.roachNums:
             tab = InitSettingsTab(roachNum, self.config)
-            tab.resetRoach.connect(partial(self.resetRoach.emit,roachNum))
-            tab.initTemplar.connect(partial(self.initTemplar.emit,roachNum))
-            #tab.nBitsRemovedInFFT.connect(partial(self.nBitsRemovedInFFT.emit,roachNum))
-            self.addTab(tab, ''+str(roachNum))
-        
-        #self.setMovable(True)
-        self.setTabsClosable(False)
-        #self.resize(self.minimumSizeHint())
-        #self.resize(300,1000)
-        self.setTabPosition(QTabWidget.West)
-        #self.setStyleSheet('QTabBar::tab {color: red;}')
-        #self.setStyleSheet('QTabBar::tab {selection-color: red;}')
-        
-        #self.printColors()
+            tab.resetRoach.connect(partial(self.resetRoach.emit, roachNum))
+            tab.initTemplar.connect(partial(self.initTemplar.emit, roachNum))
+            # tab.nBitsRemovedInFFT.connect(partial(self.nBitsRemovedInFFT.emit,roachNum))
+            self.addTab(tab, ' ' + str(roachNum))
 
-    
+        # self.setMovable(True)
+        self.setTabsClosable(False)
+        # self.resize(self.minimumSizeHint())
+        # self.resize(300,1000)
+        self.setTabPosition(QTabWidget.West)
+        # self.setStyleSheet('QTabBar::tab {color: red;}')
+        # self.setStyleSheet('QTabBar::tab {selection-color: red;}')
+        # self.printColors()
+
     def finishedInitV7(self, roachNum):
         tabArg = np.where(np.asarray(self.roachNums) == roachNum)[0][0]
         self.widget(tabArg).checkbox_waitV7.setChecked(False)
@@ -78,20 +74,19 @@ class InitSettingsWindow(QTabWidget):
             self.close()
         else:
             self.hide()
-            
+
 
 class InitSettingsTab(QMainWindow):
-    resetRoach = QtCore.pyqtSignal(int)     #Signal emmited when we change a setting so we can reload it into the ROACH2
+    resetRoach = QtCore.pyqtSignal(int)  # Signal emmited when we change a setting so we can reload it into the ROACH2
     initTemplar = QtCore.pyqtSignal(object)
 
     def __init__(self, roachNum, config):
         super(InitSettingsTab, self).__init__()
         self.roachNum = roachNum
         self.config = config
-        
         self.create_main_frame()
 
-    def changedSetting(self,settingID,setting):
+    def changedSetting(self, settingID, setting):
         """
         When a setting is changed, reflect the change in the config object which is shared across all GUI elements.
         
@@ -109,24 +104,24 @@ class InitSettingsTab(QMainWindow):
         """
         self.main_frame = QWidget()
         vbox = QVBoxLayout()
-       
+
         def add2layout(vbox, *args):
             hbox = QHBoxLayout()
             for arg in args:
                 hbox.addWidget(arg)
             vbox.addLayout(hbox)
-        
-        label_roachNum = QLabel('Settings for roach '+str(self.roachNum))
-        add2layout(vbox,label_roachNum)
-        
+
+        label_roachNum = QLabel('Settings for roach  ' + str(self.roachNum))
+        add2layout(vbox, label_roachNum)
+
         ipAddress = self.config.get('r{}.ip'.format(self.roachNum))
         self.label_ipAddress = QLabel('ip address: ')
         self.label_ipAddress.setMinimumWidth(110)
         self.textbox_ipAddress = QLineEdit(ipAddress)
         self.textbox_ipAddress.setMinimumWidth(70)
         self.textbox_ipAddress.textChanged.connect(partial(self.changedSetting, 'ip'))
-        self.textbox_ipAddress.textChanged.connect(lambda x: self.resetRoach.emit(-1))      # reset roach state if ipAddress changes
-        add2layout(vbox,self.label_ipAddress, self.textbox_ipAddress)
+        self.textbox_ipAddress.textChanged.connect(lambda x: self.resetRoach.emit(-1))  # reset roach state if ipAddress changes
+        add2layout(vbox, self.label_ipAddress, self.textbox_ipAddress)
 
         fpgPath = self.config.get('r{}.fpgpath'.format(self.roachNum))
         label_fpgPath = QLabel('fpgPath: ')
@@ -134,23 +129,25 @@ class InitSettingsTab(QMainWindow):
         textbox_fpgPath = QLineEdit(fpgPath)
         textbox_fpgPath.setMinimumWidth(70)
         textbox_fpgPath.textChanged.connect(partial(self.changedSetting, 'fpgpath'))
-        textbox_fpgPath.textChanged.connect(lambda x: self.resetRoach.emit(InitStateMachine.PROGRAM_V6))      # reset roach state if ipAddress changes
+        textbox_fpgPath.textChanged.connect(lambda x: self.resetRoach.emit(InitStateMachine.PROGRAM_V6))  # reset roach state if ipAddress changes
         add2layout(vbox, label_fpgPath, textbox_fpgPath)
 
-        self.checkbox_waitV7 = QCheckBox('waitforV7ready')
+        self.checkbox_waitV7 = QCheckBox('waitforv7ready')
         self.checkbox_waitV7.setChecked(True)
-        self.checkbox_waitV7.stateChanged.connect(lambda x: self.changedSetting('waitforV7ready', self.checkbox_waitV7.isChecked()))
-        add2layout(vbox,self.checkbox_waitV7)
+        self.checkbox_waitV7.stateChanged.connect(lambda x: self.changedSetting('waitforv7ready',
+                                                                                self.checkbox_waitV7.isChecked()))
+        add2layout(vbox, self.checkbox_waitV7)
 
-        FPGAParamFile = self.config.get('Roach '+str(self.roachNum),'fpgaparamfile')
+        FPGAParamFile = self.config.get('r{}.fpgaparamfile'.format(self.roachNum))
         label_FPGAParamFile = QLabel('FPGAParamFile: ')
         label_FPGAParamFile.setMinimumWidth(110)
         textbox_FPGAParamFile = QLineEdit(FPGAParamFile)
         textbox_FPGAParamFile.setMinimumWidth(70)
-        textbox_FPGAParamFile.textChanged.connect(partial(self.changedSetting,'fpgaparamfile'))
-        textbox_FPGAParamFile.textChanged.connect(lambda x: self.resetRoach.emit(-1))      # reset roach state if ipAddress changes
+        textbox_FPGAParamFile.textChanged.connect(partial(self.changedSetting, 'fpgaparamfile'))
+        textbox_FPGAParamFile.textChanged.connect \
+            (lambda x: self.resetRoach.emit(-1))  # reset roach state if ipAddress changes
         add2layout(vbox, label_FPGAParamFile, textbox_FPGAParamFile)
-        
+
         # nBitsRemovedInFFT = self.config.getint('Roach '+str(self.roachNum),'nBitsRemovedInFFT')
         # label_nBitsRemovedInFFT = QLabel('nBitsRemovedInFFT:')
         # label_nBitsRemovedInFFT.setMinimumWidth(110)
@@ -159,16 +156,15 @@ class InitSettingsTab(QMainWindow):
         # spinbox_nBitsRemovedInFFT.setValue(nBitsRemovedInFFT)
         # spinbox_nBitsRemovedInFFT.valueChanged.connect(self.changedNBitsRemoved)
         # add2layout(vbox, label_nBitsRemovedInFFT, spinbox_nBitsRemovedInFFT)
-        
 
         label_note = QLabel("NOTE: Changing the ip address won't take effect until you re-connect.")
         label_note.setWordWrap(True)
-        
+
         vbox.addWidget(label_note)
 
         self.main_frame.setLayout(vbox)
         self.setCentralWidget(self.main_frame)
-        
+
 
 class FingerTabWidget(QtGui.QTabBar):
     """
@@ -176,6 +172,7 @@ class FingerTabWidget(QtGui.QTabBar):
     
     I can't get the text color to change though...
     """
+
     def __init__(self, *args, **kwargs):
         self.tabSize = QtCore.QSize(kwargs.pop('width'), kwargs.pop('height'))
         super(FingerTabWidget, self).__init__(*args, **kwargs)
@@ -187,20 +184,15 @@ class FingerTabWidget(QtGui.QTabBar):
         painter.setPen(Qt.red)
         option = QtGui.QStyleOptionTab()
 
-        #painter.begin(self)
+        # painter.begin(self)
         for index in range(self.count()):
-            #print ''+str(index)+str(option.palette.color(QPalette.Text).name())
-            
-            #print self.tabText(index)
-            
-            
             self.initStyleOption(option, index)
-            self.setTabTextColor(index,Qt.red)
-            #print option.palette.text().color().name()
-            #print painter.brush().color().name()
-            #print ''+str(index)+str(option.palette.color(QPalette.Text).name())
+            self.setTabTextColor(index, Qt.red)
+            # print option.palette.text().color().name()
+            # print painter.brush().color().name()
+            # print ''+str(index)+str(option.palette.color(QPalette.Text).name())
             option.palette.setColor(QPalette.Text, Qt.red)
-            #print ''+str(index)+str(option.palette.color(QPalette.Text).name())
+            # print ''+str(index)+str(option.palette.color(QPalette.Text).name())
             option.palette.setColor(QPalette.HighlightedText, Qt.red)
             option.palette.setColor(QPalette.Foreground, Qt.red)
             option.palette.setColor(QPalette.WindowText, Qt.red)
@@ -208,21 +200,12 @@ class FingerTabWidget(QtGui.QTabBar):
             tabRect.moveLeft(10)
             painter.drawControl(QtGui.QStyle.CE_TabBarTabShape, option)
             painter.drawControl(QtGui.QStyle.CE_TabBarTabLabel, option)
-            painter.drawText(tabRect, QtCore.Qt.AlignVCenter |\
-                             QtCore.Qt.TextDontClip, \
-                             self.tabText(index));
-            #print tabRect
-            #painter.drawText(tabRect,0,self.tabText(index))
+            painter.drawText(tabRect, QtCore.Qt.AlignVCenter | QtCore.Qt.TextDontClip, self.tabText(index))
+
+            # painter.drawText(tabRect,0,self.tabText(index))
             print self.tabTextColor(index).name()
-            
-        #painter.end()
-    def tabSizeHint(self,index):
+
+        # painter.end()
+
+    def tabSizeHint(self, index):
         return self.tabSize
-
-
-
-
-
-
-
-
