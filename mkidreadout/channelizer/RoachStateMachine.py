@@ -56,8 +56,6 @@ class RoachStateMachine(QtCore.QObject):  # Extends QObject for use with QThread
         ddsShift - Emitted when we load a DDS Sync lag into the ROACH2
                    arg1 = dds lag
     """
-    # FINISHED_SIGNAL = QtCore.SIGNAL("finishedCommand(int,PyQt_PyObject)")
-    # ERROR_SIGNAL = QtCore.SIGNAL("commandError(int,PyQt_PyObject)")
     finishedCommand_Signal = QtCore.pyqtSignal(int, object)
     commandError_Signal = QtCore.pyqtSignal(int, tuple)
     finished = QtCore.pyqtSignal()
@@ -67,10 +65,6 @@ class RoachStateMachine(QtCore.QObject):  # Extends QObject for use with QThread
     timestreamPhase = QtCore.pyqtSignal(int, object)
     ddsShift = QtCore.pyqtSignal(int)
 
-    # NUMCOMMANDS = 8
-    # CONNECT,LOADFREQ,DEFINELUT,SWEEP,ROTATE,CENTER,LOADFIR,LOADTHRESHOLD = range(NUMCOMMANDS)
-    # NUMCOMMANDS = 8
-    # CONNECT,LOADFREQ,DEFINEROACHLUT,DEFINEDACLUT,SWEEP,FIT,LOADFIR,LOADTHRESHOLD = range(NUMCOMMANDS)
     NUMCOMMANDS = 9
     CONNECT, LOADFREQ, DEFINEROACHLUT, DEFINEDACLUT, SWEEP, ROTATE, TRANSLATE, LOADFIR, LOADTHRESHOLD = range(
         NUMCOMMANDS)
@@ -98,8 +92,7 @@ class RoachStateMachine(QtCore.QObject):  # Extends QObject for use with QThread
             config - ConfigParser Object holding all the parameters needed
         """
         super(RoachStateMachine, self).__init__()
-        self.state = [
-                         RoachStateMachine.UNDEFINED] * RoachStateMachine.NUMCOMMANDS  # This holds the state for each command type
+        self.state = [RoachStateMachine.UNDEFINED] * RoachStateMachine.NUMCOMMANDS  # This holds the state for each command type
         self.num = int(roachNumber)
         self.commandQueue = Queue()
         self.config = config
@@ -222,11 +215,9 @@ class RoachStateMachine(QtCore.QObject):  # Extends QObject for use with QThread
             command = self.popCommand()
             try:
                 commandData = self.executeCommand(command)
-                # self.emit(RoachStateMachine.FINISHED_SIGNAL,command,commandData)
                 self.finishedCommand_Signal.emit(command, commandData)
             except:
                 exc_info = sys.exc_info()
-                # self.emit(RoachStateMachine.ERROR_SIGNAL,command,exc_info)
                 self.commandError_Signal.emit(command, exc_info)
                 del exc_info  # if you don't delete this it may prevent garbage collection
         self.finished.emit()
@@ -254,9 +245,9 @@ class RoachStateMachine(QtCore.QObject):  # Extends QObject for use with QThread
         except:
             pass
         #TODO sort out path
-        fn = self.roach.roachController.tagfile(self.config.roaches.get('r{}.freqfileroot'.format(self.roachNum)),
-                                                dir=self.config.paths.data)
-        fn2 = '{0}_new.{1}'.format(*fn.lrpartition('.')[::2])
+        fn = self.roachController.tagfile(self.config.roaches.get('r{}.freqfileroot'.format(self.num)),
+                                          dir=self.config.paths.data)
+        fn2 = '{0}_new.{1}'.format(*fn.rpartition('.')[::2])
         if os.path.isfile(fn2):
             fn = fn2
             getLogger(__name__).info('Loading freqs from ' + fn)
@@ -634,7 +625,7 @@ class RoachStateMachine(QtCore.QObject):  # Extends QObject for use with QThread
         INPUTS:
             command
         """
-        getLogger(__name__).info("Roach {} Recieved/executing command: {}".format(self.num,
+        getLogger(__name__).info("Roach {} Received/executing command: {}".format(self.num,
                                                                                  RoachStateMachine.parseCommand(
                                                                                      command)))
         self.state[command] = RoachStateMachine.INPROGRESS

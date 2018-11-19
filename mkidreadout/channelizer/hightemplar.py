@@ -169,17 +169,16 @@ class HighTemplar(QMainWindow):
             command - (int) the command that finished
             roachNum - (int) the roach number
         """
-        # print e
+        # getLogger(__name__).info(e)
         traceback.print_exception(*exc_info)
         roachArg = np.where(np.asarray(self.roachNums) == roachNum)[0][0]
-        print 'Roach ', roachNum, ' errored out: ', RoachStateMachine.parseCommand(command)
+        getLogger(__name__).info('Roach {} errored out: {}'.format(roachNum, RoachStateMachine.parseCommand(command)))
         # self.roachBusy[roachArg]=-1
         # self.colorCommandButtons(roaches=[roachNum],commands=[command],color='error')
         colorStatus = [None] * RoachStateMachine.NUMCOMMANDS
         colorStatus[command] = 'error'
         self.colorCommandButtons(roachNum, colorStatus)
 
-    # def catchRoachSignal(self,command,roachNum,**kwargs):
     def catchRoachSignal(self, roachNum, command, commandData):
         """
         This function is executed when the GUI sees the finishedCommand signal from a RoachThread
@@ -189,7 +188,7 @@ class HighTemplar(QMainWindow):
             command - (int) the command that finished
             commandData - Data from the command. For Example, after sweep it returns a dictionary of I and Q values
         """
-        print "Finished r" + str(roachNum) + ' ' + RoachStateMachine.parseCommand(command)
+        getLogger(__name__).info("Finished r" + str(roachNum) + ' ' + RoachStateMachine.parseCommand(command))
         # self.colorCommandButtons(roaches=[roachNum],commands=[command],color='green')
         colorStatus = [None] * RoachStateMachine.NUMCOMMANDS
         colorStatus[command] = 'green'
@@ -219,7 +218,8 @@ class HighTemplar(QMainWindow):
             self.phaseWindows[roachArg].appendThresh(commandData)
 
     def resetRoachState(self, roachNum, command):
-        print "Templar told to reset r" + str(roachNum) + ' to ' + RoachStateMachine.parseCommand(command)
+        getLogger(__name__).info("Templar told to reset r{} to {}".format(roachNum,
+                                                                          RoachStateMachine.parseCommand(command)))
         roachArg = np.where(np.asarray(self.roachNums) == roachNum)[0][0]
         QtCore.QMetaObject.invokeMethod(self.roaches[roachArg], 'resetStateTo', Qt.QueuedConnection,
                                         QtCore.Q_ARG(int, command))
@@ -247,12 +247,13 @@ class HighTemplar(QMainWindow):
         """
 
         # source = self.sender()
-        # print 'Roach: ',source.roach,'Command: ',RoachStateMachine.parseState(source.command)
+        # getLogger(__name__).info('Roach: {} Cmd: {}'.format(source.roach,
+        #                                                     RoachStateMachine.parseState(source.command)))
         for roach_i in roachNums:
             roachArg = np.where(np.asarray(self.roachNums) == roach_i)[0][0]
             # if self.threadPool[roachArg].isRunning():
             if self.roachThreads[roachArg].isRunning():
-                print 'Roach ' + str(roach_i) + ' is busy'
+                getLogger(__name__).info('Roach ' + str(roach_i) + ' is busy')
             elif command is None:
                 self.roachThreads[roachArg].start()
             else:
@@ -308,9 +309,10 @@ class HighTemplar(QMainWindow):
             source - the button object clicked
             point - the customContextMenuRequested() SIGNAL passes a QPoint argument specifying the location in the button that was clicked
         """
-        # print 'here: ',point
+        # getLogger(__name__).info('here: ',point
         # source = self.sender()
-        print 'openMenu for roach: ', roachNums, ' Command: ', RoachStateMachine.parseCommand(command)
+        getLogger(__name__).info('openMenu for roach: {} Command: {}'.format(roachNums,
+                                                                             RoachStateMachine.parseCommand(command)))
 
         self.contextMenu.clear()  # remove any actions added during previous right click
 
@@ -329,8 +331,7 @@ class HighTemplar(QMainWindow):
             self.contextMenu.addSeparator()
 
         settingsAction = self.contextMenu.addAction('Settings', partial(self.onContextSettingsClick, roachNums))
-        self.contextMenu.exec_(source.mapToGlobal(
-            point))  # point is referenced to local coordinates in the button. Need to reference to global coordinate system
+        self.contextMenu.exec_(source.mapToGlobal(point))  # point is referenced to local coordinates in the button. Need to reference to global coordinate system
 
     def onContextSettingsClick(self, roachNum):
         index = np.where(np.asarray(self.settingsWindow.roachNums) == roachNum)[0][0]
@@ -341,7 +342,7 @@ class HighTemplar(QMainWindow):
         for roachNum in roachNums:
             roachArg = np.where(np.asarray(self.roachNums) == roachNum)[0][0]
             if self.roachThreads[roachArg].isRunning():
-                print 'Roach ' + str(roachNum) + ' is busy'
+                getLogger(__name__).info('Roach ' + str(roachNum) + ' is busy')
             else:
                 adcAtten = self.roaches[roachArg].config.getfloat('Roach ' + str(roachNum), 'adcatten')
                 newAdcAtten = self.roaches[roachArg].roachController.getOptimalADCAtten(adcAtten)
@@ -506,10 +507,10 @@ class HighTemplar(QMainWindow):
         return action
 
     def on_powerSweep(self):
-        print 'Pop up power sweep window'
+        getLogger(__name__).info('Pop up power sweep window')
 
     def on_snapShot(self):
-        print 'Pop up snap shot window'
+        getLogger(__name__).info('Pop up snap shot window')
 
     # def show_Settings(self):
     #    self.settingsWindow.show()
@@ -543,7 +544,7 @@ class HighTemplar(QMainWindow):
         #    thread.quit()
         #    del thread
 
-        self.config.save('{0}_new.{1}'.format(*self.defaultValues.lrpartition('.')[::2]))
+        self.config.save('{0}_new.{1}'.format(*self.defaultValues.partition('.')[::2]))
 
         QtCore.QCoreApplication.instance().quit
 
