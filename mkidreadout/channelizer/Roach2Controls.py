@@ -656,7 +656,14 @@ class Roach2Controls(object):
     def setLOFreq(self, lofreq):
         """  Sets the attribute LOFreq (in Hz) """
         lo = round(lofreq / (2.0 ** -16) / 1e6) * (2.0 ** -16) * 1e6
-        delta = np.abs(self.freqList-lo)
+
+        try:
+            delta = np.abs(self.freqList-lo)
+        except AttributeError:
+            getLogger(__name__).warning('No frequency list yet loaded. Unable to check if LO is reasonable.')
+            self.LOFreq = lo
+            return
+
         tofar = delta > self.params['dacSampleRate']/2
         if tofar.all():
             getLogger(__name__).warning('All frequencies more than half a sample rate from '
