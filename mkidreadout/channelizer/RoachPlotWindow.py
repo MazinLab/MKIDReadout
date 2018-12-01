@@ -837,10 +837,10 @@ class RoachSweepWindow(QMainWindow):
             settingID - the key in the configparser
             setting - the value
         """
-        self.config.set('Roach ' + str(self.roachNum), settingID, str(setting))
-        # If we don't force the setting value to be a string then the configparser has trouble grabbing the value later on for some unknown reason
-        newSetting = self.config.get('Roach ' + str(self.roachNum), settingID)
-        print 'setting ', settingID, ' to ', newSetting
+        old = self.config.get('r{}.{}'.format(self.roachNum, settingID))
+        self.config.update('r{}.{}'.format(self.roachNum, settingID, setting))
+        new = self.config.get('r{}.{}'.format(self.roachNum, settingID))
+        getLogger(__name__).info('setting {} from {} to {}'.format(settingID, old, new)
 
     def keyPressed(self, event):
         """
@@ -851,9 +851,9 @@ class RoachSweepWindow(QMainWindow):
             event - QKeyEvent
         """
         if event.key() == Qt.Key_Left or event.key() == Qt.Key_A:
-            print "decrease channel from keyboard"
+            getLogger(__name__).debug("decrease channel from keyboard")
         elif event.key() == Qt.Key_Right or event.key() == Qt.Key_D:
-            print "increase channel from keyboard"
+            getLogger(__name__).debug("increase channel from keyboard")
         raise NotImplementedError
 
     def figureClicked(self, event):
