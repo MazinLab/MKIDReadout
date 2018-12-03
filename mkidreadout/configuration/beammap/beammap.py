@@ -12,7 +12,7 @@ class _BeamDict(dict):
         self[key] = bfile
         return bfile
 
-DEFAULT_BMAP_FILES  = _BeamDict()
+DEFAULT_BMAP_CFGFILES  = _BeamDict()
 
 
 class Beammap(object):
