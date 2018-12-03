@@ -20,6 +20,7 @@ import requests, json
 
 # auth = HTTPBasicAuth()
 
+CONEX_PORT = 50001
 
 # @auth.get_password
 def get_password(username):
@@ -721,7 +722,7 @@ if __name__=='__main__':
     from flask import Flask, jsonify, abort, make_response
     from flask_restful import Api, Resource, reqparse, fields, marshal
 
-    app = Flask(__name__, static_url_path="")
+    app = Flask(__name__, port=CONEX_PORT, static_url_path="")
     api = Api(app)
     api.add_resource(MoveAPI, '/move', endpoint='move')
     api.add_resource(DitherAPI, '/dither', endpoint='dither')

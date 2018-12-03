@@ -18,22 +18,19 @@ This is a GUI class for real time control of the MEC and DARKNESS instruments.
     ConvertPhotonsToRGB - converts a 2D list of photon counts to a QImage
  """
 from __future__ import print_function
-import argparse
-import sys, os
+import argparse, sys, os, time, json
 from functools import partial
 import numpy as np
 from PyQt4 import QtCore
 from PyQt4.QtCore import Qt
 from PyQt4.QtGui import *
-import json
 from datetime import datetime
-from pkg_resources import resource_filename
 
 from astropy.io import fits
 
 from mkidcore.fits import CalFactory, summarize, loadimg, combineHDU
-import mkidcore.config
-import time
+
+import mkidreadout.config
 from mkidcore.corelog import getLogger, create_log
 from mkidreadout.readout.guiwindows import PixelTimestreamWindow, PixelHistogramWindow
 from mkidreadout.readout.lasercontrol import LaserControl
@@ -42,7 +39,7 @@ from mkidreadout.channelizer.Roach2Controls import Roach2Controls
 from mkidreadout.utils.utils import interpolateImage
 from mkidreadout.configuration.beammap.beammap import Beammap
 from mkidreadout.readout.packetmaster import Packetmaster
-from mkidreadout.configuration.beammap.beammap import DEFAULT_BMAP_FILES
+
 import mkidreadout.hardware.conex
 import mkidreadout.hardware.hsfw
 
@@ -341,7 +338,7 @@ class MKIDDashboard(QMainWindow):
             parent -
         """
         super(QMainWindow, self).__init__(parent)
-        self.config = mkidcore.config.load(config)
+        self.config = mkidreadout.config.load(config)
         self.offline = offline
 
         # important variables
@@ -1487,26 +1484,20 @@ class MKIDDashboard(QMainWindow):
         QtCore.QCoreApplication.instance().quit()
 
 
-DEFAULT_CFG_FILE = resource_filename('mkidreadout', os.path.join('config','dashboard.yml'))
-DEFAULT_ROACH_FILE = resource_filename('mkidreadout', os.path.join('config','roach.yml'))
-
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description='MKID Dashboard')
     parser.add_argument('roaches', nargs='+', type=int, help='Roach numbers')
-    parser.add_argument('-c', '--config', default=DEFAULT_CFG_FILE, dest='config',
+    parser.add_argument('-c', '--config', default=mkidreadout.config.DEFAULT_DASHBOARD_CFGFILE, dest='config',
                         type=str, help='The config file')
     parser.add_argument('-o', '--offline', default=False, dest='offline', action='store_true', help='Run offline')
     parser.add_argument('--gencfg', default=False, dest='genconfig', action='store_true',
                         help='generate configs in CWD')
+
     args = parser.parse_args()
 
     if args.genconfig:
-        from shutil import copy2
-        copy2(DEFAULT_CFG_FILE, './')
-        copy2(DEFAULT_ROACH_FILE, './')
-        cfg = mkidcore.config.load(args.config)
-        copy2(DEFAULT_BMAP_FILES[cfg.instrument], './')
+        mkidreadout.config.generate_default_configs(dashboard=True)
         exit(0)
 
     timestamp = datetime.utcnow().strftime("%Y%m%d%H%M")

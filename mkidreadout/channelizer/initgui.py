@@ -14,21 +14,17 @@ Command Flow:
 
 NOTES:
  - do not add commands to the RoachStateMachine object while the thread is executing commands
-
-
 """
 import sys, time, traceback, os, argparse
 from datetime import datetime
 from functools import partial
 import numpy as np
-from shutil import copy2
 from PyQt4 import QtCore
 from PyQt4.QtCore import Qt
 from PyQt4.QtGui import *
-from pkg_resources import resource_filename
 
 import mkidcore.corelog
-import mkidcore.config
+import mkidreadout.config
 from mkidcore.corelog import getLogger, create_log
 from mkidreadout.channelizer.InitStateMachine import InitStateMachine
 from mkidreadout.channelizer.InitSettingsWindow import InitSettingsWindow
@@ -44,7 +40,7 @@ class InitGui(QMainWindow):
             defaultValues - path to config file. See documentation on ConfigParser
         """
         self.roachNums = list(np.unique(roachNums))  # sorts and removes duplicates
-        self.config = mkidcore.config.load(config)
+        self.config = mkidreadout.config.load(config)
 
         # Setup GUI
         super(InitGui, self).__init__()
@@ -394,19 +390,17 @@ class InitGui(QMainWindow):
 # compare with https://mazinlab.atlassian.net/wiki/spaces/READ/pages/edit/36995110?draftId=36995123&draftShareId=7ee6f311-ed8a-4e6a-a4bc-1c76bf0af9c1&
 
 
-DEFAULT_CFG_FILE = resource_filename('mkidreadout', os.path.join('config','roach.yml'))
-
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='MKID Init GUI')
     parser.add_argument('roaches', nargs='+', type=int, help='Roach numbers')
-    parser.add_argument('-c', '--config', default=DEFAULT_CFG_FILE, dest='config',
+    parser.add_argument('-c', '--config', default=mkidreadout.config.DEFAULT_INIT_CFGFILE, dest='config',
                         type=str, help='The config file')
     parser.add_argument('--gencfg', default=False, dest='genconfig', action='store_true',
                         help='generate configs in CWD')
     args = parser.parse_args()
 
     if args.genconfig:
-        copy2(DEFAULT_CFG_FILE, './')
+        mkidreadout.config.generate_default_configs(init=True)
         exit(0)
 
     timestamp = datetime.utcnow().strftime("%Y%m%d%H%M")

@@ -21,47 +21,20 @@ Features to add:
  - keep log of errors and warnings in txt file
     - add to file menu (help) a viewer for log file
 """
-import sys, traceback, re, os
+import sys, traceback, argparse
 from datetime import datetime
 from functools import partial
 import numpy as np
-import ConfigParser
 from PyQt4 import QtCore
 from PyQt4.QtCore import Qt
 from PyQt4 import QtGui
 from PyQt4.QtGui import *
-import argparse
-from pkg_resources import resource_filename
-from shutil import copy2
 
 from mkidcore.corelog import getLogger, create_log
-import mkidcore.config
+import mkidreadout.config
 from mkidreadout.channelizer.RoachStateMachine import RoachStateMachine
 from mkidreadout.channelizer.RoachSettingsWindow import RoachSettingsWindow
 from mkidreadout.channelizer.RoachPlotWindow import RoachPhaseStreamWindow, RoachSweepWindow
-
-
-class TemplarConfig(object):
-    def __init__(self, file=''):
-        self.log = getLogger('hightemplar.config')
-        self.file = file if file else 'hightemplar.cfg'
-        self.log.debug('Loading {}', self.file)
-        self.cp = ConfigParser.ConfigParser()
-        self.cp.read(self.file)
-
-    @property
-    def roaches(self):
-        return [s for s in self.cp.sections() if 'roach' in s.lower()]
-
-    def guessRoachFeedlines(self):
-        roachmap = {}
-        for roach in self.roaches:
-            settings = '   '.join([x[1] for x in self.cp.items(roach)])
-            fl = set(map(lambda x: x.replace('_', '').lower(),
-                         re.findall('[fF][lL][0-9]{1,2}_?[ab]', settings, flags=re.IGNORECASE)))
-            roachmap[roach] = list(fl)[0] if len(fl) != 1 else ''
-            self.log.debug('{} may be for feedline(s) {}, adopting "{}"', roach, fl, roachmap[roach])
-        return roachmap
 
 
 class HighTemplar(QMainWindow):
@@ -71,14 +44,14 @@ class HighTemplar(QMainWindow):
         
         INPUTS:
             roachNums - list of roach numbers. ie. [0,2,3,7]
-            defaultValues - path to config file. See documentation on ConfigParser
+            defaultValues - path to config file.
         """
         if roachNums is None or len(roachNums) == 0:
             roachNums = range(10)
         self.roachNums = np.unique(roachNums)  # sorts and removes duplicates
         self.numRoaches = len(self.roachNums)  # (int) number of roaches connected
         self.defaultValues = config
-        self.config = mkidcore.config.load(config)
+        self.config = mkidreadout.config.load(config)
 
         # Setup GUI
         super(HighTemplar, self).__init__()
@@ -549,22 +522,18 @@ class HighTemplar(QMainWindow):
         QtCore.QCoreApplication.instance().quit
 
 
-DEFAULT_CFG_FILE = resource_filename('mkidreadout', os.path.join('config', 'hightemplar.yml'))
-DEFAULT_ROACH_FILE = resource_filename('mkidreadout', os.path.join('config', 'roach.yml'))
-
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description='MKID High Templar GUI')
     parser.add_argument('roaches', nargs='+', type=int, help='Roach numbers')
-    parser.add_argument('-c', '--config', default=DEFAULT_CFG_FILE, dest='config',
+    parser.add_argument('-c', '--config', default=mkidreadout.config.DEFAULT_TEMPLAR_CFGFILE, dest='config',
                         type=str, help='The config file')
     parser.add_argument('--gencfg', default=False, dest='genconfig', action='store_true',
                         help='generate configs in CWD')
     args = parser.parse_args()
 
     if args.genconfig:
-        copy2(DEFAULT_CFG_FILE, './')
-        copy2(DEFAULT_ROACH_FILE, './')
+        mkidreadout.config.generate_default_configs(templar=True)
         exit(0)
 
     timestamp = datetime.utcnow().strftime("%Y%m%d%H%M")

@@ -182,7 +182,6 @@ def connect(host, port, verbose=False):
 
 
 def _setfilter(num, home=False):
-    import pythoncom
     pythoncom.CoInitialize()
     if num not in (1,2,3,4,5,6):
         return
@@ -204,7 +203,6 @@ def _setfilter(num, home=False):
 
 
 def _getfilter():
-    import pythoncom
     pythoncom.CoInitialize()
     try:
         fwheels = Dispatch("OptecHID_FilterWheelAPI.FilterWheels")
@@ -281,15 +279,17 @@ def setfilter(fnum, home=False, host='localhost:50000',killserver=False):
 
     return True
 
+
 if __name__ == '__main__':
 
     parser = argparse.ArgumentParser(description='HSFW Server')
-    parser.add_argument('-p', type=int, dest='port', default=HSFW_PORT, help="Port on which to listen")
-    parser.parse_args()
+    parser.add_argument('port', type=int, default=HSFW_PORT, help="Port on which to listen")
+    args = parser.parse_args()
 
     if platform.system == 'Linux':
         print('Server application only supported on windows.')
         sys.exit(1)
 
     from win32com.client import Dispatch
-    start_server(parser.port)
+    import pythoncom
+    start_server(args.port)
