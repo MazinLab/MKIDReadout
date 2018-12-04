@@ -78,20 +78,20 @@ class Packetmaster(object):
             return False
 
     def _logline(self, source, data):
-        if source == 'stdout':
+        if source == self._process.stdout:
             self.log.info(data)
         else:
             self.log.error(data)
 
     def _monitor(self):
-        source = {'stdout': self._process.stdout, 'stderr': self._process.stderr}
+        # source = {'stdout': self._process.stdout, 'stderr': self._process.stderr}
 
         def doselect(timeout=1):
             readable, _, _ = select.select([self._process.stdout, self._process.stderr], [],
                                            [self._process.stdout, self._process.stderr], timeout)
             for r in readable:
                 try:
-                    self._logline(source[r], r.readline())
+                    self._logline(r, r.readline())
                 except:
                     self.log.debug('Caught in monitor', exc_info=True)
 
