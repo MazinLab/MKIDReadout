@@ -389,6 +389,13 @@ class ConexStatus(object):
         print(self.status)
         print(str(self.last_dither))
 
+    # def __eq__(self, o):
+    #     return (self.state == o.state and
+    #             self.pos == o.pos and
+    #             self.conexstatus == o.conexstatus and
+    #             self.limits == o.limits and
+    #             self.)
+
 
 class DitherPath(object):
     def __init__(self, dither, start_t, end_t, path):
@@ -399,6 +406,8 @@ class DitherPath(object):
 
     def __str__(self):
         return '\n'.join(map(str, (self.dither, self.start, self.end, self.path)))
+
+
 
 
 class Dither(object):
@@ -717,6 +726,7 @@ def stop(address='http://localhost:5000'):
         ret = ConexStatus(state='error: unable to connect')
 
     return ret
+
 
 if __name__=='__main__':
     from flask import Flask, jsonify, abort, make_response

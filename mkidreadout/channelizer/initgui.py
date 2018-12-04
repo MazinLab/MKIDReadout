@@ -404,7 +404,8 @@ if __name__ == "__main__":
         exit(0)
 
     timestamp = datetime.utcnow().strftime("%Y%m%d%H%M")
-    create_log('Init', logfile='init_{}.log'.format(timestamp),
+    create_log('Init',
+               logfile=os.path.join(mkidreadout.config.default_log_dir, 'init_{}.log'.format(timestamp)),
                console=True, mpsafe=True, propagate=False,
                fmt='%(asctime)s %(name)s %(levelname)s: %(message)s ',
                level=mkidcore.corelog.DEBUG)

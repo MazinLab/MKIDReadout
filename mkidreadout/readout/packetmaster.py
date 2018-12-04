@@ -39,6 +39,7 @@ class Packetmaster(object):
         self.captureport = captureport
         self.nuller = nuller
         self.log = getLogger(__name__)
+        self.plog = getLogger('packetmaster')
 
         self.log.debug('Using "{}" binary'.format(self.binary_path))
 
@@ -86,9 +87,9 @@ class Packetmaster(object):
             for r in readable:
                 try:
                     if r == self._process.stdout:
-                        self.log.info(r.readline())
+                        self.plog.info(r.readline())
                     else:
-                        self.log.error(r.readline())
+                        self.plog.error(r.readline())
                 except:
                     self.log.debug('Caught in monitor', exc_info=True)
 

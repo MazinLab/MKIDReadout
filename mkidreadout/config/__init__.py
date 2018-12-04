@@ -12,6 +12,9 @@ DEFAULT_INIT_CFGFILE = DEFAULT_ROACH_CFGFILE
 load = load  # ensure import doesn't get optimized out by an IDE
 
 
+default_log_dir = './logs'
+
+
 def tagfile(f, tag='', nounderscore=False, droppath=False):
     if tag and not nounderscore:
         tag = '_'+tag

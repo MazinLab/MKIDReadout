@@ -1034,6 +1034,9 @@ class MKIDDashboard(QMainWindow):
             self.combobox_filter.insertItem(mkidreadout.hardware.hsfw.NFILTERS, 'ERROR')
             self.combobox_filter.model().item(mkidreadout.hardware.hsfw.NFILTERS).setEnabled(False)
             self.combobox_filter.setCurrentIndex(mkidreadout.hardware.hsfw.NFILTERS)
+            self.filter = 'UNKNOWN'
+        else:
+            self.filter = filter  # TODO this is not guaranteed, move might still be in progress
         self.logstate()
 
     def laserCalClicked(self, _, laserCalStyle = "simultaneous"):
@@ -1119,7 +1122,7 @@ class MKIDDashboard(QMainWindow):
         self.combobox_filter.setMaxVisibleItems(mkidreadout.hardware.hsfw.NFILTERS + 1)
         label_filter = QLabel("Filter:")
         combobox_filter.addItems(map(str, range(1, mkidreadout.hardware.hsfw.NFILTERS + 1)))
-        result = mkidreadout.hardware.hsfw.getfilter(self.config.filter.ip)
+        self.filter = result = mkidreadout.hardware.hsfw.getfilter(self.config.filter.ip)
         if 'error' in str(result).lower():
             self.combobox_filter.insertItem(mkidreadout.hardware.hsfw.NFILTERS, 'ERROR')
             self.combobox_filter.model().item(mkidreadout.hardware.hsfw.NFILTERS).setEnabled(False)
@@ -1501,21 +1504,30 @@ if __name__ == "__main__":
         mkidreadout.config.generate_default_configs(dashboard=True)
         exit(0)
 
+    config = mkidreadout.config.load(args.config)
+
     timestamp = datetime.utcnow().strftime("%Y%m%d%H%M")
-    create_log('ObsLog', logfile='obslog_{}.log'.format(timestamp),
-                   console=False, mpsafe=True, propagate=False,
-                   fmt='%(asctime)s %(message)s ',
-                   level=mkidcore.corelog.DEBUG)
-    create_log('Dashboard', logfile='dashboard_{}.log'.format(timestamp),
-                   console=True, mpsafe=True, propagate=False,
-                   fmt='%(asctime)s  %(levelname)s: %(message)s ',
-                   level=mkidcore.corelog.DEBUG)
+    create_log('ObsLog',
+               logfile=os.path.join(config.paths.logs, 'obslog_{}.log'.format(timestamp)),
+               console=False, mpsafe=True, propagate=False,
+               fmt='%(asctime)s %(message)s ',
+               level=mkidcore.corelog.DEBUG)
+    create_log('Dashboard',
+               logfile=os.path.join(config.paths.logs, 'dashboard_{}.log'.format(timestamp)),
+               console=True, mpsafe=True, propagate=False,
+               fmt='%(asctime)s  %(levelname)s: %(message)s ',
+               level=mkidcore.corelog.DEBUG)
     create_log('mkidreadout',
-                   console=True, mpsafe=True, propagate=False,
-                   fmt='%(asctime)s %(funcName)s: %(levelname)s %(message)s ',
-                   level=mkidcore.corelog.DEBUG)
+               console=True, mpsafe=True, propagate=False,
+               fmt='%(asctime)s %(funcName)s: %(levelname)s %(message)s ',
+               level=mkidcore.corelog.DEBUG)
+    create_log('packetmaster',
+               logfile=os.path.join(config.paths.logs, 'packetmaster_{}.log'.format(timestamp)),
+               console=True, mpsafe=True, propagate=False,
+               fmt='%(asctime)s Packetmaster: %(levelname)s %(message)s ',
+               level=mkidcore.corelog.DEBUG)
 
     app = QApplication(sys.argv)
-    form = MKIDDashboard(args.roaches, config=args.config, offline=args.offline)
+    form = MKIDDashboard(args.roaches, config=config, offline=args.offline)
     form.show()
     app.exec_()

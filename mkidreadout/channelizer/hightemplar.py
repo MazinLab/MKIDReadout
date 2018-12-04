@@ -21,7 +21,7 @@ Features to add:
  - keep log of errors and warnings in txt file
     - add to file menu (help) a viewer for log file
 """
-import sys, traceback, argparse
+import sys, traceback, argparse, os
 from datetime import datetime
 from functools import partial
 import numpy as np
@@ -32,6 +32,7 @@ from PyQt4.QtGui import *
 
 from mkidcore.corelog import getLogger, create_log
 import mkidreadout.config
+import mkidcore.corelog
 from mkidreadout.channelizer.RoachStateMachine import RoachStateMachine
 from mkidreadout.channelizer.RoachSettingsWindow import RoachSettingsWindow
 from mkidreadout.channelizer.RoachPlotWindow import RoachPhaseStreamWindow, RoachSweepWindow
@@ -536,8 +537,11 @@ if __name__ == "__main__":
         mkidreadout.config.generate_default_configs(templar=True)
         exit(0)
 
+    config = mkidreadout.config.load(args.config)
+
     timestamp = datetime.utcnow().strftime("%Y%m%d%H%M")
-    create_log('hightemplar', logfile='hightemplar_{}.log'.format(timestamp),
+    create_log('hightemplar',
+               logfile=os.path.join(config.paths.logs, 'hightemplar_{}.log'.format(timestamp)),
                console=True, mpsafe=True, propagate=False,
                fmt='%(asctime)s %(name)s %(levelname)s: %(message)s ',
                level=mkidcore.corelog.DEBUG)
@@ -551,6 +555,6 @@ if __name__ == "__main__":
                level=mkidcore.corelog.INFO)
 
     app = QApplication(sys.argv)
-    form = HighTemplar(np.asarray(args.roaches, dtype=np.int), args.config)
+    form = HighTemplar(args.roaches, config)
     form.show()
     app.exec_()
