@@ -40,13 +40,13 @@ lasercontrol: !configdict
   receive_port: 4096
 
 dither: !configdict
-  url: http://localhost:40000
+  url: http://localhost:50001
   pattern: 0
   user: conexuser
   pass: <password>
 
 filter: !configdict
-  ip: localhost:5000
+  ip: localhost:50000
 
 telescope: !configdict
   ip: 198.202.125.194
