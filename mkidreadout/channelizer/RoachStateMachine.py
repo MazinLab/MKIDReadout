@@ -375,7 +375,7 @@ class RoachStateMachine(QtCore.QObject):  # Extends QObject for use with QThread
         start_ADCAtten = self.config.roaches.get('r{}.adcatten'.format(self.num))
         newADCAtten = start_ADCAtten
 
-        powerSweepFile = self.roachController.tagfile(self.config.roaches.get('r{}.powersweeoroot'.format(
+        powerSweepFile = self.roachController.tagfile(self.config.roaches.get('r{}.powersweeproot'.format(
             self.num)),
                                                       dir=self.config.paths.data,
                                                       epilog=time.strftime("%Y%m%d-%H%M%S", time.localtime()))
