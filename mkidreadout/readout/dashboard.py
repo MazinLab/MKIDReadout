@@ -28,10 +28,12 @@ from datetime import datetime
 
 from astropy.io import fits
 
+import mkidreadout.config
+
+import mkidcore.corelog
+from mkidcore.corelog import getLogger, create_log
 from mkidcore.fits import CalFactory, summarize, loadimg, combineHDU
 
-import mkidreadout.config
-from mkidcore.corelog import getLogger, create_log
 from mkidreadout.readout.guiwindows import PixelTimestreamWindow, PixelHistogramWindow
 from mkidreadout.readout.lasercontrol import LaserControl
 from mkidreadout.readout.Telescope import *
@@ -39,7 +41,6 @@ from mkidreadout.channelizer.Roach2Controls import Roach2Controls
 from mkidreadout.utils.utils import interpolateImage
 from mkidreadout.configuration.beammap.beammap import Beammap
 from mkidreadout.readout.packetmaster import Packetmaster
-
 import mkidreadout.hardware.conex
 import mkidreadout.hardware.hsfw
 

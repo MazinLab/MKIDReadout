@@ -9,6 +9,7 @@ from mkidcore.corelog import getLogger
 
 DEFAULT_CAPTURE_PORT = 50000  #This should be whatever is hardcoded in packetmaster -JB
 
+
 @yaml_object(yaml)
 class PacketMasterConfig(object):
     _template = ('{rdsk}\n'
@@ -18,10 +19,10 @@ class PacketMasterConfig(object):
 
     def __init__(self, ramdisk='/mnt/ramdisk/', nrow=80, ncol=125, nuller=False, nroach=1):
         self.ramdisk = ramdisk
-        self.nrows=nrow
-        self.ncols=ncol
-        self.nuller=nuller
-        self.nroach=nroach
+        self.nrows = nrow
+        self.ncols = ncol
+        self.nuller = nuller
+        self.nroach = nroach
 
 
 class Packetmaster(object):
@@ -77,21 +78,17 @@ class Packetmaster(object):
         except AttributeError:
             return False
 
-    def _logline(self, source, data):
-        if source == self._process.stdout:
-            self.log.info(data)
-        else:
-            self.log.error(data)
-
     def _monitor(self):
-        # source = {'stdout': self._process.stdout, 'stderr': self._process.stderr}
 
         def doselect(timeout=1):
             readable, _, _ = select.select([self._process.stdout, self._process.stderr], [],
                                            [self._process.stdout, self._process.stderr], timeout)
             for r in readable:
                 try:
-                    self._logline(r, r.readline())
+                    if r == self._process.stdout:
+                        self.log.info(r.readline())
+                    else:
+                        self.log.error(r.readline())
                 except:
                     self.log.debug('Caught in monitor', exc_info=True)
 
