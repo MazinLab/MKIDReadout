@@ -21,7 +21,7 @@ def tagfile(f, tag='', nounderscore=False, droppath=False):
     return '{}{}{}'.format(f, tag, ext)
 
 
-def generate_default_configs(instrument=DEFAULT_BMAP_CFGFILES.keys()[0], dir='./', init=False, templar=False,
+def generate_default_configs(instrument='mec', dir='./', init=False, templar=False,
                              dashboard=False):
     if templar or dashboard or init:
         copy2(DEFAULT_ROACH_CFGFILE, os.path.join(dir, tagfile(DEFAULT_ROACH_CFGFILE, 'generated', droppath=True)))
