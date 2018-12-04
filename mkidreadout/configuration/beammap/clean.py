@@ -53,7 +53,7 @@ class BMCleaner(object):
         self.flip = flip
         self.instrument = instrument.lower()
         self.designFile = designMapPath
-        self.beamMap = beamMap
+        self.beamMap = beamMap.copy()
 
         if self.instrument.lower() == 'mec':
             self.nFL = N_FL_MEC
@@ -217,15 +217,14 @@ class BMCleaner(object):
         if not hasattr(self.beamMap, 'frequencies'):
             raise Exception("This beammap does not have frequency data, this operation cannot be done")
 
-        shifter = shift.BeammapShifter(self.designFile, self.beamMap, self.instrument)
-        shifter.run()
-
         self.fixPreciseCoordinates()
         self.placeOnGrid()
 
-        beammap = shifter.shiftedBeammap
+        shiftObject = self.runShiftingCode()
+
+        beammap = shiftObject.shiftedBeammap
         # original = beammap.copy()   Used for testing if the code modified the beammap properly
-        designMap = shifter.designArray
+        designMap = shiftObject.designArray
 
         overlapGrid = getOverlapGrid(beammap.xCoords, beammap.yCoords, beammap.flags, self.nCols, self.nRows)
         overlapCoords = np.asarray(np.where(overlapGrid > 1)).T
@@ -264,7 +263,6 @@ class BMCleaner(object):
 
             # Generates the design frequency at the coordinates that are being tested
             freqsToSearch = list(designMap.getDesignFrequencyFromCoords(coordinate) for coordinate in coordsToSearch) # Design frequencies at each of the search coordinates
-
             # Creates the possible combinations to place the resonators at
             possiblePlacements = itertools.permutations((range(len(freqsToSearch))), len(doubles))
             placementsToSearch = [i for i in possiblePlacements]
@@ -288,6 +286,7 @@ class BMCleaner(object):
             for i in range(len(doubles)):
                 resonator = doubles[i]
                 newCoordinate = newCoordinates[i].astype(int)
+                print(coord, newCoordinate)
                 overlapGrid[newCoordinate[0], newCoordinate[1]] += 1
                 index = np.where(self.beamMap.resIDs == resonator[0])[0]
                 beammap.xCoords[index] = newCoordinate[0]
@@ -298,7 +297,12 @@ class BMCleaner(object):
             numberOfOverlapsResolved += 1
 
         log.info('Successfully resolved %d overlaps', numberOfOverlapsResolved)
-        return beammap  # , original The 'original' is the beammap that the overlaps came from that is locked onto a grid
+        self.beamMap = beammap
+
+    def runShiftingCode(self):
+        shifter = shift.BeammapShifter(self.designFile, self.beamMap, self.instrument)
+        shifter.run()
+        return shifter
 
     def placeFailedPixels(self):
         '''

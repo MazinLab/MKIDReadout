@@ -42,8 +42,8 @@ class BeammapShifter(object):
         if np.isfinite(self.appliedShift[0]) and np.isfinite(self.appliedShift[1]):
             shiftedData = np.concatenate([f.feedlineData for f in self.feedlines])
             self.shiftedBeammap.setData(shiftedData)
-            self.shiftedBeammap.xCoords = self.shiftedBeammap.xCoords + self.appliedShift[0]
-            self.shiftedBeammap.yCoords = self.shiftedBeammap.yCoords + self.appliedShift[1]
+            self.shiftedBeammap.xCoords = self.beammap.xCoords + self.appliedShift[0]
+            self.shiftedBeammap.yCoords = self.beammap.yCoords + self.appliedShift[1]
             tempDesignArray = np.concatenate([f.fitDesign for f in self.feedlines], axis=1)
             self.designArray.load(tempDesignArray)
             self.designArray.reshape()

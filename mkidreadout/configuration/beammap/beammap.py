@@ -96,7 +96,7 @@ class Beammap(object):
         return copy.deepcopy(self)
 
     def getResonatorsAtCoordinate(self, xCoordinate, yCoordinate):
-        indices = np.where((self.xCoords == xCoordinate) & (self.yCoords == yCoordinate))[0]
+        indices = np.where((np.floor(self.xCoords) == xCoordinate) & (np.floor(self.yCoords) == yCoordinate))[0]
         resonators = []
         for idx in indices:
             resonators.append(self.getResonatorData(self.resIDs[idx]))
