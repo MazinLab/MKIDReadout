@@ -32,6 +32,7 @@
 #define SHAREDBUF 536870912
 #define TSOFFS 1514764800
 #define STRBUF 80
+#define CFG_DEFAULT_PATH "PacketMaster.cfg"
 //#define SNINTTIME 20
 
 
@@ -1026,7 +1027,7 @@ double timespec_subtract (struct timespec *x, struct timespec *y) {
   return 1.*(double)(x->tv_sec - y->tv_sec) + 1e-9*(double)(x->tv_nsec - y->tv_nsec);
 }
 
-int main(void)
+int main(int argc, char* argv[])
 {
     
     pthread_t threads[4];
@@ -1035,6 +1036,7 @@ int main(void)
 
     int rc,t;
     char buf[30];
+    char *cfgPath;
     struct readoutstream *rptr1, *rptr2, *rptr3;
     
     FILE *cfgfp;
@@ -1043,15 +1045,30 @@ int main(void)
     
     // Wait for existing config file
     printf("Waiting for Dashboard\n");
-    while (access( "PacketMaster.cfg", F_OK ) == -1) usleep(10000); //sleep 10 ms
+    
+    if(argc==1)
+        cfgPath = CFG_DEFAULT_PATH;
+    else if(argc==2)
+        cfgPath = argv[1];
+    else
+    {
+        printf("Usage: ./packetmaster [<cfgfile>]\n");
+        exit(1);
 
-    cfgfp = fopen("PacketMaster.cfg","r");
+    }
+
+    printf("Using cfgpath: %s\n", cfgPath);
+
+
+    while (access( cfgPath, F_OK ) == -1) usleep(10000); //sleep 10 ms
+
+    cfgfp = fopen(cfgPath,"r");
     fscanf(cfgfp,"%s\n", params.ramdiskPath);
     fscanf(cfgfp,"%d %d\n", &(params.nXPix), &(params.nYPix));
     fscanf(cfgfp, "%d\n", &(params.useNuller));
     fscanf(cfgfp, "%d\n", &(params.nRoach));
     fclose(cfgfp);
-    remove("PacketMaster.cfg");
+    //remove(cfgPath);
     //printf("%d\n", params.nXPix);
     
     // Delete pre-existing control files
@@ -1076,7 +1093,9 @@ int main(void)
     // Create shared memory for photon data
     rptr1 = OpenShared("/roachstream1");
     rptr2 = OpenShared("/roachstream2");
-    rptr3 = OpenShared("/roachstream3");
+    
+    if(params.useNuller)
+        rptr3 = OpenShared("/roachstream3");
     
     t=0;
     rc = pthread_create(&threads[0], &attr, Reader, &params);

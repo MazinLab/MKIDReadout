@@ -635,7 +635,7 @@ class RoachSweepWindow(QMainWindow):
         self.ax2.set_ylabel('IQ velocity')
 
     def draw(self):
-        getLogger(__name__).debug('r{} drawing data - {}'.format(self.roachNum, self.counter))
+        #getLogger(__name__).debug('r{} drawing data - {}'.format(self.roachNum, self.counter))
         self.canvas.draw()
         self.canvas.flush_events()
 
@@ -838,9 +838,9 @@ class RoachSweepWindow(QMainWindow):
             setting - the value
         """
         old = self.config.get('r{}.{}'.format(self.roachNum, settingID))
-        self.config.update('r{}.{}'.format(self.roachNum, settingID, setting))
+        self.config.update('r{}.{}'.format(self.roachNum, settingID), setting)
         new = self.config.get('r{}.{}'.format(self.roachNum, settingID))
-        getLogger(__name__).info('setting {} from {} to {}'.format(settingID, old, new)
+        getLogger(__name__).info('setting {} from {} to {}'.format(settingID, old, new))
 
     def keyPressed(self, event):
         """

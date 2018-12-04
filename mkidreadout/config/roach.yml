@@ -29,7 +29,7 @@ r115: !configdict
   adcatten: 27
   lo_freq: 7099070874.0  #TODO HT casts this to an int!
 r114: !configdict
-  ipaddress: 10.0.0.114
+  ip: 10.0.0.114
   phaseport: 50007 #previously 'port', port phasedata is sent to
   feedline: 4
   range: b
@@ -38,7 +38,7 @@ r114: !configdict
   adcatten: 27
   lo_freq: 7099070874.0
 r117: !configdict
-  ipaddress: 10.0.0.117
+  ip: 10.0.0.117
   phaseport: 50007 #previously 'port', port phasedata is sent to
   feedline: 4
   range: b
@@ -47,7 +47,7 @@ r117: !configdict
   adcatten: 27
   lo_freq: 7099070874.0
 r116: !configdict
-  ipaddress: 10.0.0.116
+  ip: 10.0.0.116
   phaseport: 50007 #previously 'port', port phasedata is sent to
   feedline: 4
   range: b
@@ -56,7 +56,7 @@ r116: !configdict
   adcatten: 27
   lo_freq: 7099070874.0
 r238: !configdict
-  ipaddress: 10.0.0.238
+  ip: 10.0.0.238
   phaseport: 50007 #previously 'port', port phasedata is sent to
   feedline: 4
   range: b
@@ -65,7 +65,7 @@ r238: !configdict
   adcatten: 27
   lo_freq: 7099070874.0
 r239: !configdict
-  ipaddress: 10.0.0.239
+  ip: 10.0.0.239
   phaseport: 50007 #previously 'port', port phasedata is sent to
   feedline: 4
   range: b
@@ -74,7 +74,7 @@ r239: !configdict
   adcatten: 27
   lo_freq: 7099070874.0
 r112: !configdict
-  ipaddress: 10.0.0.112
+  ip: 10.0.0.112
   phaseport: 50007 #previously 'port', port phasedata is sent to
   feedline: 4
   range: b
@@ -83,7 +83,7 @@ r112: !configdict
   adcatten: 27
   lo_freq: 7099070874.0
 r234: !configdict
-  ipaddress: 10.0.0.234
+  ip: 10.0.0.234
   phaseport: 50007 #previously 'port', port phasedata is sent to
   feedline: 4
   range: b
@@ -92,7 +92,7 @@ r234: !configdict
   adcatten: 27
   lo_freq: 7099070874.0
 r235: !configdict
-  ipaddress: 10.0.0.235
+  ip: 10.0.0.235
   phaseport: 50007 #previously 'port', port phasedata is sent to
   feedline: 4
   range: b
@@ -101,7 +101,7 @@ r235: !configdict
   adcatten: 27
   lo_freq: 7099070874.0
 r236: !configdict
-  ipaddress: 10.0.0.236
+  ip: 10.0.0.236
   phaseport: 50007 #previously 'port', port phasedata is sent to
   feedline: 4
   range: b
@@ -110,7 +110,7 @@ r236: !configdict
   adcatten: 27
   lo_freq: 7099070874.0
 r237: !configdict
-  ipaddress: 10.0.0.237
+  ip: 10.0.0.237
   phaseport: 50007 #previously 'port', port phasedata is sent to
   feedline: 4
   range: b
@@ -119,7 +119,7 @@ r237: !configdict
   adcatten: 27
   lo_freq: 7099070874.0
 r119: !configdict
-  ipaddress: 10.0.0.119
+  ip: 10.0.0.119
   phaseport: 50007 #previously 'port', port phasedata is sent to
   feedline: 4
   range: b
@@ -128,7 +128,7 @@ r119: !configdict
   adcatten: 27
   lo_freq: 7099070874.0
 r118: !configdict
-  ipaddress: 10.0.0.118
+  ip: 10.0.0.118
   phaseport: 50007 #previously 'port', port phasedata is sent to
   feedline: 4
   range: b
@@ -137,7 +137,7 @@ r118: !configdict
   adcatten: 27
   lo_freq: 7099070874.0
 r232: !configdict
-  ipaddress: 10.0.0.232
+  ip: 10.0.0.232
   phaseport: 50007 #previously 'port', port phasedata is sent to
   feedline: 4
   range: b
@@ -146,7 +146,7 @@ r232: !configdict
   adcatten: 27
   lo_freq: 7099070874.0
 r233: !configdict
-  ipaddress: 10.0.0.233
+  ip: 10.0.0.233
   phaseport: 50007 #previously 'port', port phasedata is sent to
   feedline: 4
   range: b
@@ -155,7 +155,7 @@ r233: !configdict
   adcatten: 27
   lo_freq: 7099070874.0
 r230: !configdict
-  ipaddress: 10.0.0.230
+  ip: 10.0.0.230
   phaseport: 50007 #previously 'port', port phasedata is sent to
   feedline: 4
   range: b
@@ -164,7 +164,7 @@ r230: !configdict
   adcatten: 27
   lo_freq: 7099070874.0
 r231: !configdict
-  ipaddress: 10.0.0.231
+  ip: 10.0.0.231
   phaseport: 50007 #previously 'port', port phasedata is sent to
   feedline: 4
   range: b
@@ -173,7 +173,7 @@ r231: !configdict
   adcatten: 27
   lo_freq: 7099070874.0
 r120: !configdict
-  ipaddress: 10.0.0.120
+  ip: 10.0.0.120
   phaseport: 50007 #previously 'port', port phasedata is sent to
   feedline: 4
   range: b
@@ -182,7 +182,7 @@ r120: !configdict
   adcatten: 27
   lo_freq: 7099070874.0
 r121: !configdict
-  ipaddress: 10.0.0.121
+  ip: 10.0.0.121
   phaseport: 50007 #previously 'port', port phasedata is sent to
   feedline: 4
   range: b
@@ -191,7 +191,7 @@ r121: !configdict
   adcatten: 27
   lo_freq: 7099070874.0
 r122: !configdict
-  ipaddress: 10.0.0.122
+  ip: 10.0.0.122
   phaseport: 50007 #previously 'port', port phasedata is sent to
   feedline: 4
   range: b
@@ -200,7 +200,7 @@ r122: !configdict
   adcatten: 27
   lo_freq: 7099070874.0
 r240: !configdict
-  ipaddress: 10.0.0.240
+  ip: 10.0.0.240
   phaseport: 50007 #previously 'port', port phasedata is sent to
   feedline: 4
   range: b
@@ -209,7 +209,7 @@ r240: !configdict
   adcatten: 27
   lo_freq: 7099070874.0
 r229: !configdict
-  ipaddress: 10.0.0.229
+  ip: 10.0.0.229
   phaseport: 50007 #previously 'port', port phasedata is sent to
   feedline: 4
   range: b
@@ -218,7 +218,7 @@ r229: !configdict
   adcatten: 27
   lo_freq: 7099070874.0
 r228: !configdict
-  ipaddress: 10.0.0.228
+  ip: 10.0.0.228
   phaseport: 50007 #previously 'port', port phasedata is sent to
   feedline: 4
   range: b
@@ -227,7 +227,7 @@ r228: !configdict
   adcatten: 27
   lo_freq: 7099070874.0
 r227: !configdict
-  ipaddress: 10.0.0.227
+  ip: 10.0.0.227
   phaseport: 50007 #previously 'port', port phasedata is sent to
   feedline: 4
   range: b
@@ -236,7 +236,7 @@ r227: !configdict
   adcatten: 27
   lo_freq: 7099070874.0
 r226: !configdict
-  ipaddress: 10.0.0.226
+  ip: 10.0.0.226
   phaseport: 50007 #previously 'port', port phasedata is sent to
   feedline: 4
   range: b
@@ -245,7 +245,7 @@ r226: !configdict
   adcatten: 27
   lo_freq: 7099070874.0
 r225: !configdict
-  ipaddress: 10.0.0.225
+  ip: 10.0.0.225
   phaseport: 50007 #previously 'port', port phasedata is sent to
   feedline: 4
   range: b
@@ -254,7 +254,7 @@ r225: !configdict
   adcatten: 27
   lo_freq: 7099070874.0
 r224: !configdict
-  ipaddress: 10.0.0.224
+  ip: 10.0.0.224
   phaseport: 50007 #previously 'port', port phasedata is sent to
   feedline: 4
   range: b
@@ -263,7 +263,7 @@ r224: !configdict
   adcatten: 27
   lo_freq: 7099070874.0
 r223: !configdict
-  ipaddress: 10.0.0.223
+  ip: 10.0.0.223
   phaseport: 50007 #previously 'port', port phasedata is sent to
   feedline: 4
   range: b
@@ -272,7 +272,7 @@ r223: !configdict
   adcatten: 27
   lo_freq: 7099070874.0
 r222: !configdict
-  ipaddress: 10.0.0.222
+  ip: 10.0.0.222
   phaseport: 50007 #previously 'port', port phasedata is sent to
   feedline: 4
   range: b
@@ -281,7 +281,7 @@ r222: !configdict
   adcatten: 27
   lo_freq: 7099070874.0
 r221: !configdict
-  ipaddress: 10.0.0.221
+  ip: 10.0.0.221
   phaseport: 50007 #previously 'port', port phasedata is sent to
   feedline: 4
   range: b
@@ -290,7 +290,7 @@ r221: !configdict
   adcatten: 27
   lo_freq: 7099070874.0
 r220: !configdict
-  ipaddress: 10.0.0.220
+  ip: 10.0.0.220
   phaseport: 50007 #previously 'port', port phasedata is sent to
   feedline: 4
   range: b
