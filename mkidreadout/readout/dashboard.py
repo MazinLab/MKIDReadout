@@ -369,7 +369,7 @@ class MKIDDashboard(QMainWindow):
 
         # Initialize PacketMaster8
         getLogger('Dashboard').info('Initializing packetmaster...')
-        self.packetmaster = Packetmaster(self.config.roaches, ramdisk=self.config.packetmaster.ramdisk,
+        self.packetmaster = Packetmaster(len(self.config.roaches), ramdisk=self.config.packetmaster.ramdisk,
                                          detinfo=(self.config.detector.ncols, self.config.detector.nrows),
                                          nuller=self.config.packetmaster.nuller,
                                          captureport=self.config.packetmaster.captureport,

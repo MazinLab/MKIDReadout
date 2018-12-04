@@ -110,7 +110,7 @@ class Packetmaster(object):
         with tempfile.NamedTemporaryFile('w', suffix='.cfg', delete=False) as tfile:
             tfile.write(self.ramdisk + '\n')
             tfile.write('{} {}\n'.format(self.detector[1], self.detector[0])) #TODO is this column row order correct
-            tfile.write(str(self.nuller) + '\n')
+            tfile.write(str(int(self.nuller)) + '\n')
             tfile.write(str(self.nroaches))
 
         self._process = psutil.Popen((self.binary_path, tfile.name), stdout=subprocess.PIPE,
