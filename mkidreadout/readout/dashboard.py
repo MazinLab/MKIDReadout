@@ -147,12 +147,10 @@ class ConvertPhotonsToRGB(QtCore.QObject):
         self.image = np.copy(image)
         self.minCountCutoff = minCountCutoff
         self.maxCountCutoff = maxCountCutoff
-        # self.logStretch=logStretch
         self.interpolate = interpolate
         self.makeRed = makeRed
+        self.redPixels = []
         self.stretchMode = stretchMode
-
-        # print '#red: ',len(self.redPixels[0])
 
     def stretchImage(self):
         """
@@ -161,11 +159,9 @@ class ConvertPhotonsToRGB(QtCore.QObject):
         # first interpolate and find hot pixels
         if self.interpolate:
             self.image = interpolateImage(self.image)
-        self.image[np.where(np.logical_not(np.isfinite(self.image)))] = 0  # get rid of np.nan's
-        if self.makeRed:
-            self.redPixels = np.where(self.image >= self.maxCountCutoff)
-        else:
-            self.redPixels = []
+        self.image[~np.isfinite(self.image)] = 0  # get rid of np.nan's
+
+        self.redPixels = self.image >= self.maxCountCutoff if self.makeRed else []
 
         if self.stretchMode == 'logarithmic':
             imageGrey = self.logStretch()
@@ -174,7 +170,7 @@ class ConvertPhotonsToRGB(QtCore.QObject):
         elif self.stretchMode == 'histogram equalization':
             imageGrey = self.histEqualization()
         else:
-            raise ValueError
+            raise ValueError('Unknown stretch mode')
 
         self.makeQPixMap(imageGrey)
 
@@ -182,8 +178,7 @@ class ConvertPhotonsToRGB(QtCore.QObject):
         """
         map photon counts to greyscale logarithmically
         """
-        self.image[np.where(self.image > self.maxCountCutoff)] = self.maxCountCutoff
-        self.image[np.where(self.image < self.minCountCutoff)] = self.minCountCutoff
+        self.image.clip(self.minCountCutoff, self.maxCountCutoff, self.image)
         maxVal = np.amax(self.image)
         minVal = np.amin(self.image)
         maxVal = np.amax([minVal + 1, maxVal])
@@ -195,11 +190,8 @@ class ConvertPhotonsToRGB(QtCore.QObject):
         """
         map photon count to greyscale linearly (max 255 min 0)
         """
-        self.image[np.where(self.image > self.maxCountCutoff)] = self.maxCountCutoff
-        self.image[np.where(self.image < self.minCountCutoff)] = self.minCountCutoff
+        self.image.clip(self.minCountCutoff, self.maxCountCutoff, self.image)
 
-        # maxVal = np.amax(self.image)
-        # minVal = np.amin(self.image)
         maxVal = self.maxCountCutoff
         minVal = self.minCountCutoff
         maxVal = np.amax([minVal + 1, maxVal])
@@ -207,30 +199,27 @@ class ConvertPhotonsToRGB(QtCore.QObject):
         image2 = (self.image - minVal) / (1.0 * maxVal - minVal) * 255.
         return image2
 
-    def histEqualization(self):
+    def histEqualization(self, bins = 256):
         """
         perform a histogram Equalization. This tends to make the contrast better
         
         if self.logStretch is True the histogram uses logarithmic spaced bins
         """
-        imShape = self.image.shape
-
-        self.image[np.where(self.image > self.maxCountCutoff)] = self.maxCountCutoff
-        maxVal = np.amax(self.image)
-        if self.logStretch: self.minCountCutoff = max(self.minCountCutoff, 1)
-        self.image[np.where(self.image < self.minCountCutoff)] = self.minCountCutoff
-
-        bins = 256
         if self.logStretch:
-            bins = np.logspace(np.log10(self.minCountCutoff), np.log10(maxVal), 256)
+            self.minCountCutoff = max(self.minCountCutoff, 1)
+
+        self.image.clip(self.minCountCutoff, self.maxCountCutoff, self.image)
+        maxVal = np.amax(self.image)
+
+        if self.logStretch:
+            bins = np.logspace(np.log10(self.minCountCutoff), np.log10(maxVal), bins)
         imhist, imbins = np.histogram(self.image.flatten(), bins, density=True)
 
-        cdf = (imhist * (imbins[1:] - imbins[:-1])).cumsum()
-        cdf *= 255
+        cdf = (imhist * np.diff(imbins)).cumsum() * 256
 
         image2 = np.interp(self.image.flatten(), imbins[:-1], cdf)
         image2 = image2.reshape(self.image.shape)
-        image2[np.where(self.image <= self.minCountCutoff)] = 0
+        image2[self.image <= self.minCountCutoff] = 0
 
         return image2
 
@@ -244,7 +233,7 @@ class ConvertPhotonsToRGB(QtCore.QObject):
         image2 = image.astype(np.uint32)
 
         redMask = np.copy(image2)
-        redMask[self.redPixels] = np.uint32(0)
+        redMask[self.redPixels] = 0
         #           24-32 -> A  16-24 -> R     8-16 -> G      0-8 -> B
         imageRGB = (255 << 24 | image2 << 16 | redMask << 8 | redMask).flatten()  # pack into RGBA
         q_im = QtCore.QtGui.QImage(imageRGB, self.image.shape[1], self.image.shape[0], QImage.Format_RGB32)
@@ -765,19 +754,15 @@ class MKIDDashboard(QMainWindow):
         self.grPixMap.pixmap().convertFromImage(q_image)
 
         # Possibly smooth image
-        if self.checkbox_smooth.isChecked():
-            self.grPixMap.graphicsEffect().setEnabled(True)
-        else:
-            self.grPixMap.graphicsEffect().setEnabled(False)
+        self.grPixMap.graphicsEffect().setEnabled(self.checkbox_smooth.isChecked())
 
         # Dither image
         # if self.checkbox_dither.isChecked(): print 'dithering'
 
         # Resize the GUI to fit whole image
-        borderSize = 0  # 24   # Not sure how to get the size of the frame's border so hardcoded this for now
-        imgSize = self.grPixMap.pixmap().size()
-        frameSize = QtCore.QSize(imgSize.width() + borderSize, imgSize.height() + borderSize)
-
+        # borderSize = 0  # 24   # Not sure how to get the size of the frame's border so hardcoded this for now
+        # imgSize = self.grPixMap.pixmap().size()
+        # frameSize = QtCore.QSize(imgSize.width() + borderSize, imgSize.height() + borderSize)
         # self.centralWidget().resize(frameSize) #this automatically resizes window but causes array to move
 
         # Show image on screen!

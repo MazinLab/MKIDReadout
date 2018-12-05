@@ -225,7 +225,7 @@ def getfilter(host='localhost:50000'):
         conn.close()
         return int(data)
     except AttributeError:
-        msg = 'Cannot connect to filter server\n'
+        msg = 'Cannot connect to filter server'
         getLogger('mkidreadout.hsfw').error(msg)
         return 'Error: ' +msg
     except Exception as e:
@@ -269,7 +269,7 @@ def setfilter(fnum, home=False, host='localhost:50000',killserver=False):
         getLogger('mkidreadout.hsfw').error(msg)
         return False
     except Exception as e:
-        msg = 'Cannot send command to filter server "Filter: {}"\n'
+        msg = 'Cannot send command to filter server "Filter: {}"'
         getLogger('mkidreadout.hsfw').error(msg.format(fnum), exc_info=True)
         try:
             conn.close()
