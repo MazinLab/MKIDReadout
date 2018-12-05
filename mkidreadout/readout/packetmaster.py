@@ -15,14 +15,16 @@ class PacketMasterConfig(object):
     _template = ('{rdsk}\n'
                  '{nrow} {ncol}\n'
                  '{nuller:.0f}\n'
-                 '{nroach}\n')
+                 '{nroach}\n'
+                 '{captureport}\n')
 
-    def __init__(self, ramdisk='/mnt/ramdisk/', nrow=80, ncol=125, nuller=False, nroach=1):
+    def __init__(self, ramdisk='/mnt/ramdisk/', nrow=80, ncol=125, nuller=False, nroach=1, captureport=DEFAULT_CAPTURE_PORT):
         self.ramdisk = ramdisk
         self.nrows = nrow
         self.ncols = ncol
         self.nuller = nuller
         self.nroach = nroach
+        self.captureport = captureport
 
 
 class Packetmaster(object):
@@ -109,7 +111,8 @@ class Packetmaster(object):
             tfile.write(self.ramdisk + '\n')
             tfile.write('{} {}\n'.format(self.detector[1], self.detector[0])) #TODO is this column row order correct
             tfile.write(str(int(self.nuller)) + '\n')
-            tfile.write(str(self.nroaches))
+            tfile.write(str(self.nroaches) + '\n')
+            tfile.write(str(self.captureport))
 
         self._process = psutil.Popen((self.binary_path, tfile.name), stdout=subprocess.PIPE,
                                      stderr=subprocess.PIPE,

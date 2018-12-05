@@ -28,7 +28,7 @@
 
 #define _POSIX_C_SOURCE 200809L
 #define BUFLEN 1500
-#define PORT 50000
+#define DEFAULT_PORT 50000
 #define SHAREDBUF 536870912
 #define TSOFFS 1514764800
 #define STRBUF 80
@@ -75,6 +75,7 @@ struct cfgParams {
     int nYPix;
     int useNuller;
     int nRoach;
+    int port;
 };
 
 void diep(char *s)
@@ -130,7 +131,7 @@ struct readoutstream *OpenShared(char buf[40])
     struct readoutstream *rptr;
     
     // Create shared memory for photon data
-    fd = shm_open(buf, O_CREAT | O_RDWR, S_IRUSR | S_IWUSR);
+    fd = shm_open(buf, O_CREAT | O_RDWR, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP);
     if (fd == -1) { 
         perror("shm_open");  /* something went wrong */
         exit(1);             
@@ -889,7 +890,7 @@ void* Reader(void *prms)
 
   memset((char *) &si_me, 0, sizeof(si_me));
   si_me.sin_family = AF_INET;
-  si_me.sin_port = htons(PORT);
+  si_me.sin_port = htons(params->port);
   si_me.sin_addr.s_addr = htonl(INADDR_ANY);
   if (bind(s, (const struct sockaddr *)(&si_me), sizeof(si_me))==-1)
       diep("bind");
@@ -1067,10 +1068,13 @@ int main(int argc, char* argv[])
     fscanf(cfgfp,"%d %d\n", &(params.nXPix), &(params.nYPix));
     fscanf(cfgfp, "%d\n", &(params.useNuller));
     fscanf(cfgfp, "%d\n", &(params.nRoach));
+    fscanf(cfgfp, "%d\n", &(params.port));
     fclose(cfgfp);
     //remove(cfgPath);
     //printf("%d\n", params.nXPix);
     
+    printf("Ramdisk: %s\n", params.ramdiskPath);
+    printf("Capture Port: %d\n", params.port);
     // Delete pre-existing control files
     sprintf(startFileName, "%s/%s", params.ramdiskPath, "START");
     sprintf(stopFileName, "%s/%s", params.ramdiskPath, "STOP");
