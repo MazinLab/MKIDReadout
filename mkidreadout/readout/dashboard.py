@@ -627,65 +627,6 @@ class MKIDDashboard(QMainWindow):
         self.beammapFailed = self.beammap.failmask
         getLogger('Dashboard').info('Loaded beammap: %s', self.beammap)
 
-    def startDithering(self):
-        self.button_dither.setEnabled(False)
-        self.button_dither.clicked.disconnect()
-        self.button_dither.setText('Stop Dithering')
-        self.button_dither.clicked.connect(self.stopDithering)
-
-        class DitherThread(QtCore.QThread):
-            def __init__(self, url, pattern, timeout=np.inf, parent=None):
-                super(QtCore.QThread, self).__init__(parent)
-                self.url = url
-                self.pattern = pattern
-                self.status = None
-                self.timeout = timeout
-
-            def run(self):
-                self.status = mkidreadout.hardware.conex.dither(id=self.pattern, address=self.url)
-                if not self.status.running:
-                    return
-                # TODO self.status.state, pos, conexstatus need to get synced and logged with logstate
-                while True:
-                    time.sleep(.25)
-                    self.timeout -= .25
-                    self.status = mkidreadout.hardware.conex.status(self.url)
-
-                    if not self.status.running:
-                        break
-                    elif self.timeout <= 0:
-                        self.status = mkidreadout.hardware.conex.stop(self.url)
-                        break
-
-        dither = DitherThread(self.config.dither.url, self.config.dither.pattern, parent=self)
-
-        def finish():
-            if dither.status.offline or dither.status.haserrors:
-                msg = 'Dither completed with errors: "{}", Conex Status="{}"'.format(
-                    dither.status.state, dither.status.conexstatus)
-                getLogger('Dashboard').error(msg)
-            else:
-                dither_result = 'Dither Path: {}\n'.format(str(dither.status.last_dither).replace('\n', '\n   '))
-                getLogger('Dashboard').info(dither_result)
-            self.button_dither.clicked.disconnect()
-            self.button_dither.clicked.connect(self.startDithering)
-            self.button_dither.setText('Start Dithering')
-
-        dither.finished.connect(finish)
-        dither.start()
-        self.button_dither.setEnabled(True)
-
-    def stopDithering(self):
-        r = mkidreadout.hardware.conex.stop(address=self.config.dither.url)
-        if not r.haserrors:
-            getLogger('Dashboard').info('Dither halted by user.')
-            self.button_dither.setText('Start Dithering')
-            self.button_dither.clicked.disconnect()
-            self.button_dither.clicked.connect(self.startDithering)
-        else:
-            getLogger('Dashboard').error('Stop dither error: {}'.format(r))
-        self.button_dither.setEnabled(True)
-
     def addDarkImage(self, photonImage):
         self.spinbox_darkImage.setEnabled(False)
         if self.darkField is None or self.takingDark == self.spinbox_darkImage.value():
@@ -1267,8 +1208,20 @@ class MKIDDashboard(QMainWindow):
             self.button_obs.clicked.connect(self.startObs)
 
         # dithering
-        self.button_dither = QPushButton("Start Dithering")
-        self.button_dither.clicked.connect(self.startDithering)
+        self.dither_dialog = DitherWindow(self.config.dither.url)
+        def logdither(status):
+            if status.offline or status.haserrors:
+                msg = 'Dither completed with errors: "{}", Conex Status="{}"'.format(
+                    status.state, status.conexstatus)
+                getLogger('Dashboard').error(msg)
+            else:
+                dither_result = 'Dither Path: {}\n'.format(str(status.last_dither).replace('\n', '\n   '))
+                getLogger('Dashboard').info(dither_result)
+        self.dither_dialog.complete.connect(logdither)
+        self.dither_dialog.statusupdate.connect(self.logstate)
+        self.dither_dialog.hide()
+        self.button_dither = QPushButton("Dithers")
+        self.button_dither.clicked.connect(lambda: self.dither_dialog.show())
 
         # Filter
         self.combobox_filter = combobox_filter = QComboBox()
