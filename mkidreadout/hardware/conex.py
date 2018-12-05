@@ -383,6 +383,9 @@ class ConexStatus(object):
     def offline(self):
         return 'offline' in self.state
 
+    def __str__(self):
+        return self.state
+
     def print(self):
         print(self.state)
         print(self.pos)
@@ -698,20 +701,26 @@ def dither(id='default', start=None, end=None, n=1, t=1, address='http://localho
 
 
 def move(x, y, address='http://localhost:5000'):
-    r = requests.post(address+'/move', json={'x': x, 'y': y})
-    j = r.json()
-    ret=ConexStatus(state=j['state'], pos=(j['xpos'],j['ypos']), conexstatus=j['status'],
-                    dither=DitherPath(j['last_dither']['dither'], j['last_dither']['start'],
-                                      j['last_dither']['end'], j['last_dither']['path']))
+    try:
+        r = requests.post(address+'/move', json={'x': x, 'y': y})
+        j = r.json()
+        ret=ConexStatus(state=j['state'], pos=(j['xpos'],j['ypos']), conexstatus=j['status'],
+                        dither=DitherPath(j['last_dither']['dither'], j['last_dither']['start'],
+                                          j['last_dither']['end'], j['last_dither']['path']))
+    except requests.ConnectionError:
+        ret = ConexStatus(state='error: unable to connect')
     return ret
 
 
 def status(address='http://localhost:5000'):
-    r = requests.get(address + '/conex')
-    j = r.json()
-    ret=ConexStatus(state=j['state'], pos=(j['xpos'],j['ypos']), conexstatus=j['status'],
-                    dither=DitherPath(j['last_dither']['dither'], j['last_dither']['start'],
-                                      j['last_dither']['end'], j['last_dither']['path']))
+    try:
+        r = requests.get(address + '/conex')
+        j = r.json()
+        ret=ConexStatus(state=j['state'], pos=(j['xpos'],j['ypos']), conexstatus=j['status'],
+                        dither=DitherPath(j['last_dither']['dither'], j['last_dither']['start'],
+                                          j['last_dither']['end'], j['last_dither']['path']))
+    except requests.ConnectionError:
+        ret = ConexStatus(state='error: unable to connect')
     return ret
 
 

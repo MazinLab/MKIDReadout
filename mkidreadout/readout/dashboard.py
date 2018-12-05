@@ -25,6 +25,7 @@ from PyQt4 import QtCore
 from PyQt4.QtCore import Qt
 from PyQt4.QtGui import *
 from datetime import datetime
+import threading
 
 from astropy.io import fits
 
@@ -318,6 +319,157 @@ class TelescopeWindow(QMainWindow):
         if self._want_to_close:
             self.close()
         else:
+            self.hide()
+
+
+class ValidDoubleTuple(QValidator):
+    def __init__(self, parent=None):
+        QValidator.__init__(self, parent=parent)
+        # super(ValidDoubleTuple, self).__init__(self, parent=parent)
+
+    def validate(self, s, pos):
+        try:
+            assert len(map(float, s.split(','))) == 2
+        except (AssertionError, ValueError):
+            return QValidator.Invalid, pos
+        return QValidator.Acceptable, pos
+
+
+class DitherWindow(QMainWindow):
+    complete = QtCore.pyqtSignal(object)
+    statusupdate = QtCore.pyqtSignal()
+
+    def __init__(self, conexaddress, polltime=0.1, parent=None):
+        """
+        Window for gathing dither info
+        """
+        self.address = conexaddress
+        self.polltime = polltime
+
+        QMainWindow.__init__(self, parent=parent)
+        self._want_to_close = False
+
+        self.setWindowTitle('Dither')
+
+        vbox = QVBoxLayout()
+
+        label_telescopeStatus = QLabel('Dither Control')
+        font = label_telescopeStatus.font()
+        font.setPointSize(18)
+        label_telescopeStatus.setFont(font)
+        vbox.addWidget(label_telescopeStatus)
+
+        doubletuple_validator = ValidDoubleTuple()
+
+        hbox = QHBoxLayout()
+        label = QLabel('Start Position (x,y):')
+        hbox.addWidget(label)
+        self.textbox_start = QLineEdit('0.0, 0.0')
+        self.textbox_start.setValidator(doubletuple_validator)
+        hbox.addWidget(self.textbox_start)
+        vbox.addLayout(hbox)
+
+        hbox = QHBoxLayout()
+        label = QLabel('End Position (x,y):')
+        hbox.addWidget(label)
+        self.textbox_end = QLineEdit('0.0, 0.0')
+        self.textbox_end.setValidator(doubletuple_validator)
+        hbox.addWidget(self.textbox_end)
+        vbox.addLayout(hbox)
+
+        hbox = QHBoxLayout()
+        label = QLabel('N Steps:')
+        hbox.addWidget(label)
+        self.textbox_nsteps = QLineEdit('5')
+        self.textbox_nsteps.setValidator(QIntValidator(bottom=1))
+        hbox.addWidget(self.textbox_nsteps)
+        vbox.addLayout(hbox)
+
+        hbox = QHBoxLayout()
+        label = QLabel('Dwell Time (s):')
+        hbox.addWidget(label)
+        self.textbox_dwell = QLineEdit('30')
+        self.textbox_dwell.setValidator(QIntValidator(bottom=0))
+        hbox.addWidget(self.textbox_dwell)
+        vbox.addLayout(hbox)
+
+        self.button_dither = QPushButton('Dither')
+        self.button_dither.clicked.connect(self.do_dither)
+        vbox.addWidget(self.button_dither)
+
+        hbox = QHBoxLayout()
+        label = QLabel('Position (x,y):')
+        hbox.addWidget(label)
+        self.textbox_pos = QLineEdit('0.0, 0.0')
+        self.textbox_pos.setValidator(doubletuple_validator)
+        hbox.addWidget(self.textbox_pos)
+        self.button_goto = QPushButton('Go')
+        self.button_goto.clicked.connect(self.do_goto)
+        hbox.addWidget(self.button_goto)
+        vbox.addLayout(hbox)
+
+        self.status_label = QLabel('Status')
+        vbox.addWidget(self.status_label)
+
+        self.button_halt = QPushButton('STOP')
+        self.button_halt.clicked.connect(self.do_halt)
+        vbox.addWidget(self.button_halt)
+
+        self.status = mkidreadout.hardware.conex.status(self.address)
+        self.status_label.setText(str(self.status))
+        self.statusupdate.connect(lambda: self.status_label.setText(str(self.status)))
+
+        main_frame = QWidget()
+        main_frame.setLayout(vbox)
+        self.setCentralWidget(main_frame)
+
+        def updateloop():
+            try:
+                while not self._want_to_close:
+                    ostat = self.status
+                    self.status = nstat = mkidreadout.hardware.conex.status(self.address)
+                    self.statusupdate.emit()
+                    if not nstat.running and ostat.running:
+                        self.complete.emit(nstat)
+                    time.sleep(self.polltime)
+            except AttributeError:
+                pass
+
+        thread = threading.Thread(target=updateloop, name='Dither update')
+        thread.daemon = True
+        thread.start()
+
+    def do_dither(self):
+        start = map(float, self.textbox_start.text().split(','))
+        end = map(float, self.textbox_end.text().split(','))
+        ns = int(self.textbox_nsteps.text())
+        dt = int(self.textbox_dwell.text())
+        getLogger('Dashboard').info('Starting dither')
+        self.status = status = mkidreadout.hardware.conex.dither(start=start, end=end, n=ns, t=dt, address=self.address)
+        if status.haserrors:
+            getLogger('Dashboard').error('Error starting dither: {}'.format(status))
+
+    def do_halt(self):
+        getLogger('Dashboard').info('Dither halted by user.')
+        self.status = status = mkidreadout.hardware.conex.stop(address=self.address)
+        self.statusupdate.emit()
+        if status.haserrors:
+            getLogger('Dashboard').error('Stop dither error: {}'.format(status))
+
+    def do_goto(self):
+        x, y = map(float, self.textbox_pos.text().split(','))
+        getLogger('Dashboard').info('Starting move to {:.2f}, {:.2f}'.format(x,y))
+        self.status = status = mkidreadout.hardware.conex.move(x, y, address=self.address)
+        if status.haserrors:
+            getLogger('Dashboard').error('Start move error: {}'.format(status))
+        self.statusupdate.emit()
+
+    def closeEvent(self, event):
+        if self._want_to_close:
+            event.accept()
+            self.close()
+        else:
+            event.ignore()
             self.hide()
 
 
@@ -1070,8 +1222,9 @@ class MKIDDashboard(QMainWindow):
         targ, cmt = self.textbox_target.text(), self.textbox_log.toPlainText()
         # state = InstrumentState(target=targ, comment=cmt, flipper=None, laser)
         # targetname, telescope params, filter, dither x y ts state, roach info if first log
-        return dict(target=self.textbox_target.text(), ditherx=np.nan, dithery=np.nan,
-                    flipper='image', filter='1', ra='00:00:00.00', dec='00:00:00.00',
+        return dict(target=str(self.textbox_target.text()), ditherx=self.dither_dialog.status.xpos,
+                    dithery=self.dither_dialog.status.xpos,
+                    flipper='image', filter=self.filter, ra='00:00:00.00', dec='00:00:00.00',
                     utc=datetime.utcnow().strftime("%Y%m%d%H%M%S"), roaches='roach.yml', comment='cmt')
 
     def logstate(self):
@@ -1510,21 +1663,21 @@ if __name__ == "__main__":
     create_log('ObsLog',
                logfile=os.path.join(config.paths.logs, 'obslog_{}.log'.format(timestamp)),
                console=False, mpsafe=True, propagate=False,
-               fmt='%(asctime)s %(message)s ',
+               fmt='%(message)s',
                level=mkidcore.corelog.DEBUG)
     create_log('Dashboard',
                logfile=os.path.join(config.paths.logs, 'dashboard_{}.log'.format(timestamp)),
                console=True, mpsafe=True, propagate=False,
-               fmt='%(asctime)s  %(levelname)s: %(message)s ',
+               fmt='%(asctime)s  %(levelname)s: %(message)s',
                level=mkidcore.corelog.DEBUG)
     create_log('mkidreadout',
                console=True, mpsafe=True, propagate=False,
-               fmt='%(asctime)s %(funcName)s: %(levelname)s %(message)s ',
+               fmt='%(asctime)s %(funcName)s: %(levelname)s %(message)s',
                level=mkidcore.corelog.DEBUG)
     create_log('packetmaster',
                logfile=os.path.join(config.paths.logs, 'packetmaster_{}.log'.format(timestamp)),
                console=True, mpsafe=True, propagate=False,
-               fmt='%(asctime)s Packetmaster: %(levelname)s %(message)s ',
+               fmt='%(asctime)s Packetmaster: %(levelname)s %(message)s',
                level=mkidcore.corelog.DEBUG)
 
     app = QApplication(sys.argv)
