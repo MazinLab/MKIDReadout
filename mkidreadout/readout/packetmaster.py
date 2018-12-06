@@ -88,12 +88,15 @@ class Packetmaster(object):
                                            [self._process.stdout, self._process.stderr], timeout)
             for r in readable:
                 try:
+                    l = r.readline().strip()
+                    if not l:
+                        continue
                     if r == self._process.stdout:
-                        self.plog.info(r.readline())
+                        self.plog.info(l)
                     else:
-                        self.plog.error(r.readline())
+                        self.plog.error(l)
                 except:
-                    self.log.debug('Caught in monitor', exc_info=True)
+                    self.log.debug('Caught in monitor: ', exc_info=True)
 
         while True:
             if not self.is_running:

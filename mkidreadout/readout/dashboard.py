@@ -236,7 +236,7 @@ class ConvertPhotonsToRGB(QtCore.QObject):
         redMask[self.redPixels] = 0
         #           24-32 -> A  16-24 -> R     8-16 -> G      0-8 -> B
         imageRGB = (255 << 24 | image2 << 16 | redMask << 8 | redMask).flatten()  # pack into RGBA
-        q_im = QtCore.QtGui.QImage(imageRGB, self.image.shape[1], self.image.shape[0], QImage.Format_RGB32)
+        q_im = QImage(imageRGB, self.image.shape[1], self.image.shape[0], QImage.Format_RGB32)
 
         self.convertedImage.emit(q_im)
 
@@ -506,14 +506,16 @@ class MKIDDashboard(QMainWindow):
         self.clicking = False  # Flag to indicate we've pressed the left mouse button and haven't released it yet
         self.pixelClicked = None  # Holds the pixel clicked when mouse is pressed
         self.pixelCurrent = None  # Holds the pixel the mouse is currently hovering on
-        self.takingDark = 0  # Flag for taking dark image. Indicates number of images we still need for darkField image.
-        self.takingFlat = 0  # Flag for taking flat image. Indicates number of images we still need for flatField image
+        self.takingDark = -1  # Flag for taking dark image. Indicates number of images we still need for darkField
+        # image.
+        self.takingFlat = -1  # Flag for taking flat image. Indicates number of images we still need for flatField image
 
         # Initialize PacketMaster8
         getLogger('Dashboard').info('Initializing packetmaster...')
         self.packetmaster = Packetmaster(len(self.config.roaches), ramdisk=self.config.packetmaster.ramdisk,
                                          detinfo=(self.config.detector.ncols, self.config.detector.nrows),
                                          nuller=self.config.packetmaster.nuller,
+                                         resume=not self.config.dashboard.spawn_packetmaster,
                                          captureport=self.config.packetmaster.captureport,
                                          start=self.config.dashboard.spawn_packetmaster and not self.offline)
 
@@ -600,7 +602,8 @@ class MKIDDashboard(QMainWindow):
         indicating if that pixel is in the beammap or not
         """
         try:
-            self.beammap = Beammap(self.config.beammap)
+            self.beammap = Beammap(self.config.paths.beammap,
+                                   xydim=(self.config.detector.nrows, self.config.detector.ncols))
         except KeyError:
             getLogger('Dashboard').warning("No beammap specified in config, using default")
             self.beammap = Beammap(default=self.config.instrument)
@@ -688,11 +691,12 @@ class MKIDDashboard(QMainWindow):
             return
 
         # If we've got a full set of data package it as a fits file
-        tstart = self.fitsList[0].header.utc if self.fitsList else time.time()
+        tconv = lambda x: (datetime.strptime(x, '%Y-%m-%d %H:%M:%S') - datetime(1970, 1, 1)).total_seconds()
+        tstart = tconv(self.fitsList[0].header['utc']) if self.fitsList else time.time()
         tstamp = time.time()
-        if ((sum([i.header.exptime for i in self.fitsList]) >= self.config.dashboard.fitstime) or
-            (time.time() - tstart) >= self.config.dashboard.fitstime):
-            combineHDU(self.fitsList, fname='stream{}.fits.gz'.format(tstamp),
+        if ((sum([i.header['exptime'] for i in self.fitsList]) >= self.config.dashboard.fitstime) or
+            (tstamp - tstart) >= self.config.dashboard.fitstime):
+            combineHDU(self.fitsList, fname=os.path.join(self.config.paths.data,'stream{}.fits.gz'.format(tstamp)),
                        name=str(tstamp), save=True, threaded=True)
             self.fitsList = []
 
@@ -975,14 +979,14 @@ class MKIDDashboard(QMainWindow):
                     0]
                 resID = beammapData[indx, 0]
                 for roach in self.roachList:
-                    freqFN = self.config.get('r{}.freqfileroot'.format(roach.num))
+                    freqFN = self.config.roaches.get('r{}.freqfileroot'.format(roach.num))
                     freqFN = roach.tagfile(freqFN, dir=self.config.paths.data)
                     resIDs, freqs = np.loadtxt(freqFN, unpack=True, usecols=(0, 1))
                     try:
                         freqCh = int(np.where(resIDs == resID)[0][0])
                         freq = freqs[freqCh]
-                        feedline = self.config.get('r{}.feedline'.format(roach.num))
-                        board = self.config.get('r{}.range'.format(roach.num))
+                        feedline = self.config.roaches.get('r{}.feedline'.format(roach.num))
+                        board = self.config.roaches.get('r{}.range'.format(roach.num))
                         break
                     except IndexError:
                         pass
@@ -1047,7 +1051,7 @@ class MKIDDashboard(QMainWindow):
             self.button_obs.clicked.disconnect()
             self.textbox_target.setReadOnly(True)
             self.turnOnPhotonCapture()  # NB this does NOT also need to be in stop obs, roaches still send
-            if self.takingDark<0 and self.takingFlat < 0:
+            if self.takingDark < 0 and self.takingFlat < 0:
                 self.sciFactory = CalFactory('sum', dark=self.darkField, flat=self.flatField)
             self.packetmaster.startobs(self.config.paths.data)
             self.button_obs.setText('Stop Observing')
@@ -1068,11 +1072,12 @@ class MKIDDashboard(QMainWindow):
             self.packetmaster.stopobs()
             getLogger('Dashboard').info("Stop Obs")
             if self.sciFactory is not None:
-                #TODO get fram info and file name
                 self.sciFactory.generate(threaded=True,
-                                         fname=os.path.join(self.paths.data, 't{}.fits'.format(time.time())),
+                                         fname=os.path.join(self.config.paths.data, 't{}.fits'.format(time.time())),
                                          name=self.textbox_target.text(),
                                          save=True, header=self.state())
+            else:
+                getLogger('Dashboard').critical('sciFactory is None')
             self.textbox_target.setReadOnly(False)
             self.button_obs.setText('Start Observing')
             self.button_obs.clicked.connect(self.startObs)
@@ -1606,11 +1611,15 @@ if __name__ == "__main__":
     create_log('Dashboard',
                logfile=os.path.join(config.paths.logs, 'dashboard_{}.log'.format(timestamp)),
                console=True, mpsafe=True, propagate=False,
-               fmt='%(asctime)s  %(levelname)s: %(message)s',
+               fmt='%(asctime)s Dashboard %(levelname)s: %(message)s',
                level=mkidcore.corelog.DEBUG)
     create_log('mkidreadout',
                console=True, mpsafe=True, propagate=False,
                fmt='%(asctime)s %(funcName)s: %(levelname)s %(message)s',
+               level=mkidcore.corelog.DEBUG)
+    create_log('mkidcore',
+               console=True, mpsafe=True, propagate=False,
+               fmt='%(asctime)s mkidcore.x.%(funcName)s: %(levelname)s %(message)s',
                level=mkidcore.corelog.DEBUG)
     create_log('packetmaster',
                logfile=os.path.join(config.paths.logs, 'packetmaster_{}.log'.format(timestamp)),

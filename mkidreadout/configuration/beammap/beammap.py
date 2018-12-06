@@ -4,7 +4,7 @@ from glob import glob
 import copy
 import os
 
-_DEFAULT_ARRAY_SIZES={'mec':(100,100), 'darkness': (150,150)}
+_DEFAULT_ARRAY_SIZES={'mec':(100,100), 'darkness': (125,80)}
 
 
 class _BeamDict(dict):
