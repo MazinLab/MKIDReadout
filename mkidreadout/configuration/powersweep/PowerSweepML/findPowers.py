@@ -11,12 +11,13 @@ Usage: python findPowers.py <mlConfigFile> <h5File>
 import numpy as np
 import tensorflow as tf
 import os, sys
+import argparse
 from PSFitMLData import PSFitMLData
 import PSFitMLTools as mlt
 from mkidreadout.utils.readDict import readDict
 
 
-def findPowers(mlDict, h5FileName, outputFN=None):
+def findPowers(mlDict, h5FileName, outputFN=None, saveScores=False):
     '''
     Uses Trained model, specified by mlDict, to infer powers from a powersweep 
     saved in h5FileName. Saves results in .txt file in $MKID_DATA_DIR
@@ -32,6 +33,7 @@ def findPowers(mlDict, h5FileName, outputFN=None):
     
     inferenceData.opt_attens=np.zeros((res_nums))
     inferenceData.opt_freqs=np.zeros((res_nums))
+    inferenceData.scores=np.zeros((res_nums))
     
     print 'inferenceAttens', inferenceData.attens
     
@@ -62,6 +64,7 @@ def findPowers(mlDict, h5FileName, outputFN=None):
         iAtt = np.argmax(inferenceLabels[rn,:])
         inferenceData.opt_attens[rn] = inferenceData.attens[iAtt]
         inferenceData.opt_freqs[rn] = inferenceData.freqs[rn,mlt.get_peak_idx(rn,iAtt, dataObj=inferenceData, smooth=True)]
+        inferenceData.scores[rn] = inferenceLabels[rn, iAtt]
         if rn>0:
             if(np.abs(inferenceData.opt_freqs[rn]-inferenceData.opt_freqs[rn-1])<100.e3):
                 doubleCounter += 1
@@ -76,6 +79,7 @@ def findPowers(mlDict, h5FileName, outputFN=None):
                     inferenceLabels[rn-1,:] = sess.run(y_output, feed_dict={x_input: inferenceImage, keep_prob: 1})
                     iAtt = np.argmax(inferenceLabels[rn-1,:])
                     inferenceData.opt_attens[rn-1] = inferenceData.attens[iAtt]
+                    inferenceData.scores[rn-1] = inferenceLabels[rn-1, iAtt]
                     
                     padFreqInd = np.argmin(np.abs(inferenceData.freqs[rn-1]-inferenceData.opt_freqs[rn])) 
                     print 'findatt: padFreqInd', padFreqInd
@@ -93,6 +97,7 @@ def findPowers(mlDict, h5FileName, outputFN=None):
                     inferenceLabels[rn,:] = sess.run(y_output, feed_dict={x_input: inferenceImage, keep_prob: 1})
                     iAtt = np.argmax(inferenceLabels[rn,:])
                     inferenceData.opt_attens[rn] = inferenceData.attens[iAtt]
+                    inferenceData.scores[rn] = inferenceLabels[rn, iAtt]
                     padFreqInd = np.argmin(np.abs(inferenceData.freqs[rn]-inferenceData.opt_freqs[rn-1])) 
                     print 'findatt: padFreqInd', padFreqInd
                     if(padFreqInd>mlDict['xWidth']/2):
@@ -108,21 +113,27 @@ def findPowers(mlDict, h5FileName, outputFN=None):
     
     print '\n', doubleCounter, 'doubles fixed'
     
-    inferenceData.savePSTxtFile(flag = '_' + mlDict['modelName'],outputFN=outputFN)
+    inferenceData.savePSTxtFile(flag = '_' + mlDict['modelName'],outputFN=outputFN, saveScores=saveScores)
 
 if __name__=='__main__':
     if len(sys.argv)<3:
         print 'Must specify ML config file and h5 file in MKID_DATA_DIR!'
         exit(1)
 
-    mlDict = readDict()
-    mlDict.readFromFile(sys.argv[1])
+    parser = argparse.ArgumentParser(description='ML Inference Script')
+    parser.add_argument('mlConfig', nargs=1, help='Machine learning model config file')
+    parser.add_argument('inferenceData', nargs=1, help='HDF5 file containing powersweep data')
+    parser.add_argument('-o', '--output-dir', nargs=1, default=[None], help='Directory to save output file')
+    parser.add_argument('-s', '--add-scores', action='store_true', help='Adds a score column to the output file')
+    args = parser.parse_args()
 
-    h5FileName=sys.argv[2]
+    mlDict = readDict()
+    mlDict.readFromFile(args.mlConfig[0])
+
+    h5FileName=args.inferenceData[0]
     if not os.path.isfile(h5FileName):
         h5FileName = os.path.join(os.environ['MKID_DATA_DIR'], h5FileName)
     
-    try: outputDir=sys.argv[3]
-    except: outputDir=None
+    outputDir = args.output_dir[0]
     
-    findPowers(mlDict, h5FileName, outputDir)
+    findPowers(mlDict, h5FileName, outputDir, args.add_scores)
