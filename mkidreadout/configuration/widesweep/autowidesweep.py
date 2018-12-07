@@ -3,8 +3,8 @@ Implements a template filter to identify WS peaks
 '''
 import numpy as np
 import matplotlib.pyplot as plt
-from mkidreadout.configuration.widesweep.wsfitml.wsdata import WSFitMLData
-import os, sys
+from mkidreadout.configuration.widesweep.wsdata import WSFitMLData
+import os
 import argparse
 
 

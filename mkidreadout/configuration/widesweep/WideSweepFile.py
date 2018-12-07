@@ -27,7 +27,7 @@ def peaks(y, nsig, m=2, returnDict=False):
 
     """
 
-    print "begin peaks with nsig,m=", nsig, m
+    print "begin peaks with nsig, m=", nsig, m
     d0 = y - np.roll(y, -1)
     d1 = y - np.roll(y, 1)
     pk = np.arange(y.size)[np.logical_and(d0 > 0, d1 > 0)]
@@ -69,7 +69,7 @@ def peaks(y, nsig, m=2, returnDict=False):
         return big
 
 
-class WideSweepFile():
+class WideSweepFile(object):
     """
     Handle data written by the program SegmentedSweep.vi
     

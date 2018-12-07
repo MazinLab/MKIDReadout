@@ -1,4 +1,4 @@
-import WideSweep as ws
+import mlutils as ws
 from mkidreadout.configuration.widesweep.wsfitml.params import datadir, rawsweepfile
 import matplotlib.pyplot as plt
 import numpy as np

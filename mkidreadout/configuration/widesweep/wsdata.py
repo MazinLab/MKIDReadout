@@ -1,7 +1,5 @@
 import numpy as np
 from scipy import signal
-import matplotlib.pyplot as plt
-import os, sys
 
 
 class WSFitMLData(object):
@@ -51,8 +49,6 @@ class WSFitMLData(object):
         boundaryInds = np.where(deltas<0)[0]
         boundaryDeltas = -deltas[boundaryInds]
         nOverlapPoints = (boundaryDeltas/self.freqStep).astype(int) + 1
-        #startInds = np.append([0], boundaryInds+1)
-        #endInds = np.append(boundaryInds, len(self.freqs))
         boundaryInds = boundaryInds + 1
 
         for i in range(len(boundaryInds)):
@@ -63,7 +59,6 @@ class WSFitMLData(object):
             self.mags[boundaryInds[i] : boundaryInds[i] + nOverlapPoints[i]] = lfWeights*lfMags + hfWeights*hfMags #set mags to average the overlap regions
             self.mags[boundaryInds[i] - nOverlapPoints[i] : boundaryInds[i]] = np.nan #set one side of overlap to 0
             self.freqs[boundaryInds[i] - nOverlapPoints[i] : boundaryInds[i]] = np.nan
-            
         
         # stitching I/Q data not yet implemented so get rid of it for now
         self.iVals = None

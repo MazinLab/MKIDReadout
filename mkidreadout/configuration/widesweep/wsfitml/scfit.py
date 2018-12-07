@@ -6,7 +6,7 @@ from os import path
 import scraps as scr
 from matplotlib import pylab as plt
 
-import WideSweep as ws
+import mlutils as ws
 # from params import fspan, wind_width, end_score, datadir, rawsweepfile, manpeakfile, fitpeakfile, splineS_factor
 from mkidreadout.configuration.widesweep.wsfitml.params import *
 
