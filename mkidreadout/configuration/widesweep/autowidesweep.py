@@ -3,7 +3,7 @@ Implements a template filter to identify WS peaks
 '''
 import numpy as np
 import matplotlib.pyplot as plt
-from wsdata import WSFitMLData
+from mkidreadout.configuration.widesweep.wsfitml.wsdata import WSFitMLData
 import os, sys
 import argparse
 
@@ -128,7 +128,7 @@ if __name__=='__main__':
     parser = argparse.ArgumentParser(description='WS Auto Peak Finding')
     parser.add_argument('wsDataFile', nargs=1, help='Raw Widesweep data')
     parser.add_argument('-t', '--template', nargs=1,
-                        default=os.path.join(os.path.dirname(__file__), 'templates/Hexis_FL3-template.txt'))
+                        default=os.path.join(os.path.dirname(__file__), 'wsfitml/templates/Hexis_FL3-template.txt'))
     parser.add_argument('-d', '--digital', action='store_true', help='Perform preprocessing step for digital data')
     args = parser.parse_args()
 
