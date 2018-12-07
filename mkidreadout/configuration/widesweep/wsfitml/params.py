@@ -1,3 +1,5 @@
+#TODO Delete this file or merge with something else
+
 # span = [0,5100]
 fspan = [0,-1]#[4,4.1]# [4, 4.05] #
 wind_width = 20

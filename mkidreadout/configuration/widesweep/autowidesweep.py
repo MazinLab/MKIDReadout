@@ -3,13 +3,14 @@ Implements a template filter to identify WS peaks
 '''
 import numpy as np
 import matplotlib.pyplot as plt
-from scipy import signal
-from WSFitMLData import WSFitMLData
-import os, sys
+from mkidreadout.configuration.widesweep.wsdata import WSFitMLData
+import os
+import argparse
+
 
 class WSTemplateFilt:
-    def __init__(self):
-        self.spacing = 7.63 #kHz
+    def __init__(self, spacing):
+        self.spacing = spacing #kHz
         self.winSize = int(500/self.spacing)
 
     def makeTemplate(self, trainFileList):
@@ -38,32 +39,23 @@ class WSTemplateFilt:
             if winSize>len(self.template):
                 raise Exception('Existing template is too small')
 
-    def inferPeaks(self, inferenceFile, sigThresh=1.5, nDerivChecks=7, nDerivSlack=0):
+    def inferPeaks(self, inferenceFile, isDigital, sigThresh=0.75, nDerivChecks=7, nDerivSlack=0):
         if self.template is None:
             raise Exception('Train or load template first!')
 
-        self.inferenceData = WSFitMLData([inferenceFile], skiprows=9)
-        #repeatInds = np.where(np.diff(self.inferenceData.freqs)<0)[0]
-        #self.inferenceData.freqs = np.delete(self.inferenceData.freqs, repeatInds)
-        #self.inferenceData.iVals = np.delete(self.inferenceData.iVals, repeatInds)
-        #self.inferenceData.qVals = np.delete(self.inferenceData.qVals, repeatInds)
-        #self.inferenceData.iqVels = np.delete(self.inferenceData.iqVels, repeatInds)
-        #self.inferenceData.mags = np.delete(self.inferenceData.mags, repeatInds)
-        #self.inferenceData.magsdb = np.delete(self.inferenceData.magsdb, repeatInds)
-
+        self.inferenceData = WSFitMLData([inferenceFile], freqStep=self.spacing/1.e6)
         self.inferenceFile = inferenceFile
+        if isDigital:
+            self.inferenceData.stitchDigitalData()
+            self.inferenceData.saveData(inferenceFile.split('.')[0] + '_stitched.txt')
         filtMagsDB = self.inferenceData.filterMags(self.inferenceData.magsdb)
-        print 'done filtering mags'
-        #if not self.winSize==len(self.template):
-        #    winSizeDiff = len(self.template) - self.winSize
-        #    template = self.template[int(winSizeDiff/2):int(-winSizeDiff/2)]
-        #else:
-        #    template = self.template
-        template = self.template
+        if self.winSize<len(self.template):
+            winSizeDiff = len(self.template) - self.winSize
+            template = self.template[int(winSizeDiff/2):int(-winSizeDiff/2)]
+        else:
+            template = self.template
 
-        print 'start correlation'
-        tempFiltMagsDB = np.correlate(template, filtMagsDB, mode='same')
-        print 'done correlation'
+        tempFiltMagsDB = np.correlate(filtMagsDB, template, mode='same')
 
         threshold = sigThresh*np.std(tempFiltMagsDB)
         triggerBooleans = tempFiltMagsDB[nDerivChecks:-nDerivChecks-1] > threshold
@@ -129,21 +121,35 @@ class WSTemplateFilt:
         np.savetxt(goodSaveFile, self.goodPeakIndices)
         np.savetxt(badSaveFile, self.badPeakIndices)
 
+
 if __name__=='__main__':
     mdd = os.environ['MKID_DATA_DIR']
-    templateDir = 'WSFiltTemplates'
-    if len(sys.argv)<3:
-        raise Exception('Need to specify WS and template files')
     
-    wsFile = os.path.join(mdd, sys.argv[1])
-    templateFile = os.path.join(templateDir, sys.argv[2])
+    parser = argparse.ArgumentParser(description='WS Auto Peak Finding')
+    parser.add_argument('wsDataFile', nargs=1, help='Raw Widesweep data')
+    parser.add_argument('-t', '--template', nargs=1,
+                        default=os.path.join(os.path.dirname(__file__), 'wsfitml/templates/Hexis_FL3-template.txt'))
+    parser.add_argument('-d', '--digital', action='store_true', help='Perform preprocessing step for digital data')
+    args = parser.parse_args()
+
+    wsFile = args.wsDataFile[0]
+    if not os.path.isfile(wsFile):
+        wsFile = os.path.join(mdd, wsFile)
+    templateFile = args.template
+
+    sigmaThresh = 1.25
+    nDerivChecks = 2
     
-    wsFilt = WSTemplateFilt()
+    if args.digital:
+        spacing = 7.629
+    else:
+        spacing = 12.5
+
+    wsFilt = WSTemplateFilt(spacing)
     wsFilt.loadTemplate(templateFile)
-    wsFilt.inferPeaks(wsFile)
-    print 'done infering peaks'
+    wsFilt.inferPeaks(wsFile, args.digital, sigmaThresh, nDerivChecks)
     wsFilt.findLocalMinima()
     wsFilt.markCollisions(200)
-    print len(wsFilt.goodPeakIndices), ' peaks found'
+    print 'Found', len(wsFilt.goodPeakIndices), 'good peaks'
     wsFilt.saveInferenceFile()
 
