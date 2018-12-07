@@ -3,7 +3,8 @@ from scipy import signal
 import matplotlib.pyplot as plt
 import os, sys
 
-class WSFitMLData:
+
+class WSFitMLData(object):
     def __init__(self, filenameList, freqStep=None):
         self.freqs = np.empty(0)
         self.iVals = np.empty(0)

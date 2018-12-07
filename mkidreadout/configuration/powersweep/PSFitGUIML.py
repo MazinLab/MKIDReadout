@@ -1,5 +1,4 @@
 #-----------------------------------
-# PSFitAuto.py
 #
 # Given IQ sweeps at various powers of resonators, this program chooses the best resonant frequency and power
 # ----------------------------------

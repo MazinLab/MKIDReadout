@@ -3,10 +3,10 @@ Implements a template filter to identify WS peaks
 '''
 import numpy as np
 import matplotlib.pyplot as plt
-from scipy import signal
-from WSFitMLData import WSFitMLData
+from wsdata import WSFitMLData
 import os, sys
 import argparse
+
 
 class WSTemplateFilt:
     def __init__(self, spacing):
@@ -121,12 +121,14 @@ class WSTemplateFilt:
         np.savetxt(goodSaveFile, self.goodPeakIndices)
         np.savetxt(badSaveFile, self.badPeakIndices)
 
+
 if __name__=='__main__':
     mdd = os.environ['MKID_DATA_DIR']
     
     parser = argparse.ArgumentParser(description='WS Auto Peak Finding')
     parser.add_argument('wsDataFile', nargs=1, help='Raw Widesweep data')
-    parser.add_argument('-t', '--template', nargs=1, default='WSFiltTemplates/Hexis_FL3-template.txt')
+    parser.add_argument('-t', '--template', nargs=1,
+                        default=os.path.join(os.path.dirname(__file__), 'templates/Hexis_FL3-template.txt'))
     parser.add_argument('-d', '--digital', action='store_true', help='Perform preprocessing step for digital data')
     args = parser.parse_args()
 

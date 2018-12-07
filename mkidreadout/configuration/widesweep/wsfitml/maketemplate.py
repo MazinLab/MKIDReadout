@@ -1,8 +1,9 @@
-import numpy as np
-import os, sys
-from WSFitFilt import WSTemplateFilt
+import os
+from matchedfilt import WSTemplateFilt
 
-templateDir = 'WSFiltTemplates'
+raise RuntimeError('Talk to Jeb about restructuring this file')
+
+templateDir = 'templates'
 templateFn = 'Hexis_FL3-template.txt'
 rawWSFnList = ['Hexis_WS_FL3.txt']
 
@@ -13,3 +14,4 @@ for i,fn in enumerate(rawWSFnList):
 wsFit = WSTemplateFilt()
 wsFit.makeTemplate(rawWSFnList)
 wsFit.saveTemplate(os.path.join(templateDir, templateFn))
+
