@@ -28,7 +28,7 @@ dashboard: !configdict
   n_darks: 5 # Num images for dark image
   n_flats: 5
   flatname: flat
-  darkfile: dark.fits
+  darkname: dark
   fitstime: 60  #
   spawn_packetmaster: True
 

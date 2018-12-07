@@ -629,14 +629,10 @@ class MKIDDashboard(QMainWindow):
         self.takingDark -= 1
         if self.takingDark == 0:
             self.takingDark = -1
-
-            name = '{}_dark_{}'.format(self.config.dashboard.darkname, time.time())
-            self.darkField = self.darkFactory.generate(fname=name, name=name, badmask=self.beammapFailed)
-            self.darkField.writeto(os.path.join(self.cofig.paths.datadir, self.darkField.header.filename))
-
-            getLogger('Dashboard').info('Finished dark {}:\n {}'.format(self.darkField.filename,
-                                                                     summarize(self.darkField).replace('\n',
-                                                                                                          '\n  ')))
+            name = '{}_dark_{}'.format(self.config.dashboard.darkname, int(time.time()))
+            self.darkField = self.darkFactory.generate(fname=os.path.join(self.config.paths.data, name+'.fits'),
+                                                       name=name, badmask=self.beammapFailed, save=True)
+            getLogger('Dashboard').info('Finished dark:\n {}'.format(summarize(self.darkField).replace('\n', '\n  ')))
             self.checkbox_darkImage.setChecked(True)
             self.spinbox_darkImage.setEnabled(True)
 
@@ -652,12 +648,10 @@ class MKIDDashboard(QMainWindow):
         self.takingFlat -= 1
         if self.takingFlat == 0:
             self.takingFlat = -1
-            name = '{}_flat_{}'.format(self.config.dashboard.flatname, time.time())
-            self.flatField = self.flatFactory.generate(fname=name, name=name, badmask=self.beammapFailed)
-            self.flatField.writeto(os.path.join(self.cofig.paths.datadir, self.flatField.header.filename))
-            getLogger('Dashboard').info('Finished flat {}:\n {}'.format(self.flatField.header.filename,
-                                                                     summarize(self.darkField).replace('\n',
-                                                                                                          '\n  ')))
+            name = '{}_flat_{}'.format(self.config.dashboard.flatname, int(time.time()))
+            self.flatField = self.flatFactory.generate(fname=os.path.join(self.config.paths.data, name+'.fits'),
+                                                       name=name, badmask=self.beammapFailed, save=True)
+            getLogger('Dashboard').info('Finished flat:\n {}'.format(summarize(self.darkField).replace('\n', '\n  ')))
             self.checkbox_flatImage.setChecked(True)
             self.spinbox_flatImage.setEnabled(True)
 
@@ -693,15 +687,14 @@ class MKIDDashboard(QMainWindow):
         # If we've got a full set of data package it as a fits file
         tconv = lambda x: (datetime.strptime(x, '%Y-%m-%d %H:%M:%S') - datetime(1970, 1, 1)).total_seconds()
         tstart = tconv(self.fitsList[0].header['utc']) if self.fitsList else time.time()
-        tstamp = time.time()
+        tstamp = int(time.time())
         if ((sum([i.header['exptime'] for i in self.fitsList]) >= self.config.dashboard.fitstime) or
             (tstamp - tstart) >= self.config.dashboard.fitstime):
-            combineHDU(self.fitsList, fname=os.path.join(self.config.paths.data,'stream{}.fits.gz'.format(tstamp)),
+            combineHDU(self.fitsList, fname=os.path.join(self.config.paths.data, 'stream{}.fits.gz'.format(tstamp)),
                        name=str(tstamp), save=True, threaded=True)
             self.fitsList = []
 
         # Get the (average) photon count image
-        bias = 0
         if self.checkbox_flatImage.isChecked() and self.flatField is None:
             try:
                 self.flatField = fits.open(self.config.dashboard.flatfile)
@@ -712,7 +705,8 @@ class MKIDDashboard(QMainWindow):
         cf = CalFactory('avg', images=self.imageList[-self.config.dashboard.average:],
                         dark=self.darkField if self.checkbox_darkImage.isChecked() else None,
                         flat=self.flatField if self.checkbox_flatImage.isChecked() else None)
-        image = cf.generate(bias=bias if self.checkbox_darkImage.isChecked() else 0)
+
+        image = cf.generate(name='Last3frames', bias=0)
         image.data[self.beammapFailed] = np.nan
 
         # Set up worker object and thread
@@ -792,12 +786,12 @@ class MKIDDashboard(QMainWindow):
         INPUTS:
             event - QGraphicsSceneMouseEvent
         """
-        if event.button() == QtCore.LeftButton:
+        if event.button() == QtCore.Qt.LeftButton:
             self.clicking = True
             x_pos = int(np.floor(event.pos().x() / self.config.dashboard.image_scale))
             y_pos = int(np.floor(event.pos().y() / self.config.dashboard.image_scale))
             getLogger('Dashboard').info('Clicked (' + str(x_pos) + ' , ' + str(y_pos) + ')')
-            if QtCore.QtGui.QApplication.keyboardModifiers() != QtCore.ShiftModifier:
+            if QApplication.keyboardModifiers() != QtCore.Qt.ShiftModifier:
                 self.selectedPixels = set()
                 self.removeAllPixelBoxLines()
             self.pixelClicked = [x_pos, y_pos]
@@ -847,7 +841,7 @@ class MKIDDashboard(QMainWindow):
         INPUTS:
             event - QGraphicsSceneMouseEvent
         """
-        if event.button() == QtCore.LeftButton and self.clicking:
+        if event.button() == QtCore.Qt.LeftButton and self.clicking:
             self.clicking = False
             x_pos = int(np.floor(event.pos().x() / self.config.dashboard.image_scale))
             y_pos = int(np.floor(event.pos().y() / self.config.dashboard.image_scale))
@@ -935,7 +929,7 @@ class MKIDDashboard(QMainWindow):
             numImages2Sum = self.config.dashboard.average
 
         cf=CalFactory('sum', images=self.imageList[-numImages2Sum:], dark=self.darkField if applyDark else None)
-        im = cf.generate()
+        im = cf.generate(name='pixelcount')
         pixelList = np.asarray(pixelList)
         return np.sum(np.asarray(im.data)[[pixelList[:, 1], pixelList[:, 0]]])
 
@@ -1073,8 +1067,9 @@ class MKIDDashboard(QMainWindow):
             getLogger('Dashboard').info("Stop Obs")
             if self.sciFactory is not None:
                 self.sciFactory.generate(threaded=True,
-                                         fname=os.path.join(self.config.paths.data, 't{}.fits'.format(time.time())),
-                                         name=self.textbox_target.text(),
+                                         fname=os.path.join(self.config.paths.data,
+                                                            't{}.fits'.format(int(time.time()))),
+                                         name=str(self.textbox_target.text()),
                                          save=True, header=self.state())
             else:
                 getLogger('Dashboard').critical('sciFactory is None')
@@ -1173,8 +1168,7 @@ class MKIDDashboard(QMainWindow):
         label_currentTime = QLabel("UTC: ")
         getCurrentTime = QtCore.QTimer(self)
         getCurrentTime.setInterval(997)  # prime number :)
-        updateCurrentTime = lambda: label_currentTime.setText("UTC: " + str(time.time()))
-        getCurrentTime.timeout.connect(updateCurrentTime)
+        getCurrentTime.timeout.connect(lambda: label_currentTime.setText("UTC: " + str(time.time())))
         getCurrentTime.start()
 
         # Mkid data directory
@@ -1199,6 +1193,7 @@ class MKIDDashboard(QMainWindow):
 
         # dithering
         self.dither_dialog = DitherWindow(self.config.dither.url)
+
         def logdither(status):
             if status.offline or status.haserrors:
                 msg = 'Dither completed with errors: "{}", Conex Status="{}"'.format(
@@ -1421,6 +1416,7 @@ class MKIDDashboard(QMainWindow):
         hbox_darkImage = QHBoxLayout()
         hbox_darkImage.addWidget(self.spinbox_darkImage)
         hbox_darkImage.addWidget(button_darkImage)
+        hbox_darkImage.addWidget(QLabel('Use'))
         hbox_darkImage.addWidget(self.checkbox_darkImage)
         hbox_darkImage.addStretch()
         vbox.addLayout(hbox_darkImage)
@@ -1428,6 +1424,7 @@ class MKIDDashboard(QMainWindow):
         hbox_flatImage = QHBoxLayout()
         hbox_flatImage.addWidget(self.spinbox_flatImage)
         hbox_flatImage.addWidget(button_flatImage)
+        hbox_flatImage.addWidget(QLabel('Use'))
         hbox_flatImage.addWidget(self.checkbox_flatImage)
         hbox_flatImage.addStretch()
         vbox.addLayout(hbox_flatImage)

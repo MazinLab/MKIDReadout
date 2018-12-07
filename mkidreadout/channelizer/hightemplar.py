@@ -39,7 +39,7 @@ from mkidreadout.channelizer.RoachPlotWindow import RoachPhaseStreamWindow, Roac
 
 
 class HighTemplar(QMainWindow):
-    def __init__(self, roachNums=None, config='hightemplar.yml'):
+    def __init__(self, roachNums=None, configfile='hightemplar.yml'):
         """
         Create HighTemplar GUI
         
@@ -51,8 +51,8 @@ class HighTemplar(QMainWindow):
             roachNums = range(10)
         self.roachNums = np.unique(roachNums)  # sorts and removes duplicates
         self.numRoaches = len(self.roachNums)  # (int) number of roaches connected
-        self.defaultValues = config
-        self.config = mkidreadout.config.load(config)
+        self.configfile = configfile
+        self.config = mkidreadout.config.load(configfile)
 
         # Setup GUI
         super(HighTemplar, self).__init__()
@@ -518,7 +518,7 @@ class HighTemplar(QMainWindow):
         #    thread.quit()
         #    del thread
 
-        self.config.save('{0}_new.{1}'.format(*self.defaultValues.rpartition('.')[::2]))
+        self.config.save('{0}_new.{1}'.format(*self.configfile.rpartition('.')[::2]))
 
         QtCore.QCoreApplication.instance().quit
 
@@ -555,6 +555,6 @@ if __name__ == "__main__":
                level=mkidcore.corelog.INFO)
 
     app = QApplication(sys.argv)
-    form = HighTemplar(args.roaches, config)
+    form = HighTemplar(args.roaches, args.config)
     form.show()
     app.exec_()
