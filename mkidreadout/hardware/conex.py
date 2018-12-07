@@ -67,30 +67,51 @@ class Conex(object):
         self._rlock = RLock()
         # Generally 1. This is for when you daisy chain multiple conex stages together
         self.ctrlN = controllerNum
-        self._device = serial.Serial(port=port, baudrate=baudrate, bytesize=bytesize,
-                                     stopbits=stopbits, timeout=timeout, xonxoff=xonxoff)
-        time.sleep(0.1)  # wait for port to open
-        self.write('ID?')
-        #print(self.read())
 
-        self.status
+        self.port = port
+        self.baudrate = baudrate
+        self.bytesize = bytesize
+        self.stopbits = stopbits
+        self.timeout = timeout
+        self.xonxoff = xonxoff
 
+        self._started = False
         try:
-            q = [self.query(q) for q in ('SLU?','SLV?','SRU?','SRV?')]
-            f = lambda x: float(x[4:-2])
-            self.u_lowerLimit = f(q[0])
-            self.v_lowerLimit = f(q[1])
-            self.u_upperLimit = f(q[2])
-            self.v_upperLimit = f(q[3])
-        except ValueError:
+            self._init()
+        except serial.SerialException:
+            pass
+
+    def _init(self):
+        try:
+            self._device = serial.Serial(port=self.port, baudrate=self.baudrate, bytesize=self.bytesize,
+                                         stopbits=self.stopbits, timeout=self.timeout, xonxoff=self.xonxoff)
+            time.sleep(0.1)  # wait for port to open
+            self.write('ID?')
+            self.status
+
+            try:
+                q = [self.query(q) for q in ('SLU?','SLV?','SRU?','SRV?')]
+                f = lambda x: float(x[4:-2])
+                self.u_lowerLimit = f(q[0])
+                self.v_lowerLimit = f(q[1])
+                self.u_upperLimit = f(q[2])
+                self.v_upperLimit = f(q[3])
+            except ValueError:
+                raise
+            self.close()
+        except serial.SerialException:
+            getLogger('conex').debug("Could not connect to Conex Mount")
             raise
-        self.close()
+
         getLogger('conex').debug("Connected to Conex Mount")
+        self._started = True
 
     def close(self):
         self._device.close()
 
     def open(self):
+        if not self._started:
+            self._init()
         if self._device.is_open:
             return
         self._device.open()
@@ -454,7 +475,7 @@ class ConexManager(object):
             status = self.conex.status
             pos = self.conex.position()
             getLogger('ConexManager').debug("Conex: {} @ pos {}".format(status,pos))
-        except IOError:
+        except (IOError, serial.SerialException):
             getLogger('ConexManager').error('Unable to get conex status', exc_info=True)
             self._halt = True
             self.state = 'offline'
@@ -495,7 +516,7 @@ class ConexManager(object):
             self.wait_on_conex()
             self.state = 'idle'
             return True
-        except IOError as e:
+        except (IOError, serial.SerialException) as e:
             self.state = 'error: move to {:.2f}, {:.2f} failed'.format(x, y)
             getLogger('ConexManager').error('Error on move', exc_info=True)
             return False
@@ -564,7 +585,7 @@ class ConexManager(object):
             self.state = 'idle'
             return True
 
-        except IOError as e:
+        except (IOError, serial.SerialException) as e:
             getLogger('ConexManager').error("Dither failed ", exc_info=True)
             #TODO do we kill the conex object here?
             self.state = self.state = 'dither {} failed'.format(str(dither))
@@ -741,11 +762,11 @@ def stop(address='http://localhost:5000'):
 if __name__=='__main__':
     from flask import Flask, jsonify, make_response
 
-    app = Flask(__name__, port=CONEX_PORT, static_url_path="")
+    app = Flask(__name__, static_url_path="")
     api = Api(app)
     api.add_resource(MoveAPI, '/move', endpoint='move')
     api.add_resource(DitherAPI, '/dither', endpoint='dither')
     api.add_resource(ConexAPI, '/conex', endpoint='conex')
 
     conex_manager = ConexManager(port='COM9')
-    app.run(debug=True)
+    app.run(debug=True, port=CONEX_PORT)
