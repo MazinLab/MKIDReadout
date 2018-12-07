@@ -209,10 +209,11 @@ class BMCleaner(object):
 
     def resolveOverlapWithFrequency(self):
         """
+
         Uses the beammap that was given to the BMCleaner class to first run the shifting/frequency fitting code, then uses
         the unformation from that to resolve overlaps using the frequency information.
 
-        Returns: A copy of the beammap with a shift applied, overlaps resolved, and coordinates locked onto a grid.
+        Modifies the beammap in BMCleaner with a shift applied, overlaps resolved, and coordinates locked onto a grid.
         """
         if not hasattr(self.beamMap, 'frequencies'):
             raise Exception("This beammap does not have frequency data, this operation cannot be done")
@@ -223,13 +224,11 @@ class BMCleaner(object):
         shiftObject = self.runShiftingCode()
 
         beammap = shiftObject.shiftedBeammap
-        # original = beammap.copy()   Used for testing if the code modified the beammap properly
         designMap = shiftObject.designArray
 
         overlapGrid = getOverlapGrid(beammap.xCoords, beammap.yCoords, beammap.flags, self.nCols, self.nRows)
         overlapCoords = np.asarray(np.where(overlapGrid > 1)).T
         numberOfOverlapsResolved = 0
-        nresresolved = 0
 
         for coord in overlapCoords:
             doubles = beammap.getResonatorsAtCoordinate(coord[0], coord[1])
@@ -286,18 +285,20 @@ class BMCleaner(object):
             for i in range(len(doubles)):
                 resonator = doubles[i]
                 newCoordinate = newCoordinates[i].astype(int)
-                print(coord, newCoordinate)
                 overlapGrid[newCoordinate[0], newCoordinate[1]] += 1
                 index = np.where(self.beamMap.resIDs == resonator[0])[0]
                 beammap.xCoords[index] = newCoordinate[0]
                 beammap.yCoords[index] = newCoordinate[1]
                 beammap.flags[index] = beamMapFlags['good']
-                nresresolved += 1
+                numberOfOverlapsResolved += 1
+                print(coord, newCoordinate, numberOfOverlapsResolved)
 
             numberOfOverlapsResolved += 1
 
         log.info('Successfully resolved %d overlaps', numberOfOverlapsResolved)
-        self.beamMap = beammap
+        self.beamMap.xCoords = np.floor(beammap.xCoords)
+        self.beamMap.yCoords = np.floor(beammap.yCoords)
+        self.beamMap.flags = beammap.flags
 
     def runShiftingCode(self):
         shifter = shift.BeammapShifter(self.designFile, self.beamMap, self.instrument)
