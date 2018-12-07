@@ -748,6 +748,9 @@ class MKIDDashboard(QMainWindow):
         """
         # Scale the bitmap so we can see individual pixels and add to the GraphicsViewItem
         imageScale = self.config.dashboard.image_scale
+
+        #TODO scale the image based on the size of the gui window!
+
         q_image = q_image.scaledToWidth(q_image.width() * imageScale)
         self.grPixMap.pixmap().convertFromImage(q_image)
 

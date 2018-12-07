@@ -12,27 +12,28 @@ from mkidcore.corelog import getLogger
 from threading import RLock, Thread
 import itertools
 import argparse
-from flask import Flask, jsonify, abort, make_response
 from flask_restful import Api, Resource, reqparse, fields, marshal
-import requests, json
+import requests
 
-# from flask_httpauth import HTTPBasicAuth
 
-# auth = HTTPBasicAuth()
-
+TIMEOUT = .01
 CONEX_PORT = 50001
 
+
+# from flask_httpauth import HTTPBasicAuth
+# auth = HTTPBasicAuth()
+#
 # @auth.get_password
-def get_password(username):
-    if username == 'mec':
-        return 'python'
-    return None
-
-
+# def get_password(username):
+#     if username == 'mec':
+#         return 'python'
+#     return None
+#
+#
 # @auth.error_handler
-def unauthorized():
-    # return 403 instead of 401 to prevent browsers from displaying the default auth dialog
-    return make_response(jsonify({'message': 'Unauthorized access'}), 403)
+# def unauthorized():
+#     # return 403 instead of 401 to prevent browsers from displaying the default auth dialog
+#     return make_response(jsonify({'message': 'Unauthorized access'}), 403)
 
 
 dither_fields = {
@@ -689,7 +690,7 @@ def dither(id='default', start=None, end=None, n=1, t=1, address='http://localho
     else:
         req = {'id': id}
     try:
-        r = requests.post(address+'/dither', json=req)
+        r = requests.post(address+'/dither', json=req, timeout=TIMEOUT)
         j = r.json()
         ret = ConexStatus(state=j['state'], pos=(j['xpos'], j['ypos']), conexstatus=j['status'],
                           dither=DitherPath(j['last_dither']['dither'], j['last_dither']['start'],
@@ -702,7 +703,7 @@ def dither(id='default', start=None, end=None, n=1, t=1, address='http://localho
 
 def move(x, y, address='http://localhost:5000'):
     try:
-        r = requests.post(address+'/move', json={'x': x, 'y': y})
+        r = requests.post(address+'/move', json={'x': x, 'y': y}, timeout=TIMEOUT)
         j = r.json()
         ret=ConexStatus(state=j['state'], pos=(j['xpos'],j['ypos']), conexstatus=j['status'],
                         dither=DitherPath(j['last_dither']['dither'], j['last_dither']['start'],
@@ -714,7 +715,7 @@ def move(x, y, address='http://localhost:5000'):
 
 def status(address='http://localhost:5000'):
     try:
-        r = requests.get(address + '/conex')
+        r = requests.get(address + '/conex', timeout=TIMEOUT)
         j = r.json()
         ret=ConexStatus(state=j['state'], pos=(j['xpos'],j['ypos']), conexstatus=j['status'],
                         dither=DitherPath(j['last_dither']['dither'], j['last_dither']['start'],
@@ -726,7 +727,7 @@ def status(address='http://localhost:5000'):
 
 def stop(address='http://localhost:5000'):
     try:
-        r = requests.post(address + '/conex', json={'command': 'stop'})
+        r = requests.post(address + '/conex', json={'command': 'stop'}, timeout=TIMEOUT)
         j = r.json()
         ret = ConexStatus(state=j['state'], pos=(j['xpos'], j['ypos']), conexstatus=j['status'],
                           dither=DitherPath(j['last_dither']['dither'], j['last_dither']['start'],
@@ -738,8 +739,7 @@ def stop(address='http://localhost:5000'):
 
 
 if __name__=='__main__':
-    from flask import Flask, jsonify, abort, make_response
-    from flask_restful import Api, Resource, reqparse, fields, marshal
+    from flask import Flask, jsonify, make_response
 
     app = Flask(__name__, port=CONEX_PORT, static_url_path="")
     api = Api(app)

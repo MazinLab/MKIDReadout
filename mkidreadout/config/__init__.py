@@ -18,7 +18,7 @@ default_log_dir = './logs'
 def tagfile(f, tag='', nounderscore=False, droppath=False):
     if tag and not nounderscore:
         tag = '_'+tag
-    f, ext = os.path.splitext()
+    f, ext = os.path.splitext(f)
     if droppath:
         f=os.path.basename(f)
     return '{}{}{}'.format(f, tag, ext)
