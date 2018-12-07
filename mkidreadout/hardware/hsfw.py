@@ -54,7 +54,6 @@ HSFWERRORS = {0: 'No error has occurred. (cleared state)',
 # self.lib.VCS_ResetDevice(self.dev_handle, self.node_id, ct.byref(err))
 # err.value
 
-_log = getLogger('mkidreadout.hsfw')  #TODO this isn't best practice but i don't think it will matter here
 HSFW_PORT = 50000
 NFILTERS=NUM_FILTERS=5
 global_KILL_SERVER = False
@@ -71,10 +70,10 @@ def start_server(port, log=None):
     Raises:
     """
 
-    global global_KILL_SERVER, _log
+    global global_KILL_SERVER
 
     if log is None:
-    	log = _log
+        log = getLogger(__name__)
 
     # get IP address
     host = socket.gethostbyname(socket.gethostname())
@@ -152,31 +151,26 @@ def connection_handler(conn):
     conn.close()
 
 
-def connect(host, port, verbose=False):
+def connect(host, port, timeout=10.0):
     """Starts a client socket (control computer). This will connect to the host
     and return the socket if successful
 
     Args:
         host (str): the server name or ip address.
         port (int): the port to use
-        verbose (True): log stuff
     Returns:
         returns a socket connection or None
     Raises:
     """
     log = getLogger(__name__)
-    if verbose:
-        log.info('Trying to connect with ' + host)
+    log.debug('Trying to connect with ' + host)
     try:
-        sock = socket.create_connection((host, port), timeout=10)
+        sock = socket.create_connection((host, port), timeout=timeout)
     except socket.error:
-        if verbose:
-            log.error('Connection with ' + host + ' failed', exc_info=True)
+        log.error('Connection with ' + host + ' failed', exc_info=True)
         return None
-    if verbose:
-        log.info('Connected with ' + host)
-    # NB I'm uneasy about this timeout but it does not seem to cause issues
-    sock.settimeout(None)
+    log.debug('Connected with ' + host)
+    sock.settimeout(timeout)
     return sock
 
 
@@ -190,7 +184,7 @@ def _setfilter(num, home=False):
         getLogger(__name__).debug('Filter Wheel FW: {}'.format(wheel.FirmwareVersion))
         if home:
             getLogger(__name__).info('Homing...')
-            wheel.HomeDevice  #HomeDevice_Async()
+            wheel.HomeDevice  # or use HomeDevice_Async() for non blocking
             getLogger(__name__).info('Homing complete.')
         getLogger(__name__).info('Setting postion to {}'.format(num))
         wheel.CurrentPosition = num
@@ -214,39 +208,44 @@ def _getfilter():
         return error
 
 
-def getfilter(host='localhost:50000'):
+def getfilter(host='localhost:50000', timeout=.01):
     host, port = host.split(':')
-    conn = connect(host, port)
+    conn = connect(host, port, timeout=timeout)
     try:
         conn.sendall('?\n'.encode('utf-8'))
         data = conn.recv(2048).strip()
-        getLogger('mkidreadout.hsfw').info("Response: {}".format(data))
+        getLogger(__name__).info("Response: {}".format(data))
         conn.close()
         return int(data)
     except AttributeError:
         msg = 'Cannot connect to filter server'
-        getLogger('mkidreadout.hsfw').error(msg)
+        getLogger(__name__).error(msg)
         return 'Error: ' +msg
     except Exception as e:
         msg = 'Cannot get status of filter server'
-        getLogger('mkidreadout.hsfw').error(msg, exc_info=True)
+        getLogger(__name__).error(msg, exc_info=True)
         try:
             conn.close()
         except Exception as e:
-            getLogger('mkidreadout.hsfw').error('error:', exc_info=True)
+            getLogger(__name__).error('error:', exc_info=True)
         return 'Error: '+str(e)
 
 
-def setfilter(fnum, home=False, host='localhost:50000',killserver=False):
+def setfilter(fnum, home=False, host='localhost:50000', killserver=False, timeout=.01):
 
     if killserver:
-        host, port = host.split(':')
-        conn = connect(host, port)
-        conn.sendall('exit\n'.encode('utf-8'))
-        conn.sendall('exit\n'.encode('utf-8'))
-        data = conn.recv(2048).strip()
-        conn.close()
-        return data
+        try:
+            host, port = host.split(':')
+            conn = connect(host, port, timeout=timeout)
+            conn.sendall('exit\n'.encode('utf-8'))
+            conn.sendall('exit\n'.encode('utf-8'))
+            data = conn.recv(2048).strip()
+            conn.close()
+            return data
+        except Exception:
+            getLogger(__name__).error('error:', exc_info=True)
+            return False
+
 
     try:
         fnum = int(fnum)
@@ -256,24 +255,25 @@ def setfilter(fnum, home=False, host='localhost:50000',killserver=False):
         raise ValueError('Not a number between 1-{}'.format(NUM_FILTERS))
 
     host, port = host.split(':')
-    conn = connect(host, port)
+
 
     try:
+        conn = connect(host, port, timeout=timeout)
         conn.sendall('{}\n'.format(-fnum if home else fnum).encode('utf-8'))
         data = conn.recv(2048).strip()
-        getLogger('mkidreadout.hsfw').info("Response: {}".format(data))
+        getLogger(__name__).info("Response: {}".format(data))
         conn.close()
     except AttributeError:
         msg = 'Cannot connect to filter server'
-        getLogger('mkidreadout.hsfw').error(msg)
+        getLogger(__name__).error(msg)
         return False
     except Exception as e:
         msg = 'Cannot send command to filter server "Filter: {}"'
-        getLogger('mkidreadout.hsfw').error(msg.format(fnum), exc_info=True)
+        getLogger(__name__).error(msg.format(fnum), exc_info=True)
         try:
             conn.close()
         except Exception:
-            getLogger('mkidreadout.hsfw').error('error:', exc_info=True)
+            getLogger(__name__).error('error:', exc_info=True)
         return False
 
     return True
@@ -289,6 +289,9 @@ if __name__ == '__main__':
         print('Server application only supported on windows.')
         sys.exit(1)
 
+    # import here so that we don't need the windows modules on a unix machine
     from win32com.client import Dispatch
     import pythoncom
+
     start_server(args.port)
+    
