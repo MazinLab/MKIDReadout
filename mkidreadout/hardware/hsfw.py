@@ -85,9 +85,8 @@ def start_server(port, log=None):
     # bind socket to local host and port
     try:
         sock.bind((host, port))
-    except socket.error as err:
-        msg = 'Bind failed. Error Code: {} Message: {}'.format(err[0], err[1])
-        log.critical(msg)
+    except socket.error:
+        log.critical('Bind Failed: ', exc_info=True)
         sys.exit()
 
     log.info('Socket bound')
@@ -283,7 +282,7 @@ def setfilter(fnum, home=False, host='localhost:50000',killserver=False):
 if __name__ == '__main__':
 
     parser = argparse.ArgumentParser(description='HSFW Server')
-    parser.add_argument('port', type=int, default=HSFW_PORT, help="Port on which to listen")
+    parser.add_argument('--port', type=int, default=HSFW_PORT, help="Port on which to listen")
     args = parser.parse_args()
 
     if platform.system == 'Linux':
