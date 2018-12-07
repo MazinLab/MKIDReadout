@@ -116,10 +116,6 @@ def findPowers(mlDict, h5FileName, outputFN=None, saveScores=False):
     inferenceData.savePSTxtFile(flag = '_' + mlDict['modelName'],outputFN=outputFN, saveScores=saveScores)
 
 if __name__=='__main__':
-    if len(sys.argv)<3:
-        print 'Must specify ML config file and h5 file in MKID_DATA_DIR!'
-        exit(1)
-
     parser = argparse.ArgumentParser(description='ML Inference Script')
     parser.add_argument('mlConfig', nargs=1, help='Machine learning model config file')
     parser.add_argument('inferenceData', nargs=1, help='HDF5 file containing powersweep data')

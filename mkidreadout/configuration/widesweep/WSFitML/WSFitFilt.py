@@ -6,10 +6,11 @@ import matplotlib.pyplot as plt
 from scipy import signal
 from WSFitMLData import WSFitMLData
 import os, sys
+import argparse
 
 class WSTemplateFilt:
-    def __init__(self):
-        self.spacing = 12.5 #kHz
+    def __init__(self, spacing):
+        self.spacing = spacing #kHz
         self.winSize = int(500/self.spacing)
 
     def makeTemplate(self, trainFileList):
@@ -38,14 +39,17 @@ class WSTemplateFilt:
             if winSize>len(self.template):
                 raise Exception('Existing template is too small')
 
-    def inferPeaks(self, inferenceFile, sigThresh=0.75, nDerivChecks=7, nDerivSlack=0):
+    def inferPeaks(self, inferenceFile, isDigital, sigThresh=0.75, nDerivChecks=7, nDerivSlack=0):
         if self.template is None:
             raise Exception('Train or load template first!')
 
-        self.inferenceData = WSFitMLData([inferenceFile])
+        self.inferenceData = WSFitMLData([inferenceFile], freqStep=self.spacing/1.e6)
         self.inferenceFile = inferenceFile
+        if isDigital:
+            self.inferenceData.stitchDigitalData()
+            self.inferenceData.saveData(inferenceFile.split('.')[0] + '_stitched.txt')
         filtMagsDB = self.inferenceData.filterMags(self.inferenceData.magsdb)
-        if not self.winSize==len(self.template):
+        if self.winSize<len(self.template):
             winSizeDiff = len(self.template) - self.winSize
             template = self.template[int(winSizeDiff/2):int(-winSizeDiff/2)]
         else:
@@ -119,19 +123,29 @@ class WSTemplateFilt:
 
 if __name__=='__main__':
     mdd = os.environ['MKID_DATA_DIR']
-    templateDir = '.'
-    if len(sys.argv)<3:
-        raise Exception('Need to specify WS and template files')
     
-    wsFile = os.path.join(mdd, sys.argv[1])
-    templateFile = os.path.join(templateDir, sys.argv[2])
+    parser = argparse.ArgumentParser(description='WS Auto Peak Finding')
+    parser.add_argument('wsDataFile', nargs=1, help='Raw Widesweep data')
+    parser.add_argument('-t', '--template', nargs=1, default='WSFiltTemplates/Hexis_FL3-template.txt')
+    parser.add_argument('-d', '--digital', action='store_true', help='Perform preprocessing step for digital data')
+    args = parser.parse_args()
+
+    wsFile = args.wsDataFile[0]
+    if not os.path.isfile(wsFile):
+        wsFile = os.path.join(mdd, wsFile)
+    templateFile = args.template
 
     sigmaThresh = 1.25
     nDerivChecks = 2
     
-    wsFilt = WSTemplateFilt()
+    if args.digital:
+        spacing = 7.629
+    else:
+        spacing = 12.5
+
+    wsFilt = WSTemplateFilt(spacing)
     wsFilt.loadTemplate(templateFile)
-    wsFilt.inferPeaks(wsFile, sigmaThresh, nDerivChecks)
+    wsFilt.inferPeaks(wsFile, args.digital, sigmaThresh, nDerivChecks)
     wsFilt.findLocalMinima()
     wsFilt.markCollisions(200)
     print 'Found', len(wsFilt.goodPeakIndices), 'good peaks'

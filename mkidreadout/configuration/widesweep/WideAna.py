@@ -318,9 +318,9 @@ class WideAna(QMainWindow):
             print 'loading peak location predictions from', self.baseFile+"-ml-good.txt"
             peaks = np.loadtxt(self.baseFile+"-ml-good.txt")
             badPeaks = np.loadtxt(self.baseFile+"-ml-bad.txt")
-            peaks = map(int,peaks)
+            peaks = np.array(map(int,peaks), dtype=int)
             badPeaks = np.atleast_1d(badPeaks)
-            badPeaks = map(int, badPeaks)
+            badPeaks = np.array(map(int, badPeaks), dtype=int)
             self.badPeakMask[badPeaks] = True
         else:
             peaks = self.wsf.peaks
@@ -372,8 +372,8 @@ class WideAna(QMainWindow):
             
         peaks = np.delete(peaks,colls) #remove collisions (peaks < 0.5MHz apart = < 9 steps apart)
         #peaks = np.delete(peaks,np.where(dist<9)) #remove collisions (peaks < 0.5MHz apart = < 9 steps apart)
-        self.goodPeakMask[peaks] = False #True disable automatic peak finding for now
-        self.badPeakMask[colls] = False #True disable automatic peak finding for now
+        self.goodPeakMask[peaks] = True #set to false to disable automatic peak finding 
+        self.badPeakMask[colls] = True #set to false to disable automatic peak finding 
         self.goodPeakMask[colls] = False
 
         self.setCountLabel()
