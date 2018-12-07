@@ -5,7 +5,7 @@ from scipy.interpolate import UnivariateSpline
 # from datetime import datetime
 import scfit as Sc
 import logits as ML
-from params import *
+from mkidreadout.configuration.widesweep.wsfitml.params import *
 np.set_printoptions(threshold=np.nan)
 
 def load_raw_wide_sweep(WideSweepFile, span=-1):

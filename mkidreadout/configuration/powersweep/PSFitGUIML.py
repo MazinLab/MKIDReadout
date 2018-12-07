@@ -25,6 +25,8 @@ from PyQt4.QtGui import *
 from PyQt4.QtCore import *
 from mkidreadout.utils.iqsweep import *
 from matplotlib.backends.backend_qt4 import NavigationToolbar2QT as NavigationToolbar
+
+import mkidreadout.configuration.powersweep.gui as gui
 import argparse
 
 class StartQt4(QMainWindow):
@@ -459,9 +461,8 @@ class StartQt4(QMainWindow):
         self.mlResIDs, self.mlFreqs, self.mlAttens = np.loadtxt(str(self.savefile), unpack=True)
         self.loadres()
                 
+                
 if __name__ == "__main__":
-
-
     parser = argparse.ArgumentParser(description='MKID Powersweep GUI')
     parser.add_argument('cfgfile', type=str, help='The config file', default='./wsData.cfg')
     parser.add_argument('feedline', type=str, help='Feedline number/band (e.g. 7a)')
@@ -469,13 +470,9 @@ if __name__ == "__main__":
                         help='Use small GUI')
     args = parser.parse_args()
 
-    if args.smallui:
-        from PSFit_GUI_v2 import Ui_MainWindow
-    else:
-        from PSFit_GUI import Ui_MainWindow
-
+    Ui = gui.Ui_MainWindow_Small if args.smallui else Ui_MainWindow
 
     app = QApplication(sys.argv)
-    myapp = StartQt4(args.cfgfile, args.feedline, Ui_MainWindow)
+    myapp = StartQt4(args.cfgfile, args.feedline, Ui)
     myapp.show()
     app.exec_()

@@ -8,7 +8,7 @@ from matplotlib import pylab as plt
 
 import WideSweep as ws
 # from params import fspan, wind_width, end_score, datadir, rawsweepfile, manpeakfile, fitpeakfile, splineS_factor
-from params import *
+from mkidreadout.configuration.widesweep.wsfitml.params import *
 
 np.set_printoptions(threshold=np.nan)
 
