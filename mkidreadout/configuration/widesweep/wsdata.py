@@ -3,7 +3,7 @@ from scipy import signal
 
 
 class WSFitMLData(object):
-    def __init__(self, filenameList, freqStep=None):
+    def __init__(self, filenameList, freqStep):
         self.freqs = np.empty(0)
         self.iVals = np.empty(0)
         self.qVals = np.empty(0)
@@ -41,6 +41,7 @@ class WSFitMLData(object):
                 self.allPeakLocs = np.append(self.allPeakLocs, peakLocs)
     
     def filterMags(self, mags, order=4, rs=40, wn=0.005):
+        wnf = wn*self.freqStep/12.5e-6
         b, a = signal.cheby2(order, rs, wn, btype='high', analog=False)
         return signal.filtfilt(b, a, mags)
 
