@@ -1,0 +1,104 @@
+[DEFAULT]
+h5resID_offset=0
+wsresID_offset=0
+
+
+[FL1a]
+widesweep_FN = /home/data/MEC/20180820/digWS_FL1.txt
+ws_freqs_all_FN = /home/data/MEC/20180820/ws_clickthroughs/digWS_FL1-freqs-all.txt
+ws_freqs_good_FN = /home/data/MEC/20180820/ws_clickthroughs/digWS_FL1-freqs-good.txt
+#h5resID_offset=0
+#wsresID_offset=0
+
+[FL1b]
+widesweep_FN = /home/data/MEC/20180820/digWS_FL1.txt
+ws_freqs_all_FN = /home/data/MEC/20180820/ws_clickthroughs/digWS_FL1-freqs-all.txt
+ws_freqs_good_FN = /home/data/MEC/20180820/ws_clickthroughs/digWS_FL1-freqs-good.txt
+#h5resID_offset=0
+#wsresID_offset=0
+
+[FL5a]
+widesweep_FN = /home/data/MEC/20180820/digWS_FL5.txt
+ws_freqs_all_FN = /home/data/MEC/20180820/ws_clickthroughs/digWS_FL5-freqs-all.txt
+ws_freqs_good_FN = /home/data/MEC/20180820/ws_clickthroughs/digWS_FL5-freqs-good.txt
+#h5resID_offset=0
+#wsresID_offset=0
+
+[FL5b]
+widesweep_FN = /home/data/MEC/20180820/digWS_FL5.txt
+ws_freqs_all_FN = /home/data/MEC/20180820/ws_clickthroughs/digWS_FL5-freqs-all.txt
+ws_freqs_good_FN = /home/data/MEC/20180820/ws_clickthroughs/digWS_FL5-freqs-good.txt
+#h5resID_offset=0
+#wsresID_offset=0
+
+[FL6a]
+widesweep_FN = /home/data/MEC/20180820/digWS_FL6.txt
+ws_freqs_all_FN = /home/data/MEC/20180820/ws_clickthroughs/raw_digWS_FL6-freqs-all-stitched.txt
+ws_freqs_good_FN = /home/data/MEC/20180820/ws_clickthroughs/raw_digWS_FL6-freqs-good-stitched.txt
+#h5resID_offset=0
+#wsresID_offset=0
+
+[FL6b]
+widesweep_FN = /home/data/MEC/20180820/digWS_FL6.txt
+ws_freqs_all_FN = /home/data/MEC/20180820/ws_clickthroughs/raw_digWS_FL6-freqs-all-stitched.txt
+ws_freqs_good_FN = /home/data/MEC/20180820/ws_clickthroughs/raw_digWS_FL6-freqs-good-stitched.txt
+#h5resID_offset=0
+#wsresID_offset=0
+
+[FL7a]
+widesweep_FN = /home/data/MEC/20180820/digWS_FL7.txt
+ws_freqs_all_FN = /home/data/MEC/20180820/ws_clickthroughs/digWS_FL7-freqs-all.txt
+ws_freqs_good_FN = /home/data/MEC/20180820/ws_clickthroughs/digWS_FL7-freqs-good.txt
+#h5resID_offset=0
+#wsresID_offset=0
+
+[FL7b]
+widesweep_FN = /home/data/MEC/20180820/digWS_FL7.txt
+ws_freqs_all_FN = /home/data/MEC/20180820/ws_clickthroughs/digWS_FL7-freqs-all.txt
+ws_freqs_good_FN = /home/data/MEC/20180820/ws_clickthroughs/digWS_FL7-freqs-good.txt
+#h5resID_offset=0
+#wsresID_offset=0
+
+[FL8a]
+widesweep_FN = /home/data/MEC/20180820/digWS_FL8.txt
+ws_freqs_all_FN = /home/data/MEC/20180820/ws_clickthroughs/digWS_FL8-freqs-all-stitched.txt
+ws_freqs_good_FN = /home/data/MEC/20180820/ws_clickthroughs/digWS_FL8-freqs-good-stitched.txt
+#h5resID_offset=0
+#wsresID_offset=0
+
+[FL8b]
+widesweep_FN = /home/data/MEC/20180820/digWS_FL8.txt
+ws_freqs_all_FN = /home/data/MEC/20180820/ws_clickthroughs/digWS_FL8-freqs-all-stitched.txt
+ws_freqs_good_FN = /home/data/MEC/20180820/ws_clickthroughs/digWS_FL8-freqs-good-stitched.txt
+#h5resID_offset=0
+#wsresID_offset=0
+
+[FL9a]
+widesweep_FN = /home/data/MEC/20180820/digWS_FL9.txt
+ws_freqs_all_FN = /home/data/MEC/20180820/ws_clickthroughs/raw_digWS_FL9-freqs-all.txt
+ws_freqs_good_FN = /home/data/MEC/20180820/ws_clickthroughs/raw_digWS_FL9-freqs-good.txt
+#h5resID_offset=0
+#wsresID_offset=0
+
+[FL9b]
+widesweep_FN = /home/data/MEC/20180820/digWS_FL9.txt
+ws_freqs_all_FN = /home/data/MEC/20180820/ws_clickthroughs/raw_digWS_FL9-freqs-all.txt
+ws_freqs_good_FN = /home/data/MEC/20180820/ws_clickthroughs/raw_digWS_FL9-freqs-good.txt
+#h5resID_offset=0
+#wsresID_offset=0
+
+[FL10a]
+widesweep_FN = /home/data/MEC/20180820/digWS_FL10.txt
+ws_freqs_all_FN = /home/data/MEC/20180820/ws_clickthroughs/digWS_FL10-freqs-all-stitched.txt
+ws_freqs_good_FN = /home/data/MEC/20180820/ws_clickthroughs/digWS_FL10-freqs-good-stitched.txt
+#h5resID_offset=0
+#wsresID_offset=0
+
+[FL10b]
+widesweep_FN = /home/data/MEC/20180820/digWS_FL10.txt
+ws_freqs_all_FN = /home/data/MEC/20180820/ws_clickthroughs/digWS_FL10-freqs-all-stitched.txt
+ws_freqs_good_FN = /home/data/MEC/20180820/ws_clickthroughs/digWS_FL10-freqs-good-stitched.txt
+#h5resID_offset=0
+#wsresID_offset=0
+
+
