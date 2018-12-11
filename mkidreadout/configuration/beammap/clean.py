@@ -207,7 +207,7 @@ class BMCleaner(object):
         log.info('Successfully resolved %d overlaps', nOverlapsResolved)
         log.info('Failed to resolve %d overlaps', np.sum(self.beamMap.flags.astype(int)==beamMapFlags['duplicatePixel']))
 
-    def resolveOverlapWithFrequency(self):
+    def resolveOverlapWithFrequency(self, plot=False):
         """
 
         Uses the beammap that was given to the BMCleaner class to first run the shifting/frequency fitting code, then uses
@@ -228,7 +228,10 @@ class BMCleaner(object):
 
         overlapGrid = getOverlapGrid(beammap.xCoords, beammap.yCoords, beammap.flags, self.nCols, self.nRows)
         overlapCoords = np.asarray(np.where(overlapGrid > 1)).T
-        numberOfOverlapsResolved = 0
+        nOverlapsResolved = 0
+        nPixelsPlaced = 0
+        originalCoord = []
+        placedCoord = []
 
         for coord in overlapCoords:
             doubles = beammap.getResonatorsAtCoordinate(coord[0], coord[1])
@@ -285,20 +288,29 @@ class BMCleaner(object):
             for i in range(len(doubles)):
                 resonator = doubles[i]
                 newCoordinate = newCoordinates[i].astype(int)
+                originalCoord.append(coord)
+                placedCoord.append(newCoordinate)
                 overlapGrid[newCoordinate[0], newCoordinate[1]] += 1
                 index = np.where(self.beamMap.resIDs == resonator[0])[0]
                 beammap.xCoords[index] = newCoordinate[0]
                 beammap.yCoords[index] = newCoordinate[1]
                 beammap.flags[index] = beamMapFlags['good']
-                numberOfOverlapsResolved += 1
-                print(coord, newCoordinate, numberOfOverlapsResolved)
+                nPixelsPlaced += 1
 
-            numberOfOverlapsResolved += 1
+            nOverlapsResolved += 1
 
-        log.info('Successfully resolved %d overlaps', numberOfOverlapsResolved)
+        log.info('Successfully resolved %d overlaps', nOverlapsResolved)
+        log.info('Successfully placed %d pixels', nPixelsPlaced)
         self.beamMap.xCoords = np.floor(beammap.xCoords)
         self.beamMap.yCoords = np.floor(beammap.yCoords)
         self.beamMap.flags = beammap.flags
+
+        if plot:
+            original, placed = np.array(originalCoord), np.array(placedCoord)
+            plt.scatter(original,color='red')
+            plt.quiver(original[:, 0], original[:, 1], placed[:, 0], placed[:, 1],color='blue')
+            plt.show()
+
 
     def runShiftingCode(self):
         shifter = shift.BeammapShifter(self.designFile, self.beamMap, self.instrument)
