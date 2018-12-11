@@ -7,7 +7,8 @@ import matplotlib.pyplot as plt
 from mkidreadout.configuration.widesweep.wsdata import WSFitMLData
 import os
 import argparse
-ANALOG_TEMPLATE_SPACING = 12.5
+ANALOG_SPACING = 12.5
+DIGITAL_SPACING = 7.629
 
 
 class AutoPeakFinder:
@@ -39,8 +40,8 @@ class AutoPeakFinder:
         freqs = self.inferenceData.freqs
         thresh = sigThresh*np.std(firFiltMagsDB)
         print 'threshold', thresh
-        peaks, _ = signal.find_peaks(-firFiltMagsDB, prominence=thresh, width=2, wlen=35)
-        morePeaks, _ = signal.find_peaks(-firFiltMagsDB, thresh, prominence=0.4*thresh, width=2, wlen=30)
+        peaks, _ = signal.find_peaks(-firFiltMagsDB, prominence=thresh, width=2, wlen=int(267/self.spacing))
+        morePeaks, _ = signal.find_peaks(-firFiltMagsDB, thresh, prominence=0.4*thresh, width=2, wlen=int(229/self.spacing))
         peaks = np.append(peaks, morePeaks)
         peaks = np.unique(peaks)
         peaks = np.sort(peaks)
@@ -115,9 +116,9 @@ if __name__=='__main__':
     sigmaThresh = 0.5
     
     if args.digital:
-        spacing = 7.629
+        spacing = DIGITAL_SPACING
     else:
-        spacing = 12.5
+        spacing = ANALOG_SPACING
 
     wsFilt = AutoPeakFinder(spacing)
     wsFilt.inferPeaks(wsFile, args.digital, sigmaThresh)
