@@ -207,7 +207,7 @@ class BMCleaner(object):
         log.info('Successfully resolved %d overlaps', nOverlapsResolved)
         log.info('Failed to resolve %d overlaps', np.sum(self.beamMap.flags.astype(int)==beamMapFlags['duplicatePixel']))
 
-    def resolveOverlapWithFrequency(self, plot=False):
+    def resolveOverlapWithFrequency(self):
         """
 
         Uses the beammap that was given to the BMCleaner class to first run the shifting/frequency fitting code, then uses
