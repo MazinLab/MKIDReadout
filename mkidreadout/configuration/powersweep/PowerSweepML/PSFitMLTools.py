@@ -1,43 +1,30 @@
 import numpy as np
 from PSFitMLData import *
 
-def makeResImage(res_num, angle=0, center_loop=False,  phase_normalise=False, showFrames=False, test_if_noisy=False, dataObj=None, padFreq=None, mlDict=None):
+def makeResImage(res_num, angle=1, center_loop=False,  phase_normalise=False, showFrames=False, test_if_noisy=False, dataObj=None, padFreq=None, mlDict=None, wsAttenInd=None):
     '''Creates a table with 2 rows, I and Q for makeTrainData(mag_data=True)
 
     inputs 
     res_num: index of resonator in question
     iAtten: index of attenuation in question
-    self.scalexWidth: typical values: 1/2, 1/4, 1/8
-                      uses interpolation to put data from an xWidth x xWidth grid to a 
-                      (xWidth/scalexWidth) x (xWidth/scalexWidth) grid. This allows the 
-                      user to probe the spectrum using a smaller window while utilizing 
-                      the higher resolution training data
     angle: angle of rotation about the origin (radians)
     showFrames: pops up a window of the frame plotted using matplotlib.plot
     '''     
-    xWidth= mlDict['xWidth'] 
-    scalexWidth = mlDict['scaleXWidth']
+    xWidth= mlDict['xWidth'] # 
+    resWidth = mlDict['resWidth']
+    assert resWidth<=xWidth, 'res width must be <= xWidth'
+
     attenWinAbove = mlDict['attenWinAbove']
     attenWinBelow = mlDict['attenWinBelow']
 
     #xCenter = self.get_peak_idx(res_num,iAtten,dataObj)
     nFreqPoints = len(dataObj.Is[res_num,0,:])
+    assert resWidth<=nFreqPoints 'res width must be <= number of freq steps'
 
-    if nFreqPoints >= xWidth:
-        xCenter = nFreqPoints/2
-        start = xCenter - int(np.ceil(mlDict['xWidth']/2.))
-        end = xCenter + int(np.floor(mlDict['xWidth']/2.))
-        iq_vels = dataObj.iq_vels[res_num, :, start:end]
-        Is = dataObj.Is[res_num,:,start:end]
-        Qs = dataObj.Qs[res_num,:,start:end]
-        freqs = dataObj.freqs[res_num]
+    iq_vels = dataObj.iq_vels[res_num, :, :]
+    Is = dataObj.Is[res_num,:, :-1] #-1 to make size the same as iq vels
+    Qs = dataObj.Qs[res_num,:, :-1]
 
-    else:
-        nPadVals = (xWidth - nFreqPoints)/2.
-        iq_vels = np.pad(dataObj.iq_vels[res_num,:,:], [(0,0),(int(np.ceil(nPadVals)), int(np.floor(nPadVals)+1))], 'edge')
-        Is = np.pad(dataObj.Is[res_num,:,:], [(0,0),(int(np.ceil(nPadVals)), int(np.floor(nPadVals)))], 'edge')
-        Qs = np.pad(dataObj.Qs[res_num,:,:], [(0,0),(int(np.ceil(nPadVals)), int(np.floor(nPadVals)))], 'edge')
-        freqs = np.pad(dataObj.freqs[res_num], (int(np.ceil(nPadVals)), int(np.floor(nPadVals))), 'edge')
         
 
     # plt.plot(self.Is[res_num,iAtten], self.Qs[res_num,iAtten])
@@ -45,6 +32,7 @@ def makeResImage(res_num, angle=0, center_loop=False,  phase_normalise=False, sh
     # for spectra where the peak is close enough to the edge that some points falls across the bounadry, pad zeros
 
     
+    magsdb = 10*np.log10(Is**2+Qs**2)
 
     if center_loop:
         Is = np.transpose(np.transpose(Is) - np.mean(Is,1))
@@ -57,17 +45,6 @@ def makeResImage(res_num, angle=0, center_loop=False,  phase_normalise=False, sh
 
 
             # interpolate iq_vels onto a finer grid
-
-
-    # if test_if_noisy:
-    #     peak_iqv = mean(iq_vels[int(xWidth/4): int(3*xWidth/4)])
-    #     nonpeak_indicies=np.delete(np.arange(xWidth),np.arange(int(xWidth/4),int(3*xWidth/4)))
-    #     nonpeak_iqv = iq_vels[nonpeak_indicies]
-    #     nonpeak_iqv = mean(nonpeak_iqv[np.where(nonpeak_iqv!=0)]) # since it spans a larger area
-    #     noise_condition = 1.5#0.7 
-
-    #     if (peak_iqv/nonpeak_iqv < noise_condition):
-    #         return None 
 
     res_mag = np.sqrt(np.amax(Is**2 + Qs**2, axis=1)) #changed by NF 20180423 (originally amax)
     #res_mag = np.sqrt(np.mean(Is**2 + Qs**2, axis=1)) #changed by NF 20180423
@@ -82,27 +59,6 @@ def makeResImage(res_num, angle=0, center_loop=False,  phase_normalise=False, sh
     # Is = Is /np.amax(dataObj.Is[res_num, :, :])
     # Qs = Qs /np.amax(dataObj.Qs[res_num, :, :])
 
-    # print Is[::5]
-    # print Qs[::5]
-
-    if phase_normalise: #need to fix for imgcube
-        #mags = Qs**2 + Is**2
-        #mags = map(lambda x: math.sqrt(x), mags)#map(lambda x,y:x+y, a,b)
-
-        #peak_idx = self.get_peak_idx(res_num,iAtten)
-        peak_idx =np.argmax(iq_vels)
-        #min_idx = argmin(mags)
-
-        phase_orig = math.atan2(Qs[peak_idx],Is[peak_idx])
-        #phase_orig = math.atan2(Qs[min_idx],Is[min_idx])
-
-        angle = -phase_orig
-
-        rotMatrix = numpy.array([[numpy.cos(angle), -numpy.sin(angle)], 
-                                 [numpy.sin(angle),  numpy.cos(angle)]])
-
-        Is,Qs = np.dot(rotMatrix,[Is,Qs])
-
     if showFrames:
         fig = plt.figure(frameon=False,figsize=(15.0, 5.0))
         fig.add_subplot(131)
@@ -115,12 +71,64 @@ def makeResImage(res_num, angle=0, center_loop=False,  phase_normalise=False, sh
         plt.plot(Is,Qs)
         plt.show()
         plt.close()
+    
+        
+    #make sliding window images
+    singleFrameImage = np.zeros((np.shape(Is)[0],resWidth,3))
 
-    image = np.zeros((np.shape(Is)[0],1+attenWinAbove+attenWinBelow,np.shape(Is)[1],3))
-    singleFrameImage = np.zeros((np.shape(Is)[0],np.shape(Is)[1],3))
-    singleFrameImage[:,:,0] = Is
-    singleFrameImage[:,:,1] = Qs
-    singleFrameImage[:,:,2] = iq_vels
+    if resWidth < nFreqPoints:
+        initWinCenter = nFreqPoints/2#np.argmin(magsdb[wsAttenInd,])
+        winCenter = initWinCenter
+        startWin = int(winCenter-resWidth/2.)
+        endWin = int(winCenter+resWidth/2.)
+        singleFrameImage[wsAttenInd, :, 0] = Is[wsAttenInd, startWin:endWin]
+        singleFrameImage[wsAttenInd, :, 1] = Qs[wsAttenInd, startWin:endWin]
+        singleFrameImage[wsAttenInd, :, 2] = iq_vels[wsAttenInd, startWin:endWin]
+        
+        for i in range(wsAttenInd-1, -1, -1):
+            oldWinMags = magsdb[i, startWin:endWin]
+            newWinCenter = startWin + np.argmin(oldWinMags)
+            startWin += (newWinCenter - winCenter)
+            endWin += (newWinCenter - winCenter)
+            winCenter = newWinCenter
+            singleFrameImage[wsAttenInd, :, 0] = Is[wsAttenInd, startWin:endWin]
+            singleFrameImage[wsAttenInd, :, 1] = Qs[wsAttenInd, startWin:endWin]
+            singleFrameImage[wsAttenInd, :, 2] = iq_vels[wsAttenInd, startWin:endWin]
+
+        winCenter = initWinCenter
+        for i in range(wsAttenInd+1, Is.shape[0]): 
+            oldWinMags = magsdb[i, startWin:endWin]
+            newWinCenter = startWin + np.argmin(oldWinMags)
+            startWin += (newWinCenter - winCenter)
+            endWin += (newWinCenter - winCenter)
+            winCenter = newWinCenter
+            singleFrameImage[wsAttenInd, :, 0] = Is[wsAttenInd, startWin:endWin]
+            singleFrameImage[wsAttenInd, :, 1] = Qs[wsAttenInd, startWin:endWin]
+            singleFrameImage[wsAttenInd, :, 2] = iq_vels[wsAttenInd, startWin:endWin]
+            
+
+    else:
+        singleFrameImage[:,:,0] = Is
+        singleFrameImage[:,:,1] = Qs
+        singleFrameImage[:,:,2] = iq_vels
+
+    if resWidth < xWidth:
+        nPadVals = (xWidth - nFreqPoints)/2.
+        singleFrameImage[:,:,2] = np.pad(singleFrameImage[:,:,2], [(0,0),(int(np.ceil(nPadVals)), int(np.floor(nPadVals)+1))], 'edge')
+        singleFrameImage[:,:,0] = np.pad(singleFrameImage[:,:,0], [(0,0),(int(np.ceil(nPadVals)), int(np.floor(nPadVals)))], 'edge')
+        singleFrameImage[:,:,1] = np.pad(singleFrameImage[:,:,1], [(0,0),(int(np.ceil(nPadVals)), int(np.floor(nPadVals)))], 'edge')
+        freqs = np.pad(dataObj.freqs[res_num], (int(np.ceil(nPadVals)), int(np.floor(nPadVals))), 'edge')
+        
+
+    #if resWidth >= xWidth:
+    #    xCenter = nFreqPoints/2
+    #    start = xCenter - int(np.ceil(mlDict['xWidth']/2.))
+    #    end = xCenter + int(np.floor(mlDict['xWidth']/2.))
+    #    iq_vels = dataObj.iq_vels[res_num, :, start:end]
+    #    Is = dataObj.Is[res_num,:,start:end]
+    #    Qs = dataObj.Qs[res_num,:,start:end]
+    #    freqs = dataObj.freqs[res_num]
+
 
     if not padFreq is None:
         padFreqInd = np.argmin(np.abs(freqs-padFreq))
