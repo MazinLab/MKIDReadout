@@ -247,12 +247,16 @@ class BMCleaner(object):
                 xUncertainty += 1
                 yUncertainty += 1
                 coordsToSearch = generateCoords(coord, xUncertainty, yUncertainty)
+
+                # First masks, removes search coordinates that are off of the array or the feedline
                 onArrayMask = ((coordsToSearch[:, 0] >= 0) & (coordsToSearch[:, 0] < self.nCols) & (coordsToSearch[:, 1] >= 0) & (coordsToSearch[:, 1] < self.nRows))
                 coordsToSearch = coordsToSearch[onArrayMask.astype(bool)]
                 onFeedlineMask = np.zeros(len(coordsToSearch))
                 for i in range(len(coordsToSearch)):
                     onFeedlineMask[i] = isResonatorOnCorrectFeedline(doubles[0][0], coordsToSearch[i][0], coordsToSearch[i][1], self.instrument)
                 coordsToSearch = coordsToSearch[onFeedlineMask.astype(bool)]
+
+                # Mask for if any of the search coordinates already have a resonator there
                 occupationMask = np.zeros(len(coordsToSearch))
                 for i in range(len(coordsToSearch)):
                     if overlapGrid[coordsToSearch[i][0], coordsToSearch[i][1]] == 0:
@@ -260,7 +264,9 @@ class BMCleaner(object):
                     else:
                         occupationMask[i] = False
                 coordsToSearch = coordsToSearch[occupationMask.astype(bool)]
-                coordsToSearch = np.append(coordsToSearch, coord).reshape((len(coordsToSearch)+1, 2))  # Adds the overlap coordinate back to the search coords (they can be placed there)
+
+                # Adds the overlap coordinate back to the search coords (they can be placed there)
+                coordsToSearch = np.append(coordsToSearch, coord).reshape((len(coordsToSearch)+1, 2))
                 nCoords = len(coordsToSearch)
 
             # Generates the design frequency at the coordinates that are being tested
@@ -275,15 +281,18 @@ class BMCleaner(object):
                 for j in range(len(doubles)):
                     residuals[i] += abs(doubles[j][4]-freqsToSearch[placementsToSearch[i][j]])
 
+            # Finds where the 'total frequency residual' occurs. This gives the placement combination which minimizes
+            # the difference in frequency between the pixel placement and design frequency at those points
             index = np.where(residuals == min(residuals))[0][0]
             bestPlacement = placementsToSearch[index]
 
+            # Generates the coordinates at which each resonator will be placed
             newCoordinates = np.zeros((len(doubles), 2))
             for i in range(len(bestPlacement)):
                 newCoordinates[i] = coordsToSearch[bestPlacement[i]]
 
-            # Updates the overlap grid to reflect the new occupancy of coordinates. Updates the shifted beammap (not the
-            # original beammap given to BMCleaner)
+            # Updates the overlap grid to reflect the new occupancy of coordinates. Updates the in-function beammap.
+            # These updates will be applied to the class beammap
             overlapGrid[coord[0], coord[1]] = 0
             for i in range(len(doubles)):
                 resonator = doubles[i]
@@ -302,23 +311,30 @@ class BMCleaner(object):
         log.info('Successfully resolved %d overlaps', nOverlapsResolved)
         log.info('Successfully placed %d pixels', nPixelsPlaced)
 
+        # Updates the class beammap
         self.beamMap.xCoords = np.floor(beammap.xCoords)
         self.beamMap.yCoords = np.floor(beammap.yCoords)
         self.beamMap.flags = beammap.flags
 
-        # Plots the shifted, locked onto a grid original location of the resolved overlaps and the lovations the
-        # pixels were placed at. Red dot = pixel was not moved, Blue arrow points from the overlap to where the
-        # pixel was placed
+        # For all of the resonators that were analyzed in this part of the code, figure out where they started (after
+        # being shifted in space) and where they were moved (or not moved to).
         original, placed = np.array(originalCoord), np.array(placedCoord)
         distanceMoved = np.sqrt(((original[:, 0]-placed[:, 0])**2)+((original[:, 1]-placed[:, 1])**2))
         didMove = (distanceMoved != 0)
         within1 = (distanceMoved < 2)
         nPixelsWithin1 = distanceMoved[within1.astype(bool)]
 
+
+        # Plots the shifted, locked onto a grid original location of the resolved overlaps and the lovations the
+        # pixels were placed at. Red dot = pixel was not moved, Blue arrow points from the overlap to where the
+        # pixel was placed
         log.info('%d pixels were not moved', len(distanceMoved[~didMove.astype(bool)]))
         log.info('%d pixels were moved', len(distanceMoved[didMove.astype(bool)]))
         log.info('%d pixels were placed within 1 pixel of their original placement', nPixelsWithin1)
 
+        # Plots the 'process' of overlap resolution. Arrows start where the pixel began to where it was placed. Dots
+        # are shown where the 'best placement' for a resonator that was not moved.
+        # NOTE: If a pixel has a dot, it MUST also have an arrow coming from it.
         plt.scatter(original[:, 0][~didMove.astype(bool)], original[:, 1][~didMove.astype(bool)], c='green', marker='.')
         plt.quiver(original[:, 0][didMove.astype(bool)], original[:, 1][didMove.astype(bool)],
                    (placed[:, 0]-original[:, 0])[didMove.astype(bool)], (placed[:, 1]-original[:, 1])[didMove.astype(bool)],
@@ -328,7 +344,7 @@ class BMCleaner(object):
     def runShiftingCode(self):
         shifter = shift.BeammapShifter(self.designFile, self.beamMap, self.instrument)
         shifter.run()
-        return shifter
+        return shifter  # This is an object which contains a beammap that will be used in future beammap cleaning steps
 
     def placeFailedPixels(self):
         '''
