@@ -329,18 +329,18 @@ class WideAna(QMainWindow):
 
 
         #remove collisions
-        freqsAtPeaks = self.wsf.x[peaks]
-        args = np.argsort(freqsAtPeaks)
-        peaks=peaks[args]
-        freqsAtPeaks=freqsAtPeaks[args]
-        diffs = freqsAtPeaks[1:] - freqsAtPeaks[:-1]
-        diffs = np.append(diffs, [peaks[-1]])
-        peaks=np.delete(peaks, np.where(diffs<2.E-9))    #remove duplicate peaks
-        freqsAtPeaks=np.delete(freqsAtPeaks, np.where(diffs<2.E-9))    #remove duplicate peaks
-        
-        diffs = freqsAtPeaks[1:] - freqsAtPeaks[:-1]
-        diffs = np.append(diffs, [peaks[-1]])
-        colls = peaks[np.where(diffs<=self.coll_thresh)]
+        #freqsAtPeaks = self.wsf.x[peaks]
+        #args = np.argsort(freqsAtPeaks)
+        #peaks=peaks[args]
+        #freqsAtPeaks=freqsAtPeaks[args]
+        #diffs = freqsAtPeaks[1:] - freqsAtPeaks[:-1]
+        #diffs = np.append(diffs, [peaks[-1]])
+        #peaks=np.delete(peaks, np.where(diffs<2.E-9))    #remove duplicate peaks
+        #freqsAtPeaks=np.delete(freqsAtPeaks, np.where(diffs<2.E-9))    #remove duplicate peaks
+        #
+        #diffs = freqsAtPeaks[1:] - freqsAtPeaks[:-1]
+        #diffs = np.append(diffs, [peaks[-1]])
+        #colls = peaks[np.where(diffs<=self.coll_thresh)]
 
         '''
         #coll_thresh = self.wsf.x[0]
@@ -366,15 +366,15 @@ class WideAna(QMainWindow):
         '''
 
         #print colls
-        if colls != []:
-            #colls=np.array(map(int,colls))
-            self.collMask[colls] = True # update: so unidentified peaks can be identified as unusable
-            
-        peaks = np.delete(peaks,colls) #remove collisions (peaks < 0.5MHz apart = < 9 steps apart)
+        #if colls != []:
+        #    #colls=np.array(map(int,colls))
+        #    self.collMask[colls] = True # update: so unidentified peaks can be identified as unusable
+        #    
+        #peaks = np.delete(peaks,colls) #remove collisions (peaks < 0.5MHz apart = < 9 steps apart)
         #peaks = np.delete(peaks,np.where(dist<9)) #remove collisions (peaks < 0.5MHz apart = < 9 steps apart)
         self.goodPeakMask[peaks] = True #set to false to disable automatic peak finding 
-        self.badPeakMask[colls] = True #set to false to disable automatic peak finding 
-        self.goodPeakMask[colls] = False
+        #self.badPeakMask[colls] = True #set to false to disable automatic peak finding 
+        #self.goodPeakMask[colls] = False
 
         self.setCountLabel()
 #        self.writeToGoodFile()
