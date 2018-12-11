@@ -305,11 +305,20 @@ class BMCleaner(object):
         self.beamMap.yCoords = np.floor(beammap.yCoords)
         self.beamMap.flags = beammap.flags
 
-        if plot:
-            original, placed = np.array(originalCoord), np.array(placedCoord)
-            plt.scatter(original,color='red')
-            plt.quiver(original[:, 0], original[:, 1], placed[:, 0], placed[:, 1],color='blue')
-            plt.show()
+
+        # Plots the shifted, locked onto a grid original location of the resolved overlaps and the lovations the
+        # pixels were placed at. Red dot = pixel was not moved, Blue arrow points from the overlap to where the
+        # pixel was placed
+        original, placed = np.array(originalCoord), np.array(placedCoord)
+        distanceMoved = np.sqrt(((original[:, 0]-placed[:, 0])**2)+((original[:, 1]-placed[:, 1])**2))
+        didMove = (distanceMoved != 0)
+
+        plt.scatter(original[:, 0][~didMove.astype(bool)], original[:, 1][~didMove.astype(bool)], c='green', marker='.')
+        plt.quiver(original[:, 0][didMove.astype(bool)], original[:, 1][didMove.astype(bool)],
+                   (placed[:, 0]-original[:, 0])[didMove.astype(bool)], (placed[:, 1]-original[:, 1])[didMove.astype(bool)],
+                   color='blue', angles='xy', scale_units='xy', scale=1, headlength=3, headwidth=2)
+        plt.show(block=False)
+
 
 
     def runShiftingCode(self):
