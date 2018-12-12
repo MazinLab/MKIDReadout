@@ -92,7 +92,7 @@ import binascii
 from mkidreadout.channelizer.binTools import castBin
 from mkidreadout.utils.readDict import readDict
 from mkidreadout.channelizer.adcTools import streamSpectrum, checkSpectrumForSpikes
-from mkidreadout.channelizer.Roach2Utils import cy_generateTones
+#from mkidreadout.channelizer.Roach2Utils import cy_generateTones
 
 class Roach2Controls:
 
@@ -278,6 +278,23 @@ class Roach2Controls:
             #time.sleep(.2)
         self.v7_ready = 0
         self.sendUARTCommand(self.params['mbEnFracLO'])
+
+
+    def reInitADCDACBoard(self): 
+        """
+        Rerun startup initialization routines
+        """
+        while(not(self.v7_ready)):
+            self.v7_ready = self.fpga.read_int(self.params['v7Ready_reg'])
+            time.sleep(.2)
+        self.sendUARTCommand(0x31, True)
+        self.sendUARTCommand(0x32, True)
+        self.sendUARTCommand(0x33, True)
+        self.sendUARTCommand(0x34, True)
+        self.sendUARTCommand(0x35, True)
+        self.sendUARTCommand(0x36, True)
+        self.sendUARTCommand(0x30, True)
+        self.sendUARTCommand(self.params['mbEnableDACs'], True)
         
     def generateDdsTones(self, freqChannels=None, fftBinIndChannels=None, phaseList=None):
         """
@@ -1206,7 +1223,7 @@ class Roach2Controls:
         #print "python: "+str(time.time()-ts)
         
         #ts=time.time()
-        return cy_generateTones(freqList, nSamples, sampleRate, amplitudeList, phaseList, iqRatioList, iqPhaseOffsList)
+        #return cy_generateTones(freqList, nSamples, sampleRate, amplitudeList, phaseList, iqRatioList, iqPhaseOffsList)
         #print "cython: "+str(time.time()-ts)
 
         # Quantize the frequencies to their closest digital value
@@ -1223,8 +1240,8 @@ class Roach2Controls:
             phi = 2.*np.pi*quantizedFreqList[i]*t
             expValues = amplitudeList[i]*np.exp(1.j*(phi+phaseList[i]))
             #print 'Rotating ch'+str(i)+' to '+str(phaseList[i]*180./np.pi)+' deg'
-            iScale = np.sqrt(2)*iqRatioList[i]/np.sqrt(1+iqRatioList[i]**2)
-            qScale = np.sqrt(2)/np.sqrt(1+iqRatioList[i]**2)
+            iScale = np.sqrt(2.)*iqRatioList[i]/np.sqrt(1.+iqRatioList[i]**2)
+            qScale = np.sqrt(2.)/np.sqrt(1.+iqRatioList[i]**2)
             iValList.append(iScale*(np.cos(iqPhaseOffsRadList[i])*np.real(expValues)+np.sin(iqPhaseOffsRadList[i])*np.imag(expValues)))
             qValList.append(qScale*np.imag(expValues))
         

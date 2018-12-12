@@ -56,6 +56,7 @@ class DigitalWideSweep(QtCore.QObject):
         self.roachNums = np.unique(roachNums)       # sorts and removes duplicates
         self.numRoaches = len(self.roachNums)       # (int) number of roaches connected
         self.config = ConfigParser.ConfigParser()
+        self.numDoneSweeping=0
 
         #todo change to from channelizer.hightemplar import defaultconfig or somesuch
         if defaultValues is None:
@@ -86,6 +87,7 @@ class DigitalWideSweep(QtCore.QObject):
             roach.commandError_Signal.connect(partial(self.catchRoachError,i))          # call catchRoachError when roach errors out on a command
             thread.started.connect(roach.executeCommands)                               # When the thread is started, automatically call RoachStateMachine.executeCommands()
             roach.finished.connect(thread.quit)                                         # When all the commands are done executing stop the thread. Can be restarted with thread.start()
+            
             roach.moveToThread(thread)                                                  # The roach functions run on the seperate thread
             self.roaches.append(roach)
             self.roachThreads.append(thread)
@@ -99,14 +101,16 @@ class DigitalWideSweep(QtCore.QObject):
         self.execQApp=0     #if 0 then stop the QApp. Otherwise, keep it running.
         self.app = QtCore.QCoreApplication(sys.argv)    # The signals emmited by RoachStateMachine objects require a QEventLoop to be running from a QApplication.
     
+
     def quitQApp(self):
         """
         Stop the QApplication to end the QEventLoop
         """
         self.execQApp -=1
+        print "Quitting QApp in "+str(self.execQApp)
         if self.execQApp<=0:
             self.app.quit()
-            #print "Quit QApp"
+            print "Quit QApp"
 
 
     def catchRoachError(self,roachNum, command, exc_info=None):
@@ -119,6 +123,7 @@ class DigitalWideSweep(QtCore.QObject):
             exc_info - from the exception
             
         """
+        self.numDoneSweeping+=1
         traceback.print_exception(*exc_info)
         roachArg = np.where(np.asarray(self.roachNums) == roachNum)[0][0]
         print 'Roach ',roachNum,' errored out: ',RoachStateMachine.parseCommand(command)
@@ -221,6 +226,7 @@ class DigitalWideSweep(QtCore.QObject):
         try: resAtten=kwargs.pop('resAtten')
         except KeyError: resAtten=None
 
+        self.numDoneSweeping=0
         threadsToStart=[]
         for i, roach_i in enumerate(roachNums):
             roachArg = np.where(np.asarray(self.roachNums) == roach_i)[0][0]
@@ -257,7 +263,7 @@ class DigitalWideSweep(QtCore.QObject):
 
                 
                 #span=0.2E6
-                lo_step = DAC_freqResolution
+                lo_step = 1*DAC_freqResolution
                 self.roaches[roachArg].config.set('Roach '+str(roach_i),'sweeplostep',str(lo_step))
                 self.roaches[roachArg].config.set('Roach '+str(roach_i),'sweeplospan',str(span))
                 #if lo_step: self.roaches[roachArg].config.set('Roach '+str(roach_i),'sweeplostep',str(lo_step))
@@ -265,7 +271,7 @@ class DigitalWideSweep(QtCore.QObject):
                     self.roaches[roachArg].config.set('Roach '+str(roach_i),'dacatten_start',str(DACatten))
                     self.roaches[roachArg].config.set('Roach '+str(roach_i),'dacatten_stop',str(DACatten))
                 if ADCatten: self.roaches[roachArg].config.set('Roach '+str(roach_i),'adcatten',str(ADCatten))
-                
+                print 'r'+str(roach_i)+": LO="+str(LO)+"; span="+str(span)+"; nSteps="+str(span/lo_step)
 
                 if self.debug:  #Initialize to sweep state to save
                     state = [RoachStateMachine.UNDEFINED]*RoachStateMachine.NUMCOMMANDS
@@ -279,7 +285,7 @@ class DigitalWideSweep(QtCore.QObject):
             t.start()
             self.execQApp+=1
         if self.execQApp>0:
-            #print "Starting QApp"
+            print "Starting QApp"
             self.app.exec_()    #Start the QApplication so we can see signals on the QEventLoop
     
     def saveFreqList(self,freqs, outfilename='test.txt', resAtten=None, resIDs=None):
@@ -403,7 +409,7 @@ if __name__ == "__main__":
     #startFreqs = [5.5E9]
     #stopFreqs=[7.5E9]
     digWS = DigitalWideSweep(roachNums, defaultValues,filePrefix,debug=debug)
-    digWS.startWS(roachNums=None, startFreqs=startFreqs, endFreqs=stopFreqs,DACatten=None, ADCatten=None,resAtten=65,makeNewFreqs=not debug)
+    digWS.startWS(roachNums=None, startFreqs=startFreqs, endFreqs=stopFreqs,DACatten=None, ADCatten=None,resAtten=65,makeNewFreqs=False)
 
 
 

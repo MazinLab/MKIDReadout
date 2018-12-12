@@ -7,9 +7,9 @@ import sys, time, random
 import numpy as np
 from PyQt4 import QtCore
 from Queue import Queue
-from .Roach2Controls import Roach2Controls
-from .zdokcal import loadDelayCal, findCal
-from .qdr import Qdr as myQdr
+from mkidreadout.channelizer.Roach2Controls import Roach2Controls
+from mkidreadout.channelizer.zdokcal import loadDelayCal, findCal
+from mkidreadout.channelizer.qdr import Qdr as myQdr
 
 class InitStateMachine(QtCore.QObject):        #Extends QObject for use with QThreads
     """
