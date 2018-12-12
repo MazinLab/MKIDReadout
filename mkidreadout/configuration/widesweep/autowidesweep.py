@@ -93,19 +93,19 @@ class AutoPeakFinder(object):
 
     def saveInferenceFile(self):
         goodSaveFile = self.inferenceFile.rpartition('.')[0]
-        badSaveFile = self.inferenceFile.rpartition('.')[0]
+        allSaveFile = self.inferenceFile.rpartition('.')[0]
         goodSaveFile += '_stitched-ml-good.txt'
-        badSaveFile += '_stitched-ml-bad.txt'
+        allSaveFile += '_stitched-ml-all.txt'
 
         try:
-            flNum = int(re.search('fl\d','asdsdsFLg4a23r', re.IGNORECASE).group()[-1])
+            flNum = int(re.search('fl\d',self.inferenceFile, re.IGNORECASE).group()[-1])
         except AttributeError:
             getLogger(__name__).warning('Could not guess feedline from filename.')
             flNum = 0
 
-        freqs = self.inferenceData.freqs
         ws_good_inds = self.goodPeakIndices
-        # ws_bad_inds = self.badPeakIndices
+        ws_bad_inds = self.badPeakIndices
+        freqs = np.append(self.inferenceData.freqs[ws_good_inds], self.inferenceData.freqs[ws_bad_inds])
         resIds = np.arange(freqs.size) + flNum * 10000
 
         sort_inds = np.argsort(freqs)
@@ -113,11 +113,14 @@ class AutoPeakFinder(object):
         data = np.asarray([resIds[sort_inds < ws_good_inds.size],
                            ws_good_inds[sort_inds[sort_inds < ws_good_inds.size]],
                            freqs[sort_inds][sort_inds < ws_good_inds.size]]).T
+        
+        allData = np.asarray([resIds, np.append(ws_good_inds, ws_bad_inds)[sort_inds], freqs[sort_inds]]).T
 
         with open(goodSaveFile, 'wb') as gf:
             np.savetxt(gf, data, fmt="%8d %12d %16.7f")
 
-        np.savetxt(badSaveFile, self.badPeakIndices)
+        with open(allSaveFile, 'wb') as af:
+            np.savetxt(af, allData, fmt='%8d %12d %16.7f')
 
 
 if __name__ == '__main__':
