@@ -1,11 +1,10 @@
-'''
-Implements a template filter to identify WS peaks
-'''
+""" Implements a template filter to identify WS peaks """
 import numpy as np
 import scipy.signal as signal
 import matplotlib.pyplot as plt
 from mkidcore.corelog import getLogger
 from mkidreadout.configuration.widesweep.wsdata import WSFitMLData
+import mkidreadout.configuration.sweepdata as sweepdata
 import os
 import argparse
 import re
@@ -92,35 +91,23 @@ class AutoPeakFinder(object):
             # print sum(foundMinima)
 
     def saveInferenceFile(self):
-        goodSaveFile = self.inferenceFile.rpartition('.')[0]
-        allSaveFile = self.inferenceFile.rpartition('.')[0]
-        goodSaveFile += '_stitched-ml-good.txt'
-        allSaveFile += '_stitched-ml-all.txt'
+        metadatafile = self.inferenceFile.rpartition('.')[0] + '_metadata.txt'
 
         try:
-            flNum = int(re.search('fl\d',self.inferenceFile, re.IGNORECASE).group()[-1])
+            flNum = int(re.search('fl\d', self.inferenceFile, re.IGNORECASE).group()[-1])
         except AttributeError:
             getLogger(__name__).warning('Could not guess feedline from filename.')
             flNum = 0
 
         ws_good_inds = self.goodPeakIndices
-        ws_bad_inds = self.badPeakIndices
         freqs = np.append(self.inferenceData.freqs[ws_good_inds], self.inferenceData.freqs[ws_bad_inds])
+        sort_inds = np.argsort(freqs)
         resIds = np.arange(freqs.size) + flNum * 10000
 
-        sort_inds = np.argsort(freqs)
-
-        data = np.asarray([resIds[sort_inds < ws_good_inds.size],
-                           ws_good_inds[sort_inds[sort_inds < ws_good_inds.size]],
-                           freqs[sort_inds][sort_inds < ws_good_inds.size]]).T
-        
-        allData = np.asarray([resIds, np.append(ws_good_inds, ws_bad_inds)[sort_inds], freqs[sort_inds]]).T
-
-        with open(goodSaveFile, 'wb') as gf:
-            np.savetxt(gf, data, fmt="%8d %12d %16.7f")
-
-        with open(allSaveFile, 'wb') as af:
-            np.savetxt(af, allData, fmt='%8d %12d %16.7f')
+        flag = np.fill(freqs.size, sweepdata.ISBAD)
+        flag[self.goodPeakIndices] = sweepdata.ISGOOD
+        smd = sweepdata.SweepMetadata(resid=resIds, flag=flag[sort_inds], wsfreq=freqs[sort_inds], file=metadatafile)
+        smd.save()
 
 
 if __name__ == '__main__':
