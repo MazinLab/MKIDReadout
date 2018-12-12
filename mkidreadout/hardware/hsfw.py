@@ -29,6 +29,7 @@ import traceback
 import platform
 import threading
 import argparse
+import mkidcore.corelog
 
 HSFWERRORS = {0: 'No error has occurred. (cleared state)',
               1: 'The 12VDC power has been disconnected from the device.',
@@ -195,6 +196,9 @@ def _setfilter(num, home=False):
         getLogger(__name__).info('Setting postion to {}'.format(num))
         wheel.CurrentPosition = num
         return wheel.ErrorState
+    except pywintypes.com_error:
+        return 'Error: Unable to communicate. Check filter wheel is connected. (comerror)'
+        getLogger(__name__).error('Windows COM error. Filter probably disconnected', exc_info=True)
     except Exception:
         error = traceback.format_exc()
         getLogger(__name__).error('Caught error', exc_info=True)
@@ -208,6 +212,9 @@ def _getfilter():
         wheel = fwheels.FilterWheelList[0]
         return wheel.CurrentPosition
         #return wheel.ErrorState
+    except pywintypes.com_error:
+        return 'Error: Unable to communicate. Check filter wheel is connected. (comerror)'
+        getLogger(__name__).error('Windows COM error. Filter probably disconnected', exc_info=True)
     except Exception:
         error = traceback.format_exc()
         getLogger(__name__).error('Caught error', exc_info=True)
@@ -219,9 +226,12 @@ def getfilter(host='localhost:50000', timeout=.01):
     conn = connect(host, port, timeout=timeout)
     try:
         conn.sendall('?\n'.encode('utf-8'))
-        data = conn.recv(2048).strip()
+        data = conn.recv(2048).decode('utf-8').strip()
         getLogger(__name__).info("Response: {}".format(data))
         conn.close()
+        if data.lower().startswith('error'):
+            getLogger(__name__).error(data)
+            return data
         return int(data)
     except AttributeError:
         msg = 'Cannot connect to filter server'
@@ -297,6 +307,8 @@ if __name__ == '__main__':
 
     # import here so that we don't need the windows modules on a unix machine
     from win32com.client import Dispatch
-    import pythoncom
+    import pythoncom, pywintypes
 
+    mkidcore.corelog.create_log('mkidreadout', console=True, mpsafe=True, propagate=False,
+                                fmt='%(asctime)s %(levelname)s %(message)s')
     start_server(args.port)
