@@ -27,7 +27,7 @@ from mkidcore.corelog import getLogger
 import mkidcore.safesocket as socket
 import traceback
 import platform
-from mkidcore.threads import start_new_thread, print2socket
+import threading
 import argparse
 
 HSFWERRORS = {0: 'No error has occurred. (cleared state)',
@@ -98,7 +98,12 @@ def start_server(port, log=None):
         # wait to accept a connection - blocking call
         conn, addr = sock.accept()
         log.info('Connected with ' + addr[0] + ':' + str(addr[1]))
-        start_new_thread(connection_handler, (conn,), name='ClientThread')
+        try:
+            thread = threading.Thread(target=connection_handler, args=(conn,), name='ClientThread')
+            thread.daemon = True
+            thread.start()
+        except Exception:
+            getLogger(__name__).critical(exc_info=True)
     sock.close()
 
 
@@ -113,12 +118,12 @@ def connection_handler(conn):
 
             if 'exit' in data:
                 #TODO closeout filter
-                conn.sendall(b'exiting')  # confirm stop to control
+                conn.sendall('exiting'.encode('utf-8'))  # confirm stop to control
                 global_KILL_SERVER = True
                 break
 
             if '?' in data:
-                conn.sendall(b'{}'.format(_getfilter()))
+                conn.sendall('{}'.format(_getfilter()).encode('utf-8'))
                 continue
 
             try:
@@ -126,10 +131,9 @@ def connection_handler(conn):
                 if abs(fnum) not in (1,2,3,4,5,6):
                     raise ValueError('Filter must be 1-6!')
                 result = HSFWERRORS[_setfilter(abs(fnum), home=fnum < 0)]
-                print2socket(result, the_socket=conn)
+                conn.sendall(result.encode('utf-8'))
             except ValueError as e:
-                print2socket('bad command:  {}'.format(e), the_socket=conn)
-
+                conn.sendall('bad command:  {}'.format(e).encode('utf-8'))
         except Exception as e:
             try:
                 enum = e.errno
@@ -140,14 +144,16 @@ def connection_handler(conn):
             else:
                 msg = 'Server Connection Loop Exception {}: \n'.format(e) + traceback.format_exc()
                 getLogger(__name__).error(msg)
-                conn.sendall(msg)
-                print2socket(msg, the_socket=conn)
+                conn.sendall(msg.encode('utf-8'))
             if enum in (errno.EBADF, errno.ECONNRESET, errno.WSAECONNABORTED):
                 # TODO closeout filter
                 break
 
     getLogger(__name__).info('Closing connection')
-    print2socket('Closing connection', the_socket=conn)
+    try:
+        conn.sendall('Closing connection'.encode('utf-8'))
+    except Exception:
+        pass
     conn.close()
 
 
