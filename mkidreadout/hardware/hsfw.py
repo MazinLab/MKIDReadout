@@ -109,7 +109,7 @@ def connection_handler(conn):
         try:
             # may raise error: [Errno 10054] An existing connection was forcibly closed by the remote host
             # if a network fault occues
-            data = conn.recv(1024).strip()
+            data = conn.recv(1024).decode('utf-8').strip()
 
             if 'exit' in data:
                 #TODO closeout filter
@@ -239,7 +239,7 @@ def setfilter(fnum, home=False, host='localhost:50000', killserver=False, timeou
             conn = connect(host, port, timeout=timeout)
             conn.sendall('exit\n'.encode('utf-8'))
             conn.sendall('exit\n'.encode('utf-8'))
-            data = conn.recv(2048).strip()
+            data = conn.recv(2048).decode('utf-8').strip()
             conn.close()
             return data
         except Exception:
