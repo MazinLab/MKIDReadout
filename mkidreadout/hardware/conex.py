@@ -705,7 +705,7 @@ class DitherAPI(Resource):
 dithers = {"0": Dither()}
 
 
-def dither(id='default', start=None, end=None, n=1, t=1, address='http://localhost:5000'):
+def dither(id='default', start=None, end=None, n=1, t=1, address='http://localhost:50001', timeout=TIMEOUT):
     """ Do a Dither by ID or full settings. Uses full settings if start is not None
     returns a requests result object
     """
@@ -715,9 +715,9 @@ def dither(id='default', start=None, end=None, n=1, t=1, address='http://localho
     else:
         req = {'id': id}
     try:
-        r = requests.post(address+'/dither', json=req, timeout=TIMEOUT)
+        r = requests.post(address+'/dither', json=req, timeout=timeout)
         j = r.json()
-        ret = ConexStatus(state=j['state'], pos=(j['xpos'], j['ypos']), conexstatus=j['status'],
+        ret = ConexStatus(state=j['state'], pos=(j['xpos'], j['ypos']), conexstatus=j['conexstatus'],
                           dither=DitherPath(j['last_dither']['dither'], j['last_dither']['start'],
                                             j['last_dither']['end'], j['last_dither']['path']))
     except requests.ConnectionError:
@@ -726,11 +726,11 @@ def dither(id='default', start=None, end=None, n=1, t=1, address='http://localho
     return ret
 
 
-def move(x, y, address='http://localhost:5000'):
+def move(x, y, address='http://localhost:50001', timeout=TIMEOUT):
     try:
-        r = requests.post(address+'/move', json={'x': x, 'y': y}, timeout=TIMEOUT)
+        r = requests.post(address+'/move', json={'x': x, 'y': y}, timeout=timeout)
         j = r.json()
-        ret=ConexStatus(state=j['state'], pos=(j['xpos'],j['ypos']), conexstatus=j['status'],
+        ret=ConexStatus(state=j['state'], pos=(j['xpos'],j['ypos']), conexstatus=j['conexstatus'],
                         dither=DitherPath(j['last_dither']['dither'], j['last_dither']['start'],
                                           j['last_dither']['end'], j['last_dither']['path']))
     except requests.ConnectionError:
@@ -738,11 +738,11 @@ def move(x, y, address='http://localhost:5000'):
     return ret
 
 
-def status(address='http://localhost:5000'):
+def status(address='http://localhost:50001', timeout=TIMEOUT):
     try:
-        r = requests.get(address + '/conex', timeout=TIMEOUT)
+        r = requests.get(address + '/conex', timeout=timeout)
         j = r.json()
-        ret=ConexStatus(state=j['state'], pos=(j['xpos'],j['ypos']), conexstatus=j['status'],
+        ret=ConexStatus(state=j['state'], pos=(j['xpos'],j['ypos']), conexstatus=j['conexstatus'],
                         dither=DitherPath(j['last_dither']['dither'], j['last_dither']['start'],
                                           j['last_dither']['end'], j['last_dither']['path']))
     except requests.ConnectionError:
@@ -750,11 +750,11 @@ def status(address='http://localhost:5000'):
     return ret
 
 
-def stop(address='http://localhost:5000'):
+def stop(address='http://localhost:50001', timeout=TIMEOUT):
     try:
-        r = requests.post(address + '/conex', json={'command': 'stop'}, timeout=TIMEOUT)
+        r = requests.post(address + '/conex', json={'command': 'stop'}, timeout=timeout)
         j = r.json()
-        ret = ConexStatus(state=j['state'], pos=(j['xpos'], j['ypos']), conexstatus=j['status'],
+        ret = ConexStatus(state=j['state'], pos=(j['xpos'], j['ypos']), conexstatus=j['conexstatus'],
                           dither=DitherPath(j['last_dither']['dither'], j['last_dither']['start'],
                                             j['last_dither']['end'], j['last_dither']['path']))
     except requests.ConnectionError:
