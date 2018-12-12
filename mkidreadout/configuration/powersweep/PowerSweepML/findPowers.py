@@ -58,14 +58,14 @@ def findPowers(mlDict, h5FileName, outputFN=None, saveScores=False, wsAtten=None
     for i,rn in enumerate(span): 
         sys.stdout.write("\r%d of %i" % (i+1,res_nums) )
         sys.stdout.flush()
-        rn = 450
+        #rn = 451
         image, freqCube = mlt.makeResImage(res_num = rn, center_loop=mlDict['center_loop'], phase_normalise=False,showFrames=False, dataObj=inferenceData, mlDict=mlDict, wsAttenInd=wsAttenInd)
         inferenceImage=[]
         inferenceImage.append(image)            # inferenceImage is just reformatted image
         inferenceLabels[rn,:] = sess.run(y_output, feed_dict={x_input: inferenceImage, keep_prob: 1})
         iAtt = np.argmax(inferenceLabels[rn,:])
         inferenceData.opt_attens[rn] = inferenceData.attens[iAtt]
-        inferenceData.opt_freqs[rn] = freqCube[iAtt, np.argmax(image[2, iAtt, :])]
+        inferenceData.opt_freqs[rn] = freqCube[iAtt, np.argmax(image[iAtt, :, 2])]
         inferenceData.scores[rn] = inferenceLabels[rn, iAtt]
         if rn>0:
             if(np.abs(inferenceData.opt_freqs[rn]-inferenceData.opt_freqs[rn-1])<100.e3):
