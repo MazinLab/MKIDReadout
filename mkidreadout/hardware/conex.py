@@ -74,6 +74,10 @@ class Conex(object):
         self.stopbits = stopbits
         self.timeout = timeout
         self.xonxoff = xonxoff
+        self.u_lowerLimit = -np.inf
+        self.v_lowerLimit = -np.inf
+        self.u_upperLimit = np.inf
+        self.v_upperLimit = np.inf
 
         self._started = False
         try:
@@ -368,7 +372,7 @@ class ConexDummy(object):
 
 
 class ConexStatus(object):
-    def __init__(self, state='offline', pos=(np.NaN, np.NaN), status='',
+    def __init__(self, state='offline', pos=(np.NaN, np.NaN), conexstatus='',
                  dither=None, limits=None):
         """
             state is a ConexManager state : 'idle' 'offline' 'processing' 'stopped/stopping'
@@ -381,7 +385,7 @@ class ConexStatus(object):
         """
         self.state = state
         self.pos = pos
-        self.conexstatus = status
+        self.conexstatus = conexstatus
         self.last_dither = dither
         self.limits = limits
 
@@ -411,7 +415,7 @@ class ConexStatus(object):
     def print(self):
         print(self.state)
         print(self.pos)
-        print(self.status)
+        print(self.conexstatus)
         print(str(self.last_dither))
 
     # def __eq__(self, o):
@@ -769,4 +773,4 @@ if __name__=='__main__':
     api.add_resource(ConexAPI, '/conex', endpoint='conex')
 
     conex_manager = ConexManager(port='COM9')
-    app.run(debug=True, port=CONEX_PORT)
+    app.run(host='0.0.0.0', debug=True, port=CONEX_PORT)
