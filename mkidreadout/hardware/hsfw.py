@@ -50,7 +50,7 @@ HSFW_PORT = 50000
 global_KILL_SERVER = False
 
 
-def start_server(port):
+def start_server(port, log=None):
     """
     starts a server: the server will receive commands
     from the client (control computer) and respond adequately
@@ -61,7 +61,10 @@ def start_server(port):
     Raises:
     """
 
-    global global_KILL_SERVER
+    global global_KILL_SERVER, _log
+
+    if log is None:
+    log = _log
 
     # get IP address
     host = socket.gethostbyname(socket.gethostname())

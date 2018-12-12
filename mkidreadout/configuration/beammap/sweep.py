@@ -118,6 +118,7 @@ class CorrelateBeamSweep(object):
             # nGroups=np.prod(imageList.shape)*(np.prod(imageList[0].shape)-1)/(200*3000*2999)*nGoodPix/nPix     # 300 timesteps x 3000 pixels takes a lot of memory...
             nGroups = nTime * nGoodPix * (nGoodPix - 1) / (600 * 3000 * 2999.)
             nGroups = nGoodPix / 1200.
+            nGroups = max(nGroups, 1.)
             pixelComputationMask = np.random.randint(0, int(round(nGroups)), imageList[0].shape)
             # pixelComputationMask=np.repeat(range(5),2000).reshape(imageList[0].shape)
         self.compMask = np.asarray(pixelComputationMask)
@@ -130,7 +131,7 @@ class CorrelateBeamSweep(object):
     def getAbsOffset(self, shiftedTimes, auto=True, locLimit=None):
         """
         The autocorrelation function can only calculate relative time differences
-        between pixels. This function defines the absolute time reference (ie. the 
+        between pixels. This function defines the absolute time reference (ie. the
         location of the peak)
 
         INPUTS:
@@ -235,18 +236,18 @@ class CorrelateBeamSweep(object):
 class ManualRoughBeammap(object):
     def __init__(self, x_images, y_images, initialBeammap, roughBeammapFN, fitType = None):
         """
-        Class for manually clicking through beammap. 
+        Class for manually clicking through beammap.
         Saves a rough beammap with filename roughBeammapFN-HHMMSS.txt
-        A 'rough' beammap is one that doesn't have x/y but instead the peak location in time from the swept light beam. 
-        
+        A 'rough' beammap is one that doesn't have x/y but instead the peak location in time from the swept light beam.
+
         INPUTS:
             x_images - list of images for sweep(s) in x-direction
-            y_images - 
+            y_images -
             initialBeammap - path+filename of initial beammap used for making the images
             roughBeammapFN - path+filename of the rough beammap (time at peak instead of x/y value)
                              If the roughBeammap doesn't exist then it will be instantiated with nans
                              We append a timestamp to this string as the output file
-            fitType - Type of fit to use when finding exact peak location from click. Current options are 
+            fitType - Type of fit to use when finding exact peak location from click. Current options are
                              com and gaussian. Ignored if None (default).
         """
         self.x_images = x_images
@@ -660,8 +661,8 @@ class RoughBeammap():
     def cleanCrossCorrelationToWrongSweep(self, sweepType, locs):
         """
         If you're doing a cross-correlation with multiple timestreams concatenated after one another
-        there is a common failure mode where the max cross-correlation will be where the peak in the 
-        first sweep matches the peak in the second sweep. 
+        there is a common failure mode where the max cross-correlation will be where the peak in the
+        first sweep matches the peak in the second sweep.
 
         If the sweeps are matched up, this function will correct that systematic error. If the sweep start
         times aren't matched up then this won't work
@@ -674,10 +675,10 @@ class RoughBeammap():
     def refinePeakLocs(self, sweepType, fitType, locEstimates=None, fitWindow=20):
         """
         This function refines the peak locations given by locEstimates with either a gaussian
-        fit or center of mass calculation. Can also be used as a standalone routine (set 
+        fit or center of mass calculation. Can also be used as a standalone routine (set
         locEstimates to None), but currently doesn't work well in this mode.
 
-        Careful: The sweep start times must be aligned such that the light peaks stack up. 
+        Careful: The sweep start times must be aligned such that the light peaks stack up.
         We assume the sweep speed is always the same when looking at multiple sweeps!!!
         For now, we assume initial beammap is the same too.
 
@@ -708,7 +709,7 @@ class RoughBeammap():
     #    locs=sweep.findRelativePixelLocations()
     #    sweepFit = BeamSweepGaussFit(imageList, locs)
     #    locs = sweepFit.fitRoughPeakLocs()
-    #        
+    #
     #    if sweepType in ['x','X']: self.x_locs=locs
     #    else: self.y_locs=locs
     #    self.saveRoughBeammap()
@@ -783,12 +784,14 @@ def registersettings(cfgObj):
     cfgObj.register('beammap.sweep.sweeps', [c])
 
 
+
 if __name__ == '__main__':
     setup_logging()
     log = getLogger('Sweep')
 
     parser = argparse.ArgumentParser(description='MKID Wavelength Calibration Utility')
     parser.add_argument('cfgfile', type=str, help='The config file', default='sweep.cfg')
+                        help='Run sweep code to generate h5 files manually')
     args = parser.parse_args()
 
     thisconfig = ConfigThing()
@@ -798,16 +801,23 @@ if __name__ == '__main__':
 
     log.info('Starting rough beammap')
     b = RoughBeammap(thisconfig)
-    #b.loadRoughBeammap()
-    #b.concatImages('x',False)
-    #b.concatImages('y',False)
-    #b.findLocWithCrossCorrelation('x')
-    #b.findLocWithCrossCorrelation('y')
-    #b.refinePeakLocs('x', b.config.beammap.sweep.fittype, b.x_locs, fitWindow=15)
-    #b.refinePeakLocs('y', b.config.beammap.sweep.fittype, b.y_locs, fitWindow=15)
-    #b.saveRoughBeammap()
-    log.info('Stack x and y')
-    b.stackImages('x')
-    b.stackImages('y')
-    log.info('Cleanup')
-    b.manualSweepCleanup()
+
+    if args.CCMode:
+        b.loadRoughBeammap()
+        b.concatImages('x',False)
+        b.concatImages('y',False)
+        b.findLocWithCrossCorrelation('x')
+        b.findLocWithCrossCorrelation('y')
+        b.refinePeakLocs('x', b.config.beammap.sweep.fittype, b.x_locs, fitWindow=15)
+        b.refinePeakLocs('y', b.config.beammap.sweep.fittype, b.y_locs, fitWindow=15)
+        b.saveRoughBeammap()
+
+    if args.ManualMode:
+        log.info('Stack x and y')
+        b.stackImages('x')
+        b.stackImages('y')
+        log.info('Cleanup')
+        b.manualSweepCleanup()
+
+    if not args.CCMode and not args.ManualMode:
+        print("Specify whether to run in manual or cc mode")
