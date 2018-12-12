@@ -24,9 +24,9 @@ import pickle
 import random
 import time
 import math
-from .PSFitMLData import *
+from mkidreadout.configuration.powersweep.PowerSweepML.PSFitMLData import *
 np.set_printoptions(threshold=np.inf)
-import .PSFitMLTools as mlt
+import mkidreadout.configuration.powersweep.PowerSweepML.PSFitMLTools as mlt
 
 #removes visible depreciation warnings from lib.iqsweep
 import warnings
@@ -133,6 +133,8 @@ class mlClassification():
             rawTrainData.resIDs = rawTrainData.resIDs[good_res]
             rawTrainData.attens = rawTrainData.attens[good_res]
             rawTrainData.opt_iAttens = rawTrainData.opt_iAttens[good_res]
+            wsAttenInd = np.where(rawTrainData.attens[0]==self.mlDict['wsAtten'])[0][0]
+            print wsAttenInd
             
             #class_steps = 300
 
@@ -153,7 +155,7 @@ class mlClassification():
                 # for t in range(num_rotations):
                 #     image = self.makeResImage(res_num = rn, iAtten= iAttens[rn,c], angle=angle[t],showFrames=False, 
                 #                                 test_if_noisy=test_if_noisy, xCenter=self.res_indicies[rn,c])
-                image = mlt.makeResImage(res_num = rn, center_loop=self.mlDict['center_loop'], phase_normalise=False ,showFrames=False, dataObj=rawTrainData, mlDict=self.mlDict) 
+                image, _ = mlt.makeResImage(res_num = rn, center_loop=self.mlDict['center_loop'], phase_normalise=False ,showFrames=False, dataObj=rawTrainData, mlDict=self.mlDict, wsAttenInd=wsAttenInd) 
                 if image is not None:
                     trainImages.append(image)
                     oneHot = np.zeros(self.mlDict['nAttens'])
@@ -164,7 +166,7 @@ class mlClassification():
 
 
             for rn in test_ind:#range(int(self.trainFrac*rawTrainData.res_nums), int(self.trainFrac*rawTrainData.res_nums + self.testFrac*rawTrainData.res_nums)):
-                image = mlt.makeResImage(res_num = rn, center_loop=self.mlDict['center_loop'], phase_normalise=False, dataObj=rawTrainData, mlDict=self.mlDict)
+                image, _ = mlt.makeResImage(res_num = rn, center_loop=self.mlDict['center_loop'], phase_normalise=False, dataObj=rawTrainData, mlDict=self.mlDict, wsAttenInd=wsAttenInd)
                 if image is not None:
                     testImages.append(image)
                     oneHot = np.zeros(self.mlDict['nAttens'])
@@ -607,101 +609,7 @@ class mlClassification():
         #     print res_num, max_ratio, self.inferenceData.iq_vels[res_num,iAtten,vindx[0]], self.inferenceData.iq_vels[res_num,iAtten,vindx[1]]
         #     plt.plot(self.inferenceData.Is[res_num,iAtten,:],self.inferenceData.Qs[res_num,iAtten,:])
         #     plt.show()
-
-
-    def findAtten(self, res_nums =20, searchAllRes=True, showFrames = True, usePSFit=True):
-        '''The trained machine learning class (mlClass) finds the optimum attenuation for each resonator using peak shapes in IQ velocity
-
-        Inputs
-        inferenceFile: widesweep data file to be used
-        searchAllRes: if only a few resonator attenuations need to be identified set to False
-        res_nums: if searchAllRes is False, the number of resonators the atteunation value will be estimated for
-        usePSFit: if true once all the resonator attenuations have been estimated these values are fed into PSFit which opens
-                  the window where the user can manually check all the peaks have been found and make corrections if neccessary
-
-        Outputs
-        Goodfile: either immediately after the peaks have been located or through WideAna if useWideAna =True
-        mlFile: temporary file read in to PSFit.py containing an attenuation estimate for each resonator
-        '''
-
-        try:
-            self.sess
-        except AttributeError:
-            print 'You have to train the model first'
-            exit()
-
-        if self.mlDict['scaleXWidth']!= 1:
-            self.mlDict['xWidth']=self.mlDict['xWidth']*self.mlDict['scaleXWidth'] #reset ready for get_PS_data
-
-        total_res_nums = np.shape(self.inferenceData.freqs)[0]
-        if searchAllRes:
-            res_nums = total_res_nums
-        span = range(res_nums)
-        
-        self.inferenceData.opt_attens=numpy.zeros((res_nums))
-        self.inferenceData.opt_freqs=numpy.zeros((res_nums))
-
-        print 'inferenceAttens', self.inferenceData.attens
-
-        self.inferenceLabels = np.zeros((res_nums, self.mlDict['nAttens']))
-        print 'Using trained algorithm on images on each resonator'
-        skip = []
-        doubleCounter = 0
-        for i,rn in enumerate(span): 
-            sys.stdout.write("\r%d of %i" % (i+1,res_nums) )
-            sys.stdout.flush()
-            image = self.makeResImage(res_num = rn, center_loop=self.mlDict['center_loop'], phase_normalise=False,showFrames=False, dataObj=self.inferenceData)
-            inferenceImage=[]
-            inferenceImage.append(image)            # inferenceImage is just reformatted image
-            self.inferenceLabels[rn,:] = self.sess.run(self.y, feed_dict={self.x: inferenceImage, self.keep_prob: 1})
-            iAtt = np.argmax(self.inferenceLabels[rn,:])
-            self.inferenceData.opt_attens[rn] = self.inferenceData.attens[iAtt]
-            self.inferenceData.opt_freqs[rn] = self.inferenceData.freqs[rn,self.get_peak_idx(rn,iAtt,smooth=True)]
-            if rn>0:
-                if(np.abs(self.inferenceData.opt_freqs[rn]-self.inferenceData.opt_freqs[rn-1])<100.e3):
-                    doubleCounter += 1
-                    print 'res_num', rn
-                    print 'oldfreq:', self.inferenceData.opt_freqs[rn-1]
-                    print 'curfreq:', self.inferenceData.opt_freqs[rn]
-                    padResWidth = 20
-                    if self.inferenceData.opt_freqs[rn] > self.inferenceData.opt_freqs[rn-1]:
-                        print 'isgreater'
-                        image = self.makeResImage(res_num = rn-1, center_loop=self.mlDict['center_loop'], phase_normalise=False, showFrames=False, dataObj=self.inferenceData, padFreq=self.inferenceData.opt_freqs[rn])
-                        inferenceImage = [image]
-                        self.inferenceLabels[rn-1,:] = self.sess.run(self.y, feed_dict={self.x: inferenceImage, self.keep_prob: 1})
-                        iAtt = np.argmax(self.inferenceLabels[rn-1,:])
-                        self.inferenceData.opt_attens[rn-1] = self.inferenceData.attens[iAtt]
-                        
-                        padFreqInd = np.argmin(np.abs(self.inferenceData.freqs[rn-1]-self.inferenceData.opt_freqs[rn])) 
-                        print 'findatt: padFreqInd', padFreqInd
-                        if(padFreqInd>self.mlDict['xWidth']/2):
-                            padInd = padFreqInd - padResWidth
-                            cutType = 'top'
-                        else:
-                            padInd = padFreqInd + padResWidth
-                            cutType = 'bottom'
-                        self.inferenceData.opt_freqs[rn-1] = self.inferenceData.freqs[rn-1, self.get_peak_idx(rn-1, iAtt, smooth=True, cutType=cutType, padInd=padInd)]
-                        print 'newfreq', self.inferenceData.opt_freqs[rn-1]
-                    else:
-                        image = self.makeResImage(res_num = rn, center_loop=self.mlDict['center_loop'], phase_normalise=False, showFrames=False, dataObj=self.inferenceData, padFreq=self.inferenceData.opt_freqs[rn-1])
-                        inferenceImage = [image]
-                        self.inferenceLabels[rn,:] = self.sess.run(self.y, feed_dict={self.x: inferenceImage, self.keep_prob: 1})
-                        iAtt = np.argmax(self.inferenceLabels[rn,:])
-                        self.inferenceData.opt_attens[rn] = self.inferenceData.attens[iAtt]
-                        padFreqInd = np.argmin(np.abs(self.inferenceData.freqs[rn]-self.inferenceData.opt_freqs[rn-1])) 
-                        print 'findatt: padFreqInd', padFreqInd
-                        if(padFreqInd>self.mlDict['xWidth']/2):
-                            padInd = padFreqInd - padResWidth
-                            cutType = 'top'
-                        else:
-                            padInd = padFreqInd + padResWidth
-                            cutType = 'bottom'
-                        self.inferenceData.opt_freqs[rn] = self.inferenceData.freqs[rn, self.get_peak_idx(rn, iAtt, smooth=True, cutType=cutType, padInd=padInd)]
-                        print 'newfreq', self.inferenceData.opt_freqs[rn]
-            del inferenceImage
-            del image
-        print '\n', doubleCounter, 'doubles fixed'
-                
+ 
 
     
 def next_batch(trainImages, trainLabels, batch_size):

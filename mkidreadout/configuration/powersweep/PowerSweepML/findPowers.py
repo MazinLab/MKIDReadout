@@ -17,7 +17,7 @@ import PSFitMLTools as mlt
 from mkidreadout.utils.readDict import readDict
 
 
-def findPowers(mlDict, h5FileName, outputFN=None, saveScores=False):
+def findPowers(mlDict, h5FileName, outputFN=None, saveScores=False, wsAtten=None):
     '''
     Uses Trained model, specified by mlDict, to infer powers from a powersweep 
     saved in h5FileName. Saves results in .txt file in $MKID_DATA_DIR
@@ -34,6 +34,7 @@ def findPowers(mlDict, h5FileName, outputFN=None, saveScores=False):
     inferenceData.opt_attens=np.zeros((res_nums))
     inferenceData.opt_freqs=np.zeros((res_nums))
     inferenceData.scores=np.zeros((res_nums))
+    wsAttenInd = np.where(inferenceData.attens==wsAtten)[0][0]
     
     print 'inferenceAttens', inferenceData.attens
     
@@ -57,61 +58,22 @@ def findPowers(mlDict, h5FileName, outputFN=None, saveScores=False):
     for i,rn in enumerate(span): 
         sys.stdout.write("\r%d of %i" % (i+1,res_nums) )
         sys.stdout.flush()
-        image = mlt.makeResImage(res_num = rn, center_loop=mlDict['center_loop'], phase_normalise=False,showFrames=False, dataObj=inferenceData, mlDict=mlDict)
+        rn = 450
+        image, freqCube = mlt.makeResImage(res_num = rn, center_loop=mlDict['center_loop'], phase_normalise=False,showFrames=False, dataObj=inferenceData, mlDict=mlDict, wsAttenInd=wsAttenInd)
         inferenceImage=[]
         inferenceImage.append(image)            # inferenceImage is just reformatted image
         inferenceLabels[rn,:] = sess.run(y_output, feed_dict={x_input: inferenceImage, keep_prob: 1})
         iAtt = np.argmax(inferenceLabels[rn,:])
         inferenceData.opt_attens[rn] = inferenceData.attens[iAtt]
-        inferenceData.opt_freqs[rn] = inferenceData.freqs[rn,mlt.get_peak_idx(rn,iAtt, dataObj=inferenceData, smooth=True)]
+        inferenceData.opt_freqs[rn] = freqCube[iAtt, np.argmax(image[2, iAtt, :])]
         inferenceData.scores[rn] = inferenceLabels[rn, iAtt]
         if rn>0:
             if(np.abs(inferenceData.opt_freqs[rn]-inferenceData.opt_freqs[rn-1])<100.e3):
                 doubleCounter += 1
-                print 'res_num', rn
-                print 'oldfreq:', inferenceData.opt_freqs[rn-1]
-                print 'curfreq:', inferenceData.opt_freqs[rn]
-                padResWidth = 20
-                if inferenceData.opt_freqs[rn] > inferenceData.opt_freqs[rn-1]:
-                    print 'isgreater'
-                    image = mlt.makeResImage(res_num = rn-1, center_loop=mlDict['center_loop'], phase_normalise=False, showFrames=False, dataObj=inferenceData, padFreq=inferenceData.opt_freqs[rn], mlDict=mlDict)
-                    inferenceImage = [image]
-                    inferenceLabels[rn-1,:] = sess.run(y_output, feed_dict={x_input: inferenceImage, keep_prob: 1})
-                    iAtt = np.argmax(inferenceLabels[rn-1,:])
-                    inferenceData.opt_attens[rn-1] = inferenceData.attens[iAtt]
-                    inferenceData.scores[rn-1] = inferenceLabels[rn-1, iAtt]
-                    
-                    padFreqInd = np.argmin(np.abs(inferenceData.freqs[rn-1]-inferenceData.opt_freqs[rn])) 
-                    print 'findatt: padFreqInd', padFreqInd
-                    if(padFreqInd>mlDict['xWidth']/2):
-                        padInd = padFreqInd - padResWidth
-                        cutType = 'top'
-                    else:
-                        padInd = padFreqInd + padResWidth
-                        cutType = 'bottom'
-                    inferenceData.opt_freqs[rn-1] = inferenceData.freqs[rn-1, mlt.get_peak_idx(rn-1, iAtt, dataObj=inferenceData, smooth=True, cutType=cutType, padInd=padInd)]
-                    print 'newfreq', inferenceData.opt_freqs[rn-1]
-                else:
-                    image = mlt.makeResImage(res_num = rn, center_loop=mlDict['center_loop'], phase_normalise=False, showFrames=False, dataObj=inferenceData, padFreq=inferenceData.opt_freqs[rn-1], mlDict=mlDict)
-                    inferenceImage = [image]
-                    inferenceLabels[rn,:] = sess.run(y_output, feed_dict={x_input: inferenceImage, keep_prob: 1})
-                    iAtt = np.argmax(inferenceLabels[rn,:])
-                    inferenceData.opt_attens[rn] = inferenceData.attens[iAtt]
-                    inferenceData.scores[rn] = inferenceLabels[rn, iAtt]
-                    padFreqInd = np.argmin(np.abs(inferenceData.freqs[rn]-inferenceData.opt_freqs[rn-1])) 
-                    print 'findatt: padFreqInd', padFreqInd
-                    if(padFreqInd>mlDict['xWidth']/2):
-                        padInd = padFreqInd - padResWidth
-                        cutType = 'top'
-                    else:
-                        padInd = padFreqInd + padResWidth
-                        cutType = 'bottom'
-                    inferenceData.opt_freqs[rn] = inferenceData.freqs[rn, mlt.get_peak_idx(rn, iAtt, dataObj=inferenceData, smooth=True, cutType=cutType, padInd=padInd)]
-                    print 'newfreq', inferenceData.opt_freqs[rn]
         del inferenceImage
         del image
     
-    print '\n', doubleCounter, 'doubles fixed'
+    print '\n', doubleCounter, 'doubles'
     
     inferenceData.savePSTxtFile(flag = '_' + mlDict['modelName'],outputFN=outputFN, saveScores=saveScores)
 
@@ -132,4 +94,4 @@ if __name__=='__main__':
     
     outputDir = args.output_dir[0]
     
-    findPowers(mlDict, h5FileName, outputDir, args.add_scores)
+    findPowers(mlDict, h5FileName, outputDir, args.add_scores, 62)

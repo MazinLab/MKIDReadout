@@ -68,7 +68,7 @@ class StartQt4(QMainWindow):
             self.widesweep=None
             self.h5resID_offset=0
             self.wsresID_offset=0
-            raise
+            #raise
 
         self.navi_toolbar = NavigationToolbar(self.ui.plot_3.canvas, self)
         self.ui.plot_3.canvas.setFocusPolicy( Qt.ClickFocus )
@@ -470,7 +470,7 @@ if __name__ == "__main__":
     parser.add_argument('--small', action='store_true', dest='smallui', default=False, help='Use small GUI')
     args = parser.parse_args()
 
-    Ui = gui.Ui_MainWindow_Small if args.smallui else Ui_MainWindow
+    Ui = gui.Ui_MainWindow_Small if args.smallui else gui.Ui_MainWindow
 
     app = QApplication(sys.argv)
     myapp = StartQt4(args.cfgfile, args.feedline, Ui)
