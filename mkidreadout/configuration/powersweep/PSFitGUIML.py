@@ -35,7 +35,8 @@ import argparse
 
 
 class StartQt4(QMainWindow):
-    def __init__(self, cfgfile, feedline, Ui, parent=None, startndx=0, psfile=''):
+    def __init__(self, cfgfile, feedline, Ui, parent=None, startndx=0, psfile='', goodcut=np.inf,
+                 badcut=-np.inf):
         QWidget.__init__(self, parent)
         self.ui = Ui()
         self.ui.setupUi(self)
@@ -44,6 +45,8 @@ class StartQt4(QMainWindow):
         self.ui.atten.setValue(self.atten)
         self.resnum = 0
         self.indx = 0
+
+        self.badcut, self.goodcut = badcut, goodcut
 
         QObject.connect(self.ui.open_browse, SIGNAL("clicked()"), self.open_dialog)
         QObject.connect(self.ui.atten, SIGNAL("valueChanged(int)"), self.setnewatten)
@@ -403,9 +406,6 @@ class StartQt4(QMainWindow):
     def savevalues(self):
         self.freqList[self.resnum] = self.resfreq
         self.attenList[self.resnum] = self.atten
-
-        # TODO Things that were skipped by prioritize_and_cut would never have been iterated over
-        #  FIX THIS
         self.metadata_out.atten[self.resID == self.metadata_out.resIDs] = self.atten
         self.metadata_out.save()
 
@@ -413,6 +413,10 @@ class StartQt4(QMainWindow):
         getLogger(__name__).info(msg.format(self.resnum,self.resID,self.resfreq,self.atten))
         self.resnum += 1
         self.atten = -1
+
+        if self.resnum >= self.stop_ndx:
+            getLogger(__name__).info("reached end of resonator list, closing GUI")
+            sys.exit()
         self.loadres()
 
 
@@ -424,12 +428,15 @@ if __name__ == "__main__":
     parser.add_argument('--small', action='store_true', dest='smallui', default=False, help='Use small GUI')
     parser.add_argument('-i', dest='start_ndx', type=int, default=0, help='Starting resonator index')
     parser.add_argument('-ps', dest='psweep', default='', type=str, help='A poweersweep h5 file to load')
+    parser.add_argument('-gc', dest='gcut', default=1, type=float, help='Assume good if net ML score > (EXACT)')
+    parser.add_argument('-bc', dest='bcut', default=-1, type=float, help='Assume bad if net ML score < (EXACT)')
     args = parser.parse_args()
 
     Ui = gui.Ui_MainWindow_Small if args.smallui else gui.Ui_MainWindow
 
     app = QApplication(sys.argv)
-    myapp = StartQt4(args.config, args.feedline, Ui, startndx=args.start_ndx, psfile=args.psweep)
+    myapp = StartQt4(args.config, args.feedline, Ui, startndx=args.start_ndx, psfile=args.psweep,
+                     goodcut=args.gcut, badcut=args.bcut)
     myapp.show()
     app.exec_()
 

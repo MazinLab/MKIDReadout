@@ -1,5 +1,5 @@
 import numpy as np
-import os
+import matplotlib.pyplot as plt
 
 ISGOOD = 1
 ISBAD = 0
@@ -15,11 +15,6 @@ class FreqSweep(object):
         self.i = data['I']  # 3d [nAttens, nTones, nLOsteps] ADC units
         self.q = data['Q']  # 3d [nAttens, nTones, nLOsteps] ADC units
         self.natten, self.ntone, self.nlostep = data['I'].shape
-
-    @property
-    def scale(self):
-        return
-        raise NotImplementedError
 
 
 class SweepMetadata(object):
@@ -62,6 +57,13 @@ class SweepMetadata(object):
     @property
     def goodmlfreq(self):
         return self.mlfreq[self.flag==ISGOOD]
+
+    @property
+    def netscore(self):
+        return self.ml_isgood_score - self.ml_isbad_score
+
+    def plot_scores(self):
+        plt.hist(netscore, np.linspace(-1,1,50), label='netscore')
 
     def sort(self):
         s = np.argsort(self.wsfreq)

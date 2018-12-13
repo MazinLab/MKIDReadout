@@ -2,6 +2,7 @@ import numpy as np
 import os
 from mkidreadout.configuration.sweepdata import FreqSweep, SweepMetadata, ISGOOD, ISBAD
 from mkidcore.corelog import getLogger
+import matplotlib.pyplot as plt
 
 
 class MLData(object):
@@ -50,13 +51,15 @@ class MLData(object):
         self.metadata.ml_isgood_score[self.mdResMask] = self.scores #TODO: implement ml bad scores
         self.metadata.save(os.path.splitext(self.metadata.file)[0] + flag + '.txt')
     
-    def prioritize_and_cut(self, assume_bad_cut=-np.inf, assume_good_cut=np.inf):
-        netscore = self.metadata.ml_isgood_score - self.metadata.ml_isbad_score
+    def prioritize_and_cut(self, assume_bad_cut=-np.inf, assume_good_cut=np.inf, plot=False):
+        if plot:
+            self.metadata.plot_scores()
+            plt.axvline(max(assume_bad_cut, -1), color='k', linewidth=.5)
+            plt.axvline(max(assume_good_cut, 1), color='k', linewidth=.5)
+        netscore = self.metadata.netscore
         badcutmask = netscore < assume_bad_cut
         goodcutmask = netscore > assume_good_cut
         self.metadata.atten[badcutmask] = np.inf
-
-        stop_ndx = (self.mdResMask & ~badcutmask & ~goodcutmask).sum()
 
         msg = 'Bad score cut of {:.2f} kills {} resonators'
         getLogger(__name__).info(msg.format(assume_bad_cut, (badcutmask & self.mdResMask).sum()))
@@ -64,19 +67,21 @@ class MLData(object):
         msg = 'Good score cut of {:.2f} accepts {} resonators'
         getLogger(__name__).info(msg.format(assume_good_cut, (goodcutmask & self.mdResMask).sum()))
 
-        goodmask = self.mdResMask
-        sndx = np.argsort(netscore)
-        order = sndx
+        reviewmask = ~badcutmask & ~goodcutmask
 
-        self.initfreqs = self.initfreqs[order]
-        self.opt_attens = self.opt_attens[order]
-        self.opt_freqs = self.opt_freqs[order]
-        self.resIDs = self.resIDs[order]
-        self.freqs = self.freqs[order]
-        self.Is = self.Is[order]
-        self.Qs = self.Qs[order]
+        selectmask = reviewmask & self.mdResMask
 
-        self.metadata.reorder(order)
+        stop_ndx = selectmask.sum()
+
+        order = np.argsort(netscore[selectmask])
+
+        self.initfreqs = self.initfreqs[reviewmask[self.mdResMask]][order]
+        self.opt_attens = self.opt_attens[reviewmask[self.mdResMask]][order]
+        self.opt_freqs = self.opt_freqs[reviewmask[self.mdResMask]][order]
+        self.resIDs = self.resIDs[reviewmask[self.mdResMask]][order]
+        self.freqs = self.freqs[reviewmask[self.mdResMask]][order]
+        self.Is = self.Is[reviewmask[self.mdResMask]][order]
+        self.Qs = self.Qs[reviewmask[self.mdResMask]][order]
 
         return stop_ndx
 
