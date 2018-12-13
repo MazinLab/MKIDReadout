@@ -18,6 +18,7 @@ class FreqSweep(object):
 
     @property
     def scale(self):
+        return
         raise NotImplementedError
 
 

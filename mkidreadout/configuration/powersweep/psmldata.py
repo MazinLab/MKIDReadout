@@ -15,7 +15,7 @@ class MLData(object):
         self.mdResMask = ((self.metadata.flag == ISGOOD) &
                           (self.metadata.wsfreq > freqSpan[0]) &
                           (self.metadata.wsfreq < freqSpan[1]))
-        self.nRes = np.sum(self.mdResMask)
+        self.nRes = self.mdResMask.sum()
         self.resIDs = self.metadata.resIDs[self.mdResMask]
         self.initfreqs = self.metadata.wsfreq[self.mdResMask]
         self.opt_attens = self.metadata.atten[self.mdResMask]
@@ -29,10 +29,10 @@ class MLData(object):
 
     def generateMLWindows(self, resFreqs):
         assert len(resFreqs)==self.nRes, 'Mismatch between provided freq list and number of res in metadata file'
-        self.freqs = np.zeros((self.nRes, self.freqSweep.lostep))
-        self.Is = np.zeros((self.nRes, self.freqSweep.natten, self.freqSweep.lostep))
-        self.Qs = np.zeros((self.nRes, self.freqSweep.natten, self.freqSweep.lostep))
-        winCenters = self.freqSweep.freqs[:, self.freqSweep.lostep/2]
+        self.freqs = np.zeros((self.nRes, self.freqSweep.nlostep))
+        self.Is = np.zeros((self.nRes, self.freqSweep.natten, self.freqSweep.nlostep))
+        self.Qs = np.zeros((self.nRes, self.freqSweep.natten, self.freqSweep.nlostep))
+        winCenters = self.freqSweep.freqs[:, self.freqSweep.nlostep/2]
         for i in range(self.nRes):
             freqWinInd = np.argmin(np.abs(resFreqs[i] - winCenters))
             self.freqs[i] = self.freqSweep.freqs[freqWinInd, :]

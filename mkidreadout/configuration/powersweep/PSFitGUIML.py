@@ -104,7 +104,7 @@ class StartQt4(QMainWindow):
 
     def loadres(self):
         self.Res1 = IQsweep()
-        self.Res1.loadpowers_from_freqsweep(self.fsweep, self.resnum)
+        self.Res1.loadpowers_from_freqsweep(self.fsweepdata, self.resnum)
         #TODO Neelay/Alex finish updating loadpowers_from_freqsweep:
         # uses atten1s, Qs, Is, fsteps here.
         # select_freq uses .I and .Q too but I think they get populated in select_atten
@@ -114,7 +114,7 @@ class StartQt4(QMainWindow):
         # Is = self.fsweep.Is[self.resnum]
         # fsteps = self.fsweep.freqs[self.resnum]  #this is a really blind guess
 
-        self.resfreq = self.fsweep.metadata.goodfreqs[self.resnum]
+        self.resfreq = self.fsweepdata.metadata.goodmlfreq[self.resnum]
         self.resID = self.Res1.resID
         self.NAttens = self.Res1.atten1s.size
 
@@ -256,8 +256,8 @@ class StartQt4(QMainWindow):
         self.fsweepdata = psmldata.MLData(fsweep=self.openfile, mdata=self.metadata_out)
         # TODO convert to use self.fsweep
 
-        self.scale = self.fsweep.scale
-        self.freq = self.fsweep.metadata.goodfreqs
+        #self.scale = self.fsweep.metadata.scale
+        self.freq = self.fsweepdata.metadata.goodmlfreq
 
         self.freqList = np.zeros(2000)
         self.attenList = np.full_like(self.freqList, -1)
