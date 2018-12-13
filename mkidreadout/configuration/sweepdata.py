@@ -5,6 +5,18 @@ ISGOOD = 1
 ISBAD = 0
 
 
+class FreqSweep(object):
+    def __init__(self, file):
+        self.file = file
+
+        data = np.load(self.file)
+        self.atten = data['atten']  # 1d [nAttens] dB
+        self.freqs = data['freqs']  # 2d [nTones, nLOsteps] Hz
+        self.i = data['I']  # 3d [nAttens, nTones, nLOsteps] ADC units
+        self.q = data['Q']  # 3d [nAttens, nTones, nLOsteps] ADC units
+        self.natten, self.ntone, self.nlostep = data['I'].shape
+
+
 class SweepMetadata(object):
     def __init__(self, resid=None, wsfreq=None, flag=None, mlfreq=None, atten=None,
                  ml_isgood_score=None, ml_isbad_score=None, file=''):
@@ -71,8 +83,12 @@ class SweepMetadata(object):
         self.resIDs, self.flag, self.wsfreq, self.mlfreq, self.atten, self.ml_isgood_score, self.ml_isbad_score = d
         self._settypes()
 
-goodfile = '/Users/one/ucsb/Packages/MKIDReadout/mkidreadout/configuration/powersweep/digWS_FL5-freqs-good.txt'
-allfile = '/Users/one/ucsb/Packages/MKIDReadout/mkidreadout/configuration/powersweep/digWS_FL5-freqs-all.txt'
+    # def savetemplarfile(self, file):
+    #     """ resid  freq  atten"""
+    #     u = self.flag == ISGOOD
+    #     #see MKIDReadout/mkidreadout/configuration/findLOsAndMakeFreqLists.py and make support this file
+    #     np.savetxt(file, np.array([self.resIDs[u], self.mlfreq[u], self.atten[u]]).T, fmt="%8d %16.7f %5.0f")
+
 
 def loadold(allfile, goodfile, outfile='digWS_FL{feedline}_metadata.txt'):
     gid, gndx, gfreq = np.loadtxt(goodfile, unpack=True)
