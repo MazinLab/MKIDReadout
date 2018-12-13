@@ -70,6 +70,7 @@ class StartQt4(QMainWindow):
 
             self.metadata_out = metadata_out = sweepdata.SweepMetadata(file=sweepmetadata_FN)
             self.metadata_out.file = os.path.splitext(sweepmetadata_FN)[0] + '_out.txt'
+            self.ui.save_filename.setText(self.metadata_out.file)
             self.fsweepdata = None
 
             self.mlResIDs = None
@@ -123,7 +124,7 @@ class StartQt4(QMainWindow):
 
         self.ui.res_num.setText(str(self.resnum))
         self.ui.jumptonum.setValue(self.resnum)
-        self.ui.frequency.setText(str(self.resfreq))
+        self.ui.frequency.setText(str(self.resfreq/1e9))
 
         getLogger(__name__).info("Res: {} --> ID: {}".format(self.resnum, self.resID))
 
