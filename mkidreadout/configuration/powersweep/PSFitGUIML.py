@@ -64,6 +64,8 @@ class StartQt4(QMainWindow):
             ws_FN = config.sweepfile.format(feedline=feedline)
             sweepmetadata_FN = os.path.join(config.paths.data, config.metadatafile.format(feedline=feedline))
 
+
+            #TODO pull this from the new ps file
             self.widesweep = numpy.loadtxt(ws_FN)  # freq, I, Q
 
             self.metadata = mdata = sweepdata.SweepMetadata(file=sweepmetadata_FN)
@@ -432,6 +434,9 @@ if __name__ == "__main__":
     parser.add_argument('-gc', dest='gcut', default=1, type=float, help='Assume good if net ML score > (EXACT)')
     parser.add_argument('-bc', dest='bcut', default=-1, type=float, help='Assume bad if net ML score < (EXACT)')
     args = parser.parse_args()
+
+    create_log('mkidreadout', console=True, mpsafe=True, fmt='%(asctime)s mkidreadout: %(levelname)s %(message)s')
+    create_log('mkidcore', console=True, mpsafe=True, fmt='%(asctime)s mkidcore: %(levelname)s %(message)s')
 
     Ui = gui.Ui_MainWindow_Small if args.smallui else gui.Ui_MainWindow
 

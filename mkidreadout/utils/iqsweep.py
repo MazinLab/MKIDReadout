@@ -603,6 +603,9 @@ class IQsweep:
         self.resID = mldata.resIDs[rnum]
         self.freq = mldata.freqs[rnum]
 
+        self.Icens = mldata.Is[rnum, :, mldata.freqSweep.nlostep/2]
+        self.Qcens = mldata.Is[rnum, :, mldata.freqSweep.nlostep/2]
+
         #other things from the h5 file loader, no idea how critical
         # self.f0 = k['f0'][0]
         # self.span = k['span'][0]
@@ -621,8 +624,7 @@ class IQsweep:
         # self.vmaxidx = k['vmaxidx'][0]
         # self.Icengs = k['Iceng'][0]
         # self.Qcengs = k['Qceng'][0]
-        # self.Icens = k['Icen']
-        # self.Qcens = k['Qcen']
+
         # self.Qm = k['Qm'][0]
         # self.fm = k['fm'][0]
         # self.Qc = k['Qc'][0]
