@@ -4,6 +4,7 @@ from glob import glob
 import copy
 import glob
 from mkidreadout.instruments import DEFAULT_ARRAY_SIZES
+import mkidcore.config
 
 
 class Beammap(object):
@@ -15,6 +16,8 @@ class Beammap(object):
         xCoords
         yCoords
     """
+    yaml_tag = u'!bmap'
+
     def __init__(self, file=None, xydim=None, default='MEC'):
         """
         Constructor.
@@ -27,6 +30,7 @@ class Beammap(object):
                         default beammap.
                     If instance of Beammap, creates a copy
         """
+        self.file = ''
         if file is not None:
             self._load(file)
             try:
@@ -42,6 +46,15 @@ class Beammap(object):
             except IOError:
                 opt = ', '.join([f.rstrip('.bmap').upper() for f in glob(pkg.resource_filename(__name__, '*.bmap'))])
                 raise ValueError('Unknown default beampmap "{}". Options: {}'.format(default, opt))
+
+    @classmethod
+    def to_yaml(cls, representer, node):
+        return representer.represent_mapping(cls.yaml_tag, dict(file=node.file, nrows=node.nrows, ncols=node.ncols))
+
+    @classmethod
+    def from_yaml(cls, constructor, node):
+        d = mkidcore.config.extract_from_node(('file', 'nrows', 'ncols'), node)
+        return cls(file=d['file'], xydim=(int(d['ncols']), int(d['nrows'])))
 
     def setData(self, bmData):
         """
@@ -67,6 +80,7 @@ class Beammap(object):
         """
         Loads beammap data from filename
         """
+        self.file = filename
         self.resIDs, self.flags, self.xCoords, self.yCoords = np.loadtxt(filename, unpack=True)
 
     def loadFrequencies(self, filepath):
@@ -155,6 +169,9 @@ class Beammap(object):
     def beammapDict(self):
         return {'resID': self.resIDs, 'freqCh': self.freqs, 'xCoord': self.xCoords,
                 'yCoord': self.yCoords, 'flag': self.flags}
+
+
+mkidcore.config.yaml.register_class(Beammap)
 
 
 class DesignArray(object):
