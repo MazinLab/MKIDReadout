@@ -15,6 +15,38 @@ class FreqSweep(object):
         self.i = data['I']  # 3d [nAttens, nTones, nLOsteps] ADC units
         self.q = data['Q']  # 3d [nAttens, nTones, nLOsteps] ADC units
         self.natten, self.ntone, self.nlostep = data['I'].shape
+        self.freqStep = self.freqs[0,1] - self.freqs[0,0]
+
+    def oldwsformat(self, atten):
+        atten = np.abs(self.atten-atten).argmin()
+        freqs = self.freqs.ravel()
+        iVals = self.i[atten].ravel()
+        qVals = self.q[atten].ravel()
+
+        mags = np.sqrt(iVals ** 2 + qVals ** 2)
+
+        deltas = np.diff(freqs)
+        boundaryInds = np.where(deltas < 0)[0]
+        boundaryDeltas = -deltas[boundaryInds]
+        nOverlapPoints = (boundaryDeltas / self.freqStep).astype(int) + 1
+        boundaryInds = boundaryInds + 1
+
+        for i in range(len(boundaryInds)):
+            lfMags = mags[boundaryInds[i] - nOverlapPoints[i]: boundaryInds[i]]
+            hfMags = mags[boundaryInds[i]: boundaryInds[i] + nOverlapPoints[i]]
+            hfWeights = np.linspace(0, 1, num=nOverlapPoints[i], endpoint=False)
+            lfWeights = 1 - hfWeights
+            # set mags to average the overlap regions
+            mags[boundaryInds[i]: boundaryInds[i] + nOverlapPoints[i]] = lfWeights * lfMags + hfWeights * hfMags
+            mags[boundaryInds[i] - nOverlapPoints[i]: boundaryInds[i]] = np.nan  # set one side of overlap to 0
+            freqs[boundaryInds[i] - nOverlapPoints[i]: boundaryInds[i]] = np.nan
+
+        mags = mags[~np.isnan(mags)]
+        freqs = freqs[~np.isnan(freqs)]
+
+        iVals = mags
+        qVals = np.zeros_like(iVals)
+        return np.transpose([freqs, iVals, qVals])
 
 
 class SweepMetadata(object):

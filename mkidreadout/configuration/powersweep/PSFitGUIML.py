@@ -29,14 +29,13 @@ from pkg_resources import resource_filename
 
 import mkidreadout.configuration.powersweep.gui as gui
 import mkidreadout.configuration.sweepdata as sweepdata
-import mkidcore.config
+from mkidreadout.configuration.powersweep import psmldata
 from mkidcore.corelog import getLogger, create_log
 import argparse
 
 
 class StartQt4(QMainWindow):
-    def __init__(self, cfgfile, feedline, Ui, parent=None, startndx=0, psfile='', goodcut=np.inf,
-                 badcut=-np.inf):
+    def __init__(self, psfile, Ui, parent=None, startndx=0, goodcut=np.inf, badcut=-np.inf):
         QWidget.__init__(self, parent)
         self.ui = Ui()
         self.ui.setupUi(self)
@@ -53,54 +52,34 @@ class StartQt4(QMainWindow):
         QObject.connect(self.ui.savevalues, SIGNAL("clicked()"), self.savevalues)
         QObject.connect(self.ui.jumptores, SIGNAL("clicked()"), self.jumptores)
 
+       #config = mkidcore.config.load(cfgfile)
+
+        sweepmetadata_FN = os.path.splitext(psfile)[0]+'_metadata.txt'
+
+        self.metadata = mdata = sweepdata.SweepMetadata(file=sweepmetadata_FN)
+
+        self.metadata_out = sweepdata.SweepMetadata(file=sweepmetadata_FN)
+        self.metadata_out.file = os.path.splitext(sweepmetadata_FN)[0] + '_out.txt'
+        self.ui.save_filename.setText(self.metadata_out.file)
+
+        self.fsweepdata = None
+        self.mlResIDs = None
+        self.mlFreqs = None
+        self.mlAttens = None
+
+        self.widesweep_goodFreqs = mdata.wsfreq[mdata.flag == sweepdata.ISGOOD]
+        self.widesweep_allResIDs = mdata.resIDs
+        self.widesweep_allFreqs = mdata.wsfreq
+
         self.widesweep = None
-        self.h5resID_offset = 0
-        self.wsresID_offset = 0
-        try:
-
-            # config = ConfigParser.ConfigParser()
-            # config.read(cfgfile)
-            config = mkidcore.config.load(cfgfile)
-            ws_FN = config.sweepfile.format(feedline=feedline)
-            sweepmetadata_FN = os.path.join(config.paths.data, config.metadatafile.format(feedline=feedline))
-
-
-            #TODO pull this from the new ps file
-            self.widesweep = numpy.loadtxt(ws_FN)  # freq, I, Q
-
-            self.metadata = mdata = sweepdata.SweepMetadata(file=sweepmetadata_FN)
-
-            self.metadata_out = metadata_out = sweepdata.SweepMetadata(file=sweepmetadata_FN)
-            self.metadata_out.file = os.path.splitext(sweepmetadata_FN)[0] + '_out.txt'
-            self.ui.save_filename.setText(self.metadata_out.file)
-            self.fsweepdata = None
-
-            self.mlResIDs = None
-            self.mlFreqs =  None
-            self.mlAttens = None
-
-            self.widesweep_goodFreqs = mdata.wsfreq[mdata.flag == sweepdata.ISGOOD]
-            self.widesweep_allResIDs = mdata.resIDs
-            self.widesweep_allFreqs = mdata.wsfreq
-
-            self.h5resID_offset = config.h5resid_offset
-            self.wsresID_offset = config.wsresid_offset
-            self.widesweep_allResIDs += self.wsresID_offset
-        except IOError:
-            print('Could not load widewseep data :-(')
-            self.widesweep = None
-            self.h5resID_offset = 0
-            self.wsresID_offset = 0
-            raise
 
         self.navi_toolbar = NavigationToolbar(self.ui.plot_3.canvas, self)
         self.ui.plot_3.canvas.setFocusPolicy(Qt.ClickFocus)
         cid = self.ui.plot_3.canvas.mpl_connect('key_press_event', self.zoom_plot_3)
 
-        if psfile:
-            self.openfile = psfile
-            self.ui.open_filename.setText(str(self.openfile))
-            self.loadps()
+        self.openfile = psfile
+        self.ui.open_filename.setText(str(self.openfile))
+        self.loadps()
 
     def open_dialog(self):
         self.openfile = QFileDialog.getOpenFileName(parent=None, caption=QString(str("Choose PS File")),
@@ -220,6 +199,7 @@ class StartQt4(QMainWindow):
 
         use = self.resID == self.mlResIDs
         if np.any(use):
+            getLogger(__name__).debug('Select atten: {}'.format(self.mlAttens[use][0]))
             self.select_atten(self.mlAttens[use][0])
             self.ui.atten.setValue(int(np.round(self.mlAttens[use][0])))
         else:
@@ -232,9 +212,11 @@ class StartQt4(QMainWindow):
                 if guess_atten_idx[0] + rule_of_thumb_offset < len(self.Res1.atten1s):
                     guess_atten_idx[0] += rule_of_thumb_offset
                 guess_atten = self.Res1.atten1s[guess_atten_idx[0]]
+                getLogger(__name__).debug('Select atten (guess): {}'.format(guess_atten))
                 self.select_atten(guess_atten)
                 self.ui.atten.setValue(round(guess_atten))
             else:
+                getLogger(__name__).debug('Select atten (mid): {}'.format(self.Res1.atten1s[self.NAttens / 2]))
                 self.select_atten(self.Res1.atten1s[self.NAttens / 2])
                 self.ui.atten.setValue(round(self.Res1.atten1s[self.NAttens / 2]))
 
@@ -257,9 +239,10 @@ class StartQt4(QMainWindow):
             self.select_freq(guess)
 
     def loadps(self):
-        from mkidreadout.configuration.powersweep import psmldata
-
         self.fsweepdata = psmldata.MLData(fsweep=self.openfile, mdata=self.metadata_out)
+        self.widesweep = self.fsweepdata.freqSweep.oldwsformat(65)
+        getLogger(__name__).info('Loaded '+self.openfile)
+
         self.stop_ndx = self.fsweepdata.prioritize_and_cut(self.badcut, self.goodcut)
 
         self.mlResIDs = self.fsweepdata.resIDs
@@ -305,7 +288,7 @@ class StartQt4(QMainWindow):
         attenIndex, = np.where(self.Res1.atten1s == self.atten)
 
         if attenIndex.size != 1:
-            getLogger(__name__).info("Atten value is not in file")
+            getLogger(__name__).info("Atten value {} is not in file".format(self.atten))
             return
 
         self.iAtten = attenIndex[0]
@@ -325,7 +308,7 @@ class StartQt4(QMainWindow):
 
             # Plot transmission magnitudeds as a function of frequency for this resonator
             self.ui.plot_2.canvas.ax.clear()
-            self.ui.plot_2.canvas.ax.set_xlabel('Frequency (GHz)')
+            self.ui.plot_2.canvas.ax.set_xlabel('Frequency (Hz)')
             self.ui.plot_2.canvas.ax.set_ylabel('IQ velocity')
             self.ui.plot_2.canvas.ax.plot(self.Res1.freq[:-1], self.res1_iq_vel, 'b.-')
             if self.iAtten > 0:
@@ -337,30 +320,30 @@ class StartQt4(QMainWindow):
             cid = self.ui.plot_2.canvas.mpl_connect('button_press_event', self.on_press)
 
             if self.widesweep is not None:
-                freq_start = self.Res1.freq[0] / 1.E9
-                freq_stop = self.Res1.freq[-1] / 1.E9
-                widesweep_inds = np.where(
-                    np.logical_and(self.widesweep[:, 0] >= freq_start, self.widesweep[:, 0] <= freq_stop))
-                iqVel_med = numpy.median(self.res1_iq_vel)
-                ws_amp = (self.widesweep[widesweep_inds, 1] ** 2. + self.widesweep[widesweep_inds, 2] ** 2.) ** 0.5
+                print(self.Res1.freq[0])
+                freq_start = self.Res1.freq[0]
+                freq_stop = self.Res1.freq[-1]
+                wsmask = (self.widesweep[:, 0] >= freq_start) & (self.widesweep[:, 0] <= freq_stop)
+                iqVel_med = np.median(self.res1_iq_vel)
+                ws_amp = (self.widesweep[wsmask, 1] ** 2. + self.widesweep[wsmask, 2] ** 2.) ** 0.5
 
-                ws_amp_med = numpy.median(ws_amp)
+                ws_amp_med = np.median(ws_amp)
                 ws_amp *= 1.0 * iqVel_med / ws_amp_med
 
-                self.ui.plot_2.canvas.ax.plot(self.widesweep[widesweep_inds, 0] * 1.E9, ws_amp, 'k.-')
+                self.ui.plot_2.canvas.ax.plot(self.widesweep[wsmask, 0], ws_amp, 'k.-')
                 self.ui.plot_2.canvas.ax.lines[-1].set_alpha(.5)
 
-                ws_allFreqs = self.widesweep_allFreqs[numpy.where(
-                    numpy.logical_and(self.widesweep_allFreqs >= freq_start, self.widesweep_allFreqs <= freq_stop))]
-                ws_allResIDs = self.widesweep_allResIDs[numpy.where(
-                    numpy.logical_and(self.widesweep_allFreqs >= freq_start, self.widesweep_allFreqs <= freq_stop))]
+                ws_allFreqs = self.widesweep_allFreqs[(self.widesweep_allFreqs >= freq_start) &
+                                                      (self.widesweep_allFreqs <= freq_stop)]
+                ws_allResIDs = self.widesweep_allResIDs[(self.widesweep_allFreqs >= freq_start) &
+                                                        (self.widesweep_allFreqs <= freq_stop)]
                 for ws_resID_i, ws_freq_i in zip(ws_allResIDs, ws_allFreqs):
                     ws_color = 'k'
                     if ws_freq_i in self.widesweep_goodFreqs:
                         ws_color = 'r'
-                    self.ui.plot_2.canvas.ax.axvline(ws_freq_i * 1.E9, c=ws_color, alpha=0.5)
+                    self.ui.plot_2.canvas.ax.axvline(ws_freq_i, c=ws_color, alpha=0.5)
                     ws_ymax = self.ui.plot_2.canvas.ax.yaxis.get_data_interval()[1]
-                    self.ui.plot_2.canvas.ax.text(x=ws_freq_i * 1.E9, y=ws_ymax, s=str(int(ws_resID_i)), color=ws_color,
+                    self.ui.plot_2.canvas.ax.text(x=ws_freq_i, y=ws_ymax, s=str(int(ws_resID_i)), color=ws_color,
                                                   alpha=0.5)
             self.ui.plot_2.canvas.draw()
 
@@ -374,8 +357,8 @@ class StartQt4(QMainWindow):
             self.ui.plot_3.canvas.ax.plot(self.Res1.I, self.Res1.Q, '.-')
 
             if self.widesweep is not None:
-                ws_I = self.widesweep[widesweep_inds, 1]
-                ws_Q = self.widesweep[widesweep_inds, 2]
+                ws_I = self.widesweep[wsmask, 1]
+                ws_Q = self.widesweep[wsmask, 2]
                 ws_dataRange_I = self.ui.plot_3.canvas.ax.xaxis.get_data_interval()
                 ws_dataRange_Q = self.ui.plot_3.canvas.ax.yaxis.get_data_interval()
                 ws_I -= numpy.median(ws_I) - numpy.median(ws_dataRange_I)
@@ -425,7 +408,6 @@ class StartQt4(QMainWindow):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='MKID Powersweep GUI')
-    parser.add_argument('feedline', type=int, help='Feedline number (e.g. 7)')
     parser.add_argument('-c', '--config', dest='config', type=str, help='The config file',
                         default=resource_filename(__name__, 'psfit.yml'))
     parser.add_argument('--small', action='store_true', dest='smallui', default=False, help='Use small GUI')
@@ -435,13 +417,14 @@ if __name__ == "__main__":
     parser.add_argument('-bc', dest='bcut', default=-1, type=float, help='Assume bad if net ML score < (EXACT)')
     args = parser.parse_args()
 
+    create_log('__main__', console=True, mpsafe=True, fmt='%(asctime)s PSClickthrough: %(levelname)s %(message)s')
     create_log('mkidreadout', console=True, mpsafe=True, fmt='%(asctime)s mkidreadout: %(levelname)s %(message)s')
     create_log('mkidcore', console=True, mpsafe=True, fmt='%(asctime)s mkidcore: %(levelname)s %(message)s')
 
     Ui = gui.Ui_MainWindow_Small if args.smallui else gui.Ui_MainWindow
 
     app = QApplication(sys.argv)
-    myapp = StartQt4(args.config, args.feedline, Ui, startndx=args.start_ndx, psfile=args.psweep,
+    myapp = StartQt4(args.psweep, Ui, startndx=args.start_ndx,
                      goodcut=args.gcut, badcut=args.bcut)
     myapp.show()
     app.exec_()
