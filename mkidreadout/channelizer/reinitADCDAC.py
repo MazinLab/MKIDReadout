@@ -16,9 +16,9 @@ from mkidreadout.channelizer.InitStateMachine import InitStateMachine
 import numpy as np
 
 
-def worker(rNum):
+def worker(rNum, cfgFN='initgui.cfg'):
     config = ConfigParser.ConfigParser()
-    config.read('initgui.cfg')
+    config.read(cfgFN)
     roach=InitStateMachine(rNum,config)
     print "r"+str(rNum)+ " Connecting"
     roach.connect()
@@ -28,18 +28,21 @@ def worker(rNum):
     roach.calZdok()
     print "r"+str(rNum)+ " Done"
 
+def reinitADCDAC(roachNums, cfgFN='initgui.cfg'):
+    threads = []
+    for rNum in roachNums:
+        t=threading.Thread(target=worker, args=(rNum,cfgFN,))
+        threads.append(t)
+        t.start()
+    for t in threads:
+        t.join()    #block until they complete
 
 if __name__ == "__main__":
     
     args = sys.argv[1:]
-
     roachNums = np.asarray(args, dtype=np.int)
-
-    threads = []
-    for rNum in roachNums:
-        t=threading.Thread(target=worker, args=(rNum,))
-        threads.append(t)
-        t.start()
+    reinitADCDAC(roachNums)
+    
 
     
 
