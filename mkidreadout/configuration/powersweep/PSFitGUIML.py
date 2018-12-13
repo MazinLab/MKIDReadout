@@ -108,13 +108,6 @@ class StartQt4(QMainWindow):
         self.resfreq = self.freq[self.resnum]
         self.ui.jumptonum.setValue(self.resnum)
 
-        #TODO Neelay verify this code is garbage
-        # try:
-        #     self.Res1.resID += self.h5resID_offset  # sometimes the resID in the h5 file is wrong...
-        # except:
-        #     #TODO neelay my guess is this is a catch incase the file didn't have a resid?
-        #     # shouldn't we pull the
-        #     self.Res1.resID = self.resnum + self.h5resID_offset  # or the h5 has no resID column
 
         self.resID = self.Res1.resID
         getLogger(__name__).info("Res: {} --> ID: {}".format(self.resnum, self.resID))
@@ -235,20 +228,16 @@ class StartQt4(QMainWindow):
         self.scale = self.fsweep.scale
         self.freq = self.fsweep.freqs[???]
 
+  #       line 234: here you need to select a single tone to use
+  # as the window for that resonator. I wrote a simple
+  # function to do it in PowerSweepML/psmldata.py
+  # (generateMLWindows)
 
-        # for sweep in group._f_walknodes('Leaf'):
-        #     k = sweep.read()
-        #     self.scale = k['scale'][0]
-        #     self.freq = append(self.freq, [k['f0'][0]])
-        #     self.idList = append(self.idList, [k['resID'][0]])
-        # self.idList += self.h5resID_offset
 
         self.freqList = np.zeros(2000)
-        self.attenList = np.zeros(len(self.freqList)) - 1
-
+        self.attenList = np.full_like(self.freqList, -1)
 
         #TODO now sort all the data
-
 
         self.loadres()
 
@@ -398,9 +387,7 @@ class StartQt4(QMainWindow):
         self.freqList[self.resnum] = self.resfreq
         self.attenList[self.resnum] = self.atten
 
-        #TODO Neelay check me here
-        assert self.metadata_out.resIDs[self.resnum] == self.resID
-        self.metadata_out.atten[self.resnum] = self.atten
+        self.metadata_out.atten[self.resID==self.metadata_out.resIDs] = self.atten
         self.metadata_out.save()
 
         msg = " ....... Saved to file:  resnum={} resID={} resfreq={} atten={}"
