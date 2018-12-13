@@ -591,7 +591,59 @@ class IQsweep:
         except:
             pass
 
-        h5file.close() 
+        h5file.close()
+
+    def loadpowers_from_freqsweep(self, fsweep, rnum):
+            self.f0 = None
+            self.span = None
+            self.fsteps = None
+            self.atten1s = fsweep.atten
+            self.atten2s = None
+            self.scale = None
+            self.PreadoutdB = None
+            self.Tstart = None
+            self.Tend = None
+            self.I0 = fsweep.i
+            self.Q0 = fsweep.q
+            self.resnum = None
+            self.time = None
+
+            self.freq = k['freq'][0,0:self.fsteps]
+            self.Is = k['I'][:,0:self.fsteps]
+            self.Qs = k['Q'][:,0:self.fsteps]
+
+
+            self.Isd = k['Isd'][0,0:self.fsteps]
+            self.Qsd = k['Qsd'][0,0:self.fsteps]
+            self.vmaxidx = k['vmaxidx'][0]
+            self.Icengs = k['Iceng'][0]
+            self.Qcengs = k['Qceng'][0]
+            self.Icens = k['Icen']
+            self.Qcens = k['Qcen']
+            self.Qm= k['Qm'][0]
+            self.fm= k['fm'][0]
+            self.Qc= k['Qc'][0]
+            self.Qi= k['Qi'][0]
+            self.dipdb= k['dipdb'][0]
+            self.popt = k['popt'][0]
+            self.fpoints = k['fpoints'][0]
+            self.fI = k['fI'][0,0:self.fpoints]
+            self.fQ = k['fQ'][0,0:self.fpoints]
+            self.ff = k['ff'][0,0:self.fpoints]
+
+            self.mag = k['mag'][0,0:self.fpoints]
+            self.magfreq = k['magfreq'][0]
+            self.magfit = k['magfit'][0]
+            self.mopt = k['mopt'][0]
+
+            self.savenoise =  k['savenoise'][0]
+            self.samprate =  k['samprate'][0]
+            self.pn = k['pn'][0]
+            self.pnidx = k['pnidx'][0]
+            self.an = k['an'][0]
+            self.anidx = k['anidx'][0]
+            self.kn1k = k['fn1k'][0]
+
 
     def LoadPowers(self,filename,roach,f0):            # Load the desired IQ sweep data from a HDF5 file
 

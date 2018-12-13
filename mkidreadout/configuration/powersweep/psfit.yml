@@ -1,5 +1,5 @@
-!ConfigThing
-paths:
+!configdict
+paths: !configdict
   data: ./
   out: ./
 
@@ -7,5 +7,3 @@ h5resID_offset: 0
 wsresID_offset: 0
 sweepfile: digWS_FL{feedline}.txt
 metadatafile: digWS_FL{feedline}_metadata.txt
-
-

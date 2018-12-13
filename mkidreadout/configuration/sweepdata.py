@@ -16,6 +16,10 @@ class FreqSweep(object):
         self.q = data['Q']  # 3d [nAttens, nTones, nLOsteps] ADC units
         self.natten, self.ntone, self.nlostep = data['I'].shape
 
+    @property
+    def scale(self):
+        raise NotImplementedError
+
 
 class SweepMetadata(object):
     def __init__(self, resid=None, wsfreq=None, flag=None, mlfreq=None, atten=None,

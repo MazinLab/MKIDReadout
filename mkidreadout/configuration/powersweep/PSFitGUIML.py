@@ -44,7 +44,6 @@ class StartQt4(QMainWindow):
         self.indx = 0
 
         QObject.connect(self.ui.open_browse, SIGNAL("clicked()"), self.open_dialog)
-        QObject.connect(self.ui.save_browse, SIGNAL("clicked()"), self.save_dialog)
         QObject.connect(self.ui.atten, SIGNAL("valueChanged(int)"), self.setnewatten)
         QObject.connect(self.ui.savevalues, SIGNAL("clicked()"), self.savevalues)
         QObject.connect(self.ui.jumptores, SIGNAL("clicked()"), self.jumptores)
@@ -58,23 +57,24 @@ class StartQt4(QMainWindow):
             # config.read(cfgfile)
             config = mkidcore.config.load(cfgfile)
             ws_FN = config.sweepfile.format(feedline=feedline)
-            ws_freqs_all_FN = config.metadata_FN.format(feedline=feedline)
-            ws_freqs_good_FN = config.ws_freqs_good_FN.format(feedline=feedline)
-
-            ws_FN = os.path.join(config.paths.data, ws_FN)
-            sweepmetadata_FN = os.path.join(config.paths.data,
-                                            config.metadata_FN.format(feedline=feedline))
+            sweepmetadata_FN = os.path.join(config.paths.data, config.metadatafile.format(feedline=feedline))
 
             self.widesweep = numpy.loadtxt(ws_FN)  # freq, I, Q
 
-            mdata = sweepdata.SweepMetadata(file=sweepmetadata_FN)
+            self.metadata = mdata = sweepdata.SweepMetadata(file=sweepmetadata_FN)
+
+            self.metadata_out = metadata_out = sweepdata.SweepMetadata(file=sweepmetadata_FN)
+            self.metadata_out.file = os.path.splitext(sweepmetadata_FN)[0] + '_out.txt'
+            self.mlResIDs = metadata_out.resIDs
+            self.mlFreqs = metadata_out.mlfreq
+            self.mlAttens = metadata_out.atten
 
             self.widesweep_goodFreqs = mdata.wsfreq[mdata.flag == sweepdata.ISGOOD]
-            self.widesweep_allResIDs = mdata.resID
+            self.widesweep_allResIDs = mdata.resIDs
             self.widesweep_allFreqs = mdata.wsfreq
 
-            self.h5resID_offset = config.h5resID_offset
-            self.wsresID_offset = config.wsresID_offset
+            self.h5resID_offset = config.h5resid_offset
+            self.wsresID_offset = config.wsresid_offset
             self.widesweep_allResIDs += self.wsresID_offset
         except IOError:
             print('Could not load widewseep data :-(')
@@ -98,23 +98,23 @@ class StartQt4(QMainWindow):
         self.ui.open_filename.setText(str(self.openfile))
         self.loadps()
 
-    def save_dialog(self):
-        self.savefile = QFileDialog.getOpenFileName(parent=None, caption=QString(str("Choose Save File")),
-                                                    directory=".")
-        self.ui.save_filename.setText(str(self.savefile))
-        self.mlResIDs, self.mlFreqs, self.mlAttens = np.loadtxt(str(self.savefile), unpack=True)
-
     def loadres(self):
+        """TODO looks like they are iterated through in order or the array ned to sort freq"""
         self.Res1 = IQsweep()
-        self.Res1.LoadPowers(str(self.openfile), 'r0', self.freq[self.resnum])
+        self.Res1.loadpowers_from_freqsweep(self.fsweep, self.resnum)  #TODO finish updating loadpowers_from_freqsweep:
+        # uses atten1s, Qs, Is, fsteps here. select_freq uses .I and .Q too but they get populated in select_atten
+
         self.ui.res_num.setText(str(self.resnum))
         self.resfreq = self.freq[self.resnum]
         self.ui.jumptonum.setValue(self.resnum)
 
-        try:
-            self.Res1.resID += self.h5resID_offset  # sometimes the resID in the h5 file is wrong...
-        except:
-            self.Res1.resID = self.resnum + self.h5resID_offset  # or the h5 has no resID column
+        #TODO Neelay verify this code is garbage
+        # try:
+        #     self.Res1.resID += self.h5resID_offset  # sometimes the resID in the h5 file is wrong...
+        # except:
+        #     #TODO neelay my guess is this is a catch incase the file didn't have a resid?
+        #     # shouldn't we pull the
+        #     self.Res1.resID = self.resnum + self.h5resID_offset  # or the h5 has no resID column
 
         self.resID = self.Res1.resID
         getLogger(__name__).info("Res: {} --> ID: {}".format(self.resnum, self.resID))
@@ -179,14 +179,7 @@ class StartQt4(QMainWindow):
         self.ui.plot_1.canvas.ax.legend()
         self.ui.plot_1.canvas.ax.set_xlabel('attenuation')
 
-        # self.ui.plot_1.canvas.ax.plot(self.Res1.atten1s,self.res1_max2_vels-1,'b.-')
-        # self.ui.plot_1.canvas.ax.plot(self.Res1.atten1s,max2_neighbors-1,'b.-')
-        # self.ui.plot_1.canvas.ax.plot(self.Res1.atten1s,self.res1_max2_ratio-1,'g.-')
-
-        # Chris S:  seems that button_press_event causes click_plot_1 to be called more than once sometimes.
         cid = self.ui.plot_1.canvas.mpl_connect('button_press_event', self.click_plot_1)
-        # cid=self.ui.plot_1.canvas.mpl_connect('button_release_event', self.click_plot_1)
-        # self.ui.plot_1.canvas.format_labels()
         self.ui.plot_1.canvas.draw()
 
         max_ratio_threshold = 1.5
@@ -197,11 +190,10 @@ class StartQt4(QMainWindow):
         for ri in range(len(self.res1_max_ratio) - rule_of_thumb_offset - 2):
             bool_remove[ri] = bool((self.res1_max_ratio[ri:ri + rule_of_thumb_offset + 1] < max_ratio_threshold).all())
 
-        if np.any(self.resID == self.mlResIDs):
-            resInd = np.where(self.resID == self.mlResIDs)[0]
-            self.select_atten(self.mlAttens[resInd])
-            self.ui.atten.setValue(self.mlAttens[resInd])
-
+        use = self.resID == self.mlResIDs  #TODO this should eventually be metadata_out.resIDs i think
+        if np.any(use):
+            self.select_atten(self.mlAttens[use][0])
+            self.ui.atten.setValue(self.mlAttens[use][0])
         else:
             guess_atten_idx = np.extract(bool_remove, np.arange(len(self.res1_max_ratio)))
 
@@ -237,25 +229,27 @@ class StartQt4(QMainWindow):
             self.select_freq(guess)
 
     def loadps(self):
-        #### IN HERE NEED TO ADD LOADING OF ID FIELD FROM PS
+        self.fsweep = sweepdata.FreqSweep(self.openfile)
 
-        hd5file = open_file(str(self.openfile), mode='r')
-        group = hd5file.get_node('/', 'r0')
-        self.freq = empty(0, dtype='float32')
-        self.idList = empty(0, dtype='int32')
-        for sweep in group._f_walknodes('Leaf'):
-            k = sweep.read()
-            self.scale = k['scale'][0]
-            # getLogger(__name__).info("Scale factor is ", self.scale
-            self.freq = append(self.freq, [k['f0'][0]])
-            self.idList = append(self.idList, [k['resID'][0]])
-        self.idList += self.h5resID_offset
-        # self.freqList = np.zeros(len(k['f0']))
-        # self.attenList = np.zeros(len(self.freqList)) - 1
+        # TODO convert to use self.fsweep
+        self.scale = self.fsweep.scale
+        self.freq = self.fsweep.freqs[???]
+
+
+        # for sweep in group._f_walknodes('Leaf'):
+        #     k = sweep.read()
+        #     self.scale = k['scale'][0]
+        #     self.freq = append(self.freq, [k['f0'][0]])
+        #     self.idList = append(self.idList, [k['resID'][0]])
+        # self.idList += self.h5resID_offset
+
         self.freqList = np.zeros(2000)
-        # self.idList = np.zeros(len(self.freqList)) - 1
         self.attenList = np.zeros(len(self.freqList)) - 1
-        hd5file.close()
+
+
+        #TODO now sort all the data
+
+
         self.loadres()
 
     def on_press(self, event):
@@ -283,13 +277,13 @@ class StartQt4(QMainWindow):
 
     def select_atten(self, attenuation):
         if self.atten != -1:
-            attenIndex = where(self.Res1.atten1s == self.atten)
-            if size(attenIndex) >= 1:
+            attenIndex = np.where(self.Res1.atten1s == self.atten)
+            if np.size(attenIndex) >= 1:
                 self.iAtten = attenIndex[0][0]
                 self.ui.plot_1.canvas.ax.plot(self.atten, self.res1_max_ratio[self.iAtten], 'ko')
                 self.ui.plot_1.canvas.ax.plot(self.atten, self.res1_max_vels[self.iAtten], 'bo')
-        self.atten = round(attenuation)
-        attenIndex = where(self.Res1.atten1s == self.atten)
+        self.atten = np.round(attenuation)
+        attenIndex = np.where(self.Res1.atten1s == self.atten)
         if size(attenIndex) != 1:
             getLogger(__name__).info("Atten value is not in file")
             return
@@ -400,46 +394,19 @@ class StartQt4(QMainWindow):
         self.select_atten(self.ui.atten.value())
 
     def savevalues(self):
-        assert self.idList[self.resnum] == self.resID, "Something is wrong. Need to debug resID"
+        #assert self.idList[self.resnum] == self.resID, "Something is wrong. Need to debug resID"
         self.freqList[self.resnum] = self.resfreq
         self.attenList[self.resnum] = self.atten
-        data = np.transpose([self.idList[np.where(self.attenList >= 0)], self.freqList[np.where(self.attenList >= 0)],
-                             self.attenList[np.where(self.attenList >= 0)]])
 
-        getLogger(__name__).info(data)
+        #TODO Neelay check me here
+        assert self.metadata_out.resIDs[self.resnum] == self.resID
+        self.metadata_out.atten[self.resnum] = self.atten
+        self.metadata_out.save()
 
-        try:
-            # grab and append any data already saved
-            dataCurrent = np.atleast_2d(np.loadtxt(str(self.savefile)))
-            if len(dataCurrent) < 1 or len(dataCurrent[0]) < 1:
-                raise IOError('')
-
-            getLogger(__name__).info(dataCurrent)
-
-            dataNew = np.append(dataCurrent, data, axis=0)
-
-            # sort the frequencies and remove duplicate IDs
-            ids = np.copy(dataNew[:, 0][::-1])
-            freqs = np.copy(dataNew[:, 1][::-1])
-            attens = np.copy(dataNew[:, 2][::-1])
-            newIDs, indx = np.unique(ids, return_index=True)
-            newFreqs = freqs[indx]
-            newAttens = attens[indx]
-
-            data = np.transpose([newIDs, newFreqs, newAttens])
-        except IOError:
-            getLogger(__name__).info('IOError')
-            pass
-
-        np.savetxt(str(self.savefile), data, "%6i %10.9e %4i")
-
-        getLogger(__name__).info(" ....... Saved to file:  resnum={} resID={} resfreq={} atten={}".format(self.resnum,
-                                                                                                          self.resID,
-                                                                                                          self.resfreq,
-                                                                                                          self.atten))
+        msg = " ....... Saved to file:  resnum={} resID={} resfreq={} atten={}"
+        getLogger(__name__).info(msg.format(self.resnum,self.resID,self.resfreq,self.atten))
         self.resnum += 1
         self.atten = -1
-        self.mlResIDs, self.mlFreqs, self.mlAttens = np.loadtxt(str(self.savefile), unpack=True)
         self.loadres()
 
 from pkg_resources import resource_filename
