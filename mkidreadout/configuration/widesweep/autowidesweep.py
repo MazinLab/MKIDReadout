@@ -1,19 +1,20 @@
-'''
-Implements a template filter to identify WS peaks
-'''
+""" Implements a template filter to identify WS peaks """
 import numpy as np
 import scipy.signal as signal
 import matplotlib.pyplot as plt
+from mkidcore.corelog import getLogger
 from mkidreadout.configuration.widesweep.wsdata import WSFitMLData
+import mkidreadout.configuration.sweepdata as sweepdata
 import os
 import argparse
+import re
 ANALOG_SPACING = 12.5
 DIGITAL_SPACING = 7.629
 
 
-class AutoPeakFinder:
+class AutoPeakFinder(object):
     def __init__(self, spacing):
-        self.spacing = spacing #kHz
+        self.spacing = spacing  # kHz
         self.winSize = int(500/self.spacing)
 
     def setWinSize(self, winSize):
@@ -22,8 +23,8 @@ class AutoPeakFinder:
             if winSize>len(self.template):
                 raise Exception('Existing template is too small')
 
-    def inferPeaks(self, inferenceFile, isDigital, sigThresh=0.5):
-        self.inferenceData = WSFitMLData([inferenceFile], freqStep=self.spacing/1.e6)
+    def inferPeaks(self, inferenceFile, isDigital=True, sigThresh=0.5):
+        self.inferenceData = WSFitMLData(inferenceFile, freqStep=self.spacing/1.e6)
         self.inferenceFile = inferenceFile
         if isDigital:
             self.inferenceData.stitchDigitalData()
@@ -53,8 +54,6 @@ class AutoPeakFinder:
         ##plt.plot(freqs, firFiltMagsDB2, label = 'fir cheby window 2')
         #plt.plot(freqs[peaks], firFiltMagsDB[peaks], '.', label = 'signal peaks')
         #plt.legend()
-
-
 
         self.peakIndices = peaks
 
@@ -92,38 +91,43 @@ class AutoPeakFinder:
             # print sum(foundMinima)
 
     def saveInferenceFile(self):
-        goodSaveFile = self.inferenceFile.split('.')[0]
-        badSaveFile = self.inferenceFile.split('.')[0]
-        goodSaveFile += '_stitched-ml-good.txt'
-        badSaveFile += '_stitched-ml-bad.txt'
+        metadatafile = self.inferenceFile.rpartition('.')[0] + '_metadata.txt'
 
-        np.savetxt(goodSaveFile, self.goodPeakIndices)
-        np.savetxt(badSaveFile, self.badPeakIndices)
+        try:
+            flNum = int(re.search('fl\d', self.inferenceFile, re.IGNORECASE).group()[-1])
+        except AttributeError:
+            getLogger(__name__).warning('Could not guess feedline from filename.')
+            flNum = 0
+
+        ws_good_inds = self.goodPeakIndices
+        freqs = np.append(self.inferenceData.freqs[ws_good_inds], self.inferenceData.freqs[ws_bad_inds])
+        sort_inds = np.argsort(freqs)
+        resIds = np.arange(freqs.size) + flNum * 10000
+
+        flag = np.fill(freqs.size, sweepdata.ISBAD)
+        flag[self.goodPeakIndices] = sweepdata.ISGOOD
+        smd = sweepdata.SweepMetadata(resid=resIds, flag=flag[sort_inds], wsfreq=freqs[sort_inds], file=metadatafile)
+        smd.save()
 
 
-if __name__=='__main__':
+if __name__ == '__main__':
     mdd = os.environ['MKID_DATA_DIR']
     
     parser = argparse.ArgumentParser(description='WS Auto Peak Finding')
     parser.add_argument('wsDataFile', nargs=1, help='Raw Widesweep data')
     parser.add_argument('-d', '--digital', action='store_true', help='Perform preprocessing step for digital data')
+    parser.add_argument('-s', '--sigma', dest='sigma', type=float, default=.5, help='Peak inference threshold')
     args = parser.parse_args()
 
     wsFile = args.wsDataFile[0]
     if not os.path.isfile(wsFile):
         wsFile = os.path.join(mdd, wsFile)
 
-    sigmaThresh = 0.5
-    
-    if args.digital:
-        spacing = DIGITAL_SPACING
-    else:
-        spacing = ANALOG_SPACING
+    spacing = DIGITAL_SPACING if args.digital else ANALOG_SPACING
 
     wsFilt = AutoPeakFinder(spacing)
-    wsFilt.inferPeaks(wsFile, args.digital, sigmaThresh)
+    wsFilt.inferPeaks(wsFile, isDigital=args.digital, sigThresh=args.sigma)
     wsFilt.findLocalMinima()
-    wsFilt.markCollisions(200)
-    print 'Found', len(wsFilt.goodPeakIndices), 'good peaks'
+    wsFilt.markCollisions(resBWkHz=200)
+    getLogger(__name__).info('Found {} good peaks.'.format(len(wsFilt.goodPeakIndices)))
     wsFilt.saveInferenceFile()
-

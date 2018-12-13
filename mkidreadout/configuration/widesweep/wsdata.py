@@ -3,7 +3,13 @@ from scipy import signal
 
 
 class WSFitMLData(object):
-    def __init__(self, filenameList, freqStep):
+    def __init__(self, filenames, freqStep):
+
+        if isinstance(filenames, str):
+            filenameList = [filenames]
+        else:
+            filenameList = filenames
+
         self.freqs = np.empty(0)
         self.iVals = np.empty(0)
         self.qVals = np.empty(0)
@@ -34,7 +40,7 @@ class WSFitMLData(object):
             fn = fn.split('.')[0]
             fn += '-freqs-' +  flag + '.txt'
             _, peakLocs, _ = np.loadtxt(fn, unpack=True)
-            peakLocs += boundaryInds[i]
+            peakLocs += self.boundaryInds[i]
             if flag=='good':
                 self.peakLocs = np.append(self.peakLocs, peakLocs)
             else:
