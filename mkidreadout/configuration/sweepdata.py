@@ -58,6 +58,10 @@ class SweepMetadata(object):
         self._settypes()
         self.sort()
 
+    @property
+    def goodmlfreq(self):
+        return self.mlfreq[self.flag==ISGOOD]
+
     def sort(self):
         s = np.argsort(self.wsfreq)
         self.resIDs = self.resIDs[s]

@@ -25,6 +25,8 @@ from PyQt4.QtCore import *
 from mkidreadout.utils.iqsweep import *
 from matplotlib.backends.backend_qt4 import NavigationToolbar2QT as NavigationToolbar
 
+from pkg_resources import resource_filename
+
 import mkidreadout.configuration.powersweep.gui as gui
 import mkidreadout.configuration.sweepdata as sweepdata
 import mkidcore.config
@@ -65,6 +67,8 @@ class StartQt4(QMainWindow):
 
             self.metadata_out = metadata_out = sweepdata.SweepMetadata(file=sweepmetadata_FN)
             self.metadata_out.file = os.path.splitext(sweepmetadata_FN)[0] + '_out.txt'
+            self.fsweepdata = None
+
             self.mlResIDs = metadata_out.resIDs
             self.mlFreqs = metadata_out.mlfreq
             self.mlAttens = metadata_out.atten
@@ -99,28 +103,53 @@ class StartQt4(QMainWindow):
         self.loadps()
 
     def loadres(self):
-        """TODO looks like they are iterated through in order or the array ned to sort freq"""
         self.Res1 = IQsweep()
-        self.Res1.loadpowers_from_freqsweep(self.fsweep, self.resnum)  #TODO finish updating loadpowers_from_freqsweep:
-        # uses atten1s, Qs, Is, fsteps here. select_freq uses .I and .Q too but they get populated in select_atten
+        self.Res1.loadpowers_from_freqsweep(self.fsweep, self.resnum)
+        #TODO Neelay/Alex finish updating loadpowers_from_freqsweep:
+        # uses atten1s, Qs, Is, fsteps here.
+        # select_freq uses .I and .Q too but I think they get populated in select_atten
+        # I think these are the th
+        # atten1s = self.fsweep.freqSweep.atten
+        # Qs= self.fsweep.Qs[self.resnum]
+        # Is = self.fsweep.Is[self.resnum]
+        # fsteps = self.fsweep.freqs[self.resnum]  #this is a really blind guess
+
+        self.resfreq = self.fsweep.metadata.goodfreqs[self.resnum]
+        self.resID = self.Res1.resID
+        self.NAttens = self.Res1.atten1s.size
 
         self.ui.res_num.setText(str(self.resnum))
-        self.resfreq = self.freq[self.resnum]
         self.ui.jumptonum.setValue(self.resnum)
+        self.ui.frequency.setText(str(self.resfreq))
 
-
-        self.resID = self.Res1.resID
         getLogger(__name__).info("Res: {} --> ID: {}".format(self.resnum, self.resID))
 
-        self.ui.frequency.setText(str(self.resfreq))
-        self.NAttens = len(self.Res1.atten1s)
-        self.res1_iq_vels = numpy.zeros((self.NAttens, self.Res1.fsteps - 1))
-        self.res1_iq_amps = numpy.zeros((self.NAttens, self.Res1.fsteps))
-        for iAtt in range(self.NAttens):
-            for i in range(1, self.Res1.fsteps - 1):
-                self.res1_iq_vels[iAtt, i] = sqrt((self.Res1.Qs[iAtt][i] - self.Res1.Qs[iAtt][i - 1]) ** 2 + (
-                            self.Res1.Is[iAtt][i] - self.Res1.Is[iAtt][i - 1]) ** 2)
-                self.res1_iq_amps[iAtt, :] = sqrt((self.Res1.Qs[iAtt]) ** 2 + (self.Res1.Is[iAtt]) ** 2)
+        self.res1_iq_vels = np.zeros((self.NAttens, self.Res1.fsteps - 1))
+        self.res1_iq_amps = np.zeros((self.NAttens, self.Res1.fsteps))
+
+        #TODO Neelay this vectorization is correct. I've preserved the old behavior but it looks to me like the old
+        # code may have an off by one error in the resulting vels!
+        foo = np.sqrt(np.diff(self.Res1.Qs, axis=1)**2 + np.diff(self.Res1.Is, axis=1)**2)
+        self.res1_iq_vels[:, 1:] = foo[:, :-1]  #TODO this screams offbyne
+        self.res1_iq_amps = np.sqrt(self.Res1.Qs**2 + self.Res1.Is**2)
+
+        #Verification code for equivalence
+        # Qs = np.random.rand(10, 100)
+        # Is = np.random.rand(10, 100)
+        # x = np.zeros((10, 99))
+        # for j in xrange(x.shape[0]):
+        #     for i in xrange(1, x.shape[1]):
+        #             x[j, i] = (Qs[j][i] - Qs[j][i - 1]) ** 2 + (Is[j][i] - Is[j][i - 1]) ** 2
+        # y = np.diff(Qs, axis=1) ** 2 + np.diff(Is, axis=1) ** 2
+        # z=x.copy()
+        # z[:,1:]=y[:,:-1]
+
+        # for iAtt in xrange(self.NAttens):
+        #     for i in xrange(1, self.Res1.fsteps - 1):
+        #         self.res1_iq_vels[iAtt, i] = sqrt((self.Res1.Qs[iAtt][i] - self.Res1.Qs[iAtt][i - 1]) ** 2 + (
+        #                     self.Res1.Is[iAtt][i] - self.Res1.Is[iAtt][i - 1]) ** 2)
+        #         self.res1_iq_amps[iAtt, :] = sqrt((self.Res1.Qs[iAtt]) ** 2 + (self.Res1.Is[iAtt]) ** 2)
+
         # Sort the IQ velocities for each attenuation, to pick out the maximums
         sorted_vels = numpy.sort(self.res1_iq_vels, axis=1)
         # Last column is maximum values for each atten (row)
@@ -222,17 +251,13 @@ class StartQt4(QMainWindow):
             self.select_freq(guess)
 
     def loadps(self):
-        self.fsweep = sweepdata.FreqSweep(self.openfile)
+        from mkidreadout.configuration.powersweep import psmldata
 
+        self.fsweepdata = psmldata.MLData(fsweep=self.openfile, mdata=self.metadata_out)
         # TODO convert to use self.fsweep
+
         self.scale = self.fsweep.scale
-        self.freq = self.fsweep.freqs[???]
-
-  #       line 234: here you need to select a single tone to use
-  # as the window for that resonator. I wrote a simple
-  # function to do it in PowerSweepML/psmldata.py
-  # (generateMLWindows)
-
+        self.freq = self.fsweep.metadata.goodfreqs
 
         self.freqList = np.zeros(2000)
         self.attenList = np.full_like(self.freqList, -1)
@@ -250,7 +275,6 @@ class StartQt4(QMainWindow):
             self.navi_toolbar.zoom()
 
     def click_plot_1(self, event):
-        # Chris. self.select_atten(event.xdata)
         self.ui.atten.setValue(round(event.xdata))
 
     def select_freq(self, freq):
@@ -266,17 +290,20 @@ class StartQt4(QMainWindow):
 
     def select_atten(self, attenuation):
         if self.atten != -1:
-            attenIndex = np.where(self.Res1.atten1s == self.atten)
-            if np.size(attenIndex) >= 1:
-                self.iAtten = attenIndex[0][0]
+            attenIndex, = np.where(self.Res1.atten1s == self.atten)
+            if attenIndex.size >= 1:
+                self.iAtten = attenIndex[0]
                 self.ui.plot_1.canvas.ax.plot(self.atten, self.res1_max_ratio[self.iAtten], 'ko')
                 self.ui.plot_1.canvas.ax.plot(self.atten, self.res1_max_vels[self.iAtten], 'bo')
+
         self.atten = np.round(attenuation)
-        attenIndex = np.where(self.Res1.atten1s == self.atten)
-        if size(attenIndex) != 1:
+        attenIndex, = np.where(self.Res1.atten1s == self.atten)
+
+        if attenIndex.size != 1:
             getLogger(__name__).info("Atten value is not in file")
             return
-        self.iAtten = attenIndex[0][0]
+
+        self.iAtten = attenIndex[0]
         self.res1_iq_vel = self.res1_iq_vels[self.iAtten, :]
         self.Res1.I = self.Res1.Is[self.iAtten]
         self.Res1.Q = self.Res1.Qs[self.iAtten]
@@ -285,7 +312,6 @@ class StartQt4(QMainWindow):
         self.ui.plot_1.canvas.ax.plot(self.atten, self.res1_max_ratio[self.iAtten], 'ro')
         self.ui.plot_1.canvas.ax.plot(self.atten, self.res1_max_vels[self.iAtten], 'ro')
         self.ui.plot_1.canvas.draw()
-        # Chris S self.ui.atten.setValue(self.atten)
         self.makeplots()
         self.guess_res_freq()
 
@@ -293,13 +319,8 @@ class StartQt4(QMainWindow):
         try:
 
             # Plot transmission magnitudeds as a function of frequency for this resonator
-            # self.ui.plot_1.canvas.ax.clear()
-            # self.ui.plot_1.canvas.ax.semilogy(self.Res1.freq,res1_iq_amp,'.-')
-            # self.ui.plot_1.canvas.format_labels()
-            # self.ui.plot_1.canvas.draw()
-
             self.ui.plot_2.canvas.ax.clear()
-            self.ui.plot_2.canvas.ax.set_xlabel('frequency (GHz)')
+            self.ui.plot_2.canvas.ax.set_xlabel('Frequency (GHz)')
             self.ui.plot_2.canvas.ax.set_ylabel('IQ velocity')
             self.ui.plot_2.canvas.ax.plot(self.Res1.freq[:-1], self.res1_iq_vel, 'b.-')
             if self.iAtten > 0:
@@ -317,14 +338,13 @@ class StartQt4(QMainWindow):
                     np.logical_and(self.widesweep[:, 0] >= freq_start, self.widesweep[:, 0] <= freq_stop))
                 iqVel_med = numpy.median(self.res1_iq_vel)
                 ws_amp = (self.widesweep[widesweep_inds, 1] ** 2. + self.widesweep[widesweep_inds, 2] ** 2.) ** 0.5
-                # ws_amp = 10.*numpy.log10(ws_amp)
+
                 ws_amp_med = numpy.median(ws_amp)
                 ws_amp *= 1.0 * iqVel_med / ws_amp_med
 
                 self.ui.plot_2.canvas.ax.plot(self.widesweep[widesweep_inds, 0] * 1.E9, ws_amp, 'k.-')
                 self.ui.plot_2.canvas.ax.lines[-1].set_alpha(.5)
 
-                # ws_goodFreqs = self.widesweep_goodFreqs[numpy.where(numpy.logical_and(self.widesweep_goodFreqs>=freq_start,self.widesweep_goodFreqs<=freq_stop))]
                 ws_allFreqs = self.widesweep_allFreqs[numpy.where(
                     numpy.logical_and(self.widesweep_allFreqs >= freq_start, self.widesweep_allFreqs <= freq_stop))]
                 ws_allResIDs = self.widesweep_allResIDs[numpy.where(
@@ -347,6 +367,7 @@ class StartQt4(QMainWindow):
                 self.ui.plot_3.canvas.ax.plot(self.Res1.Is[self.iAtten - 2], self.Res1.Qs[self.iAtten - 2], 'g.-')
                 self.ui.plot_3.canvas.ax.lines[-1].set_alpha(.3)
             self.ui.plot_3.canvas.ax.plot(self.Res1.I, self.Res1.Q, '.-')
+
             if self.widesweep is not None:
                 ws_I = self.widesweep[widesweep_inds, 1]
                 ws_Q = self.widesweep[widesweep_inds, 2]
@@ -354,11 +375,10 @@ class StartQt4(QMainWindow):
                 ws_dataRange_Q = self.ui.plot_3.canvas.ax.yaxis.get_data_interval()
                 ws_I -= numpy.median(ws_I) - numpy.median(ws_dataRange_I)
                 ws_Q -= numpy.median(ws_Q) - numpy.median(ws_dataRange_Q)
-                # self.ui.plot_3.canvas.ax.plot(ws_I, ws_Q,'k.-')
-                # self.ui.plot_3.canvas.ax.lines[-1].set_alpha(.5)
-            # self.ui.plot_3.canvas.format_labels()
-            getLogger(__name__).info('makeplots')
+
+            getLogger(__name__).debug('makeplots')
             self.ui.plot_3.canvas.draw()
+
         except IndexError:
             getLogger(__name__).info("reached end of resonator list, closing GUI")
             sys.exit()
@@ -367,7 +387,7 @@ class StartQt4(QMainWindow):
         try:
             self.atten = -1
             self.resnum = self.ui.jumptonum.value()
-            self.resfreq = self.resnum
+            #self.resfreq = self.resnum  #This had got to be wrong, commented it out
             self.loadres()
         except IndexError:
             getLogger(__name__).info("Res value out of bounds.")
@@ -379,11 +399,9 @@ class StartQt4(QMainWindow):
             self.ui.plot_3.canvas.draw()
 
     def setnewatten(self):
-        # Chris S.:  this is the only place that select_atten should be called.
         self.select_atten(self.ui.atten.value())
 
     def savevalues(self):
-        #assert self.idList[self.resnum] == self.resID, "Something is wrong. Need to debug resID"
         self.freqList[self.resnum] = self.resfreq
         self.attenList[self.resnum] = self.atten
 
@@ -396,7 +414,6 @@ class StartQt4(QMainWindow):
         self.atten = -1
         self.loadres()
 
-from pkg_resources import resource_filename
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='MKID Powersweep GUI')
