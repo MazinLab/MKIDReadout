@@ -35,32 +35,10 @@ def makeResImage(res_num, angle=1, center_loop=False,  phase_normalise=False, sh
     # for spectra where the peak is close enough to the edge that some points falls across the bounadry, pad zeros
 
     
-    magsdb = 10*np.log10(Is**2+Qs**2)
+    magsdb = Is**2+Qs**2
 
-    if center_loop:
-        Is = np.transpose(np.transpose(Is) - np.mean(Is,1))
-        #print 'Is shape', np.shape(Is)
-        #print 'mean shape', np.shape(np.mean(Qs,1))
-        Qs = np.transpose(np.transpose(Qs) - np.mean(Qs,1))
-        iq_vels = np.transpose(np.transpose(iq_vels) - np.mean(iq_vels,1)) #added by NF 20180423
     #iq_vels = np.round(iq_vels * xWidth / max(dataObj.iq_vels[res_num, iAtten, :]) )
 
-
-
-            # interpolate iq_vels onto a finer grid
-
-    res_mag = np.sqrt(np.amax(Is**2 + Qs**2, axis=1)) #changed by NF 20180423 (originally amax)
-    #res_mag = np.sqrt(np.mean(Is**2 + Qs**2, axis=1)) #changed by NF 20180423
-    Is = np.transpose(np.transpose(Is) / res_mag)
-    Qs = np.transpose(np.transpose(Qs) / res_mag)
-    #iq_vels = np.transpose(np.transpose(iq_vels)/np.sqrt(np.mean(iq_vels**2,axis=1))) #added by NF 20180423
-    iq_vels = np.transpose(np.transpose(iq_vels) / np.amax(iq_vels, axis=1)) #changed by NF 20180423 (originally amax)
-
-    # Is = Is /np.amax(dataObj.iq_vels[res_num, :, :])
-    # Qs = Qs /np.amax(dataObj.iq_vels[res_num, :, :])
-
-    # Is = Is /np.amax(dataObj.Is[res_num, :, :])
-    # Qs = Qs /np.amax(dataObj.Qs[res_num, :, :])
 
     if showFrames:
         fig = plt.figure(frameon=False,figsize=(15.0, 5.0))
@@ -77,7 +55,9 @@ def makeResImage(res_num, angle=1, center_loop=False,  phase_normalise=False, sh
     
         
     #make sliding window images
-    singleFrameImage = np.zeros((nAttens,resWidth,3))
+    singleFrameImage = np.zeros((nAttens,resWidth,2))
+    iqVelImage = np.zeros((nAttens, resWidth))
+    magsdbImage = np.zeros((nAttens, resWidth))
     resSearchWin = 20
 
     if resWidth < nFreqPoints:
@@ -89,7 +69,8 @@ def makeResImage(res_num, angle=1, center_loop=False,  phase_normalise=False, sh
         resSearchEndWin = int(winCenter+resSearchWin/2.)
         singleFrameImage[wsAttenInd, :, 0] = Is[wsAttenInd, startWin:endWin]
         singleFrameImage[wsAttenInd, :, 1] = Qs[wsAttenInd, startWin:endWin]
-        singleFrameImage[wsAttenInd, :, 2] = iq_vels[wsAttenInd, startWin:endWin]
+        iqVelImage[wsAttenInd, :] = iq_vels[wsAttenInd, startWin:endWin]#iq_vels[wsAttenInd, startWin:endWin]
+        magsdbImage[wsAttenInd, :] = magsdb[wsAttenInd, startWin:endWin]#iq_vels[wsAttenInd, startWin:endWin]
         freqCube[wsAttenInd, :] = freqs[startWin:endWin]
         
         for i in range(wsAttenInd-1, -1, -1):
@@ -102,20 +83,36 @@ def makeResImage(res_num, angle=1, center_loop=False,  phase_normalise=False, sh
             resSearchStartWin += (newWinCenter - winCenter)
             resSearchEndWin += (newWinCenter - winCenter)
             winCenter = newWinCenter
-            if startWin < 0:
-                singleFrameImage[i, :, 0] = np.pad(Is[i, 0:endWin], (0-startWin, 0), 'edge')
-                singleFrameImage[i, :, 1] = np.pad(Qs[i, 0:endWin], (0-startWin, 0), 'edge')
-                singleFrameImage[i, :, 2] = np.pad(iq_vels[i, 0:endWin], (0-startWin, 0), 'edge')
-                freqCube[i, :] = np.pad(freqs[0:endWin], (0-startWin, 0), 'edge')
-            elif endWin > nFreqPoints:
-                singleFrameImage[i, :, 0] = np.pad(Is[i, startWin:], (0, endWin-nFreqPoints), 'edge')
-                singleFrameImage[i, :, 1] = np.pad(Qs[i, startWin:], (0, endWin-nFreqPoints), 'edge')
-                singleFrameImage[i, :, 2] = np.pad(iq_vels[i, startWin:], (0, endWin-nFreqPoints), 'edge')
-                freqCube[i, :] = np.pad(freqs[startWin:], (0, endWin-nFreqPoints), 'edge')
+            if mlDict['padResWin']:
+                if startWin < 0:
+                    singleFrameImage[i, :, 0] = np.pad(Is[i, 0:endWin], (0-startWin, 0), 'edge')
+                    singleFrameImage[i, :, 1] = np.pad(Qs[i, 0:endWin], (0-startWin, 0), 'edge')
+                    iqVelImage[i, :] = np.pad(iq_vels[i, 0:endWin], (0-startWin, 0), 'edge')
+                    magsdbImage[i, :] = np.pad(magsdb[i, 0:endWin], (0-startWin, 0), 'edge')
+                    freqCube[i, :] = np.pad(freqs[0:endWin], (0-startWin, 0), 'edge')
+                elif endWin > nFreqPoints:
+                    singleFrameImage[i, :, 0] = np.pad(Is[i, startWin:], (0, endWin-nFreqPoints), 'edge')
+                    singleFrameImage[i, :, 1] = np.pad(Qs[i, startWin:], (0, endWin-nFreqPoints), 'edge')
+                    iqVelImage[i, :] = np.pad(iq_vels[i, startWin:], (0, endWin-nFreqPoints), 'edge')
+                    magsdbImage[i, :] = np.pad(magsdb[i, startWin:], (0, endWin-nFreqPoints), 'edge')
+                    freqCube[i, :] = np.pad(freqs[startWin:], (0, endWin-nFreqPoints), 'edge')
+                else:
+                    singleFrameImage[i, :, 0] = Is[i, startWin:endWin]
+                    singleFrameImage[i, :, 1] = Qs[i, startWin:endWin]
+                    iqVelImage[i, :] = iq_vels[i, startWin:endWin]
+                    magsdbImage[i, :] = magsdb[i, startWin:endWin]
+                    freqCube[i, :] = freqs[startWin:endWin]
             else:
+                if startWin < 0:
+                    endWin += -startWin
+                    startWin = 0
+                elif endWin > nFreqPoints:
+                    startWin -= endWin - nFreqPoints
+                    endWin = nFreqPoints
                 singleFrameImage[i, :, 0] = Is[i, startWin:endWin]
                 singleFrameImage[i, :, 1] = Qs[i, startWin:endWin]
-                singleFrameImage[i, :, 2] = iq_vels[i, startWin:endWin]
+                magsdbImage[i, :] = magsdb[i, startWin:endWin]#iq_vels[i, startWin:endWin]
+                iqVelImage[i, :] = iq_vels[i, startWin:endWin]#iq_vels[i, startWin:endWin]
                 freqCube[i, :] = freqs[startWin:endWin]
 
         winCenter = initWinCenter
@@ -133,40 +130,82 @@ def makeResImage(res_num, angle=1, center_loop=False,  phase_normalise=False, sh
             resSearchStartWin += (newWinCenter - winCenter)
             resSearchEndWin += (newWinCenter - winCenter)
             winCenter = newWinCenter
-            if startWin < 0:
-                singleFrameImage[i, :, 0] = np.pad(Is[i, 0:endWin], (0-startWin, 0), 'edge')
-                singleFrameImage[i, :, 1] = np.pad(Qs[i, 0:endWin], (0-startWin, 0), 'edge')
-                singleFrameImage[i, :, 2] = np.pad(iq_vels[i, 0:endWin], (0-startWin, 0), 'edge')
-                freqCube[i, :] = np.pad(freqs[0:endWin], (0-startWin, 0), 'edge')
-            elif endWin > nFreqPoints:
-                singleFrameImage[i, :, 0] = np.pad(Is[i, startWin:], (0, endWin-nFreqPoints), 'edge')
-                singleFrameImage[i, :, 1] = np.pad(Qs[i, startWin:], (0, endWin-nFreqPoints), 'edge')
-                singleFrameImage[i, :, 2] = np.pad(iq_vels[i, startWin:], (0, endWin-nFreqPoints), 'edge')
-                freqCube[i, :] = np.pad(freqs[startWin:], (0, endWin-nFreqPoints), 'edge')
+            if mlDict['padResWin']:
+                if startWin < 0:
+                    singleFrameImage[i, :, 0] = np.pad(Is[i, 0:endWin], (0-startWin, 0), 'edge')
+                    singleFrameImage[i, :, 1] = np.pad(Qs[i, 0:endWin], (0-startWin, 0), 'edge')
+                    iqVelImage[i, :] = np.pad(iq_vels[i, 0:endWin], (0-startWin, 0), 'edge')
+                    magsdbImage[i, :] = np.pad(magsdb[i, 0:endWin], (0-startWin, 0), 'edge')
+                    freqCube[i, :] = np.pad(freqs[0:endWin], (0-startWin, 0), 'edge')
+                elif endWin > nFreqPoints:
+                    singleFrameImage[i, :, 0] = np.pad(Is[i, startWin:], (0, endWin-nFreqPoints), 'edge')
+                    singleFrameImage[i, :, 1] = np.pad(Qs[i, startWin:], (0, endWin-nFreqPoints), 'edge')
+                    iqVelImage[i, :] = np.pad(iq_vels[i, startWin:], (0, endWin-nFreqPoints), 'edge')
+                    magsdbImage[i, :] = np.pad(magsdb[i, startWin:], (0, endWin-nFreqPoints), 'edge')
+                    freqCube[i, :] = np.pad(freqs[startWin:], (0, endWin-nFreqPoints), 'edge')
+                else:
+                    singleFrameImage[i, :, 0] = Is[i, startWin:endWin]
+                    singleFrameImage[i, :, 1] = Qs[i, startWin:endWin]
+                    iqVelImage[i, :] = iq_vels[i, startWin:endWin]
+                    magsdbImage[i, :] = magsdb[i, startWin:endWin]
+                    freqCube[i, :] = freqs[startWin:endWin]
             else:
+                if startWin < 0:
+                    endWin += -startWin
+                    startWin = 0
+                elif endWin > nFreqPoints:
+                    startWin -= endWin - nFreqPoints
+                    endWin = nFreqPoints
+                startWin = max(0, startWin)
+                endWin = min(endWin, nFreqPoints)
                 singleFrameImage[i, :, 0] = Is[i, startWin:endWin]
                 singleFrameImage[i, :, 1] = Qs[i, startWin:endWin]
-                singleFrameImage[i, :, 2] = iq_vels[i, startWin:endWin]
+                iqVelImage[i, :] = iq_vels[i, startWin:endWin]#iq_vels[i, startWin:endWin]
+                magsdbImage[i, :] = magsdb[i, startWin:endWin]#iq_vels[i, startWin:endWin]
                 freqCube[i, :] = freqs[startWin:endWin]
             
 
     else:
         singleFrameImage[:,:,0] = Is
         singleFrameImage[:,:,1] = Qs
-        singleFrameImage[:,:,2] = iq_vels
+        iqVelImage = iq_vels
+        magsdbImage = magsdb
+
+    res_mag = np.sqrt(np.amax(singleFrameImage[:,:,0]**2 + singleFrameImage[:,:,1]**2, axis=1)) #changed by NF 20180423 (originally amax)
+    singleFrameImage[:,:,0] = np.transpose(np.transpose(singleFrameImage[:,:,0]) / res_mag)
+    singleFrameImage[:,:,1] = np.transpose(np.transpose(singleFrameImage[:,:,1]) / res_mag)
+    #iq_vels = np.transpose(np.transpose(iq_vels)/np.sqrt(np.mean(iq_vels**2,axis=1))) #added by NF 20180423
+    #singleFrameImage[:,:,2] = np.transpose(np.transpose(singleFrameImage[:,:,2]) / res_mag) #changed by NF 20180423 (originally amax)
+    iqVelImage = np.transpose(np.transpose(iqVelImage) / np.sqrt(np.amax(iqVelImage**2, axis=1)))
+    magsdbImage = np.transpose(np.transpose(magsdbImage) / np.sqrt(np.mean(magsdbImage**2, axis=1)))
+
+    if center_loop:
+        singleFrameImage[:,:,0] = np.transpose(np.transpose(singleFrameImage[:,:,0]) - np.mean(singleFrameImage[:,:,0],1))
+        #print 'Is shape', np.shape(Is)
+        #print 'mean shape', np.shape(np.mean(Qs,1))
+        singleFrameImage[:,:,1] = np.transpose(np.transpose(singleFrameImage[:,:,1]) - np.mean(singleFrameImage[:,:,1],1))
+        iqVelImage = np.transpose(np.transpose(iqVelImage) - np.mean(iqVelImage,1)) #added by NF 20180423
+        magsdbImage = np.transpose(np.transpose(magsdbImage) - np.mean(magsdbImage,1)) #added by NF 20180423
+
+
+    if mlDict['useIQV']:
+        singleFrameImage = np.dstack((singleFrameImage, iqVelImage))
+
+    if mlDict['useMag']:
+        singleFrameImage = np.dstack((singleFrameImage, magsdbImage))
 
     if resWidth < xWidth:
         nPadVals = (xWidth - resWidth)/2.
         singleFrameImageFS = np.zeros((nAttens, xWidth, 3))
         freqCubeFS = np.zeros((nAttens, xWidth))
-        singleFrameImageFS[:,:,2] = np.pad(singleFrameImage[:,:,2], [(0,0),(int(np.ceil(nPadVals)), int(np.floor(nPadVals)))], 'edge')
-        singleFrameImageFS[:,:,0] = np.pad(singleFrameImage[:,:,0], [(0,0),(int(np.ceil(nPadVals)), int(np.floor(nPadVals)))], 'edge')
-        singleFrameImageFS[:,:,1] = np.pad(singleFrameImage[:,:,1], [(0,0),(int(np.ceil(nPadVals)), int(np.floor(nPadVals)))], 'edge')
+        for i in range(singleFrameImage.shape[2]):
+            singleFrameImageFS[:,:,i] = np.pad(singleFrameImage[:,:,i], [(0,0),(int(np.ceil(nPadVals)), int(np.floor(nPadVals)))], 'edge')
         freqCubeFS = np.pad(freqCube, [(0,0),(int(np.ceil(nPadVals)), int(np.floor(nPadVals)))], 'edge')
         singleFrameImage = singleFrameImageFS
         freqCube = freqCubeFS
         
 
+    #singleFrameImage[:,:,2] = 0
     return singleFrameImage, freqCube
 
 def get_peak_idx(res_num,iAtten,dataObj,smooth=False, cutType=None, padInd=None):

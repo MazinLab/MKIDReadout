@@ -20,6 +20,7 @@ import numpy as np
 import sys, os
 import matplotlib.pyplot as plt
 import tensorflow as tf
+from tensorflow.python import debug as tf_debug
 import pickle
 import random
 import time
@@ -201,6 +202,12 @@ class mlClassification():
         print np.shape(trainLabels)
         print np.sum(trainLabels,axis=0)
 
+        nColors = 2
+        if self.mlDict['useIQV']:
+            nColors += 1
+        if self.mlDict['useMag']:
+            nColors += 1
+
         # print len(trainImages)
         # for i in range(len(trainImages)):
         #     if i % 50 ==0:
@@ -220,7 +227,7 @@ class mlClassification():
 
         #self.x = tf.placeholder(tf.float32, [None, self.mlDict['xWidth']]) # correspond to the images
         
-        self.x = tf.placeholder(tf.float32, [None, self.mlDict['nAttens'], self.mlDict['xWidth'], 3], name='inputImage')
+        self.x = tf.placeholder(tf.float32, [None, self.mlDict['nAttens'], self.mlDict['xWidth'], nColors], name='inputImage')
         attenWin = 1 + self.mlDict['attenWinBelow'] + self.mlDict['attenWinAbove']
         #print type(self.x[0][0])
         #print self.x[0][0]
@@ -229,7 +236,7 @@ class mlClassification():
 
         #x_image = tf.reshape(self.x, [-1,1,self.mlDict['xWidth'],1])
         #x_image = tf.reshape(self.x, [-1,3,self.mlDict['xWidth'],1])
-        x_image = tf.reshape(self.x, [-1, self.mlDict['nAttens'], self.mlDict['xWidth'], 3])
+        x_image = tf.reshape(self.x, [-1, self.mlDict['nAttens'], self.mlDict['xWidth'], nColors])
         numImg = tf.shape(x_image)[0]
 
         def weight_variable(shape):
@@ -249,43 +256,65 @@ class mlClassification():
         
         def max_pool_nx1(x,n):
             return tf.nn.max_pool(x, ksize=[1, 1, n, 1], strides=[1, 1, n, 1], padding='SAME')
+
+        def variable_summaries(var):
+            with tf.name_scope('summaries'):
+                mean = tf.reduce_mean(var)
+                tf.summary.scalar('mean', mean)
+                std = tf.sqrt(tf.reduce_mean(tf.square(var - mean)))
+                tf.summary.scalar('std', std)
+                tf.summary.scalar('max', tf.reduce_max(var))
+                tf.summary.scalar('min', tf.reduce_min(var))
+                tf.summary.histogram('histogram', var)
         
         self.keep_prob = tf.placeholder(tf.float32, name='keepProb')
 
         num_filt1 = self.mlDict['num_filt1']
         n_pool1 = self.mlDict['n_pool1']
         self.num_filt1 = num_filt1
-        W_conv1 = weight_variable([attenWin, self.mlDict['conv_win1'], 3, num_filt1])
+        W_conv1 = weight_variable([attenWin, self.mlDict['conv_win1'], nColors, num_filt1])
         b_conv1 = bias_variable([num_filt1])
-        h_conv1 = tf.nn.relu(conv2d(x_image, W_conv1) + b_conv1)
+        variable_summaries(W_conv1)
+        variable_summaries(b_conv1)
+        h_conv1 = tf.nn.relu(conv2d(x_image, W_conv1) + b_conv1, name='h_conv1')
         h_pool1 = max_pool_nx1(h_conv1,n_pool1)
         h_pool1_dropout = tf.nn.dropout(h_pool1, self.keep_prob)
         xWidth1 = int(math.ceil(self.mlDict['xWidth']/float(n_pool1)))
         cWidth1 = num_filt1
+        tf.summary.histogram('h_conv1', h_conv1)
+        tf.summary.histogram('h_pool1', h_pool1)
         
         num_filt2 = self.mlDict['num_filt2']
         n_pool2 = self.mlDict['n_pool2']
         self.num_filt2 = num_filt2
         W_conv2 = weight_variable([1, self.mlDict['conv_win2'], cWidth1, num_filt2])
         b_conv2 = bias_variable([num_filt2])
-        h_conv2 = tf.nn.relu(conv2d(h_pool1_dropout, W_conv2) + b_conv2)
+        variable_summaries(W_conv2)
+        variable_summaries(b_conv2)
+        h_conv2 = tf.nn.relu(conv2d(h_pool1_dropout, W_conv2) + b_conv2, name='h_conv2')
         with tf.control_dependencies([tf.assert_equal(tf.shape(h_pool1),(numImg,self.mlDict['nAttens'],xWidth1,cWidth1),message='hpool1 assertion')]):
             h_pool2 = max_pool_nx1(h_conv2, n_pool2)
             h_pool2_dropout = tf.nn.dropout(h_pool2, self.keep_prob)
             xWidth2 = int(math.ceil(xWidth1/float(n_pool2)))
             cWidth2 = num_filt2
+        tf.summary.histogram('h_conv2', h_conv2)
+        tf.summary.histogram('h_pool2', h_pool2)
 
         num_filt3 = self.mlDict['num_filt3']
         n_pool3 = self.mlDict['n_pool3']
         self.num_filt3 = num_filt3
         W_conv3 = weight_variable([1, self.mlDict['conv_win3'], cWidth2, num_filt3])
         b_conv3 = bias_variable([num_filt3])
-        h_conv3 = tf.nn.relu(conv2d(h_pool2, W_conv3) + b_conv3)
+        variable_summaries(W_conv3)
+        variable_summaries(b_conv3)
+        h_conv3 = tf.nn.relu(conv2d(h_pool2, W_conv3) + b_conv3, name='h_conv3')
         with tf.control_dependencies([tf.assert_equal(tf.shape(h_pool2),(numImg,self.mlDict['nAttens'],xWidth2,cWidth2),message='hpool2 assertion')]):
             h_pool3 = max_pool_nx1(h_conv3, n_pool3)
             h_pool3_dropout = tf.nn.dropout(h_pool3, self.keep_prob)
             xWidth3 = int(math.ceil(xWidth2/float(n_pool3)))
             cWidth3 = num_filt3
+        tf.summary.histogram('h_conv3', h_conv3)
+        tf.summary.histogram('h_pool3', h_pool3)
 
         # num_filt4 = 2
         # n_pool4 = 2
@@ -302,17 +331,21 @@ class mlClassification():
         h_pool3_flat = tf.reshape(h_pool3_dropout,[-1,self.mlDict['nAttens'],cWidth3*xWidth3,1])        
         W_final = weight_variable([1, cWidth3*xWidth3, 1, 1])
         b_final = bias_variable([1])     
+        variable_summaries(W_final)
+        variable_summaries(b_final)
         
         with tf.control_dependencies([tf.assert_equal(tf.shape(h_pool3),(numImg,self.mlDict['nAttens'],xWidth3,cWidth3))]):
             h_conv_final = tf.nn.conv2d(h_pool3_flat, W_final, strides=[1, 1, 1, 1], padding='VALID') + b_final
         
         with tf.control_dependencies([tf.assert_equal(tf.shape(h_conv_final),(numImg,self.mlDict['nAttens'],1,1))]):
             h_conv_final = tf.reshape(h_conv_final, [-1,self.mlDict['nAttens']])
+            tf.summary.histogram('h_conv_final', h_conv_final)
         
         self.y=tf.nn.softmax(h_conv_final, name="outputLabel") #h_fc1_drop   
 
         y_ = tf.placeholder(tf.float32, [None, self.mlDict['nAttens']]) # true class lables identified by user 
         cross_entropy = tf.reduce_mean(-tf.reduce_sum(y_ * tf.log(self.y+ 1e-10), reduction_indices=[1])) # find optimum solution by minimizing error
+        tf.summary.scalar('cross_entropy', cross_entropy)
         #cross_entropy = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(self.y,y_))
         #yWeighted = tf.mul(self.y, tf.to_float(tf.range(tf.shape(self.y)[1])))
         #yInd = tf.reduce_sum(yWeighted, reduction_indices=1)
@@ -328,6 +361,11 @@ class mlClassification():
         
         correct_prediction = tf.equal(tf.argmax(self.y,1), tf.argmax(y_,1)) #which ones did it get right?
         accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
+        tf.summary.scalar('accuracy', accuracy)
+        merged = tf.summary.merge_all()
+        train_writer = tf.summary.FileWriter(os.path.join(self.mlDict['modelDir'], 'train'))
+        test_writer = tf.summary.FileWriter(os.path.join(self.mlDict['modelDir'], 'test'))
+        graph_writer = tf.summary.FileWriter(os.path.join(self.mlDict['modelDir'], 'graphs'), tf.get_default_graph())
 
         #modelName = ('.').join(self.trainFile.split('.')[:-1]) + '_3layer_img_cube.ckpt'
         #print modelName
@@ -340,7 +378,8 @@ class mlClassification():
         #     saver.restore(self.sess, "%s%s" % (self.mldir,modelName) )
 
        
-        self.sess = tf.Session()
+        self.sess = tf.Session(config=tf.ConfigProto(log_device_placement=True))
+        #self.sess = tf_debug.LocalCLIDebugWrapperSession(self.sess)
         self.sess.run(init) # need to do this everytime you want to access a tf variable (for example the true class labels calculation or plotweights)
 
         # for i in range(len(trainImages)):
@@ -420,15 +459,22 @@ class mlClassification():
                 ce_log.append(self.sess.run(cross_entropy, feed_dict={self.x: batch_xs, y_: batch_ys, self.keep_prob: 1}))
                 # print batch_ys[10],#, feed_dict={y_: batch_ys}),
                 # print self.sess.run(self.y, feed_dict={self.x: batch_xs})[10]
-                acc_log.append(self.sess.run(accuracy, feed_dict={self.x: testImages, y_: testLabels, self.keep_prob: 1}) * 100)
+                summary, acc = self.sess.run([merged, accuracy], feed_dict={self.x: testImages, y_: testLabels, self.keep_prob: 1})
+                acc_log.append(acc*100)
+                test_writer.add_summary(summary, i)
+                graph_writer.add_summary(summary, i)
 
             # if i % 1000 ==0:
                 # saver.save(self.sess, "/tmp/model.ckpt",global_step=i)#self.plotWeights(self.sess.run(W_fc2))
                 #print ' ', self.sess.run(squared_loss, feed_dict={self.x: batch_xs, y_: batch_ys, self.keep_prob: 1}),
                 # print batch_ys[10],#, feed_dict={y_: batch_ys}),
                 # print self.sess.run(self.y, feed_dict={self.x: batch_xs})[10]
-                print self.sess.run(accuracy, feed_dict={self.x: testImages, y_: testLabels, self.keep_prob: 1}) * 100
-            self.sess.run(train_step, feed_dict={self.x: batch_xs, y_: batch_ys, self.keep_prob: self.mlDict['keep_prob']}) #calculate train_step using feed_dict
+                print acc*100
+                summary, _ = self.sess.run([merged, train_step], feed_dict={self.x: batch_xs, y_: batch_ys, self.keep_prob: self.mlDict['keep_prob']}) #calculate train_step using feed_dict
+                train_writer.add_summary(summary, i)
+
+            else:  
+                self.sess.run(train_step, feed_dict={self.x: batch_xs, y_: batch_ys, self.keep_prob: self.mlDict['keep_prob']}) #calculate train_step using feed_dict
         
         print "--- %s seconds ---" % (time.time() - start_time)
         #print ce_log, acc_log
