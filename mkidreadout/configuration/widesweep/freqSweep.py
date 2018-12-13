@@ -233,8 +233,8 @@ def mecSlowPowerSweeps(freqList='rfFreqs.txt', defineLUTs=False, outputFN='psDat
     #rNums2=[237]
     startFreq=3.9E9
     endFreq=4.9E9
-    startDacAtten=21
-    endDacAtten=22
+    startDacAtten=15
+    endDacAtten=20
 
     k_dict={'startFreq':startFreq,'endFreq':endFreq,'startDacAtten':startDacAtten, 'endDacAtten':endDacAtten, 'attenStep':1, 'loStepQ':2, 'nOverlap':7, 'freqList':freqList, 'defineLUTs':defineLUTs, 'outputFN':outputFN}
     k_dict2=k_dict.copy()
@@ -457,7 +457,8 @@ class FreqSweep:
                 if np.array_equal(freqsList, data['freqs']):   #        and the tone freqs are the same
                     axes=[0,-1,0]
             elif np.array_equal(attens,data['atten']):         #CASE 2: all attens are the same (tone freqs can be same or different)
-                axes=[1,0,-1]
+                if len(freqList[0]) == len(data['freqs'][0]):  #        and the same number of LO steps
+                    axes=[1,0,-1]
             
             #Append new data onto old data if case 1 or 2
             if axes[0]>=0:
@@ -480,25 +481,20 @@ class FreqSweep:
 
     def loadPowerSweep(self,fn):
         self.data=np.load(fn)
-        print self.data
-        print 
     
     def plotTransmissionData(self,show=True):
+        freqs=self.data['freqs'].flatten()
         plt.figure()
         for i, atten in enumerate(self.data['atten']):
-            I_list=[]
-            Q_list=[]
-            freqs_list=[]
-            for j, tones in enumerate(self.data['freqs']):
-                #s21 = np.log10(self.data['I'][i, j,:]**2. + self.data['Q'][i, j,:]**2.)
-                I_list.append(self.data['I'][i, j,:])
-                Q_list.append(self.data['I'][i, j,:])
-                freqs_list.append(self.data['freqs'][j]/10.**9.)
-            I_list=np.asarray(I_list).flatten()
-            Q_list=np.asarray(Q_list).flatten()
-            freqs_list=np.asarray(freqs_list).flatten()
+            print 'flattening '+str(i)
+            I=self.data['I'][i].flatten()
+            Q=self.data['Q'][i].flatten()
+            print 'log10 '+str(i)
+            s21 = np.log10(I**2. + Q**2.)
             
-            plt.plot(freqs_list,s21_list,ls='-',label=atten)
+
+            print 'plotting '+str(i)
+            plt.plot(freqs,s21,ls='-',label=atten)
         plt.xlabel('Freq [GHz]')
         plt.ylabel('Power')
         plt.legend()
@@ -530,7 +526,7 @@ if __name__ == "__main__":
     print 'Time: '+str(time.time()-startTime)
 
     #f=FreqSweep()
-    #f.loadPowerSweep('/home/data/MEC/20181212/psData_236.npz')
+    #f.loadPowerSweep('/home/data/MEC/20181212/psData_222.npz')
     #f.plotTransmissionData(show=True)
     #f.loadPowerSweep('psData_225.npz')
     #f.plotTransmissionData(show=True)
