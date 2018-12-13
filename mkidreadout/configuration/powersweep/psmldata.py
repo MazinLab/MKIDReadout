@@ -1,6 +1,7 @@
 import numpy as np
 import os
 from mkidreadout.configuration.sweepdata import FreqSweep, SweepMetadata, ISGOOD, ISBAD
+from mkidcore.corelog import getLogger
 
 
 class MLData(object):
@@ -11,11 +12,18 @@ class MLData(object):
         
         #to define: self.freqs, self.Is, self.Qs, self.attens, self.resIDs
         #   self.opt_attens, self.opt_freqs, self.scores
+
         freqSpan = np.array([self.freqSweep.freqs[0,0], self.freqSweep.freqs[-1,-1]])
         self.mdResMask = ((self.metadata.flag == ISGOOD) &
                           (self.metadata.wsfreq > freqSpan[0]) &
                           (self.metadata.wsfreq < freqSpan[1]))
         self.nRes = self.mdResMask.sum()
+        if not self.nRes:
+            raise RuntimeError('No rood resonators with freqs within sweep bounds')
+        self.freqs = np.zeros((self.nRes, self.freqSweep.nlostep))
+        self.Is = np.zeros((self.nRes, self.freqSweep.natten, self.freqSweep.nlostep))
+        self.Qs = np.zeros((self.nRes, self.freqSweep.natten, self.freqSweep.nlostep))
+
         self.resIDs = self.metadata.resIDs[self.mdResMask]
         self.initfreqs = self.metadata.wsfreq[self.mdResMask]
         self.opt_attens = self.metadata.atten[self.mdResMask]
@@ -28,10 +36,7 @@ class MLData(object):
         self.generateMLWindows(self.initfreqs)
 
     def generateMLWindows(self, resFreqs):
-        assert len(resFreqs)==self.nRes, 'Mismatch between provided freq list and number of res in metadata file'
-        self.freqs = np.zeros((self.nRes, self.freqSweep.nlostep))
-        self.Is = np.zeros((self.nRes, self.freqSweep.natten, self.freqSweep.nlostep))
-        self.Qs = np.zeros((self.nRes, self.freqSweep.natten, self.freqSweep.nlostep))
+        assert len(resFreqs) == self.nRes, 'Mismatch between provided freq list and number of res in metadata file'
         winCenters = self.freqSweep.freqs[:, self.freqSweep.nlostep/2]
         for i in range(self.nRes):
             freqWinInd = np.argmin(np.abs(resFreqs[i] - winCenters))
@@ -45,4 +50,37 @@ class MLData(object):
         self.metadata.ml_isgood_score[self.mdResMask] = self.scores #TODO: implement ml bad scores
         self.metadata.save(os.path.splitext(self.metadata.file)[0] + flag + '.txt')
     
+    def prioritize_and_cut(self, assume_bad_cut=-np.inf, assume_good_cut=np.inf):
+        netscore = self.metadata.ml_isgood_score - self.metadata.ml_isbad_score
+        badcutmask = netscore < assume_bad_cut
+        goodcutmask = netscore > assume_good_cut
+        self.metadata.atten[badcutmask] = np.inf
+
+        stop_ndx = (self.mdResMask & ~badcutmask & ~goodcutmask).sum()
+
+        msg = 'Bad score cut of {:.2f} kills {} resonators'
+        getLogger(__name__).info(msg.format(assume_bad_cut, (badcutmask & self.mdResMask).sum()))
+
+        msg = 'Good score cut of {:.2f} accepts {} resonators'
+        getLogger(__name__).info(msg.format(assume_good_cut, (goodcutmask & self.mdResMask).sum()))
+
+        goodmask = self.mdResMask
+        sndx = np.argsort(netscore)
+        order = sndx
+
+        self.initfreqs = self.initfreqs[order]
+        self.opt_attens = self.opt_attens[order]
+        self.opt_freqs = self.opt_freqs[order]
+        self.resIDs = self.resIDs[order]
+        self.freqs = self.freqs[order]
+        self.Is = self.Is[order]
+        self.Qs = self.Qs[order]
+
+        self.metadata.reorder(order)
+
+        return stop_ndx
+
+
+
+
 

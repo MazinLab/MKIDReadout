@@ -69,9 +69,9 @@ class StartQt4(QMainWindow):
             self.metadata_out.file = os.path.splitext(sweepmetadata_FN)[0] + '_out.txt'
             self.fsweepdata = None
 
-            self.mlResIDs = metadata_out.resIDs
-            self.mlFreqs = metadata_out.mlfreq
-            self.mlAttens = metadata_out.atten
+            self.mlResIDs = None
+            self.mlFreqs =  None
+            self.mlAttens = None
 
             self.widesweep_goodFreqs = mdata.wsfreq[mdata.flag == sweepdata.ISGOOD]
             self.widesweep_allResIDs = mdata.resIDs
@@ -212,10 +212,10 @@ class StartQt4(QMainWindow):
         for ri in range(len(self.res1_max_ratio) - rule_of_thumb_offset - 2):
             bool_remove[ri] = bool((self.res1_max_ratio[ri:ri + rule_of_thumb_offset + 1] < max_ratio_threshold).all())
 
-        use = self.resID == self.mlResIDs  #TODO this should eventually be metadata_out.resIDs i think
+        use = self.resID == self.mlResIDs
         if np.any(use):
             self.select_atten(self.mlAttens[use][0])
-            self.ui.atten.setValue(self.mlAttens[use][0])
+            self.ui.atten.setValue(int(np.round(self.mlAttens[use][0])))
         else:
             guess_atten_idx = np.extract(bool_remove, np.arange(len(self.res1_max_ratio)))
 
@@ -254,16 +254,15 @@ class StartQt4(QMainWindow):
         from mkidreadout.configuration.powersweep import psmldata
 
         self.fsweepdata = psmldata.MLData(fsweep=self.openfile, mdata=self.metadata_out)
-        # TODO convert to use self.fsweep
+        self.stop_ndx = self.fsweepdata.prioritize_and_cut(self.badcut, self.goodcut)
 
-        #self.scale = self.fsweep.metadata.scale
-        self.freq = self.fsweepdata.metadata.goodmlfreq
+        self.mlResIDs = self.fsweepdata.resIDs
+        self.mlFreqs = self.fsweepdata.opt_freqs
+        self.mlAttens = self.fsweepdata.opt_attens
+        self.freq = self.fsweepdata.opt_freqs
 
         self.freqList = np.zeros(2000)
         self.attenList = np.full_like(self.freqList, -1)
-
-        #TODO now sort all the data
-
         self.loadres()
 
     def on_press(self, event):
@@ -405,7 +404,9 @@ class StartQt4(QMainWindow):
         self.freqList[self.resnum] = self.resfreq
         self.attenList[self.resnum] = self.atten
 
-        self.metadata_out.atten[self.resID==self.metadata_out.resIDs] = self.atten
+        # TODO Things that were skipped by prioritize_and_cut would never have been iterated over
+        #  FIX THIS
+        self.metadata_out.atten[self.resID == self.metadata_out.resIDs] = self.atten
         self.metadata_out.save()
 
         msg = " ....... Saved to file:  resnum={} resID={} resfreq={} atten={}"
