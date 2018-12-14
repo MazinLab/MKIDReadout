@@ -15,6 +15,7 @@ import mkidreadout.configuration.sweepdata as sweepdata
 from mkidreadout.configuration.powersweep import psmldata
 from mkidcore.corelog import getLogger, create_log
 import argparse
+import scipy.integrate
 
 
 class StartQt4(QMainWindow):
@@ -36,6 +37,7 @@ class StartQt4(QMainWindow):
         QObject.connect(self.ui.jumptores, SIGNAL("clicked()"), self.jumptores)
 
         QShortcut(QKeySequence(Qt.Key_Space), self, self.savevalues)
+        QShortcut(QKeySequence('B'), self, self.goback)
 
         self.metadata = mdata = sweepdata.SweepMetadata(file=psmetafile)
         self.metadata_out = sweepdata.SweepMetadata(file=psmetafile)
@@ -71,6 +73,13 @@ class StartQt4(QMainWindow):
     #                                                 directory=".", filter=QString(str("H5 (*.h5)")))
     #     self.ui.open_filename.setText(str(self.openfile))
     #     self.loadps()
+
+    def goback(self):
+        if self.resnum==0:
+            return
+        self.resnum -= 1
+        self.atten = self.attenList[self.resnum]
+        self.loadres()
 
     def loadres(self):
         self.Res1 = IQsweep()
@@ -139,50 +148,60 @@ class StartQt4(QMainWindow):
         self.res1_max_vels *= numpy.max(self.res1_max_ratio)
         self.res1_max2_vels /= numpy.max(self.res1_max2_vels)
         # self.res1_relative_max_vels /= numpy.max(self.res1_relative_max_vels)
-        self.ui.plot_1.canvas.ax.clear()
-        self.ui.plot_1.canvas.ax.plot(self.Res1.atten1s, self.res1_max_vels, 'b.-', label='Max IQ velocity')
-        # self.ui.plot_1.canvas.ax.plot(self.Res1.atten1s,max_neighbors,'r.-')
-        self.ui.plot_1.canvas.ax.plot(self.Res1.atten1s, self.res1_max_ratio, 'k.-',
-                                      label='Ratio (Max Vel)/(2nd Max Vel)')
-        self.ui.plot_1.canvas.ax.legend()
-        self.ui.plot_1.canvas.ax.set_xlabel('Attenuation')
-        self.ui.plot_1.canvas.ax.set_ylabel('IQVel')
 
-        cid = self.ui.plot_1.canvas.mpl_connect('button_press_event', self.click_plot_1)
-        self.ui.plot_1.canvas.draw()
+        self.guess_atten()
+
+    def guess_atten(self, method=('dratio', 'ROT', 'mid', 'ML')):
+
+        guesses = {'mid': self.Res1.atten1s[self.NAttens / 2]}
 
         max_ratio_threshold = 1.5
         rule_of_thumb_offset = 2
 
+        try:
+            dratio = np.diff(self.res1_max_ratio) / np.diff(self.Res1.atten1s)
+            nratiosp1 = np.where(dratio >= np.median(dratio))[0]
+            nratiosp1 = nratiosp1[nratiosp1 > self.res1_max_vels.argmax()][0]
+            guesses['dratio'] = self.Res1.atten1s[:-1][nratiosp1]
+        except IndexError:
+            guesses['dratio'] = None
+
+        try:
+            guesses['ML'] = self.mlAttens[self.resID == self.mlResIDs][0]
+        except IndexError:
+            getLogger(__name__).critical('No ML atten for resID{}. Not possible'.format(self.resID))
+            guesses['ML'] = None
+
         # require ROTO adjacent elements to be all below the MRT
-        bool_remove = np.ones(len(self.res1_max_ratio))
-        for ri in range(len(self.res1_max_ratio) - rule_of_thumb_offset - 2):
-            bool_remove[ri] = bool((self.res1_max_ratio[ri:ri + rule_of_thumb_offset + 1] < max_ratio_threshold).all())
+        bool_remove = np.ones(self.res1_max_ratio.size)
+        for ri in range(self.res1_max_ratio.size - rule_of_thumb_offset - 2):
+            bool_remove[ri] = (self.res1_max_ratio[ri:ri + rule_of_thumb_offset + 1] < max_ratio_threshold).all()
 
-        use = self.resID == self.mlResIDs
-        if np.any(use):
-            getLogger(__name__).debug('Select atten: {}'.format(self.mlAttens[use][0]))
-            self.select_atten(self.mlAttens[use][0])
-            self.ui.atten.setValue(int(np.round(self.mlAttens[use][0])))
+        # require the attenuation value to be past the initial peak in MRT
+        guess_atten_idx = np.extract(bool_remove, np.arange(self.res1_max_ratio.size))
+        guess_atten_idx = guess_atten_idx[guess_atten_idx > self.res1_max_ratio.argmax()]
+        if guess_atten_idx.size >= 1:
+            guess_atten_idx += rule_of_thumb_offset
+            guesses['ROT'] = self.Res1.atten1s[guess_atten_idx.clip(max=self.Res1.atten1s.size)[0]]
         else:
-            guess_atten_idx = np.extract(bool_remove, np.arange(len(self.res1_max_ratio)))
+            guesses['ROT'] = None
 
-            # require the attenuation value to be past the initial peak in MRT
-            guess_atten_idx = guess_atten_idx[where(guess_atten_idx > argmax(self.res1_max_ratio))[0]]
+        for m in method:
+            guess = guesses[m]
+            if guess is not None:
+                break
 
-            if size(guess_atten_idx) >= 1:
-                if guess_atten_idx[0] + rule_of_thumb_offset < len(self.Res1.atten1s):
-                    guess_atten_idx[0] += rule_of_thumb_offset
-                guess_atten = self.Res1.atten1s[guess_atten_idx[0]]
-                getLogger(__name__).debug('Select atten (guess): {}'.format(guess_atten))
-                self.select_atten(guess_atten)
-                self.ui.atten.setValue(round(guess_atten))
-            else:
-                getLogger(__name__).debug('Select atten (mid): {}'.format(self.Res1.atten1s[self.NAttens / 2]))
-                self.select_atten(self.Res1.atten1s[self.NAttens / 2])
-                self.ui.atten.setValue(round(self.Res1.atten1s[self.NAttens / 2]))
+        getLogger(__name__).info('Select atten using {} method: {}'.format(m, guess))
+        self.select_atten(guess)
+        self.ui.atten.setValue(round(guess))
 
     def guess_res_freq(self):
+        use = np.abs(self.Res1.freq[:-1] - self.fsweepdata.initfreqs[self.resnum]) < .25e6
+        com_guess = (scipy.integrate.trapz(self.res1_iq_vel[use] * self.Res1.freq[:-1][use])/
+                     scipy.integrate.trapz(self.res1_iq_vel[use]))
+
+        self.select_freq(com_guess)
+
         if np.any(self.resID == self.mlResIDs):
             resInd = np.where(self.resID == self.mlResIDs)[0]
             self.select_freq(self.mlFreqs[resInd])
@@ -205,7 +224,7 @@ class StartQt4(QMainWindow):
         self.widesweep = self.fsweepdata.freqSweep.oldwsformat(60,66)
         getLogger(__name__).info('Loaded '+self.openfile)
 
-        self.stop_ndx = self.fsweepdata.prioritize_and_cut(self.badcut, self.goodcut, plot=False)
+        self.stop_ndx = self.fsweepdata.prioritize_and_cut(self.badcut, self.goodcut, plot=True)
 
         self.mlResIDs = self.fsweepdata.resIDs
         self.mlFreqs = self.fsweepdata.opt_freqs
@@ -245,27 +264,54 @@ class StartQt4(QMainWindow):
         self.ui.plot_3.canvas.draw()
 
     def select_atten(self, attenuation):
+
         if self.atten != -1:
-            self.iAtten = np.abs(self.Res1.atten1s - self.atten).argmin()
-            self.ui.plot_1.canvas.ax.plot(self.atten, self.res1_max_ratio[self.iAtten], 'ko')
-            self.ui.plot_1.canvas.ax.plot(self.atten, self.res1_max_vels[self.iAtten], 'bo')
+            self.lastatten = self.atten
+            self.lastiAtten = np.abs(self.Res1.atten1s - self.atten).argmin()
+        else:
+            self.lastatten = attenuation
+            self.lastiAtten = np.abs(self.Res1.atten1s - attenuation).argmin()
 
         self.iAtten = np.abs(self.Res1.atten1s - attenuation).argmin()
-        self.atten = np.round(self.Res1.atten1s[self.iAtten])
 
+        self.atten = np.round(self.Res1.atten1s[self.iAtten])
         self.res1_iq_vel = self.res1_iq_vels[self.iAtten, :]
         self.Res1.I = self.Res1.Is[self.iAtten]
         self.Res1.Q = self.Res1.Qs[self.iAtten]
         self.Res1.Icen = self.Res1.Icens[self.iAtten]
         self.Res1.Qcen = self.Res1.Qcens[self.iAtten]
-        self.ui.plot_1.canvas.ax.plot(self.atten, self.res1_max_ratio[self.iAtten], 'ro')
-        self.ui.plot_1.canvas.ax.plot(self.atten, self.res1_max_vels[self.iAtten], 'ro')
-        self.ui.plot_1.canvas.draw()
         self.makeplots()
         self.guess_res_freq()
 
     def makeplots(self):
         try:
+            #plot 1
+            self.ui.plot_1.canvas.ax.clear()
+            # self.ui.plot_1.canvas.ax.plot(self.Res1.atten1s, self.res1_max_vels, 'b.-', label='Max IQ velocity')
+            self.ui.plot_1.canvas.ax.plot(self.Res1.atten1s, self.res1_max_ratio, 'k.-', label='Ratio (Max Vel)/(2nd '
+                                                                                               'Max Vel)')
+            dratio = np.diff(self.res1_max_ratio) / np.diff(self.Res1.atten1s)
+
+            self.ui.plot_1.canvas.ax.plot(self.Res1.atten1s[:-1], dratio, 'g.-',  label='D(Ratio)')
+            self.ui.plot_1.canvas.ax.legend()
+
+            self.ui.plot_1.canvas.ax.set_ylim(-1,2.5)
+            self.ui.plot_1.canvas.ax.axhline(np.median(dratio)+dratio.std()/3,linestyle=':',linewidth=.5,color='grey')
+            self.ui.plot_1.canvas.ax.axhline(0, linestyle='-', linewidth=.5, color='black')
+            self.ui.plot_1.canvas.ax.axhline(np.median(dratio), linestyle='-', linewidth=.5, color='grey')
+            self.ui.plot_1.canvas.ax.axhline(np.median(dratio)-dratio.std()/3,
+                                             linestyle=':', linewidth=.5, color='grey')
+            self.ui.plot_1.canvas.ax.set_xlabel('Attenuation')
+            self.ui.plot_1.canvas.ax.set_ylabel('IQVel Ratio')
+
+            cid = self.ui.plot_1.canvas.mpl_connect('button_press_event', self.click_plot_1)
+
+            self.ui.plot_1.canvas.ax.plot(self.lastatten, self.res1_max_ratio[self.lastiAtten], 'ko')
+            # self.ui.plot_1.canvas.ax.plot(self.lastatten, self.res1_max_vels[self.lastiAtten], 'bo')
+            self.ui.plot_1.canvas.ax.plot(self.atten, self.res1_max_ratio[self.iAtten], 'ro')
+            # self.ui.plot_1.canvas.ax.plot(self.atten, self.res1_max_vels[self.iAtten], 'ro')
+            self.ui.plot_1.canvas.draw()
+
             # Plot 2
             self.ui.plot_2.canvas.ax.clear()
             self.ui.plot_2.canvas.ax.set_xlabel('Frequency (Hz)')
@@ -280,6 +326,17 @@ class StartQt4(QMainWindow):
 
             self.ui.plot_2.canvas.ax.set_xlim(self.resfreq-1e6, self.resfreq+1e6)
             cid = self.ui.plot_2.canvas.mpl_connect('button_press_event', self.on_press)
+
+
+            #test integration for center
+            # import scipy.integrate
+            # use = np.abs(self.Res1.freq[:-1]-self.fsweepdata.initfreqs[self.resnum])<.25e6
+            # foo=scipy.integrate.trapz(self.res1_iq_vel[use]*self.Res1.freq[:-1][use],
+            #                           dx=self.Res1.freq[1]-self.Res1.freq[0])
+            # foo/=scipy.integrate.trapz(self.res1_iq_vel[use], dx=self.Res1.freq[1]-self.Res1.freq[0])
+            # self.ui.plot_2.canvas.ax.axvline(foo,c='orange')
+            self.ui.plot_2.canvas.ax.axvline(self.fsweepdata.initfreqs[self.resnum]-.25e6, c='orange',linestyle=':')
+            self.ui.plot_2.canvas.ax.axvline(self.fsweepdata.initfreqs[self.resnum]+.25e6, c='orange',linestyle=':')
 
             #self.widesweep=None
             freq_start = self.Res1.freq[0]
@@ -300,34 +357,39 @@ class StartQt4(QMainWindow):
             ws_allResIDs = self.widesweep_allResIDs[(self.widesweep_allFreqs >= freq_start) &
                                                     (self.widesweep_allFreqs <= freq_stop)]
 
+            ws_ymax = self.ui.plot_2.canvas.ax.yaxis.get_data_interval()[1]
             for ws_resID_i, ws_freq_i in zip(ws_allResIDs, ws_allFreqs):
                 ws_color = 'r' if ws_freq_i in self.widesweep_goodFreqs else 'k'
-                alpha = 0.5 if ws_freq_i != self.resfreq else 1.0
-                self.ui.plot_2.canvas.ax.axvline(ws_freq_i, c=ws_color, alpha=alpha)
-                ws_ymax = self.ui.plot_2.canvas.ax.yaxis.get_data_interval()[1]
-                self.ui.plot_2.canvas.ax.text(x=ws_freq_i, y=ws_ymax, s=str(int(ws_resID_i)),
-                                              color=ws_color, alpha=alpha)
+                self.ui.plot_2.canvas.ax.axvline(ws_freq_i, c=ws_color, alpha=.5)
+                self.ui.plot_2.canvas.ax.text(x=ws_freq_i, y=ws_ymax, s=str(int(ws_resID_i)), color=ws_color, alpha=.5)
 
             self.ui.plot_2.canvas.ax.axvline(self.fsweepdata.initfreqs[self.resnum], c='r', linewidth=1.5)
+            self.ui.plot_2.canvas.ax.axvline(self.fsweepdata.opt_freqs[self.resnum], linestyle=':', c='g',
+                                             linewidth=1.5)
+            self.ui.plot_2.canvas.ax.set_xlim(self.fsweepdata.initfreqs[self.resnum] - 1e6,
+                                              self.fsweepdata.initfreqs[self.resnum] + 1e6)
             self.ui.plot_2.canvas.draw()
 
             #Plot 3
             self.ui.plot_3.canvas.ax.clear()
+
+            use = ((self.Res1.freq>self.fsweepdata.initfreqs[self.resnum] - 1e6) &
+                   (self.Res1.freq<self.fsweepdata.initfreqs[self.resnum] + 1e6))
             if self.iAtten > 0:
-                self.ui.plot_3.canvas.ax.plot(self.Res1.Is[self.iAtten - 1], self.Res1.Qs[self.iAtten - 1], 'g.-')
+                self.ui.plot_3.canvas.ax.plot(self.Res1.Is[self.iAtten - 1][use], self.Res1.Qs[self.iAtten - 1][use], 'g.-')
                 self.ui.plot_3.canvas.ax.lines[0].set_alpha(.6)
             if self.iAtten > 1:
-                self.ui.plot_3.canvas.ax.plot(self.Res1.Is[self.iAtten - 2], self.Res1.Qs[self.iAtten - 2], 'g.-')
+                self.ui.plot_3.canvas.ax.plot(self.Res1.Is[self.iAtten - 2][use], self.Res1.Qs[self.iAtten - 2][use], 'g.-')
                 self.ui.plot_3.canvas.ax.lines[-1].set_alpha(.3)
-            self.ui.plot_3.canvas.ax.plot(self.Res1.I, self.Res1.Q, '.-')
+            self.ui.plot_3.canvas.ax.plot(self.Res1.I[use], self.Res1.Q[use], '.-')
 
-            if self.widesweep is not None:
-                ws_I = self.widesweep[wsmask, 1]
-                ws_Q = self.widesweep[wsmask, 2]
-                ws_dataRange_I = self.ui.plot_3.canvas.ax.xaxis.get_data_interval()
-                ws_dataRange_Q = self.ui.plot_3.canvas.ax.yaxis.get_data_interval()
-                ws_I -= numpy.median(ws_I) - numpy.median(ws_dataRange_I)
-                ws_Q -= numpy.median(ws_Q) - numpy.median(ws_dataRange_Q)
+            # if self.widesweep is not None:
+            #     ws_I = self.widesweep[wsmask, 1]
+            #     ws_Q = self.widesweep[wsmask, 2]
+            #     ws_dataRange_I = self.ui.plot_3.canvas.ax.xaxis.get_data_interval()
+            #     ws_dataRange_Q = self.ui.plot_3.canvas.ax.yaxis.get_data_interval()
+            #     ws_I -= numpy.median(ws_I) - numpy.median(ws_dataRange_I)
+            #     ws_Q -= numpy.median(ws_Q) - numpy.median(ws_dataRange_Q)
 
             getLogger(__name__).debug('makeplots')
             self.ui.plot_3.canvas.draw()
