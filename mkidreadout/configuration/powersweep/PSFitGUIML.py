@@ -93,7 +93,7 @@ class StartQt4(QMainWindow):
 
         self.resfreq = self.fsweepdata.opt_freqs[self.resnum]
 
-        assert self.Res1.freq[0]<self.resfreq<self.Res1.freq[-1]
+        assert self.Res1.freq[0] < self.resfreq < self.Res1.freq[-1]
 
         self.resID = self.Res1.resID
         self.NAttens = self.Res1.atten1s.size
