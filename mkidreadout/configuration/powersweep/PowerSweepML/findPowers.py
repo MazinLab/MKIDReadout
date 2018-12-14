@@ -88,6 +88,7 @@ def findPowers(mlDict, mlBadDict, psDataFileName, metadataFn=None, saveScores=Fa
         iAtt = np.argmax(inferenceLabels[rn,:])
         inferenceData.opt_attens[rn] = attenList[iAtt]
         inferenceData.opt_freqs[rn] = freqCube[iAtt, np.argmax(image[iAtt, :, 2])] #TODO: make this more robust
+        assert inferenceData.freqs[rn,0] <= inferenceData.opt_freqs[rn] <= inferenceData.freqs[rn,-1], 'freq out of range, need to debug'
         inferenceData.scores[rn] = inferenceLabels[rn, iAtt]
         if rn>0:
             if(np.abs(inferenceData.opt_freqs[rn]-inferenceData.opt_freqs[rn-1])<100.e3):

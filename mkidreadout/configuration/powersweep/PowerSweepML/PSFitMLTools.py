@@ -2,7 +2,7 @@ import numpy as np
 from PSFitMLData import *
 from mkidreadout.configuration.powersweep.psmldata import *
 
-def makeResImage(res_num, angle=1, center_loop=False,  phase_normalise=False, showFrames=False, test_if_noisy=False, dataObj=None, padFreq=None, mlDict=None, wsAttenInd=None):
+def makeResImage(res_num, angle=2, center_loop=False,  phase_normalise=False, showFrames=False, test_if_noisy=False, dataObj=None, padFreq=None, mlDict=None, wsAttenInd=None):
     '''Creates a table with 2 rows, I and Q for makeTrainData(mag_data=True)
 
     inputs 
@@ -30,7 +30,6 @@ def makeResImage(res_num, angle=1, center_loop=False,  phase_normalise=False, sh
     Qs = dataObj.Qs[res_num,:, :-1]
     freqs = dataObj.freqs[res_num][:-1]
     freqCube = np.zeros((nAttens, resWidth))
-
         
 
     # plt.plot(self.Is[res_num,iAtten], self.Qs[res_num,iAtten])
@@ -64,21 +63,22 @@ def makeResImage(res_num, angle=1, center_loop=False,  phase_normalise=False, sh
     resSearchWin = 20
 
     if resWidth < nFreqPoints:
-        resSearchStartWin = int(nFreqPoints/2-resSearchWin/2.)
-        resSearchEndWin = int(nFreqPoints/2+resSearchWin/2.)
-        initWinCenter = resSearchStartWin + np.argmin(magsdb[wsAttenInd, resSearchStartWin:resSearchEndWin])
+        if hasattr(dataObj, 'initfreqs'):
+            wsFreq = dataObj.initfreqs[res_num]
+            assert freqs[0] <= wsFreq <= freqs[-1], 'ws freq out of window'
+            initWinCenter = np.argmin(np.abs(wsFreq - freqs))
+        else:
+            resSearchStartWin = int(nFreqPoints/2-np.floor(resSearchWin/2.))
+            resSearchEndWin = int(nFreqPoints/2+np.ceil(resSearchWin/2.))
+            initWinCenter = resSearchStartWin + np.argmin(magsdb[wsAttenInd, resSearchStartWin:resSearchEndWin])
+            
         winCenter = initWinCenter
-        startWin = int(winCenter-resWidth/2.)
-        endWin = int(winCenter+resWidth/2.)
-        resSearchStartWin = int(winCenter-resSearchWin/2.)
-        resSearchEndWin = int(winCenter+resSearchWin/2.)
-        singleFrameImage[wsAttenInd, :, 0] = Is[wsAttenInd, startWin:endWin]
-        singleFrameImage[wsAttenInd, :, 1] = Qs[wsAttenInd, startWin:endWin]
-        iqVelImage[wsAttenInd, :] = iq_vels[wsAttenInd, startWin:endWin]#iq_vels[wsAttenInd, startWin:endWin]
-        magsdbImage[wsAttenInd, :] = magsdb[wsAttenInd, startWin:endWin]#iq_vels[wsAttenInd, startWin:endWin]
-        freqCube[wsAttenInd, :] = freqs[startWin:endWin]
+        startWin = int(winCenter-np.floor(resWidth/2.))
+        endWin = int(winCenter+np.ceil(resWidth/2.))
+        resSearchStartWin = int(winCenter-np.floor(resSearchWin/2.))
+        resSearchEndWin = int(winCenter+np.ceil(resSearchWin/2.))
         
-        for i in range(wsAttenInd-1, -1, -1):
+        for i in range(wsAttenInd, -1, -1):
             resSearchStartWin = max(0, resSearchStartWin)
             resSearchEndWin = min(nFreqPoints, resSearchEndWin)
             oldWinMags = magsdb[i, resSearchStartWin:resSearchEndWin]
@@ -121,10 +121,10 @@ def makeResImage(res_num, angle=1, center_loop=False,  phase_normalise=False, sh
                 freqCube[i, :] = freqs[startWin:endWin]
 
         winCenter = initWinCenter
-        startWin = int(winCenter-resWidth/2.)
-        endWin = int(winCenter+resWidth/2.)
-        resSearchStartWin = int(winCenter-resSearchWin/2.)
-        resSearchEndWin = int(winCenter+resSearchWin/2.)
+        startWin = int(winCenter-np.floor(resWidth/2.))
+        endWin = int(winCenter+np.ceil(resWidth/2.))
+        resSearchStartWin = int(winCenter-np.floor(resSearchWin/2.))
+        resSearchEndWin = int(winCenter+np.ceil(resSearchWin/2.))
         for i in range(wsAttenInd+1, nAttens): 
             resSearchStartWin = max(0, resSearchStartWin)
             resSearchEndWin = min(nFreqPoints, resSearchEndWin)
