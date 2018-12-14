@@ -18,6 +18,11 @@ class FreqSweep(object):
         self.q = data['Q']  # 3d [nAttens, nTones, nLOsteps] ADC units
         self.natten, self.ntone, self.nlostep = data['I'].shape
         self.freqStep = self.freqs[0,1] - self.freqs[0,0]
+        
+        sortedAttenInds = np.argsort(self.atten)
+        self.atten = self.atten[sortedAttenInds]
+        self.i = self.i[sortedAttenInds, :, :]
+        self.q = self.q[sortedAttenInds, :, :]
 
     def oldwsformat(self, atten):
         """Q vals are GARBAGE!!! use for magnitude only"""

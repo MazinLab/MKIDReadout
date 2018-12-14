@@ -24,12 +24,15 @@ class MLData(object):
         self.freqs = np.zeros((self.nRes, self.freqSweep.nlostep))
         self.Is = np.zeros((self.nRes, self.freqSweep.natten, self.freqSweep.nlostep))
         self.Qs = np.zeros((self.nRes, self.freqSweep.natten, self.freqSweep.nlostep))
+        self.iq_vels = np.zeros((self.nRes, self.freqSweep.natten, self.freqSweep.nlostep-1))
+        self.attens = self.freqSweep.atten
 
         self.resIDs = self.metadata.resIDs[self.mdResMask]
         self.initfreqs = self.metadata.wsfreq[self.mdResMask]
         self.opt_attens = self.metadata.atten[self.mdResMask]
         self.opt_freqs = self.metadata.mlfreq[self.mdResMask]
         self.scores = np.zeros(self.nRes)
+        self.bad_scores = np.zeros(self.nRes)
         if not np.all(np.isnan(self.opt_attens)):
             attenblock = np.tile(self.freqSweep.atten, (len(self.opt_attens),1))
             self.opt_iAttens = np.where(self.opt_attens==attenblock.T)[0]
@@ -44,11 +47,13 @@ class MLData(object):
             self.freqs[i] = self.freqSweep.freqs[freqWinInd, :]
             self.Is[i] = self.freqSweep.i[:, freqWinInd, :]
             self.Qs[i] = self.freqSweep.q[:, freqWinInd, :]
+            self.iq_vels[i] = np.diff(np.sqrt(self.Is[i]**2 + self.Qs[i]**2))
 
     def saveInferenceData(self, flag=''):
-        self.metadata.attens[self.mdResMask] = self.opt_attens
+        self.metadata.atten[self.mdResMask] = self.opt_attens
         self.metadata.mlfreq[self.mdResMask] = self.opt_freqs
         self.metadata.ml_isgood_score[self.mdResMask] = self.scores #TODO: implement ml bad scores
+        self.metadata.ml_isbad_score[self.mdResMask] = self.bad_scores
         self.metadata.save(os.path.splitext(self.metadata.file)[0] + flag + '.txt')
     
     def prioritize_and_cut(self, assume_bad_cut=-np.inf, assume_good_cut=np.inf, plot=False):

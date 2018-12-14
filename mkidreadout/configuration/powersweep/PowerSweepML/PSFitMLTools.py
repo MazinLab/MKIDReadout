@@ -1,6 +1,6 @@
 import numpy as np
 from PSFitMLData import *
-from psmldata import *
+from mkidreadout.configuration.powersweep.psmldata import *
 
 def makeResImage(res_num, angle=1, center_loop=False,  phase_normalise=False, showFrames=False, test_if_noisy=False, dataObj=None, padFreq=None, mlDict=None, wsAttenInd=None):
     '''Creates a table with 2 rows, I and Q for makeTrainData(mag_data=True)
@@ -23,6 +23,7 @@ def makeResImage(res_num, angle=1, center_loop=False,  phase_normalise=False, sh
     nFreqPoints = len(dataObj.iq_vels[res_num,0,:])
     nAttens = dataObj.Is.shape[1]
     assert resWidth<=nFreqPoints, 'res width must be <= number of freq steps'
+    attenList = dataObj.attens
 
     iq_vels = dataObj.iq_vels[res_num, :, :]
     Is = dataObj.Is[res_num,:, :-1] #-1 to make size the same as iq vels
@@ -200,17 +201,28 @@ def makeResImage(res_num, angle=1, center_loop=False,  phase_normalise=False, sh
 
     if resWidth < xWidth:
         nPadVals = (xWidth - resWidth)/2.
-        singleFrameImageFS = np.zeros((nAttens, xWidth, 3))
+        singleFrameImageFS = np.zeros((nAttens, xWidth, singleFrameImage.shape[2]))
         freqCubeFS = np.zeros((nAttens, xWidth))
         for i in range(singleFrameImage.shape[2]):
             singleFrameImageFS[:,:,i] = np.pad(singleFrameImage[:,:,i], [(0,0),(int(np.ceil(nPadVals)), int(np.floor(nPadVals)))], 'edge')
         freqCubeFS = np.pad(freqCube, [(0,0),(int(np.ceil(nPadVals)), int(np.floor(nPadVals)))], 'edge')
         singleFrameImage = singleFrameImageFS
         freqCube = freqCubeFS
+    
+    if nAttens < mlDict['nAttens']:
+        singleFrameImageFS = np.zeros((mlDict['nAttens'], xWidth, singleFrameImage.shape[2]))
+        freqCubeFS = np.zeros((nAttens, xWidth))
+        for i in range(singleFrameImage.shape[2]):
+            singleFrameImageFS[:,:,i] = np.pad(singleFrameImage[:,:,i], [(0,mlDict['nAttens']-nAttens),(0,0)], 'edge')
+        freqCubeFS = np.pad(freqCube, [(0,mlDict['nAttens']-nAttens),(0,0)], 'edge')
+        singleFrameImage = singleFrameImageFS
+        freqCube = freqCubeFS
+        attenList = np.pad(attenList, (0, mlDict['nAttens']-nAttens), 'edge')
+        
         
 
     #singleFrameImage[:,:,2] = 0
-    return singleFrameImage, freqCube
+    return singleFrameImage, freqCube, attenList
 
 def get_peak_idx(res_num,iAtten,dataObj,smooth=False, cutType=None, padInd=None):
     iq_vels = dataObj.iq_vels[res_num, iAtten, :]
