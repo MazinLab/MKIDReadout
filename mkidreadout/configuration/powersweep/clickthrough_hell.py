@@ -228,7 +228,7 @@ class StartQt4(QMainWindow):
         self.ui.atten.setValue(round(event.xdata))
 
     def select_freq(self, freq):
-        self.resfreq = freq[0]
+        self.resfreq = freq
         self.ui.frequency.setText(str(self.resfreq/1e9))
         self.ui.plot_2.canvas.ax.plot(self.Res1.freq[self.indx], self.res1_iq_vel[self.indx], 'bo')
         self.ui.plot_3.canvas.ax.plot(self.Res1.I[self.indx], self.Res1.Q[self.indx], 'bo')
