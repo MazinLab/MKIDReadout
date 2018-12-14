@@ -15,10 +15,10 @@ import argparse
 from PSFitMLData import PSFitMLData
 import PSFitMLTools as mlt
 from mkidreadout.utils.readDict import readDict
-from mkidreadout.configuration.psmldata import MLData
+from mkidreadout.configuration.powersweep.PowerSweepML.psmldata import MLData
 
 
-def findPowers(mlDict, psDataFileName, resListFn=None, saveScores=False, wsAtten=None):
+def findPowers(mlDict, psDataFileName, metadataFn=None, saveScores=False, wsAtten=None):
     '''
     Uses Trained model, specified by mlDict, to infer powers from a powersweep 
     saved in psDataFileName. Saves results in .txt file in $MKID_DATA_DIR
@@ -26,8 +26,8 @@ def findPowers(mlDict, psDataFileName, resListFn=None, saveScores=False, wsAtten
     if psDataFileName.split('.')[1]=='h5':
         inferenceData = PSFitMLData(h5File=psDataFileName, useAllAttens=False, useResID=True)
     elif psDataFileName.split('.')[1]=='npz':
-        assert os.path.isfile(resListFn), 'Must resonator metadata file'
-        inferenceData = MLData(psDataFileName, resListFn)
+        assert os.path.isfile(metadataFn), 'Must resonator metadata file'
+        inferenceData = MLData(psDataFileName, metadataFn)
     
     # if mlDict['scaleXWidth']!= 1:
     #     mlDict['xWidth']=mlDict['xWidth']*mlDict['scaleXWidth'] #reset ready for get_PS_data
@@ -81,7 +81,7 @@ def findPowers(mlDict, psDataFileName, resListFn=None, saveScores=False, wsAtten
     print '\n', doubleCounter, 'doubles'
     
     if psDataFileName.split('.')[1]=='h5':
-        inferenceData.savePSTxtFile(flag = '_' + mlDict['modelName'],outputFN=resListFn, saveScores=saveScores)
+        inferenceData.savePSTxtFile(flag = '_' + mlDict['modelName'],outputFN=None, saveScores=saveScores)
     elif psDataFileName.split('.')[1]=='npz':
         inferenceData.saveInferenceData(flag = '_' +mlDict['modelName'])
 
@@ -89,17 +89,19 @@ if __name__=='__main__':
     parser = argparse.ArgumentParser(description='ML Inference Script')
     parser.add_argument('mlConfig', nargs=1, help='Machine learning model config file')
     parser.add_argument('inferenceData', nargs=1, help='HDF5 file containing powersweep data')
-    parser.add_argument('-o', '--output-dir', nargs=1, default=[None], help='Directory to save output file')
+    parser.add_argument('-m', '--metadata', nargs=1, default=[None], help='Directory to save output file')
+    #parser.add_argument('-o', '--output-dir', nargs=1, default=[None], help='Directory to save output file')
     parser.add_argument('-s', '--add-scores', action='store_true', help='Adds a score column to the output file')
+    parser.add_argument('-w', '--ws-atten', nargs=1, type=float, default=[None], help='Attenuation where peak finding code was run')
     args = parser.parse_args()
 
     mlDict = readDict()
     mlDict.readFromFile(args.mlConfig[0])
+    wsAtten = args.ws_atten[0]
+    metadataFn = args.metadata[0]
 
     psDataFileName=args.inferenceData[0]
     if not os.path.isfile(psDataFileName):
         psDataFileName = os.path.join(os.environ['MKID_DATA_DIR'], psDataFileName)
-    
-    outputDir = args.output_dir[0]
-    
-    findPowers(mlDict, psDataFileName, outputDir, args.add_scores, 62)
+     
+    findPowers(mlDict, psDataFileName, metadataFn, args.add_scores, wsAtten)

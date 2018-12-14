@@ -26,7 +26,7 @@ import random
 import time
 import math
 from mkidreadout.configuration.powersweep.PowerSweepML.PSFitMLData import *
-from mkidreadout.configuration.powersweep.PowerSweepML.mldata import *
+from mkidreadout.configuration.powersweep.PowerSweepML.psmldata import *
 np.set_printoptions(threshold=np.inf)
 import mkidreadout.configuration.powersweep.PowerSweepML.PSFitMLTools as mlt
 

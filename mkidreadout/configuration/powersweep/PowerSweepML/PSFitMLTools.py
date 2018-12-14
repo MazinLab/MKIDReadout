@@ -1,5 +1,6 @@
 import numpy as np
 from PSFitMLData import *
+from psmldata import *
 
 def makeResImage(res_num, angle=1, center_loop=False,  phase_normalise=False, showFrames=False, test_if_noisy=False, dataObj=None, padFreq=None, mlDict=None, wsAttenInd=None):
     '''Creates a table with 2 rows, I and Q for makeTrainData(mag_data=True)
@@ -10,6 +11,7 @@ def makeResImage(res_num, angle=1, center_loop=False,  phase_normalise=False, sh
     angle: angle of rotation about the origin (radians)
     showFrames: pops up a window of the frame plotted using matplotlib.plot
     '''     
+    #TODO: remove assumption that res is centered on window at wsAttenInd
     xWidth= mlDict['xWidth'] # 
     resWidth = mlDict['resWidth']
     assert resWidth<=xWidth, 'res width must be <= xWidth'
@@ -61,7 +63,9 @@ def makeResImage(res_num, angle=1, center_loop=False,  phase_normalise=False, sh
     resSearchWin = 20
 
     if resWidth < nFreqPoints:
-        initWinCenter = nFreqPoints/2#np.argmin(magsdb[wsAttenInd,])
+        resSearchStartWin = int(nFreqPoints/2-resSearchWin/2.)
+        resSearchEndWin = int(nFreqPoints/2+resSearchWin/2.)
+        initWinCenter = resSearchStartWin + np.argmin(magsdb[wsAttenInd, resSearchStartWin:resSearchEndWin])
         winCenter = initWinCenter
         startWin = int(winCenter-resWidth/2.)
         endWin = int(winCenter+resWidth/2.)
