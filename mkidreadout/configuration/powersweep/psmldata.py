@@ -57,10 +57,13 @@ class MLData(object):
         self.metadata.save(os.path.splitext(self.metadata.file)[0] + flag + '.txt')
     
     def prioritize_and_cut(self, assume_bad_cut=-np.inf, assume_good_cut=np.inf, plot=False):
+        #return self.mdResMask.sum()
+
         if plot:
             self.metadata.plot_scores()
             plt.axvline(max(assume_bad_cut, -1), color='k', linewidth=.5)
             plt.axvline(max(assume_good_cut, 1), color='k', linewidth=.5)
+
         netscore = self.metadata.netscore
         badcutmask = netscore < assume_bad_cut
         goodcutmask = netscore > assume_good_cut
