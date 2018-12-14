@@ -10,12 +10,26 @@ ISBAD = 0
 class FreqSweep(object):
     def __init__(self, file):
         self.file = file
-
         data = np.load(self.file)
         self.atten = data['atten']  # 1d [nAttens] dB
+
+        flip = np.diff(self.atten)[0] < 0
+
         self.freqs = data['freqs']  # 2d [nTones, nLOsteps] Hz
+
         self.i = data['I']  # 3d [nAttens, nTones, nLOsteps] ADC units
         self.q = data['Q']  # 3d [nAttens, nTones, nLOsteps] ADC units
+
+        if '222' in self.file or'233' in self.file or '236' in self.file:
+            self.atten = self.atten[::2]
+            self.i = self.i[::2, :, :]
+            self.q = self.q[::2, :, :]
+
+        if flip:
+            self.atten = self.atten[::-1]
+            self.i = self.i[::-1, :, :]
+            self.q = self.q[::-1, :, :]
+
         self.natten, self.ntone, self.nlostep = data['I'].shape
         self.freqStep = self.freqs[0,1] - self.freqs[0,0]
         
@@ -24,12 +38,22 @@ class FreqSweep(object):
         self.i = self.i[sortedAttenInds, :, :]
         self.q = self.q[sortedAttenInds, :, :]
 
-    def oldwsformat(self, atten):
+    def oldwsformat(self, atten, amax=None):
         """Q vals are GARBAGE!!! use for magnitude only"""
         atten = np.abs(self.atten-atten).argmin()
+        attenlast = atten if amax is None else np.abs(self.atten - amax).argmin()
+        attenlast = max(atten+1, attenlast)
+
         freqs = self.freqs.ravel()
-        iVals = self.i[atten].ravel()
-        qVals = self.q[atten].ravel()
+        iVals = self.i[atten:attenlast].squeeze()
+        qVals = self.q[atten:attenlast].squeeze()
+        if qVals.ndim > 2:
+            msg = 'Averaging over {} powers ({}) to gen WS data'
+            getLogger(__name__).info(msg.format(qVals.shape[0], self.atten[atten:attenlast]))
+            iVals = iVals.mean(0)
+            qVals = qVals.mean(0)
+        iVals = iVals.ravel()
+        qVals = qVals.ravel()
 
         mags = np.sqrt(iVals ** 2 + qVals ** 2)
 
