@@ -307,6 +307,8 @@ class StartQt4(QMainWindow):
                 ws_ymax = self.ui.plot_2.canvas.ax.yaxis.get_data_interval()[1]
                 self.ui.plot_2.canvas.ax.text(x=ws_freq_i, y=ws_ymax, s=str(int(ws_resID_i)),
                                               color=ws_color, alpha=alpha)
+
+            self.ui.plot_2.canvas.ax.axvline(self.fsweepdata.initfreqs[self.resnum], c='r', linewidth=1.5)
             self.ui.plot_2.canvas.draw()
 
             #Plot 3
