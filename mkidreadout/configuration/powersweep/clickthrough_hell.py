@@ -31,7 +31,6 @@ class StartQt4(QMainWindow):
 
         self.badcut, self.goodcut = badcut, goodcut
 
-        # QObject.connect(self.ui.open_browse, SIGNAL("clicked()"), self.open_dialog)
         QObject.connect(self.ui.atten, SIGNAL("valueChanged(int)"), self.setnewatten)
         QObject.connect(self.ui.savevalues, SIGNAL("clicked()"), self.savevalues)
         QObject.connect(self.ui.jumptores, SIGNAL("clicked()"), self.jumptores)
@@ -79,7 +78,9 @@ class StartQt4(QMainWindow):
 
         self.resfreq = self.fsweepdata.opt_freqs[self.resnum]
 
-        assert self.Res1.freq[0] < self.resfreq < self.Res1.freq[-1]
+        if not (self.Res1.freq[0] < self.resfreq < self.Res1.freq[-1]):
+            raise RuntimeError('Out of order resfreq flag={}'.format(self.fsweepdata.mdResMask[
+                                                                     self.fsweepdata.resIDs==self.Res1.resID]))
 
         self.resID = self.Res1.resID
         self.NAttens = self.Res1.atten1s.size
@@ -204,7 +205,7 @@ class StartQt4(QMainWindow):
         self.widesweep = self.fsweepdata.freqSweep.oldwsformat(65)
         getLogger(__name__).info('Loaded '+self.openfile)
 
-        self.stop_ndx = self.fsweepdata.prioritize_and_cut(self.badcut, self.goodcut, plot=True)
+        self.stop_ndx = self.fsweepdata.prioritize_and_cut(self.badcut, self.goodcut, plot=False)
 
         self.mlResIDs = self.fsweepdata.resIDs
         self.mlFreqs = self.fsweepdata.opt_freqs

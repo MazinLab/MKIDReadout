@@ -95,22 +95,25 @@ class SweepMetadata(object):
 
     @property
     def netscore(self):
-        return self.ml_isgood_score - self.ml_isbad_score
+        x=self.ml_isgood_score - self.ml_isbad_score
+        x[np.isnan(x)] = 0
+        return x
 
     def plot_scores(self):
+        use = ~np.isnan(self.ml_isgood_score)
         plt.figure(20)
         plt.subplot(2,1,1)
-        plt.hist(self.netscore, np.linspace(-1, 1, 100), label='netscore')
+        plt.hist(self.netscore[use], np.linspace(-1, 1, 100), label='netscore')
         plt.xlabel('goodscore-badscore')
         plt.subplot(2,1,2)
-        plt.hist(self.ml_isbad_score, np.linspace(0, 1, 100), label='badscore')
-        plt.hist(self.ml_isgood_score, np.linspace(0, 1, 100), alpha=.5, label='goodscore')
+        plt.hist(self.ml_isbad_score[use], np.linspace(0, 1, 100), label='badscore')
+        plt.hist(self.ml_isgood_score[use], np.linspace(0, 1, 100), alpha=.5, label='goodscore')
         plt.xlabel('ml scores')
         plt.legend()
         plt.show(False)
 
     def sort(self):
-        s = np.argsort(self.wsfreq)
+        s = np.argsort(self.resIDs)
         self.resIDs = self.resIDs[s]
         self.wsfreq = self.wsfreq[s]
         self.flag = self.flag[s]
@@ -144,6 +147,10 @@ class SweepMetadata(object):
     def _load(self):
         d = np.loadtxt(self.file.format(feedline=self.feedline), unpack=True)
         self.resIDs, self.flag, self.wsfreq, self.mlfreq, self.atten, self.ml_isgood_score, self.ml_isbad_score = d
+
+        self.mlfreq[self.flag == ISBAD] = self.wsfreq[self.flag == ISBAD]
+        self.ml_isgood_score[self.flag == ISBAD] = 0
+        self.ml_isbad_score[self.flag == ISBAD] = 1
         self._settypes()
 
 
