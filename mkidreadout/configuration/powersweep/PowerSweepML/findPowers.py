@@ -15,14 +15,19 @@ import argparse
 from PSFitMLData import PSFitMLData
 import PSFitMLTools as mlt
 from mkidreadout.utils.readDict import readDict
+from mkidreadout.configuration.psmldata import MLData
 
 
-def findPowers(mlDict, h5FileName, outputFN=None, saveScores=False, wsAtten=None):
+def findPowers(mlDict, psDataFileName, resListFn=None, saveScores=False, wsAtten=None):
     '''
     Uses Trained model, specified by mlDict, to infer powers from a powersweep 
-    saved in h5FileName. Saves results in .txt file in $MKID_DATA_DIR
+    saved in psDataFileName. Saves results in .txt file in $MKID_DATA_DIR
     '''
-    inferenceData = PSFitMLData(h5File=h5FileName, useAllAttens=False, useResID=True)
+    if psDataFileName.split('.')[1]=='h5':
+        inferenceData = PSFitMLData(h5File=psDataFileName, useAllAttens=False, useResID=True)
+    elif psDataFileName.split('.')[1]=='npz':
+        assert os.path.isfile(resListFn), 'Must resonator metadata file'
+        inferenceData = MLData(psDataFileName, resListFn)
     
     # if mlDict['scaleXWidth']!= 1:
     #     mlDict['xWidth']=mlDict['xWidth']*mlDict['scaleXWidth'] #reset ready for get_PS_data
@@ -58,14 +63,14 @@ def findPowers(mlDict, h5FileName, outputFN=None, saveScores=False, wsAtten=None
     for i,rn in enumerate(span): 
         sys.stdout.write("\r%d of %i" % (i+1,res_nums) )
         sys.stdout.flush()
-        #rn = 451
+        #rn = 471
         image, freqCube = mlt.makeResImage(res_num = rn, center_loop=mlDict['center_loop'], phase_normalise=False,showFrames=False, dataObj=inferenceData, mlDict=mlDict, wsAttenInd=wsAttenInd)
         inferenceImage=[]
         inferenceImage.append(image)            # inferenceImage is just reformatted image
         inferenceLabels[rn,:] = sess.run(y_output, feed_dict={x_input: inferenceImage, keep_prob: 1})
         iAtt = np.argmax(inferenceLabels[rn,:])
         inferenceData.opt_attens[rn] = inferenceData.attens[iAtt]
-        inferenceData.opt_freqs[rn] = freqCube[iAtt, np.argmax(image[iAtt, :, 2])]
+        inferenceData.opt_freqs[rn] = freqCube[iAtt, np.argmax(image[iAtt, :, 2])] #TODO: make this more robust
         inferenceData.scores[rn] = inferenceLabels[rn, iAtt]
         if rn>0:
             if(np.abs(inferenceData.opt_freqs[rn]-inferenceData.opt_freqs[rn-1])<100.e3):
@@ -75,7 +80,10 @@ def findPowers(mlDict, h5FileName, outputFN=None, saveScores=False, wsAtten=None
     
     print '\n', doubleCounter, 'doubles'
     
-    inferenceData.savePSTxtFile(flag = '_' + mlDict['modelName'],outputFN=outputFN, saveScores=saveScores)
+    if psDataFileName.split('.')[1]=='h5':
+        inferenceData.savePSTxtFile(flag = '_' + mlDict['modelName'],outputFN=resListFn, saveScores=saveScores)
+    elif psDataFileName.split('.')[1]=='npz':
+        inferenceData.saveInferenceData(flag = '_' +mlDict['modelName'])
 
 if __name__=='__main__':
     parser = argparse.ArgumentParser(description='ML Inference Script')
@@ -88,10 +96,10 @@ if __name__=='__main__':
     mlDict = readDict()
     mlDict.readFromFile(args.mlConfig[0])
 
-    h5FileName=args.inferenceData[0]
-    if not os.path.isfile(h5FileName):
-        h5FileName = os.path.join(os.environ['MKID_DATA_DIR'], h5FileName)
+    psDataFileName=args.inferenceData[0]
+    if not os.path.isfile(psDataFileName):
+        psDataFileName = os.path.join(os.environ['MKID_DATA_DIR'], psDataFileName)
     
     outputDir = args.output_dir[0]
     
-    findPowers(mlDict, h5FileName, outputDir, args.add_scores, 62)
+    findPowers(mlDict, psDataFileName, outputDir, args.add_scores, 62)
