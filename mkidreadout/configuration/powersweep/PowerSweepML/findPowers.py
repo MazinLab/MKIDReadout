@@ -18,7 +18,7 @@ from mkidreadout.utils.readDict import readDict
 from mkidreadout.configuration.powersweep.psmldata import MLData
 
 
-def findPowers(mlDict, psDataFileName, metadataFn=None, saveScores=False, wsAtten=None):
+def findPowers(mlDict, mlBadDict, psDataFileName, metadataFn=None, saveScores=False, wsAtten=None):
     '''
     Uses Trained model, specified by mlDict, to infer powers from a powersweep 
     saved in psDataFileName. Saves results in .txt file in $MKID_DATA_DIR
@@ -39,7 +39,7 @@ def findPowers(mlDict, psDataFileName, metadataFn=None, saveScores=False, wsAtte
     inferenceData.opt_attens=np.zeros((res_nums))
     inferenceData.opt_freqs=np.zeros((res_nums))
     inferenceData.scores=np.zeros((res_nums))
-    wsAttenInd = np.where(inferenceData.attens==wsAtten)[0][0]
+    wsAttenInd = np.argmin(np.abs(inferenceData.attens-wsAtten))
     
     print 'inferenceAttens', inferenceData.attens
     
@@ -56,6 +56,23 @@ def findPowers(mlDict, psDataFileName, metadataFn=None, saveScores=False, wsAtte
     x_input = graph.get_tensor_by_name('inputImage:0')
     y_output = graph.get_tensor_by_name('outputLabel:0')
     keep_prob = graph.get_tensor_by_name('keepProb:0')
+
+    if mlBadDict is not None:
+        modelBadPath = os.path.join(mlBadDict['modelDir'], mlBadDict['modelName'])+'.meta'
+        print 'Loading badscore model from', modelBadPath
+        
+        sess_bad = tf.Session()
+        saver_bad = tf.train.import_meta_graph(modelBadPath)
+        saver_bad.restore(sess_bad, tf.train.latest_checkpoint(mlBadDict['modelDir']))
+        
+        graph = tf.get_default_graph()
+        x_input_bad = graph.get_tensor_by_name('inputImage:0')
+        y_output_bad = graph.get_tensor_by_name('outputLabel:0')
+        keep_prob_bad = graph.get_tensor_by_name('keepProb:0')
+        useBadScores = True
+
+    else:
+        useBadScores = False
     
     print 'Using trained algorithm on images on each resonator'
     skip = []
@@ -64,19 +81,23 @@ def findPowers(mlDict, psDataFileName, metadataFn=None, saveScores=False, wsAtte
         sys.stdout.write("\r%d of %i" % (i+1,res_nums) )
         sys.stdout.flush()
         #rn = 471
-        image, freqCube = mlt.makeResImage(res_num = rn, center_loop=mlDict['center_loop'], phase_normalise=False,showFrames=False, dataObj=inferenceData, mlDict=mlDict, wsAttenInd=wsAttenInd)
+        image, freqCube, attenList = mlt.makeResImage(res_num = rn, center_loop=mlDict['center_loop'], phase_normalise=False,showFrames=False, dataObj=inferenceData, mlDict=mlDict, wsAttenInd=wsAttenInd)
         inferenceImage=[]
         inferenceImage.append(image)            # inferenceImage is just reformatted image
         inferenceLabels[rn,:] = sess.run(y_output, feed_dict={x_input: inferenceImage, keep_prob: 1})
         iAtt = np.argmax(inferenceLabels[rn,:])
-        inferenceData.opt_attens[rn] = inferenceData.attens[iAtt]
+        inferenceData.opt_attens[rn] = attenList[iAtt]
         inferenceData.opt_freqs[rn] = freqCube[iAtt, np.argmax(image[iAtt, :, 2])] #TODO: make this more robust
         inferenceData.scores[rn] = inferenceLabels[rn, iAtt]
         if rn>0:
             if(np.abs(inferenceData.opt_freqs[rn]-inferenceData.opt_freqs[rn-1])<100.e3):
                 doubleCounter += 1
-        del inferenceImage
-        del image
+        
+        if useBadScores:
+            badInferenceLabels = sess_bad.run(y_output_bad, feed_dict={x_input_bad: inferenceImage, keep_prob_bad: 1})
+            badscore = np.max(badInferenceLabels)
+            inferenceData.bad_scores[rn] = badscore
+
     
     print '\n', doubleCounter, 'doubles'
     
@@ -93,10 +114,17 @@ if __name__=='__main__':
     #parser.add_argument('-o', '--output-dir', nargs=1, default=[None], help='Directory to save output file')
     parser.add_argument('-s', '--add-scores', action='store_true', help='Adds a score column to the output file')
     parser.add_argument('-w', '--ws-atten', nargs=1, type=float, default=[None], help='Attenuation where peak finding code was run')
+    parser.add_argument('-b', '--badscore-model', nargs=1, default=[None], help='ML config file for bad score model')
     args = parser.parse_args()
 
     mlDict = readDict()
     mlDict.readFromFile(args.mlConfig[0])
+    if args.badscore_model[0] is not None:
+        mlBadDict = readDict()
+        mlBadDict.readFromFile(args.badscore_model[0])
+    else:
+        mlBadDict = None
+
     wsAtten = args.ws_atten[0]
     metadataFn = args.metadata[0]
 
@@ -104,4 +132,4 @@ if __name__=='__main__':
     if not os.path.isfile(psDataFileName):
         psDataFileName = os.path.join(os.environ['MKID_DATA_DIR'], psDataFileName)
      
-    findPowers(mlDict, psDataFileName, metadataFn, args.add_scores, wsAtten)
+    findPowers(mlDict, mlBadDict, psDataFileName, metadataFn, args.add_scores, wsAtten)
