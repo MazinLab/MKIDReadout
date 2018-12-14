@@ -15,7 +15,7 @@ import argparse
 from PSFitMLData import PSFitMLData
 import PSFitMLTools as mlt
 from mkidreadout.utils.readDict import readDict
-from mkidreadout.configuration.powersweep.PowerSweepML.psmldata import MLData
+from mkidreadout.configuration.powersweep.psmldata import MLData
 
 
 def findPowers(mlDict, psDataFileName, metadataFn=None, saveScores=False, wsAtten=None):

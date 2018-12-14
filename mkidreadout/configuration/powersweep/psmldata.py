@@ -61,6 +61,7 @@ class MLData(object):
         goodcutmask = netscore > assume_good_cut
         self.metadata.atten[badcutmask] = np.inf
 
+        getLogger(__name__).info('Sorting {} resonators'.format(self.mdResMask.sum()))
         msg = 'Bad score cut of {:.2f} kills {} resonators'
         getLogger(__name__).info(msg.format(assume_bad_cut, (badcutmask & self.mdResMask).sum()))
 
@@ -72,6 +73,8 @@ class MLData(object):
         selectmask = reviewmask & self.mdResMask
 
         stop_ndx = selectmask.sum()
+
+        getLogger(__name__).info('There are {} uncut, sorted resonators.'.format(stop_ndx))
 
         order = np.argsort(netscore[selectmask])
 

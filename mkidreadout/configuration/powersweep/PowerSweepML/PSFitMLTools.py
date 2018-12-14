@@ -1,6 +1,4 @@
-import numpy as np
-from PSFitMLData import *
-from psmldata import *
+from mkidreadout.configuration.powersweep.psmldata import *
 
 def makeResImage(res_num, angle=1, center_loop=False,  phase_normalise=False, showFrames=False, test_if_noisy=False, dataObj=None, padFreq=None, mlDict=None, wsAttenInd=None):
     '''Creates a table with 2 rows, I and Q for makeTrainData(mag_data=True)

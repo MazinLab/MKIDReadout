@@ -20,6 +20,7 @@ import argparse
 class StartQt4(QMainWindow):
     def __init__(self, psfile, psmetafile, Ui, parent=None, startndx=0, goodcut=np.inf, badcut=-np.inf):
         QWidget.__init__(self, parent)
+
         self.ui = Ui()
         self.ui.setupUi(self)
 
@@ -30,14 +31,21 @@ class StartQt4(QMainWindow):
 
         self.badcut, self.goodcut = badcut, goodcut
 
-        QObject.connect(self.ui.open_browse, SIGNAL("clicked()"), self.open_dialog)
+        # QObject.connect(self.ui.open_browse, SIGNAL("clicked()"), self.open_dialog)
         QObject.connect(self.ui.atten, SIGNAL("valueChanged(int)"), self.setnewatten)
         QObject.connect(self.ui.savevalues, SIGNAL("clicked()"), self.savevalues)
         QObject.connect(self.ui.jumptores, SIGNAL("clicked()"), self.jumptores)
 
+        QShortcut(QKeySequence(Qt.Key_Space), self, self.savevalues)
+
         self.metadata = mdata = sweepdata.SweepMetadata(file=psmetafile)
         self.metadata_out = sweepdata.SweepMetadata(file=psmetafile)
         self.metadata_out.file = os.path.splitext(psmetafile)[0] + '_out.txt'
+        try:
+            self.metadata_out._load()
+        except IOError:
+            pass
+
         self.ui.save_filename.setText(self.metadata_out.file)
 
         self.fsweepdata = None
@@ -59,11 +67,11 @@ class StartQt4(QMainWindow):
         self.ui.open_filename.setText(str(self.openfile))
         self.loadps()
 
-    def open_dialog(self):
-        self.openfile = QFileDialog.getOpenFileName(parent=None, caption=QString(str("Choose PS File")),
-                                                    directory=".", filter=QString(str("H5 (*.h5)")))
-        self.ui.open_filename.setText(str(self.openfile))
-        self.loadps()
+    # def open_dialog(self):
+    #     self.openfile = QFileDialog.getOpenFileName(parent=None, caption=QString(str("Choose PS File")),
+    #                                                 directory=".", filter=QString(str("H5 (*.h5)")))
+    #     self.ui.open_filename.setText(str(self.openfile))
+    #     self.loadps()
 
     def loadres(self):
         self.Res1 = IQsweep()
