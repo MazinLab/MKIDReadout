@@ -91,18 +91,16 @@ class SweepMetadata(object):
 
     @property
     def goodmlfreq(self):
-        return self.mlfreq[self.flag==ISGOOD]
+        return self.mlfreq[self.flag == ISGOOD]
 
     @property
     def netscore(self):
         return self.ml_isgood_score - self.ml_isbad_score
 
     def plot_scores(self):
-        f=plt.gcf()
         plt.figure(20)
         plt.hist(self.netscore, np.linspace(-1, 1, 50), label='netscore')
-        plt.show(False)
-        plt.scf(f)
+        plt.show(True)
 
     def sort(self):
         s = np.argsort(self.wsfreq)
