@@ -15,14 +15,19 @@ import argparse
 from PSFitMLData import PSFitMLData
 import PSFitMLTools as mlt
 from mkidreadout.utils.readDict import readDict
+from mkidreadout.configuration.powersweep.PowerSweepML.psmldata import MLData
 
 
-def findPowers(mlDict, h5FileName, outputFN=None, saveScores=False):
+def findPowers(mlDict, psDataFileName, metadataFn=None, saveScores=False, wsAtten=None):
     '''
     Uses Trained model, specified by mlDict, to infer powers from a powersweep 
-    saved in h5FileName. Saves results in .txt file in $MKID_DATA_DIR
+    saved in psDataFileName. Saves results in .txt file in $MKID_DATA_DIR
     '''
-    inferenceData = PSFitMLData(h5File=h5FileName, useAllAttens=False, useResID=True)
+    if psDataFileName.split('.')[1]=='h5':
+        inferenceData = PSFitMLData(h5File=psDataFileName, useAllAttens=False, useResID=True)
+    elif psDataFileName.split('.')[1]=='npz':
+        assert os.path.isfile(metadataFn), 'Must resonator metadata file'
+        inferenceData = MLData(psDataFileName, metadataFn)
     
     # if mlDict['scaleXWidth']!= 1:
     #     mlDict['xWidth']=mlDict['xWidth']*mlDict['scaleXWidth'] #reset ready for get_PS_data
@@ -34,6 +39,7 @@ def findPowers(mlDict, h5FileName, outputFN=None, saveScores=False):
     inferenceData.opt_attens=np.zeros((res_nums))
     inferenceData.opt_freqs=np.zeros((res_nums))
     inferenceData.scores=np.zeros((res_nums))
+    wsAttenInd = np.where(inferenceData.attens==wsAtten)[0][0]
     
     print 'inferenceAttens', inferenceData.attens
     
@@ -57,79 +63,45 @@ def findPowers(mlDict, h5FileName, outputFN=None, saveScores=False):
     for i,rn in enumerate(span): 
         sys.stdout.write("\r%d of %i" % (i+1,res_nums) )
         sys.stdout.flush()
-        image = mlt.makeResImage(res_num = rn, center_loop=mlDict['center_loop'], phase_normalise=False,showFrames=False, dataObj=inferenceData, mlDict=mlDict)
+        #rn = 471
+        image, freqCube = mlt.makeResImage(res_num = rn, center_loop=mlDict['center_loop'], phase_normalise=False,showFrames=False, dataObj=inferenceData, mlDict=mlDict, wsAttenInd=wsAttenInd)
         inferenceImage=[]
         inferenceImage.append(image)            # inferenceImage is just reformatted image
         inferenceLabels[rn,:] = sess.run(y_output, feed_dict={x_input: inferenceImage, keep_prob: 1})
         iAtt = np.argmax(inferenceLabels[rn,:])
         inferenceData.opt_attens[rn] = inferenceData.attens[iAtt]
-        inferenceData.opt_freqs[rn] = inferenceData.freqs[rn,mlt.get_peak_idx(rn,iAtt, dataObj=inferenceData, smooth=True)]
+        inferenceData.opt_freqs[rn] = freqCube[iAtt, np.argmax(image[iAtt, :, 2])] #TODO: make this more robust
         inferenceData.scores[rn] = inferenceLabels[rn, iAtt]
         if rn>0:
             if(np.abs(inferenceData.opt_freqs[rn]-inferenceData.opt_freqs[rn-1])<100.e3):
                 doubleCounter += 1
-                print 'res_num', rn
-                print 'oldfreq:', inferenceData.opt_freqs[rn-1]
-                print 'curfreq:', inferenceData.opt_freqs[rn]
-                padResWidth = 20
-                if inferenceData.opt_freqs[rn] > inferenceData.opt_freqs[rn-1]:
-                    print 'isgreater'
-                    image = mlt.makeResImage(res_num = rn-1, center_loop=mlDict['center_loop'], phase_normalise=False, showFrames=False, dataObj=inferenceData, padFreq=inferenceData.opt_freqs[rn], mlDict=mlDict)
-                    inferenceImage = [image]
-                    inferenceLabels[rn-1,:] = sess.run(y_output, feed_dict={x_input: inferenceImage, keep_prob: 1})
-                    iAtt = np.argmax(inferenceLabels[rn-1,:])
-                    inferenceData.opt_attens[rn-1] = inferenceData.attens[iAtt]
-                    inferenceData.scores[rn-1] = inferenceLabels[rn-1, iAtt]
-                    
-                    padFreqInd = np.argmin(np.abs(inferenceData.freqs[rn-1]-inferenceData.opt_freqs[rn])) 
-                    print 'findatt: padFreqInd', padFreqInd
-                    if(padFreqInd>mlDict['xWidth']/2):
-                        padInd = padFreqInd - padResWidth
-                        cutType = 'top'
-                    else:
-                        padInd = padFreqInd + padResWidth
-                        cutType = 'bottom'
-                    inferenceData.opt_freqs[rn-1] = inferenceData.freqs[rn-1, mlt.get_peak_idx(rn-1, iAtt, dataObj=inferenceData, smooth=True, cutType=cutType, padInd=padInd)]
-                    print 'newfreq', inferenceData.opt_freqs[rn-1]
-                else:
-                    image = mlt.makeResImage(res_num = rn, center_loop=mlDict['center_loop'], phase_normalise=False, showFrames=False, dataObj=inferenceData, padFreq=inferenceData.opt_freqs[rn-1], mlDict=mlDict)
-                    inferenceImage = [image]
-                    inferenceLabels[rn,:] = sess.run(y_output, feed_dict={x_input: inferenceImage, keep_prob: 1})
-                    iAtt = np.argmax(inferenceLabels[rn,:])
-                    inferenceData.opt_attens[rn] = inferenceData.attens[iAtt]
-                    inferenceData.scores[rn] = inferenceLabels[rn, iAtt]
-                    padFreqInd = np.argmin(np.abs(inferenceData.freqs[rn]-inferenceData.opt_freqs[rn-1])) 
-                    print 'findatt: padFreqInd', padFreqInd
-                    if(padFreqInd>mlDict['xWidth']/2):
-                        padInd = padFreqInd - padResWidth
-                        cutType = 'top'
-                    else:
-                        padInd = padFreqInd + padResWidth
-                        cutType = 'bottom'
-                    inferenceData.opt_freqs[rn] = inferenceData.freqs[rn, mlt.get_peak_idx(rn, iAtt, dataObj=inferenceData, smooth=True, cutType=cutType, padInd=padInd)]
-                    print 'newfreq', inferenceData.opt_freqs[rn]
         del inferenceImage
         del image
     
-    print '\n', doubleCounter, 'doubles fixed'
+    print '\n', doubleCounter, 'doubles'
     
-    inferenceData.savePSTxtFile(flag = '_' + mlDict['modelName'],outputFN=outputFN, saveScores=saveScores)
+    if psDataFileName.split('.')[1]=='h5':
+        inferenceData.savePSTxtFile(flag = '_' + mlDict['modelName'],outputFN=None, saveScores=saveScores)
+    elif psDataFileName.split('.')[1]=='npz':
+        inferenceData.saveInferenceData(flag = '_' +mlDict['modelName'])
 
 if __name__=='__main__':
     parser = argparse.ArgumentParser(description='ML Inference Script')
     parser.add_argument('mlConfig', nargs=1, help='Machine learning model config file')
     parser.add_argument('inferenceData', nargs=1, help='HDF5 file containing powersweep data')
-    parser.add_argument('-o', '--output-dir', nargs=1, default=[None], help='Directory to save output file')
+    parser.add_argument('-m', '--metadata', nargs=1, default=[None], help='Directory to save output file')
+    #parser.add_argument('-o', '--output-dir', nargs=1, default=[None], help='Directory to save output file')
     parser.add_argument('-s', '--add-scores', action='store_true', help='Adds a score column to the output file')
+    parser.add_argument('-w', '--ws-atten', nargs=1, type=float, default=[None], help='Attenuation where peak finding code was run')
     args = parser.parse_args()
 
     mlDict = readDict()
     mlDict.readFromFile(args.mlConfig[0])
+    wsAtten = args.ws_atten[0]
+    metadataFn = args.metadata[0]
 
-    h5FileName=args.inferenceData[0]
-    if not os.path.isfile(h5FileName):
-        h5FileName = os.path.join(os.environ['MKID_DATA_DIR'], h5FileName)
-    
-    outputDir = args.output_dir[0]
-    
-    findPowers(mlDict, h5FileName, outputDir, args.add_scores)
+    psDataFileName=args.inferenceData[0]
+    if not os.path.isfile(psDataFileName):
+        psDataFileName = os.path.join(os.environ['MKID_DATA_DIR'], psDataFileName)
+     
+    findPowers(mlDict, psDataFileName, metadataFn, args.add_scores, wsAtten)
