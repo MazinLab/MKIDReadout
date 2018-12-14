@@ -2,6 +2,7 @@
 import numpy as np
 import scipy.signal as signal
 import matplotlib.pyplot as plt
+import mkidreadout.instruments as instrument
 from mkidcore.corelog import getLogger
 from mkidreadout.configuration.widesweep.wsdata import WSFitMLData
 import mkidreadout.configuration.sweepdata as sweepdata
@@ -23,11 +24,10 @@ class AutoPeakFinder(object):
             if winSize>len(self.template):
                 raise Exception('Existing template is too small')
 
-    def inferPeaks(self, inferenceFile, isDigital=True, sigThresh=0.5):
-        self.inferenceData = WSFitMLData(inferenceFile, freqStep=self.spacing/1.e6)
-        self.inferenceFile = inferenceFile
-        if isDigital:
-            self.inferenceData.stitchDigitalData()
+    def inferPeaks(self, inferenceFileAB, isDigital=True, sigThresh=0.5):
+        self.inferenceData = WSFitMLData(inferenceFileAB, freqStep=self.spacing/1.e6)
+        # if isDigital:
+        #     self.inferenceData.stitchDigitalData()
             #self.inferenceData.saveData(inferenceFile.split('.')[0] + '_stitched.txt')
             
         bpFilt = signal.firwin(1001, (0.7*0.005*12.5/7.6, 0.175), pass_zero=False, window=('chebwin', 100))
@@ -38,7 +38,6 @@ class AutoPeakFinder(object):
         #firFiltMagsDB2 = 20*np.log10(firFiltMags2)
         #firFiltMagsDB2 = np.convolve(firFiltMagsDB2, bpFiltHP, mode='same')
 
-        freqs = self.inferenceData.freqs
         thresh = sigThresh*np.std(firFiltMagsDB)
         print 'threshold', thresh
         peaks, _ = signal.find_peaks(-firFiltMagsDB, prominence=thresh, width=2, wlen=int(267/self.spacing))
@@ -47,6 +46,8 @@ class AutoPeakFinder(object):
         peaks = np.unique(peaks)
         peaks = np.sort(peaks)
         print 'sp signal found', len(peaks), 'peaks'
+
+        #freqs = self.inferenceData.freqs
         #plt.plot(freqs, filtMagsDB, label='cheby iir mags')
         #plt.plot(freqs, tempFiltMagsDB/np.sum(template), label='temp filt cheby iir mags')
         #plt.plot(freqs, firFiltMagsDB, label = 'fir cheby window')
@@ -91,42 +92,44 @@ class AutoPeakFinder(object):
             # print sum(foundMinima)
 
     def saveInferenceFile(self):
-        metadatafile = self.inferenceFile.rpartition('.')[0] + '_metadata.txt'
 
         try:
-            flNum = int(re.search('fl\d', self.inferenceFile, re.IGNORECASE).group()[-1])
+            flNum = int(re.search('fl\d', self.inferenceData.filenameList[0], re.IGNORECASE).group()[-1])
         except AttributeError:
-            getLogger(__name__).warning('Could not guess feedline from filename.')
-            flNum = 0
+            try:
+
+                ip = int(os.path.splitext(self.inferenceData.filenameList[0])[0][-3:])
+                flNum = int(instrument.MEC_IP_FL_MAP[ip][0])
+            except (KeyError, ValueError, IndexError):
+                getLogger(__name__).warning('Could not guess feedline from filename {}.')
+                flNum = 0
+
+        metadatafile = os.path.splitext(self.inferenceData.filenameList[0])[0] + '_metadata.txt'
 
         ws_good_inds = self.goodPeakIndices
+        ws_bad_inds = self.badPeakIndices
         freqs = np.append(self.inferenceData.freqs[ws_good_inds], self.inferenceData.freqs[ws_bad_inds])
         sort_inds = np.argsort(freqs)
         resIds = np.arange(freqs.size) + flNum * 10000
 
-        flag = np.fill(freqs.size, sweepdata.ISBAD)
-        flag[self.goodPeakIndices] = sweepdata.ISGOOD
+        flag = np.full(freqs.size, sweepdata.ISBAD)
+        flag[:ws_good_inds.size] = sweepdata.ISGOOD
         smd = sweepdata.SweepMetadata(resid=resIds, flag=flag[sort_inds], wsfreq=freqs[sort_inds], file=metadatafile)
         smd.save()
 
 
 if __name__ == '__main__':
-    mdd = os.environ['MKID_DATA_DIR']
-    
+
     parser = argparse.ArgumentParser(description='WS Auto Peak Finding')
-    parser.add_argument('wsDataFile', nargs=1, help='Raw Widesweep data')
+    parser.add_argument('wsDataFile', nargs=2, help='Raw Widesweep data')
     parser.add_argument('-d', '--digital', action='store_true', help='Perform preprocessing step for digital data')
     parser.add_argument('-s', '--sigma', dest='sigma', type=float, default=.5, help='Peak inference threshold')
     args = parser.parse_args()
 
-    wsFile = args.wsDataFile[0]
-    if not os.path.isfile(wsFile):
-        wsFile = os.path.join(mdd, wsFile)
-
     spacing = DIGITAL_SPACING if args.digital else ANALOG_SPACING
 
     wsFilt = AutoPeakFinder(spacing)
-    wsFilt.inferPeaks(wsFile, isDigital=args.digital, sigThresh=args.sigma)
+    wsFilt.inferPeaks(args.wsDataFile, isDigital=args.digital, sigThresh=args.sigma)
     wsFilt.findLocalMinima()
     wsFilt.markCollisions(resBWkHz=200)
     getLogger(__name__).info('Found {} good peaks.'.format(len(wsFilt.goodPeakIndices)))

@@ -597,7 +597,7 @@ class IQsweep:
 
         #TODO Neelay, alex I'm really not sure if these are right
         self.atten1s = mldata.freqSweep.atten
-        self.Qs= mldata.Qs[rnum]
+        self.Qs = mldata.Qs[rnum]
         self.Is = mldata.Is[rnum]
         self.fsteps = mldata.freqs[rnum].size
         self.resID = mldata.resIDs[rnum]

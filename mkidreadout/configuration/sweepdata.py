@@ -20,6 +20,7 @@ class FreqSweep(object):
         self.freqStep = self.freqs[0,1] - self.freqs[0,0]
 
     def oldwsformat(self, atten):
+        """Q vals are GARBAGE!!! use for magnitude only"""
         atten = np.abs(self.atten-atten).argmin()
         freqs = self.freqs.ravel()
         iVals = self.i[atten].ravel()
@@ -71,13 +72,13 @@ class SweepMetadata(object):
         self.ml_isbad_score = ml_isbad_score
 
         if atten is None:
-            self.atten = np.full_like(self.resIDs, np.nan)
+            self.atten = np.full_like(self.resIDs, np.nan, dtype=float)
         if mlfreq is None:
-            self.mlfreq = np.full_like(self.resIDs, np.nan)
+            self.mlfreq = np.full_like(self.resIDs, np.nan, dtype=float)
         if ml_isgood_score is None:
-            self.ml_isgood_score = np.full_like(self.resIDs, np.nan)
+            self.ml_isgood_score = np.full_like(self.resIDs, np.nan, dtype=float)
         if ml_isbad_score is None:
-            self.ml_isbad_score = np.full_like(self.resIDs, np.nan)
+            self.ml_isbad_score = np.full_like(self.resIDs, np.nan, dtype=float)
 
         if file and resid is None:
             self._load()
@@ -97,7 +98,11 @@ class SweepMetadata(object):
         return self.ml_isgood_score - self.ml_isbad_score
 
     def plot_scores(self):
+        f=plt.gcf()
+        plt.figure(20)
         plt.hist(self.netscore, np.linspace(-1, 1, 50), label='netscore')
+        plt.show(False)
+        plt.scf(f)
 
     def sort(self):
         s = np.argsort(self.wsfreq)
