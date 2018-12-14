@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 """ Implements a template filter to identify WS peaks """
 import numpy as np
 import scipy.signal as signal

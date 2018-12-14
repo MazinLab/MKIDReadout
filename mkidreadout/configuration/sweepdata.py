@@ -41,10 +41,10 @@ class FreqSweep(object):
     def oldwsformat(self, atten, amax=None):
         """Q vals are GARBAGE!!! use for magnitude only"""
         atten = np.abs(self.atten-atten).argmin()
-        attenlast = atten if amax is None else np.abs(self.atten - amax).argmin()
+        attenlast = atten+1 if amax is None else np.abs(self.atten - amax).argmin()
         attenlast = max(atten+1, attenlast)
 
-        freqs = self.freqs.ravel()
+        freqs = self.freqs.ravel().copy()
         iVals = self.i[atten:attenlast].squeeze()
         qVals = self.q[atten:attenlast].squeeze()
         if qVals.ndim > 2:
@@ -52,8 +52,8 @@ class FreqSweep(object):
             getLogger(__name__).info(msg.format(qVals.shape[0], self.atten[atten:attenlast]))
             iVals = iVals.mean(0)
             qVals = qVals.mean(0)
-        iVals = iVals.ravel()
-        qVals = qVals.ravel()
+        iVals = iVals.ravel().copy()
+        qVals = qVals.ravel().copy()
 
         mags = np.sqrt(iVals ** 2 + qVals ** 2)
 

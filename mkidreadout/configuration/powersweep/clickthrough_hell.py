@@ -202,7 +202,7 @@ class StartQt4(QMainWindow):
 
     def loadps(self):
         self.fsweepdata = psmldata.MLData(fsweep=self.openfile, mdata=self.metadata_out)
-        self.widesweep = self.fsweepdata.freqSweep.oldwsformat(65)
+        self.widesweep = self.fsweepdata.freqSweep.oldwsformat(60,66)
         getLogger(__name__).info('Loaded '+self.openfile)
 
         self.stop_ndx = self.fsweepdata.prioritize_and_cut(self.badcut, self.goodcut, plot=False)

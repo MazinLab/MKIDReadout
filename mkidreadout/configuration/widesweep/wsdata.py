@@ -4,7 +4,7 @@ from mkidreadout.configuration import sweepdata
 
 
 class WSFitMLData(object):
-    def __init__(self, filenames, freqStep):
+    def __init__(self, filenames, freqStep, attenrange=(60,66)):
 
         if isinstance(filenames, str):
             filenameList = [filenames]
@@ -20,7 +20,7 @@ class WSFitMLData(object):
         self.filenameList = np.asarray(filenameList)
 
         for fn in self.filenameList:
-            freqs, iVals, qVals = sweepdata.FreqSweep(fn).oldwsformat(63).T
+            freqs, iVals, qVals = sweepdata.FreqSweep(fn).oldwsformat(*attenrange).T
             self.boundaryInds = np.append(self.boundaryInds, len(self.freqs))
             self.freqs = np.append(self.freqs, freqs)
             self.iVals = np.append(self.iVals, iVals)
