@@ -17,6 +17,7 @@ import PSFitMLTools as mlt
 from mkidreadout.utils.readDict import readDict
 from mkidreadout.configuration.powersweep.psmldata import MLData
 
+FREQ_USE_MAG = False
 
 def findPowers(mlDict, mlBadDict, psDataFileName, metadataFn=None, saveScores=False, wsAtten=None):
     '''
@@ -90,7 +91,10 @@ def findPowers(mlDict, mlBadDict, psDataFileName, metadataFn=None, saveScores=Fa
         if FREQ_USE_MAG:
             inferenceData.opt_freqs[rn] = freqCube[iAtt, np.argmin(image[iAtt, :, 3])] #TODO: make this more robust
         else:
-            inferenceData.opt_freqs[rn] = freqCube[iAtt, np.argmax(np.correlate(image[iAtt, :, 2], np.ones(5), 'same'))] #TODO: make this more robust
+            #inferenceData.opt_freqs[rn] = freqCube[iAtt, np.argmax(np.correlate(image[iAtt, :, 2], np.ones(5), 'same'))] #TODO: make this more robust
+            use = np.abs(freqCube[iAtt] - inferenceData.initfreqs[rn])<250.e3
+            iqvIntegral = scipy.integrate.trapz(image[iAtt, use, 2]*freqCube[iAtt, use], dx=(freqCube[iAtt, 1] - freqCube[iAtt, 0]))
+            inferenceData.opt_freqs[rn] = iqvIntegral/scipy.integrate.trapz(image[iAtt, use, 2], dx=(freqCube[iAtt, 1] - freqCube[iAtt, 0]))
             
         assert inferenceData.freqs[rn,0] <= inferenceData.opt_freqs[rn] <= inferenceData.freqs[rn,-1], 'freq out of range, need to debug'
         inferenceData.scores[rn] = inferenceLabels[rn, iAtt]
