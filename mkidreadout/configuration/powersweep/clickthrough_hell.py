@@ -1,22 +1,5 @@
-# -----------------------------------
-#
-# Given IQ sweeps at various powers of resonators, this program chooses the best resonant frequency and power
-# ----------------------------------
-#
-# Chris S:
-#
-# select_atten was being called multiple times after clicking on a point in plot_1.
-# inside of select_atten, the call to self.ui.atten.setValue(self.atten) triggered
-# another call to select_atten since it is a slot.
-#
-# So, instead of calling select_atten directly, call self.ui.atten.setValue(round(attenuation)) when
-# you want to call select_atten, and do not call this setValue inside select_atten.
-#
-# Near line 68, set the frequency instead of the index to the frequency.
-#
-# Implemented a v2 gui that fits in a small screen.  
-# !/bin/env python
-
+#!/usr/bin/env python
+#clickthrough hell
 from __future__ import print_function
 from numpy import *
 import numpy
@@ -35,31 +18,34 @@ import argparse
 
 
 class StartQt4(QMainWindow):
-    def __init__(self, psfile, Ui, parent=None, startndx=0, goodcut=np.inf, badcut=-np.inf):
+    def __init__(self, psfile, psmetafile, Ui, parent=None, startndx=0, goodcut=np.inf, badcut=-np.inf):
         QWidget.__init__(self, parent)
+
         self.ui = Ui()
         self.ui.setupUi(self)
 
         self.atten = -1
         self.ui.atten.setValue(self.atten)
-        self.resnum = 0
+        self.resnum = startndx
         self.indx = 0
 
         self.badcut, self.goodcut = badcut, goodcut
 
-        QObject.connect(self.ui.open_browse, SIGNAL("clicked()"), self.open_dialog)
+        # QObject.connect(self.ui.open_browse, SIGNAL("clicked()"), self.open_dialog)
         QObject.connect(self.ui.atten, SIGNAL("valueChanged(int)"), self.setnewatten)
         QObject.connect(self.ui.savevalues, SIGNAL("clicked()"), self.savevalues)
         QObject.connect(self.ui.jumptores, SIGNAL("clicked()"), self.jumptores)
 
-       #config = mkidcore.config.load(cfgfile)
+        QShortcut(QKeySequence(Qt.Key_Space), self, self.savevalues)
 
-        sweepmetadata_FN = os.path.splitext(psfile)[0]+'_metadata.txt'
+        self.metadata = mdata = sweepdata.SweepMetadata(file=psmetafile)
+        self.metadata_out = sweepdata.SweepMetadata(file=psmetafile)
+        self.metadata_out.file = os.path.splitext(psmetafile)[0] + '_out.txt'
+        try:
+            self.metadata_out._load()
+        except IOError:
+            pass
 
-        self.metadata = mdata = sweepdata.SweepMetadata(file=sweepmetadata_FN)
-
-        self.metadata_out = sweepdata.SweepMetadata(file=sweepmetadata_FN)
-        self.metadata_out.file = os.path.splitext(sweepmetadata_FN)[0] + '_out.txt'
         self.ui.save_filename.setText(self.metadata_out.file)
 
         self.fsweepdata = None
@@ -81,11 +67,11 @@ class StartQt4(QMainWindow):
         self.ui.open_filename.setText(str(self.openfile))
         self.loadps()
 
-    def open_dialog(self):
-        self.openfile = QFileDialog.getOpenFileName(parent=None, caption=QString(str("Choose PS File")),
-                                                    directory=".", filter=QString(str("H5 (*.h5)")))
-        self.ui.open_filename.setText(str(self.openfile))
-        self.loadps()
+    # def open_dialog(self):
+    #     self.openfile = QFileDialog.getOpenFileName(parent=None, caption=QString(str("Choose PS File")),
+    #                                                 directory=".", filter=QString(str("H5 (*.h5)")))
+    #     self.ui.open_filename.setText(str(self.openfile))
+    #     self.loadps()
 
     def loadres(self):
         self.Res1 = IQsweep()
@@ -218,7 +204,7 @@ class StartQt4(QMainWindow):
         self.widesweep = self.fsweepdata.freqSweep.oldwsformat(65)
         getLogger(__name__).info('Loaded '+self.openfile)
 
-        self.stop_ndx = self.fsweepdata.prioritize_and_cut(self.badcut, self.goodcut)
+        self.stop_ndx = self.fsweepdata.prioritize_and_cut(self.badcut, self.goodcut, plot=True)
 
         self.mlResIDs = self.fsweepdata.resIDs
         self.mlFreqs = self.fsweepdata.opt_freqs
@@ -242,7 +228,7 @@ class StartQt4(QMainWindow):
 
     def select_freq(self, freq):
         self.resfreq = freq[0]
-        self.ui.frequency.setText(str(self.resfreq))
+        self.ui.frequency.setText(str(self.resfreq/1e9))
         self.ui.plot_2.canvas.ax.plot(self.Res1.freq[self.indx], self.res1_iq_vel[self.indx], 'bo')
         self.ui.plot_3.canvas.ax.plot(self.Res1.I[self.indx], self.Res1.Q[self.indx], 'bo')
         self.indx = min(where(self.Res1.freq >= self.resfreq)[0][0], self.Res1.freq.size - 1)
@@ -377,11 +363,10 @@ class StartQt4(QMainWindow):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='MKID Powersweep GUI')
-    parser.add_argument('-c', '--config', dest='config', type=str, help='The config file',
-                        default=resource_filename(__name__, 'psfit.yml'))
+    parser.add_argument('psweep', default='', type=str, help='A frequency sweep npz file to load')
+    parser.add_argument('metafile', default='', type=str, help='The matching metadata.txt file to load')
     parser.add_argument('--small', action='store_true', dest='smallui', default=False, help='Use small GUI')
     parser.add_argument('-i', dest='start_ndx', type=int, default=0, help='Starting resonator index')
-    parser.add_argument('-ps', dest='psweep', default='', type=str, help='A poweersweep h5 file to load')
     parser.add_argument('-gc', dest='gcut', default=1, type=float, help='Assume good if net ML score > (EXACT)')
     parser.add_argument('-bc', dest='bcut', default=-1, type=float, help='Assume bad if net ML score < (EXACT)')
     args = parser.parse_args()
@@ -393,7 +378,7 @@ if __name__ == "__main__":
     Ui = gui.Ui_MainWindow_Small if args.smallui else gui.Ui_MainWindow
 
     app = QApplication(sys.argv)
-    myapp = StartQt4(args.psweep, Ui, startndx=args.start_ndx,
+    myapp = StartQt4(args.psweep, args.metafile, Ui, startndx=args.start_ndx,
                      goodcut=args.gcut, badcut=args.bcut)
     myapp.show()
     app.exec_()

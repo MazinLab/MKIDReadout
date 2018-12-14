@@ -96,18 +96,23 @@ class SweepMetadata(object):
 
     @property
     def goodmlfreq(self):
-        return self.mlfreq[self.flag==ISGOOD]
+        return self.mlfreq[self.flag == ISGOOD]
 
     @property
     def netscore(self):
         return self.ml_isgood_score - self.ml_isbad_score
 
     def plot_scores(self):
-        f=plt.gcf()
         plt.figure(20)
-        plt.hist(self.netscore, np.linspace(-1, 1, 50), label='netscore')
+        plt.subplot(2,1,1)
+        plt.hist(self.netscore, np.linspace(-1, 1, 100), label='netscore')
+        plt.xlabel('goodscore-badscore')
+        plt.subplot(2,1,2)
+        plt.hist(self.ml_isbad_score, np.linspace(0, 1, 100), label='badscore')
+        plt.hist(self.ml_isgood_score, np.linspace(0, 1, 100), alpha=.5, label='goodscore')
+        plt.xlabel('ml scores')
+        plt.legend()
         plt.show(False)
-        plt.scf(f)
 
     def sort(self):
         s = np.argsort(self.wsfreq)
@@ -145,12 +150,6 @@ class SweepMetadata(object):
         d = np.loadtxt(self.file.format(feedline=self.feedline), unpack=True)
         self.resIDs, self.flag, self.wsfreq, self.mlfreq, self.atten, self.ml_isgood_score, self.ml_isbad_score = d
         self._settypes()
-
-    # def savetemplarfile(self, file):
-    #     """ resid  freq  atten"""
-    #     u = self.flag == ISGOOD
-    #     #see MKIDReadout/mkidreadout/configuration/findLOsAndMakeFreqLists.py and make support this file
-    #     np.savetxt(file, np.array([self.resIDs[u], self.mlfreq[u], self.atten[u]]).T, fmt="%8d %16.7f %5.0f")
 
 
 def loadold(allfile, goodfile, outfile='digWS_FL{feedline}_metadata.txt'):
