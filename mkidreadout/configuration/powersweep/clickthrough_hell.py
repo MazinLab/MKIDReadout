@@ -166,7 +166,7 @@ class StartQt4(QMainWindow):
             dratio = np.diff(self.res1_max_ratio) / np.diff(self.Res1.atten1s)
             nratiosp1 = np.where(dratio >= np.median(dratio))[0]
             nratiosp1 = nratiosp1[nratiosp1 > self.res1_max_vels.argmax()][0]
-            guesses['dratio'] = self.Res1.atten1s[:-1][nratiosp1]
+            guesses['dratio'] = self.Res1.atten1s[:-1][nratiosp1] + 2 #added +2 fudge factor b/c saturating on average
         except IndexError:
             guesses['dratio'] = None
 
@@ -423,6 +423,7 @@ class StartQt4(QMainWindow):
         self.freqList[self.resnum] = self.resfreq
         self.attenList[self.resnum] = self.atten
         self.metadata_out.atten[self.resID == self.metadata_out.resIDs] = self.atten
+        self.metadata_out.mlfreq[self.resID == self.metadata_out.resIDs] = self.resfreq
         self.metadata_out.save()
 
         msg = " ....... Saved to file:  resnum={} resID={} resfreq={} atten={}"
