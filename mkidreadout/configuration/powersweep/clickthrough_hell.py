@@ -19,7 +19,7 @@ import scipy.integrate
 
 
 class StartQt4(QMainWindow):
-    def __init__(self, psfile, psmetafile, Ui, parent=None, startndx=0, goodcut=np.inf, badcut=-np.inf):
+    def __init__(self, psfile, psmetafile, Ui, parent=None, startndx=0, goodcut=np.inf, badcut=-np.inf, useml=False):
         QWidget.__init__(self, parent)
 
         self.ui = Ui()
@@ -31,6 +31,7 @@ class StartQt4(QMainWindow):
         self.indx = 0
 
         self.badcut, self.goodcut = badcut, goodcut
+        self.useml = useml
 
         QObject.connect(self.ui.atten, SIGNAL("valueChanged(int)"), self.setnewatten)
         QObject.connect(self.ui.savevalues, SIGNAL("clicked()"), self.savevalues)
@@ -149,7 +150,10 @@ class StartQt4(QMainWindow):
         self.res1_max2_vels /= numpy.max(self.res1_max2_vels)
         # self.res1_relative_max_vels /= numpy.max(self.res1_relative_max_vels)
 
-        self.guess_atten()
+        if self.useml:
+            self.guess_atten(('ML',))
+        else:
+            self.guess_atten()
 
     def guess_atten(self, method=('dratio', 'ROT', 'mid', 'ML')):
 
@@ -437,6 +441,7 @@ if __name__ == "__main__":
     parser.add_argument('psweep', default='', type=str, help='A frequency sweep npz file to load')
     parser.add_argument('metafile', default='', type=str, help='The matching metadata.txt file to load')
     parser.add_argument('--small', action='store_true', dest='smallui', default=False, help='Use small GUI')
+    parser.add_argument('--use-ml', action='store_true', dest='useml', default=False, help='Use ML as initial guess')
     parser.add_argument('-i', dest='start_ndx', type=int, default=0, help='Starting resonator index')
     parser.add_argument('-gc', dest='gcut', default=1, type=float, help='Assume good if net ML score > (EXACT)')
     parser.add_argument('-bc', dest='bcut', default=-1, type=float, help='Assume bad if net ML score < (EXACT)')
@@ -450,7 +455,7 @@ if __name__ == "__main__":
 
     app = QApplication(sys.argv)
     myapp = StartQt4(args.psweep, args.metafile, Ui, startndx=args.start_ndx,
-                     goodcut=args.gcut, badcut=args.bcut)
+                     goodcut=args.gcut, badcut=args.bcut, useml=args.useml)
     myapp.show()
     app.exec_()
 
