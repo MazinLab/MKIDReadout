@@ -47,7 +47,7 @@ class MLData(object):
             self.freqs[i] = self.freqSweep.freqs[freqWinInd, :]
             self.Is[i] = self.freqSweep.i[:, freqWinInd, :]
             self.Qs[i] = self.freqSweep.q[:, freqWinInd, :]
-            self.iq_vels[i] = np.diff(np.sqrt(self.Is[i]**2 + self.Qs[i]**2))
+            self.iq_vels[i] = np.sqrt(np.diff(self.Is[i])**2 + np.diff(self.Qs[i])**2)
 
     def saveInferenceData(self, flag=''):
         self.metadata.atten[self.mdResMask] = self.opt_attens
