@@ -20,11 +20,6 @@ class FreqSweep(object):
         self.i = data['I']  # 3d [nAttens, nTones, nLOsteps] ADC units
         self.q = data['Q']  # 3d [nAttens, nTones, nLOsteps] ADC units
 
-        if '222' in self.file or'233' in self.file or '236' in self.file:
-            self.atten = self.atten[::2]
-            self.i = self.i[::2, :, :]
-            self.q = self.q[::2, :, :]
-
         if flip:
             self.atten = self.atten[::-1]
             self.i = self.i[::-1, :, :]
