@@ -199,29 +199,17 @@ class StartQt4(QMainWindow):
         self.select_atten(guess)
         self.ui.atten.setValue(round(guess))
 
-    def guess_res_freq(self):
-        use = np.abs(self.Res1.freq[:-1] - self.fsweepdata.initfreqs[self.resnum]) < .25e6
-        com_guess = (scipy.integrate.trapz(self.res1_iq_vel[use] * self.Res1.freq[:-1][use])/
-                     scipy.integrate.trapz(self.res1_iq_vel[use]))
-
-        self.select_freq(com_guess)
-
-        if np.any(self.resID == self.mlResIDs):
+    def guess_res_freq(self): 
+        if self.useml and np.any(self.resID == self.mlResIDs):
             resInd = np.where(self.resID == self.mlResIDs)[0]
             self.select_freq(self.mlFreqs[resInd])
         else:
-            guess_idx = argmax(self.res1_iq_vels[self.iAtten])
-            # The longest edge is identified, choose which vertex of the edge
-            # is the resonant frequency by checking the neighboring edges
-            # len(IQ_vels[ch]) == len(f_span)-1, so guess_idx is the index
-            # of the lower frequency vertex of the longest edge
-            if guess_idx - 1 < 0 or self.res1_iq_vel[guess_idx - 1] < self.res1_iq_vel[guess_idx + 1]:
-                iNewResFreq = guess_idx
-            else:
-                iNewResFreq = guess_idx - 1
-            guess = self.Res1.freq[iNewResFreq]
-            getLogger(__name__).info('Guessing resonant freq at {} for self.iAtten={}'.format(guess, self.iAtten))
-            self.select_freq(guess)
+            use = np.abs(self.Res1.freq[:-1] - self.fsweepdata.initfreqs[self.resnum]) < .25e6
+            com_guess = (scipy.integrate.trapz(self.res1_iq_vel[use] * self.Res1.freq[:-1][use])/
+                         scipy.integrate.trapz(self.res1_iq_vel[use]))
+
+            self.select_freq(com_guess)
+            getLogger(__name__).info('Guessing resonant freq at {} for self.iAtten={}'.format(com_guess, self.iAtten))
 
     def loadps(self):
         self.fsweepdata = psmldata.MLData(fsweep=self.openfile, mdata=self.metadata_out)
