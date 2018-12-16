@@ -4,7 +4,7 @@ from mkidreadout.configuration import sweepdata
 
 
 class WSFitMLData(object):
-    def __init__(self, filenames, freqStep, attenrange=(60,66)):
+    def __init__(self, filenames, attenrange=(60,66)):
 
         if isinstance(filenames, str):
             filenameList = [filenames]
@@ -15,7 +15,6 @@ class WSFitMLData(object):
         self.iVals = np.empty(0)
         self.qVals = np.empty(0)
         self.iqVels = np.empty(0)
-        self.freqStep = freqStep
         self.boundaryInds = np.empty(0)
         self.filenameList = np.asarray(filenameList)
 
@@ -32,6 +31,8 @@ class WSFitMLData(object):
         self.iVals =self.iVals[s]
         self.qVals =self.qVals[s]
         self.iqVels = np.sqrt(np.diff(iVals) ** 2 + np.diff(qVals) ** 2)
+
+        self.freqStep = np.diff(self.freqs)[0]
 
         self.boundaryInds = self.boundaryInds[1:]
         self.mags = np.sqrt(self.iVals**2+self.qVals**2)
@@ -52,11 +53,6 @@ class WSFitMLData(object):
             else:
                 self.allPeakLocs = np.append(self.allPeakLocs, peakLocs)
     
-    def filterMags(self, mags, order=4, rs=40, wn=0.005):
-        wnf = wn*self.freqStep/12.5e-6
-        b, a = signal.cheby2(order, rs, wn, btype='high', analog=False)
-        return signal.filtfilt(b, a, mags)
-
     def stitchDigitalData(self):
         deltas = np.diff(self.freqs)
         boundaryInds = np.where(deltas<0)[0]

@@ -10,28 +10,18 @@ import mkidreadout.configuration.sweepdata as sweepdata
 import os
 import argparse
 import re
-ANALOG_SPACING = 12.5
-DIGITAL_SPACING = 7.629
-
 
 class AutoPeakFinder(object):
-    def __init__(self, spacing):
-        self.spacing = spacing  # kHz
-        self.winSize = int(500/self.spacing)
+    def __init__(self, inferenceFileAB, isDigital=True,):
+        self.inferenceData = WSFitMLData(inferenceFileAB)
+        self.spacing = self.inferenceData.freqStep/1.e3 #convert to kHz
 
-    def setWinSize(self, winSize):
-        self.winSize = winSize
-        if not self.template is None:
-            if winSize>len(self.template):
-                raise Exception('Existing template is too small')
-
-    def inferPeaks(self, inferenceFileAB, isDigital=True, sigThresh=0.5):
-        self.inferenceData = WSFitMLData(inferenceFileAB, freqStep=self.spacing/1.e6)
+    def inferPeaks(self,  sigThresh=0.5):
         # if isDigital:
         #     self.inferenceData.stitchDigitalData()
             #self.inferenceData.saveData(inferenceFile.split('.')[0] + '_stitched.txt')
             
-        bpFilt = signal.firwin(1001, (0.7*0.005*12.5/7.6, 0.175), pass_zero=False, window=('chebwin', 100))
+        bpFilt = signal.firwin(1001, (0.7*0.005*12.5/7.6*self.spacing/7.63, 0.175*self.spacing/7.63), pass_zero=False, window=('chebwin', 100))
         firFiltMagsDB = np.convolve(self.inferenceData.magsdb, bpFilt, mode='same')
         #bpFiltLP = signal.firwin(1001, 0.175, pass_zero=True, window=('chebwin', 100))
         #bpFiltHP = signal.firwin(1001, 0.75*0.005*12.5/7.6, pass_zero=False, window=('chebwin', 100))
@@ -49,13 +39,11 @@ class AutoPeakFinder(object):
         print 'sp signal found', len(peaks), 'peaks'
 
         #freqs = self.inferenceData.freqs
-        #plt.plot(freqs, filtMagsDB, label='cheby iir mags')
-        #plt.plot(freqs, tempFiltMagsDB/np.sum(template), label='temp filt cheby iir mags')
         #plt.plot(freqs, firFiltMagsDB, label = 'fir cheby window')
-        #plt.plot(freqs, self.inferenceData.magsdb - np.mean(self.inferenceData.magsdb), label='raw data')
-        ##plt.plot(freqs, firFiltMagsDB2, label = 'fir cheby window 2')
+        ##plt.plot(freqs, self.inferenceData.magsdb - np.mean(self.inferenceData.magsdb), label='raw data')
         #plt.plot(freqs[peaks], firFiltMagsDB[peaks], '.', label = 'signal peaks')
         #plt.legend()
+        #plt.show()
 
         self.peakIndices = peaks
 
@@ -92,6 +80,8 @@ class AutoPeakFinder(object):
             self.peakIndices[peakValsLeftGreaterInd] -= 1
             # print sum(foundMinima)
 
+        self.peakIndices = np.unique(self.peakIndices)
+
     def saveInferenceFile(self):
 
         try:
@@ -127,10 +117,8 @@ if __name__ == '__main__':
     parser.add_argument('-s', '--sigma', dest='sigma', type=float, default=.5, help='Peak inference threshold')
     args = parser.parse_args()
 
-    spacing = DIGITAL_SPACING if args.digital else ANALOG_SPACING
-
-    wsFilt = AutoPeakFinder(spacing)
-    wsFilt.inferPeaks(args.wsDataFile, isDigital=args.digital, sigThresh=args.sigma)
+    wsFilt = AutoPeakFinder(args.wsDataFile, args.digital)
+    wsFilt.inferPeaks(sigThresh=args.sigma)
     wsFilt.findLocalMinima()
     wsFilt.markCollisions(resBWkHz=200)
     getLogger(__name__).info('Found {} good peaks.'.format(len(wsFilt.goodPeakIndices)))
