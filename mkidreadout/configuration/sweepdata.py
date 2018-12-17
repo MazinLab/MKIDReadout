@@ -1,4 +1,6 @@
 import numpy as np
+import re
+import os
 import matplotlib.pyplot as plt
 from mkidcore.corelog import getLogger
 
@@ -162,6 +164,28 @@ class SweepMetadata(object):
 
         np.savetxt(sf, self.toarray().T, fmt="%8d %1u %16.7f %16.7f %5.1f %6.4f %6.4f",
                    header='feedline={}\nrID\trFlag\twsFreq\tmlFreq\tatten\tmlGood\tmlBad'.format(self.feedline))
+
+    def save_templar_freqfiles(self, lo):
+        try:
+            roachstr = re.search('\D(\d{3})\D', self.file).group()
+        except AttributeError:
+            roachstr = '_'
+
+        fileloc = os.path.dirname(self.file)
+        if lo<6.e9:
+            abflag = 'a'
+        else:
+            abflag = 'b'
+
+        aFile = os.path.join(fileloc, 'ps_freqs' + roachstr + 'FL' + str(self.feedline) + abflag + '.txt') 
+
+        aResMask = (self.flag == ISGOOD) & (~np.isnan(self.mlfreq)) & (np.abs(self.mlfreq - lo)<1.e9)
+       
+        resIDsA = self.resIDs[aResMask]
+        freqsA = self.mlfreq[aResMask]
+        attensA = self.atten[aResMask]
+
+        np.savetxt(aFile, np.transpose([resIDsA, freqsA, attensA]), fmt='%4i %10.9e %.2f')
 
     def _settypes(self):
         self.flag = self.flag.astype(int)
