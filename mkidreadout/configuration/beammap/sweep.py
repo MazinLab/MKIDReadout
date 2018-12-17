@@ -29,7 +29,7 @@ import matplotlib
 
 matplotlib.use('Qt4Agg')
 import matplotlib.pyplot as plt
-from mkidcore.config import importoldconfig, ConfigThing, _consolidateconfig
+from mkidcore.config import config, importoldconfig, ConfigThing, _consolidateconfig
 
 from mkidcore.corelog import setup_logging, getLogger
 import argparse
