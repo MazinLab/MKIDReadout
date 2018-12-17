@@ -1,7 +1,7 @@
 """
 A replacement for WideAna.pro for those who prefer python to idl.
 
-Usage:  python WideAna.py test/ucsb_100mK_24db_1.txt 
+Usage: python WideAna.py filename feedline#
 
 Read the input file.
 
@@ -35,6 +35,7 @@ Matt Strader
 Chris Stoughton
 Rupert Dodkins
 """
+#!/bin/env python
 from PyQt4.QtCore import *
 from PyQt4.QtGui import *
 from PyQt4 import QtGui
@@ -52,10 +53,12 @@ from scipy.signal import filter_design as fd
 from scipy.interpolate import UnivariateSpline
 #import Peaks as Peaks
 from WideSweepFile import WideSweepFile
-# from WSFitML import find_peaks
 
 class WideAna(QMainWindow):
     def __init__(self, parent=None,plotFunc=None,title='',separateProcess=False, image=None,showMe=True, initialFile=None, flNum=None):
+
+        self.coll_thresh=1.E-4     #100 kHz
+        
         self.parent = parent
         if self.parent == None:
             self.app = QApplication([])
@@ -66,11 +69,7 @@ class WideAna(QMainWindow):
         self.baseFile = ('.').join(initialFile.split('.')[:-1])
         self.goodFile = self.baseFile+"-freqs-good.txt"
         self.allFile = self.baseFile+"-freqs-all.txt"
-        if os.path.exists(self.goodFile):
-            self.goodFile = self.goodFile+time.strftime("-%Y-%m-%d-%H-%M-%S")
-            #shutil.copy(self.goodFile,self.goodFile+time.strftime("-%Y-%m-%d-%H-%M-%S"))
-        if os.path.exists(self.allFile):
-            self.allFile = self.allFile+time.strftime("-%Y-%m-%d-%H-%M-%S")
+
         self.pdfFile = self.baseFile+"-good.pdf"
         self.fitLineEdits = {}
         self.flNum = flNum
@@ -87,19 +86,55 @@ class WideAna(QMainWindow):
 
         self.load_file(initialFile)
         # make the PDF file
+        if os.path.exists(self.goodFile) and os.path.exists(self.allFile):
+#            self.goodFile = self.goodFile+time.strftime("-%Y-%m-%d-%H-%M-%S")
+            #shutil.copy(self.goodFile,self.goodFile+time.strftime("-%Y-%m-%d-%H-%M-%S"))            
+            self.load_old_data(self.goodFile,self.allFile)
+#        if os.path.exists(self.allFile):
+#            self.allFile = self.allFile+time.strftime("-%Y-%m-%d-%H-%M-%S")
 
         if not os.path.exists(self.pdfFile):
             print "Create overview PDF file:",self.pdfFile
             self.wsf.createPdf(self.pdfFile)
         else:
             print "Overview PDF file already on disk:",self.pdfFile
+        self.seggrouper(self.wsf.x)
         # plot the first segment
         self.deltaXDisplay = 0.100 # display width in GHz
         self.zoomFactor = 2.0
         self.segment = 0
         self.calcXminXmax()
         self.plotSegment()
+        self.ylim = self.axes.get_ylim()
         print "Ready to add and delete peaks."
+        
+        
+    def load_old_data(self, goodFile, allFile):
+        print '\nWARNING: loading old data from \n'+str(goodFile)+'\nand\n'+str(allFile)
+        print '\nThese files WILL BE MODIFIED! Exit the program if you want to abort.\n'
+        old_good_data = np.loadtxt(goodFile)
+        
+        if len(old_good_data)==0:
+            pass
+        else:
+            old_good_ind = old_good_data[:,1].astype(int)   #get the old indexes
+            self.goodPeakMask[old_good_ind] = True
+        
+        old_all_data = np.loadtxt(allFile)
+        if len(old_all_data)==0:
+            return
+        else:
+            old_all_ind = old_all_data[:,1].astype(int)
+            allMask = np.zeros(len(self.wsf.x),dtype=np.bool)
+            allMask[old_all_ind] = True
+            self.badPeakMask = np.logical_xor(self.goodPeakMask,allMask)
+        
+
+        
+        
+        
+        
+        
 
     def draw(self):
         self.fig.canvas.draw()
@@ -127,7 +162,7 @@ class WideAna(QMainWindow):
     def on_key_or_button(self, event, pressed):
         xdata = getattr(event, 'xdata', None)
         if xdata is not None:
-            ind = np.searchsorted(self.wsf.x, xdata)
+            ind = np.argmin(np.abs(self.wsf.x-xdata))
             xFound = self.wsf.x[ind]
             indPk = np.searchsorted(self.wsf.pk, ind)
             xPkFound0 = self.wsf.x[self.wsf.pk[indPk-1]]
@@ -139,13 +174,14 @@ class WideAna(QMainWindow):
             bestWsfIndex = self.wsf.pk[bestIndex]
             bestX = self.wsf.x[bestWsfIndex]
             if pressed == "d":
-                #if self.peakMask[bestWsfIndex]:
-                #self.peakMask[bestWsfIndex] = False
-                self.goodPeakMask[bestWsfIndex-7:bestWsfIndex+7] = False # larger area of indicies to pinpoint false resonator location
-                self.badPeakMask[bestWsfIndex-7:bestWsfIndex+7] = False # larger area of indicies to pinpoint false resonator location
+                #self.goodPeakMask[bestWsfIndex-7:bestWsfIndex+7] = False # larger area of indicies to pinpoint false resonator location
+                #self.badPeakMask[bestWsfIndex-7:bestWsfIndex+7] = False # larger area of indicies to pinpoint false resonator location
+                self.goodPeakMask[np.where(np.logical_and(self.wsf.x>(xFound-self.coll_thresh), self.wsf.x<(xFound+self.coll_thresh)))]=False
+                self.badPeakMask[np.where(np.logical_and(self.wsf.x>(xFound-self.coll_thresh), self.wsf.x<(xFound+self.coll_thresh)))]=False
                 self.setCountLabel()
                 self.replot()
                 self.writeToGoodFile()
+                self.writeToAllFile()
 
             if pressed == "a":
                 if not self.goodPeakMask[bestWsfIndex]:
@@ -167,9 +203,11 @@ class WideAna(QMainWindow):
 
     def replot(self):
             xlim = self.axes.set_xlim()
+            self.ylim = self.axes.get_ylim()
             self.xMin=xlim[0]
             self.xMax=xlim[1]
             self.plotSegment()
+            
 
     def create_main_frame(self,title):
         self.main_frame = QWidget()
@@ -280,16 +318,36 @@ class WideAna(QMainWindow):
             print 'loading peak location predictions from', self.baseFile+"-ml-good.txt"
             peaks = np.loadtxt(self.baseFile+"-ml-good.txt")
             badPeaks = np.loadtxt(self.baseFile+"-ml-bad.txt")
-            peaks = map(int,peaks)
-            badPeaks = map(int, badPeaks)
+            peaks = np.array(map(int,peaks), dtype=int)
+            badPeaks = np.atleast_1d(badPeaks)
+            badPeaks = np.array(map(int, badPeaks), dtype=int)
             self.badPeakMask[badPeaks] = True
         else:
             peaks = self.wsf.peaks
         
+
+
+
+        #remove collisions
+        #freqsAtPeaks = self.wsf.x[peaks]
+        #args = np.argsort(freqsAtPeaks)
+        #peaks=peaks[args]
+        #freqsAtPeaks=freqsAtPeaks[args]
+        #diffs = freqsAtPeaks[1:] - freqsAtPeaks[:-1]
+        #diffs = np.append(diffs, [peaks[-1]])
+        #peaks=np.delete(peaks, np.where(diffs<2.E-9))    #remove duplicate peaks
+        #freqsAtPeaks=np.delete(freqsAtPeaks, np.where(diffs<2.E-9))    #remove duplicate peaks
+        #
+        #diffs = freqsAtPeaks[1:] - freqsAtPeaks[:-1]
+        #diffs = np.append(diffs, [peaks[-1]])
+        #colls = peaks[np.where(diffs<=self.coll_thresh)]
+
+        '''
         #coll_thresh = self.wsf.x[0]
         dist = abs(np.roll(peaks, -1) - peaks)
         #colls = np.delete(peaks,np.where(dist>=9))
 
+        
         colls=[]
         diff, coll_thresh = 0, 0
         while diff <= 5e-4:
@@ -304,43 +362,81 @@ class WideAna(QMainWindow):
                     #print 'for ', self.wsf.x[peaks[i]], 'chosing the one before'
                 else:
                     colls.append(peaks[i])
-                    #print 'for ', self.wsf.x[peaks[i]], 'chosing the this one'
-        print colls
-        if colls != []:
-            #colls=np.array(map(int,colls))
-            self.collMask[colls] = True # update: so unidentified peaks can be identified as unusable
-            
-        peaks = np.delete(peaks,colls) #remove collisions (peaks < 0.5MHz apart = < 9 steps apart)
+                    #print 'for ', self.wsf.x[peaks[i]], 'chosing this one'
+        '''
+
+        #print colls
+        #if colls != []:
+        #    #colls=np.array(map(int,colls))
+        #    self.collMask[colls] = True # update: so unidentified peaks can be identified as unusable
+        #    
+        #peaks = np.delete(peaks,colls) #remove collisions (peaks < 0.5MHz apart = < 9 steps apart)
         #peaks = np.delete(peaks,np.where(dist<9)) #remove collisions (peaks < 0.5MHz apart = < 9 steps apart)
-        self.goodPeakMask[peaks] = True
+        self.goodPeakMask[peaks] = True #set to false to disable automatic peak finding 
+        #self.badPeakMask[colls] = True #set to false to disable automatic peak finding 
+        #self.goodPeakMask[colls] = False
 
         self.setCountLabel()
-        self.writeToGoodFile()
+#        self.writeToGoodFile()
+#        self.writeToAllFile()
 
     def setCountLabel(self):
         self.countLabel.setText("Good peaks = %d, All peaks = %d" % (self.goodPeakMask.sum(), self.goodPeakMask.sum() + self.badPeakMask.sum()))
 
     def writeToGoodFile(self):
-        gf = open(self.goodFile,'wb')
-        id = (self.flNum-1)*2000
-        for index in range(len(self.goodPeakMask)):
-            if self.goodPeakMask[index]:
-                line = "%8d %12d %16.7f\n"%(id,index,self.wsf.x[index])
-                gf.write(line)
-                id += 1
-            elif self.badPeakMask[index]:
-                id += 1
+        #gf = open(self.goodFile,'wb')
+        ##id = (self.flNum-1)*2000
+        #resId = self.flNum*10000
+        #for index in range(len(self.goodPeakMask)):
+        #    if self.goodPeakMask[index]:
+        #        line = "%8d %12d %16.7f\n"%(resId,index,self.wsf.x[index])
+        #        gf.write(line)
+        #        resId += 1
+        #    elif self.badPeakMask[index]:
+        #        resId += 1
+        #gf.close()
+
+
+        # wsf.x is the frequency list from the widesweep data file
+
+
+        ws_good_inds = np.where(self.goodPeakMask>0)
+        ws_bad_inds = np.where(self.badPeakMask>0)
+        freqs = np.append(self.wsf.x[ws_good_inds], self.wsf.x[ws_bad_inds])
+        sort_inds = np.argsort(freqs)
+        resIds = np.asarray(range(len(freqs)))+self.flNum*10000
+
+        d=np.diff(self.wsf.x[ws_good_inds])
+        if np.any(d<0):
+            print "Warning, Some freqs were out of order, check the output file to make sure they were handled correctly"
+        
+
+        data = np.asarray([resIds[np.where(sort_inds<len(ws_good_inds[0]))], \
+                ws_good_inds[0][sort_inds[np.where(sort_inds<len(ws_good_inds[0]))]], \
+                freqs[sort_inds][np.where(sort_inds<len(ws_good_inds[0]))]]).T
+        gf=file(self.goodFile,'wb') #Can open file in append mode this way. But doesn't matter here...
+        np.savetxt(gf, data,fmt="%8d %12d %16.7f")
         gf.close()
 
     def writeToAllFile(self):
         af = open(self.allFile,'wb')
-        id = (self.flNum-1)*2000
-        for index in range(len(self.goodPeakMask)):
-            if self.goodPeakMask[index] or self.badPeakMask[index]:
-                line = "%8d %12d %16.7f\n"%(id,index,self.wsf.x[index])
-                af.write(line)
-                id += 1
-        af.close()
+        ##id = (self.flNum-1)*2000
+        #resId = self.flNum*10000
+        #print len(np.where(self.goodPeakMask==1)[0]), len(np.where(self.badPeakMask==1)[0])
+        #for index in range(len(self.goodPeakMask)):
+        #    if self.goodPeakMask[index] or self.badPeakMask[index]:
+        #        line = "%8d %12d %16.7f\n"%(resId,index,self.wsf.x[index])
+        #        af.write(line)
+        #        resId += 1
+        #af.close()
+        
+        ws_good_inds = np.where(self.goodPeakMask>0)
+        ws_bad_inds = np.where(self.badPeakMask>0)
+        freqs = np.append(self.wsf.x[ws_good_inds], self.wsf.x[ws_bad_inds])
+        sort_inds = np.argsort(freqs)
+        resIds = np.asarray(range(len(freqs)))+self.flNum*10000
+        data = np.asarray([resIds, np.append(ws_good_inds[0], ws_bad_inds[0])[sort_inds], freqs[sort_inds]])
+        np.savetxt(af, data.T,fmt='%8d %12d %16.7f')
 
     # deal with zooming and plotting one segment
     def zoom(self,zoom):
@@ -351,6 +447,7 @@ class WideAna(QMainWindow):
     def changeSegmentValue(self,value):
         self.segment = value
         self.calcXminXmax()
+        self.ylim = self.axes.get_ylim()
         self.plotSegment()
 
     def segmentDecrement(self, value, amount=0.9):
@@ -376,6 +473,19 @@ class WideAna(QMainWindow):
         self.xMin = xMiddle-dx/2.0
         self.xMax = xMiddle+dx/2.0
 
+    def seggrouper(self,x):
+        groupedgemask=np.diff(x)<=0
+        groupedgemask[0] = 1 #want first group to start at 0
+        gstarts = np.where(groupedgemask)[0]
+        gstarts[1:] += 1
+        gends=gstarts[1:]
+        gends = np.append(gends, len(x))
+        self.slices = map(lambda x: slice(*x), zip(gstarts,gends))
+        #for s in slices:
+        #    yield x[s],y[s]
+        #for start, end in zip(gstarts, gends):
+        #    yield x[start:end], y[start:end]
+
     def plotSegment(self):
         ydText = self.yDisplay.text()
         if self.wsf != None:
@@ -388,27 +498,38 @@ class WideAna(QMainWindow):
             stride = self.wsf.data1.shape[0]/self.segmentMax
             # plot all values and then set xmin and xmax to show this segment
             self.axes.clear()
-            self.axes.plot(self.wsf.x, yPlot, label=yName)
+            for i,s in enumerate(self.slices):
+                if self.xMin>self.wsf.x[s.stop-1] or self.xMax<self.wsf.x[s.start]:
+                   continue
+                x = self.wsf.x[s]
+                y = yPlot[s]
+                use=(x>self.xMin)&(x<self.xMax)
+                self.axes.plot(x[use],y[use],marker='.',markersize=.7,color='C{}'.format(i % 7))
+            #self.axes.plot(self.wsf.x, yPlot, label=yName)
 
             for x in self.wsf.x[self.goodPeakMask]:
                 if x > self.xMin and x < self.xMax:
                     self.axes.axvline(x=x,color='g')
-                    self.axes.axvline(x=x+0.00010,color='g',linestyle='-.',linewidth=0.5)
-                    self.axes.axvline(x=x-0.00010,color='g',linestyle='-.',linewidth=0.5)
-            for c in self.wsf.x[self.collMask]:
-                if c > self.xMin and c < self.xMax:
-                    self.axes.axvline(x=c,color='g')
+                    self.axes.axvline(x=x+self.coll_thresh,color='g',linestyle='-.',linewidth=0.5)
+                    self.axes.axvline(x=x-self.coll_thresh,color='g',linestyle='-.',linewidth=0.5)
+            #for c in self.wsf.x[self.collMask]:
+            #    if c > self.xMin and c < self.xMax:
+            #        self.axes.axvline(x=c,color='g')
 
             for x in self.wsf.x[self.badPeakMask]:
                 if x > self.xMin and x < self.xMax:
                     self.axes.axvline(x=x,color='r')
-                    self.axes.axvline(x=x+0.00010,color='r',linestyle='-.',linewidth=0.5)
-                    self.axes.axvline(x=x-0.00010,color='r',linestyle='-.',linewidth=0.5)
+                    self.axes.axvline(x=x+self.coll_thresh,color='r',linestyle='-.',linewidth=0.5)
+                    self.axes.axvline(x=x-self.coll_thresh,color='r',linestyle='-.',linewidth=0.5)
             
             self.axes.set_xlim((self.xMin,self.xMax))
+            #try: self.axes.set_ylim(self.ylim)
+            #except: pass
             self.axes.set_title("segment=%.1f/%.1f"%(self.segment,self.segmentMax))
             #self.axes.legend().get_frame().set_alpha(0.5)
+            plt.tight_layout()
             self.draw()
+        self.canvas.setFocus()
 
     def yDisplayClicked(self, value):
         if value:
@@ -435,12 +556,22 @@ def main(initialFile=None, flNum=None):
 
 if __name__ == "__main__":
     initialFile = None
-    if len(sys.argv) > 2:
+    try: 
         initialFileName = sys.argv[1]
-        mdd = os.environ['MKID_DATA_DIR']
-        initialFile = os.path.join(mdd,initialFileName)
-        flNum = int(sys.argv[2])
-    else:
-        print "need to specify a filename located in MKID_DATA_DIR, and a feedline number"
+        initialFile = initialFileName
+        if not os.path.isfile(initialFile):
+            mdd = os.environ['MKID_DATA_DIR']
+            initialFile = os.path.join(mdd,initialFileName)
+    except:
+        print "Can not find",initialFile
+        print "Usage: python WideAna.py filename feedline#"
+        exit()
+    try: flNum = int(sys.argv[2])
+    except:
+        print "Usage: python WideAna.py filename feedline#"
         exit()
     main(initialFile=initialFile, flNum=flNum)
+
+    
+    
+    

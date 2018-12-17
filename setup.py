@@ -80,7 +80,7 @@ setuptools.setup(
              'mkidreadout/channelizer/hightemplar.py',
              'mkidreadout/readout/dashboard.py',
              'mkidreadout/configuration/widesweep/WideAna.py',
-             'mkidreadout/configuration/powersweep/PSFitGUIML.py'],
+             'mkidreadout/configuration/powersweep/clickthrough_hell.py'],
     classifiers=(
         "Programming Language :: Python :: 3",
         "License :: OSI Approved :: MIT License",

@@ -5,8 +5,8 @@ np.set_printoptions(threshold=np.nan)
 import time
 import os
 # from params import datadir, fspan, rawsweepfile, manpeakfile, train_raw_sweep_file, train_man_peak_file, delta_left, delta_right, splineS_factor
-from params import *
-import WideSweep as ws
+from mkidreadout.configuration.widesweep.wsfitml.params import *
+import mlutils as ws
 
 def plot_peaks(freqs, S11, prediction, peaks):
     # Plot data

@@ -9,12 +9,15 @@ from numba import jit
 import ConfigParser
 import scipy.optimize as spo
 from mkidreadout.configuration.beammap.flags import beamMapFlags
+import itertools
+from mkidreadout.instruments import MEC_FEEDLINE_INFO, DARKNESS_FEEDLINE_INFO
 
-MEC_FL_WIDTH = 14
-DARKNESS_FL_WIDTH = 25
-
-N_FL_MEC = 10
-N_FL_DARKNESS = 5
+MEC_FL_WIDTH = MEC_FEEDLINE_INFO['width']
+MEC_FL_LENGTH = MEC_FEEDLINE_INFO['length']
+N_FL_MEC = MEC_FEEDLINE_INFO['num']
+DARKNESS_FL_WIDTH = DARKNESS_FEEDLINE_INFO['width']
+DARKNESS_FL_LENGTH = DARKNESS_FEEDLINE_INFO['length']
+N_FL_DARKNESS = DARKNESS_FEEDLINE_INFO['num']
 
 def getFLCoordRangeDict(FLmap):
     """
@@ -484,9 +487,46 @@ def cal_q(a, corrMatrix, weights=None):
         C[i]=C_i
     
     return q/(2.*n**2.), C/(2.*n**2.)
-    
-    
-    
-    
 
 
+def isResonatorOnCorrectFeedline(resID, xcoordinate, ycoordinate, instrument='', flip=False):
+    correctFeedline = np.floor(resID / 10000)
+    flFromCoord = getFLFromCoords(xcoordinate, ycoordinate,instrument,flip)
+    if correctFeedline == flFromCoord:
+        return True
+    else:
+        return False
+
+def getFLFromCoords(x, y, instrument='', flip=False):
+    if instrument.lower() == 'mec':
+        numFL = 10
+        flWidth = 14
+        flCoord = x
+    elif instrument.lower() == 'darkness':
+        numFL = 5
+        flWidth = 25
+        flCoord = y
+
+    flFromCoords = np.floor(flCoord/flWidth)
+    if flip:
+        flFromCoords = numFL - flFromCoords
+    else:
+        flFromCoords = flFromCoords + 1
+    return flFromCoords
+
+
+def placeResonatorOnFeedline(xCoord,yCoord,instrument):
+    if instrument.lower() == 'mec':
+        x = int(xCoord % MEC_FL_WIDTH)
+        y = int(yCoord % MEC_FL_LENGTH)
+    elif instrument.lower() == 'darkness':
+        x = int(xCoord % DARKNESS_FL_LENGTH)
+        y = int(yCoord % DARKNESS_FL_WIDTH)
+
+    return x,y
+
+def generateCoords(coordinate, xSlack, ySlack):
+    xCoords = np.linspace(coordinate[0]-xSlack, coordinate[0]+xSlack, 2*xSlack+1).astype(int)
+    yCoords = np.linspace(coordinate[1]-ySlack, coordinate[1]+ySlack, 2*ySlack+1).astype(int)
+    coordinateList = list(itertools.product(xCoords, yCoords))
+    return np.array(coordinateList)

@@ -591,7 +591,64 @@ class IQsweep:
         except:
             pass
 
-        h5file.close() 
+        h5file.close()
+
+    def loadpowers_from_freqsweep(self, mldata, rnum):
+
+        #TODO Neelay, alex I'm really not sure if these are right
+        self.atten1s = mldata.freqSweep.atten
+        self.Qs = mldata.Qs[rnum]
+        self.Is = mldata.Is[rnum]
+        self.fsteps = mldata.freqs[rnum].size
+        self.resID = mldata.resIDs[rnum]
+        self.freq = mldata.freqs[rnum]
+
+        self.Icens = mldata.Is[rnum, :, mldata.freqSweep.nlostep/2]
+        self.Qcens = mldata.Is[rnum, :, mldata.freqSweep.nlostep/2]
+
+        #other things from the h5 file loader, no idea how critical
+        # self.f0 = k['f0'][0]
+        # self.span = k['span'][0]
+        # self.atten2s = k['atten2']
+        # self.scale = k['scale'][0]
+        # self.PreadoutdB = k['PreadoutdB'][0]
+        # self.Tstart = k['Tstart'][0]
+        # self.Tend = k['Tend'][0]
+        # self.I0 = k['I0'][0]
+        # self.Q0 = k['Q0'][0]
+        # self.resnum = k['resnum'][0]
+        # self.time = k['time'][0]
+        #
+        # self.Isd = k['Isd'][0, 0:self.fsteps]
+        # self.Qsd = k['Qsd'][0, 0:self.fsteps]
+        # self.vmaxidx = k['vmaxidx'][0]
+        # self.Icengs = k['Iceng'][0]
+        # self.Qcengs = k['Qceng'][0]
+
+        # self.Qm = k['Qm'][0]
+        # self.fm = k['fm'][0]
+        # self.Qc = k['Qc'][0]
+        # self.Qi = k['Qi'][0]
+        # self.dipdb = k['dipdb'][0]
+        # self.popt = k['popt'][0]
+        # self.fpoints = k['fpoints'][0]
+        # self.fI = k['fI'][0, 0:self.fpoints]
+        # self.fQ = k['fQ'][0, 0:self.fpoints]
+        # self.ff = k['ff'][0, 0:self.fpoints]
+        #
+        # self.mag = k['mag'][0,0:self.fpoints]
+        # self.magfreq = k['magfreq'][0]
+        # self.magfit = k['magfit'][0]
+        # self.mopt = k['mopt'][0]
+        #
+        # self.savenoise =  k['savenoise'][0]
+        # self.samprate =  k['samprate'][0]
+        # self.pn = k['pn'][0]
+        # self.pnidx = k['pnidx'][0]
+        # self.an = k['an'][0]
+        # self.anidx = k['anidx'][0]
+        # self.kn1k = k['fn1k'][0]
+
 
     def LoadPowers(self,filename,roach,f0):            # Load the desired IQ sweep data from a HDF5 file
 
