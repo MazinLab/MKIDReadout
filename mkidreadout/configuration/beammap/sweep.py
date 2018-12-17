@@ -791,6 +791,9 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser(description='MKID Wavelength Calibration Utility')
     parser.add_argument('cfgfile', type=str, help='The config file', default='sweep.cfg')
+    parser.add_argument('--cc', action='store_true', dest='CCMode', default=False,
+                        help='Run sweep code in CC mode')
+    parser.add_argument('--manual', action='store_true', dest='ManualMode', default=False,
                         help='Run sweep code to generate h5 files manually')
     args = parser.parse_args()
 
