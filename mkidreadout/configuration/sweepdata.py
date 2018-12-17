@@ -165,9 +165,10 @@ class SweepMetadata(object):
         np.savetxt(sf, self.toarray().T, fmt="%8d %1u %16.7f %16.7f %5.1f %6.4f %6.4f",
                    header='feedline={}\nrID\trFlag\twsFreq\tmlFreq\tatten\tmlGood\tmlBad'.format(self.feedline))
 
-    def save_templar_freqfiles(self, lo):
+    def save_templar_freqfile(self, lo):
         try:
             roachstr = re.search('\D(\d{3})\D', self.file).group()
+            self.roachnum = int(roachstr[1:-1])
         except AttributeError:
             roachstr = '_'
 
@@ -186,6 +187,7 @@ class SweepMetadata(object):
         attensA = self.atten[aResMask]
 
         np.savetxt(aFile, np.transpose([resIDsA, freqsA, attensA]), fmt='%4i %10.9e %.2f')
+        return aFile
 
     def _settypes(self):
         self.flag = self.flag.astype(int)
