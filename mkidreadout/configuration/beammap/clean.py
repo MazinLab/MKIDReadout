@@ -7,6 +7,8 @@ Places o.o.b pixels in random position, changes flag to 1
 Places failed pixels randomly.
 Outputs final cleaned beammap with ID, flag, x, y; ready to go into dashboard
 
+TODO: refactor to actually use the Beammap class
+
 """
 
 from __future__ import print_function
@@ -16,10 +18,13 @@ import logging
 import argparse
 import ipdb
 import matplotlib.pyplot as plt
+import itertools
 from mkidreadout.utils.arrayPopup import plotArray
 from mkidreadout.utils.readDict import readDict
 from mkidreadout.configuration.beammap.flags import beamMapFlags
-from mkidreadout.configuration.beammap.utils import isInCorrectFL, getFLFromID, getFLFromCoords
+from mkidreadout.configuration.beammap.utils import isInCorrectFL, getFLFromID, getFLFromCoords, isResonatorOnCorrectFeedline, generateCoords
+from mkidreadout.configuration.beammap.beammap import Beammap
+from mkidreadout.configuration.beammap import shift
 
 MEC_FL_WIDTH = 14
 DARKNESS_FL_WIDTH = 25
@@ -32,100 +37,104 @@ log = logging.getLogger('beammap.clean')
 
 
 def getOverlapGrid(xCoords, yCoords, flags, nXPix, nYPix):
-    pixToUseMask = (flags==beamMapFlags['good']) | (flags==beamMapFlags['double'])
+    pixToUseMask = (flags == beamMapFlags['good']) | (flags == beamMapFlags['double'])
     xCoords = xCoords.astype(np.int)[pixToUseMask]
     yCoords = yCoords.astype(np.int)[pixToUseMask]
     bmGrid = np.zeros((nXPix, nYPix))
-    for x,y in zip(xCoords,yCoords):
+    for x,y in zip(xCoords, yCoords):
         if x >= 0 and y >= 0 and x < nXPix and y < nYPix:
             bmGrid[x, y] += 1
     return bmGrid
 
+class BMCleaner(object):
+    def __init__(self, beamMap, nRows, nCols, flip, instrument, designMapPath=None):
+        self.nRows = nRows
+        self.nCols = nCols
+        self.flip = flip
+        self.instrument = instrument.lower()
+        self.designFile = designMapPath
+        self.beamMap = beamMap.copy()
 
-class BMCleaner:
-    def __init__(self, roughBMData, nRows, nCols, flip, instrument):
-        self.nRows = int(configData['numRows'])
-        self.nCols = int(configData['numCols'])
-        self.flip = bool(configData['flip'])
-        self.roughBMFile = str(configData['roughBMFile'])
-        self.finalBMFile = str(configData['finalBMFile'])
-        self.beammapDirectory = str(configData['beammapDirectory'])
-        self.instrument = str(configData['instrument']).lower()
-
-        if self.instrument.lower()=='mec':
+        if self.instrument.lower() == 'mec':
             self.nFL = N_FL_MEC
             self.flWidth = MEC_FL_WIDTH
-        elif self.instrument.lower()=='darkness':
+        elif self.instrument.lower() == 'darkness':
             self.nFL = N_FL_DARKNESS
             self.flWidth = DARKNESS_FL_WIDTH
         else:
             raise Exception('Provided instrument not implemented!')
-    
-        self.resIDs = np.array(roughBM[:,0],dtype=np.int)
-        self.flags = np.array(roughBM[:,1],dtype=np.int)
-        self.preciseXs = roughBM[:,2]
-        self.preciseYs = roughBM[:,3]
+        
         self.flooredXs = None
         self.flooredYs = None
         self.placedXs = None
         self.placedYs = None
         self.bmGrid = None
 
-    def fixPreciseCoordinates(self):
-        #fix coordinates
-        self._fixOOBPixels()
-        self._fixInitialFeedlinePlacement(1)
+    def fixPreciseCoordinates(self, arraySlack=1, flSlack=1):
+        '''
+        Checks precise coordinates to make sure they are within the bounds of the array
+        and in the correct feedline. Flags OOB pixels as bad and sets to NaN.
+        
+        INPUTS:
+            arraySlack - OOB pixels (array boundaries) within arraySlack of boundary are
+                placed at boundary and flagged good.
+            flSlack - OOB pixels (array boundaries) within arraySlack of FL boundary are
+                placed at boundary and flagged good.
+        '''
+        self._fixOOBPixels(arraySlack)
+        self._fixInitialFeedlinePlacement(flSlack)
 
 
     def placeOnGrid(self):
         '''
-        Places all resonators on nRowsxnCols size grid. Only do this after precise coordinates are finalized
+        Places all resonators on nRowsxnCols size grid. Only do this after precise coordinates are finalized.
+        Results are stored in self.placedXs and self.placedYs
         '''
         #lock in coordinates, set up placement tools/arrays
-        self.flooredXs = self.preciseXs.astype(np.int)
-        self.flooredYs = self.preciseYs.astype(np.int)
-        self.placedXs = np.floor(self.preciseXs)
-        self.placedYs = np.floor(self.preciseYs)
-        self.bmGrid = getOverlapGrid(self.preciseXs, self.preciseYs, self.flags, self.nCols, self.nRows)
+        self.flooredXs = self.beamMap.xCoords.astype(np.int)
+        self.flooredYs = self.beamMap.yCoords.astype(np.int)
+        self.placedXs = np.floor(self.beamMap.xCoords)
+        self.placedYs = np.floor(self.beamMap.yCoords)
+        self.bmGrid = getOverlapGrid(self.beamMap.xCoords, self.beamMap.yCoords, self.beamMap.flags.astype(int), self.nCols, self.nRows)
 
 
     def _fixInitialFeedlinePlacement(self, slack=1):
-        wayOutMask = ~isInCorrectFL(self.resIDs, self.preciseXs, self.preciseYs, self.instrument, slack, self.flip)
-        self.flags[((self.flags==beamMapFlags['good']) | (self.flags==beamMapFlags['double'])) & wayOutMask] = beamMapFlags['wrongFeedline']
-        self.preciseXs[self.flags==beamMapFlags['wrongFeedline']] = np.nan
-        self.preciseYs[self.flags==beamMapFlags['wrongFeedline']] = np.nan
-        log.info('%d pixels in wrong feedline. Flagged as bad', np.sum(self.flags==beamMapFlags['wrongFeedline']))
+        wayOutMask = ~isInCorrectFL(self.beamMap.resIDs.astype(int), self.beamMap.xCoords, self.beamMap.yCoords, self.instrument, slack, self.flip)
+        self.beamMap.flags.astype(int)[((self.beamMap.flags.astype(int) == beamMapFlags['good']) | (self.beamMap.flags.astype(int) == beamMapFlags['double'])) & wayOutMask] = beamMapFlags['wrongFeedline']
+        self.beamMap.xCoords[self.beamMap.flags.astype(int) == beamMapFlags['wrongFeedline']] = np.nan
+        self.beamMap.yCoords[self.beamMap.flags.astype(int) == beamMapFlags['wrongFeedline']] = np.nan
+        log.info('%d pixels in wrong feedline. Flagged as bad', np.sum(self.beamMap.flags.astype(int)==beamMapFlags['wrongFeedline']))
 
-        if slack>0:
-            flPos = getFLFromID(self.resIDs) - 1
+        if slack > 0:
+            flPos = getFLFromID(self.beamMap.resIDs.astype(int)) - 1
             if self.flip:
                 flPos = 9 - flPos
-            rightEdgeMask = flPos < getFLFromCoords(self.preciseXs, self.preciseYs, self.instrument, flip=False) - 1
-            leftEdgeMask = flPos > getFLFromCoords(self.preciseXs, self.preciseYs, self.instrument, flip=False) - 1
+            rightEdgeMask = flPos < getFLFromCoords(self.beamMap.xCoords, self.beamMap.yCoords, self.instrument, flip=False) - 1
+            leftEdgeMask = flPos > getFLFromCoords(self.beamMap.xCoords, self.beamMap.yCoords, self.instrument, flip=False) - 1
             assert np.all((rightEdgeMask & leftEdgeMask) == 0), 'Error moving pixels to correct FL'
             log.info(str(np.sum(rightEdgeMask)+np.sum(leftEdgeMask)) + ' placed in correct feedline')
-            if self.instrument=='mec':
-                self.preciseXs[rightEdgeMask] = (flPos[rightEdgeMask]+1)*self.flWidth-0.01
-                self.preciseXs[leftEdgeMask] = (flPos[leftEdgeMask])*self.flWidth+0.01
-            elif self.instrument=='darkness':
-                self.preciseYs[rightEdgeMask] = (flPos[rightEdgeMask]+1)*self.flWidth-0.01
-                self.preciseYs[leftEdgeMask] = (flPos[leftEdgeMask])*self.flWidth+0.01
+            if self.instrument == 'mec':
+                self.beamMap.xCoords[rightEdgeMask] = (flPos[rightEdgeMask]+1)*self.flWidth-0.01
+                self.beamMap.xCoords[leftEdgeMask] = (flPos[leftEdgeMask])*self.flWidth+0.01
+            elif self.instrument == 'darkness':
+                self.beamMap.yCoords[rightEdgeMask] = (flPos[rightEdgeMask]+1)*self.flWidth-0.01
+                self.beamMap.yCoords[leftEdgeMask] = (flPos[leftEdgeMask])*self.flWidth+0.01
             else:
                 raise Exception('Provided instrument not implemented!')
-            validCoordMask = (~np.isnan(self.preciseXs)) & (~np.isnan(self.preciseYs))
-            assert np.all(isInCorrectFL(self.resIDs[validCoordMask], self.preciseXs[validCoordMask], self.preciseYs[validCoordMask], self.instrument, 0, self.flip)), 'bad FL cleanup!'
+            validCoordMask = (~np.isnan(self.beamMap.xCoords)) & (~np.isnan(self.beamMap.yCoords))
+            assert np.all(isInCorrectFL(self.beamMap.resIDs.astype(int)[validCoordMask], self.beamMap.xCoords[validCoordMask], self.beamMap.yCoords[validCoordMask], self.instrument, 0, self.flip)), 'bad FL cleanup!'
 
 
     def _fixOOBPixels(self, slack=1):
-        wayOutMask = (self.preciseXs + slack < 0) | (self.preciseXs - slack > self.nCols - 1) | (self.preciseYs + slack < 0) | (self.preciseYs - slack > self.nRows - 1)
-        self.preciseXs[wayOutMask] = np.nan
-        self.preciseYs[wayOutMask] = np.nan
-        self.flags[wayOutMask] = beamMapFlags['wrongFeedline']
+        wayOutMask = (self.beamMap.xCoords + slack < 0) | (self.beamMap.xCoords - slack > self.nCols - 1) | (self.beamMap.yCoords + slack < 0) | (self.beamMap.yCoords - slack > self.nRows - 1)
+        self.beamMap.xCoords[wayOutMask] = np.nan
+        self.beamMap.yCoords[wayOutMask] = np.nan
+        self.beamMap.flags.astype(int)[wayOutMask] = beamMapFlags['wrongFeedline']
 
-        self.preciseXs[(self.preciseXs < 0) & ~wayOutMask] = 0
-        self.preciseXs[(self.preciseXs >= self.nCols) & ~wayOutMask] = self.nCols - 0.01
-        self.preciseYs[(self.preciseYs < 0) & ~wayOutMask] = 0
-        self.preciseYs[(self.preciseYs >= self.nRows) & ~wayOutMask] = self.nRows - 0.01
+        self.beamMap.xCoords[(self.beamMap.xCoords < 0) & ~wayOutMask] = 0
+        self.beamMap.xCoords[(self.beamMap.xCoords >= self.nCols) & ~wayOutMask] = self.nCols - 0.01
+        self.beamMap.yCoords[(self.beamMap.yCoords < 0) & ~wayOutMask] = 0
+        self.beamMap.yCoords[(self.beamMap.yCoords >= self.nRows) & ~wayOutMask] = self.nRows - 0.01
 
     
     def resolveOverlaps(self):
@@ -134,19 +143,19 @@ class BMCleaner:
         modified.
         '''
         overlapCoords = np.asarray(np.where(self.bmGrid > 1)).T
-        unoccupiedCoords = np.asarray(np.where(self.bmGrid==0)).T 
+        # unoccupiedCoords = np.asarray(np.where(self.bmGrid == 0)).T
         nOverlapsResolved = 0
 
         for coord in overlapCoords:
-            coordMask = (coord[0] == self.flooredXs) & (coord[1] == self.flooredYs) & ((self.flags == beamMapFlags['good']) | (self.flags == beamMapFlags['double']))
+            coordMask = (coord[0] == self.flooredXs) & (coord[1] == self.flooredYs) & ((self.beamMap.flags.astype(int) == beamMapFlags['good']) | (self.beamMap.flags.astype(int) == beamMapFlags['double']))
             coordInds = np.where(coordMask)[0] #indices of overlapping coordinates in beammap
     
             uONNCoords = np.asarray(np.where(self.bmGrid[coord[0]-1:coord[0]+2, coord[1]-1:coord[1]+2]==0)).T + coord - np.array([1,1])
-            uONNCoords = uONNCoords[isInCorrectFL(self.resIDs[coordInds[0]]*np.ones(len(uONNCoords)), uONNCoords[:,0], uONNCoords[:,1], self.instrument, 0, self.flip), :]
+            uONNCoords = uONNCoords[isInCorrectFL(self.beamMap.resIDs.astype(int)[coordInds[0]]*np.ones(len(uONNCoords)), uONNCoords[:,0], uONNCoords[:,1], self.instrument, 0, self.flip), :]
                 
     
-            precXOverlap = self.preciseXs[coordMask] - 0.5
-            precYOverlap = self.preciseYs[coordMask] - 0.5
+            precXOverlap = self.beamMap.xCoords[coordMask] - 0.5
+            precYOverlap = self.beamMap.yCoords[coordMask] - 0.5
             precOverlapCoords = np.array(zip(precXOverlap, precYOverlap)) #list of precise coordinates overlapping with coord
     
             # no nearest neigbors, so pick the closest one and flag the rest as bad
@@ -155,7 +164,7 @@ class BMCleaner:
                 minDistInd = np.argmin(distsFromCenter) #index in precOverlapCoords
                 coordInds = np.delete(coordInds, minDistInd) #remove correct coordinate from overlap
                 self.bmGrid[coord[0], coord[1]] = 1
-                self.flags[coordInds] = beamMapFlags['duplicatePixel']
+                self.beamMap.flags.astype(int)[coordInds] = beamMapFlags['duplicatePixel']
                 self.placedXs[coordInds] = np.nan
                 self.placedYs[coordInds] = np.nan
                 continue
@@ -190,37 +199,189 @@ class BMCleaner:
                     minDistInd = np.argmin(distsFromCenter) #index in precOverlapCoords
                     coordInds = np.delete(coordInds, minDistInd) #remove correct coordinate from overlap
                     self.bmGrid[coord[0], coord[1]] = 1
-                    self.flags[coordInds] = beamMapFlags['duplicatePixel']
+                    self.beamMap.flags.astype(int)[coordInds] = beamMapFlags['duplicatePixel']
                     self.placedXs[coordInds] = np.nan
                     self.placedYs[coordInds] = np.nan
                     break
                     
         log.info('Successfully resolved %d overlaps', nOverlapsResolved)
-        log.info('Failed to resolve %d overlaps', np.sum(self.flags==beamMapFlags['duplicatePixel']))
+        log.info('Failed to resolve %d overlaps', np.sum(self.beamMap.flags.astype(int)==beamMapFlags['duplicatePixel']))
+
+    def resolveOverlapWithFrequency(self):
+        """
+
+        Uses the beammap that was given to the BMCleaner class to first run the shifting/frequency fitting code, then uses
+        the unformation from that to resolve overlaps using the frequency information.
+
+        Modifies the beammap in BMCleaner with a shift applied, overlaps resolved, and coordinates locked onto a grid.
+        """
+        if not hasattr(self.beamMap, 'frequencies'):
+            raise Exception("This beammap does not have frequency data, this operation cannot be done")
+
+        self.fixPreciseCoordinates()
+        self.placeOnGrid()
+
+        shiftObject = self.runShiftingCode()
+
+        beammap = shiftObject.shiftedBeammap
+        designMap = shiftObject.designArray
+
+        overlapGrid = getOverlapGrid(beammap.xCoords, beammap.yCoords, beammap.flags, self.nCols, self.nRows)
+        overlapCoords = np.asarray(np.where(overlapGrid > 1)).T
+        nOverlapsResolved = 0
+        nPixelsPlaced = 0
+        originalCoord = []
+        placedCoord = []
+
+        for coord in overlapCoords:
+            doubles = beammap.getResonatorsAtCoordinate(coord[0], coord[1])
+
+            # Creates an list of coordinates to try to place the members of the overlap on. Creates a square around the
+            # coordinate of the overlap, then removes all locations in the wrong feedline, off the array, or that are
+            # already occupied. Adds back the coordinate of the overlap, because one of them could be placed there.
+            xUncertainty = 0
+            yUncertainty = 0
+            coordsToSearch = generateCoords(coord, xUncertainty, yUncertainty)
+            nCoords = len(coordsToSearch)
+            while nCoords < len(doubles):
+                xUncertainty += 1
+                yUncertainty += 1
+                coordsToSearch = generateCoords(coord, xUncertainty, yUncertainty)
+
+                # First masks, removes search coordinates that are off of the array or the feedline
+                onArrayMask = ((coordsToSearch[:, 0] >= 0) & (coordsToSearch[:, 0] < self.nCols) & (coordsToSearch[:, 1] >= 0) & (coordsToSearch[:, 1] < self.nRows))
+                coordsToSearch = coordsToSearch[onArrayMask.astype(bool)]
+                onFeedlineMask = np.zeros(len(coordsToSearch))
+                for i in range(len(coordsToSearch)):
+                    onFeedlineMask[i] = isResonatorOnCorrectFeedline(doubles[0][0], coordsToSearch[i][0], coordsToSearch[i][1], self.instrument)
+                coordsToSearch = coordsToSearch[onFeedlineMask.astype(bool)]
+
+                # Mask for if any of the search coordinates already have a resonator there
+                occupationMask = np.zeros(len(coordsToSearch))
+                for i in range(len(coordsToSearch)):
+                    if overlapGrid[coordsToSearch[i][0], coordsToSearch[i][1]] == 0:
+                        occupationMask[i] = True
+                    else:
+                        occupationMask[i] = False
+                coordsToSearch = coordsToSearch[occupationMask.astype(bool)]
+
+                # Adds the overlap coordinate back to the search coords (they can be placed there)
+                coordsToSearch = np.append(coordsToSearch, coord).reshape((len(coordsToSearch)+1, 2))
+                nCoords = len(coordsToSearch)
+
+            # Generates the design frequency at the coordinates that are being tested
+            freqsToSearch = list(designMap.getDesignFrequencyFromCoords(coordinate) for coordinate in coordsToSearch) # Design frequencies at each of the search coordinates
+            # Creates the possible combinations to place the resonators at
+            possiblePlacements = itertools.permutations((range(len(freqsToSearch))), len(doubles))
+            placementsToSearch = [i for i in possiblePlacements]
+            residuals = np.zeros(len(placementsToSearch))
+
+            # Generates the 'total frequency residual' of all resonators in the possible configurations
+            for i in range(len(placementsToSearch)):
+                for j in range(len(doubles)):
+                    residuals[i] += abs(doubles[j][4]-freqsToSearch[placementsToSearch[i][j]])
+
+            # Finds where the 'total frequency residual' occurs. This gives the placement combination which minimizes
+            # the difference in frequency between the pixel placement and design frequency at those points
+            index = np.where(residuals == min(residuals))[0][0]
+            bestPlacement = placementsToSearch[index]
+
+            # Generates the coordinates at which each resonator will be placed
+            newCoordinates = np.zeros((len(doubles), 2))
+            for i in range(len(bestPlacement)):
+                newCoordinates[i] = coordsToSearch[bestPlacement[i]]
+
+            # Updates the overlap grid to reflect the new occupancy of coordinates. Updates the in-function beammap.
+            # These updates will be applied to the class beammap
+            overlapGrid[coord[0], coord[1]] = 0
+            for i in range(len(doubles)):
+                resonator = doubles[i]
+                newCoordinate = newCoordinates[i].astype(int)
+                originalCoord.append(coord)
+                placedCoord.append(newCoordinate)
+                overlapGrid[newCoordinate[0], newCoordinate[1]] += 1
+                index = np.where(self.beamMap.resIDs == resonator[0])[0]
+                beammap.xCoords[index] = newCoordinate[0]
+                beammap.yCoords[index] = newCoordinate[1]
+                beammap.flags[index] = beamMapFlags['good']
+                nPixelsPlaced += 1
+
+            nOverlapsResolved += 1
+
+        log.info('Successfully resolved %d overlaps', nOverlapsResolved)
+        log.info('Successfully placed %d pixels', nPixelsPlaced)
+
+        # Updates the class beammap
+        self.beamMap.xCoords = np.floor(beammap.xCoords)
+        self.beamMap.yCoords = np.floor(beammap.yCoords)
+        self.beamMap.flags = beammap.flags
+
+        # For all of the resonators that were analyzed in this part of the code, figure out where they started (after
+        # being shifted in space) and where they were moved (or not moved to).
+        original, placed = np.array(originalCoord), np.array(placedCoord)
+        distanceMoved = np.sqrt(((original[:, 0]-placed[:, 0])**2)+((original[:, 1]-placed[:, 1])**2))
+        didMove = (distanceMoved != 0)
+        within1 = (distanceMoved < 2)
+        nPixelsWithin1 = distanceMoved[within1.astype(bool)]
+
+
+        # Plots the shifted, locked onto a grid original location of the resolved overlaps and the lovations the
+        # pixels were placed at. Red dot = pixel was not moved, Blue arrow points from the overlap to where the
+        # pixel was placed
+        log.info('%d pixels were not moved', len(distanceMoved[~didMove.astype(bool)]))
+        log.info('%d pixels were moved', len(distanceMoved[didMove.astype(bool)]))
+        log.info('%d pixels were placed within 1 pixel of their original placement', nPixelsWithin1)
+
+        # Plots the 'process' of overlap resolution. Arrows start where the pixel began to where it was placed. Dots
+        # are shown where the 'best placement' for a resonator that was not moved.
+        # NOTE: If a pixel has a dot, it MUST also have an arrow coming from it.
+        plt.scatter(original[:, 0][~didMove.astype(bool)], original[:, 1][~didMove.astype(bool)], c='green', marker='.')
+        plt.quiver(original[:, 0][didMove.astype(bool)], original[:, 1][didMove.astype(bool)],
+                   (placed[:, 0]-original[:, 0])[didMove.astype(bool)], (placed[:, 1]-original[:, 1])[didMove.astype(bool)],
+                   color='blue', angles='xy', scale_units='xy', scale=1, headlength=3, headwidth=2)
+        plt.show(block=False)
+
+    def runShiftingCode(self):
+        shifter = shift.BeammapShifter(self.designFile, self.beamMap, self.instrument)
+        shifter.run()
+        return shifter  # This is an object which contains a beammap that will be used in future beammap cleaning steps
 
     def placeFailedPixels(self):
+        '''
+        Places all bad pixels (NaN coordinates) in arbitrary locations on correct feedline. Should ensure
+        1-to-1 mapping between resID and coordinates.
+        '''
         toPlaceMask = np.isnan(self.placedXs) | np.isnan(self.placedYs)
         unoccupiedCoords = np.asarray(np.where(self.bmGrid==0)).T
         
         for i in range(self.nFL):
-            toPlaceMaskCurFL = toPlaceMask & ((self.resIDs/10000 - 1) == i)
-            unoccupiedCoordsCurFL = unoccupiedCoords[isInCorrectFL(10000*(i+1)*np.ones(len(unoccupiedCoords)), unoccupiedCoords[:,0], unoccupiedCoords[:,1], self.instrument, flip=self.flip)]
-            self.placedXs[toPlaceMaskCurFL] = unoccupiedCoordsCurFL[:,0]
-            self.placedYs[toPlaceMaskCurFL] = unoccupiedCoordsCurFL[:,1]
+            toPlaceMaskCurFL = toPlaceMask & ((self.beamMap.resIDs.astype(int)/10000 - 1) == i)
+            unoccupiedCoordsCurFL = unoccupiedCoords[isInCorrectFL(10000*(i+1)*np.ones(len(unoccupiedCoords)), unoccupiedCoords[:, 0], unoccupiedCoords[:,1], self.instrument, flip=self.flip)]
+            self.placedXs[toPlaceMaskCurFL] = unoccupiedCoordsCurFL[:, 0]
+            self.placedYs[toPlaceMaskCurFL] = unoccupiedCoordsCurFL[:, 1]
 
     def placeFailedPixelsQuick(self): 
+        '''
+        Places all bad pixels just outside array bounds. Use when placeFailedPixels fails but you need a 
+        quick beammap without NaNs!
+        '''
         toPlaceXs = np.isnan(self.placedXs) 
         toPlaceYs = np.isnan(self.placedYs)
         self.placedXs[toPlaceXs] = self.nCols
         self.placedYs[toPlaceYs] = self.nRows
-    
+
     def saveBeammap(self, path):
+        '''
+        Saves beammap in standard 4 column text file format
+            INPUTS:
+                path - full path of beammap file
+        '''
         assert np.all(np.isnan(self.placedXs)==False), 'NaNs in final beammap!'
         assert np.all(np.isnan(self.placedYs)==False), 'NaNs in final beammap!'
-        log.info('N good pixels: ' + str(np.sum(self.flags==beamMapFlags['good'])))
-        log.info('N doubles: ' + str(np.sum(self.flags==beamMapFlags['double'])))
-        log.info('N failed pixels (read out but not beammapped): ' + str(np.sum((self.flags!=beamMapFlags['good']) & (self.flags!=beamMapFlags['double']) & (self.flags!=beamMapFlags['noDacTone']))))
-        np.savetxt(path, np.transpose([self.resIDs, self.flags, self.placedXs.astype(int), self.placedYs.astype(int)]), fmt='%4i %4i %4i %4i')
+        log.info('N good pixels: ' + str(np.sum(self.beamMap.flags.astype(int)==beamMapFlags['good'])))
+        log.info('N doubles: ' + str(np.sum(self.beamMap.flags.astype(int)==beamMapFlags['double'])))
+        log.info('N failed pixels (read out but not beammapped): ' + str(np.sum((self.beamMap.flags.astype(int)!=beamMapFlags['good']) & (self.beamMap.flags.astype(int)!=beamMapFlags['double']) & (self.beamMap.flags.astype(int)!=beamMapFlags['noDacTone']))))
+        np.savetxt(path, np.transpose([self.beamMap.resIDs.astype(int), self.beamMap.flags.astype(int), self.placedXs.astype(int), self.placedYs.astype(int)]), fmt='%4i %4i %4i %4i')
      
 
 if __name__=='__main__':
@@ -235,17 +396,22 @@ if __name__=='__main__':
     configData = readDict()
     configData.read_from_file(configFileName)
     beammapDirectory = configData['beammapDirectory']
-    roughBMFile = configData['roughBMFile']
     finalBMFile = configData['finalBMFile']
+    rawBMFile = configData['rawBMFile']
+    psFiles = configData['powersweeps']
+    designFile = configData['designMapFile']
 
     #put together full input/output BM paths
-    roughPath = os.path.join(beammapDirectory,roughBMFile)
-    finalPath = os.path.join(beammapDirectory,finalBMFile)
-    
+    finalPath = os.path.join(beammapDirectory, finalBMFile)
+    rawPath = os.path.join(beammapDirectory, rawBMFile)
+    frequencySweepPath = os.path.join(beammapDirectory, "ps_*.txt")
+
+
     #load location data from rough BM file
-    roughBM = np.loadtxt(roughPath)
-   
-    cleaner = BMCleaner(roughBM, configData['numRows'], configData['numCols'], configData['flip'], configData['instrument'])
+    rawBM = Beammap(rawPath)
+    rawBM.loadFrequencies(frequencySweepPath)
+    cleaner = BMCleaner(rawBM, int(configData['numRows']), int(configData['numCols']), configData['flip'], configData['instrument'])
+    cleaner.resolveOverlapWithFrequency()
 
     cleaner.fixPreciseCoordinates() #fix wrong feedline and oob coordinates
     cleaner.placeOnGrid() #initial grid placement
@@ -296,7 +462,3 @@ if __name__=='__main__':
     ax4.set_title('Quiver Plot showing final_coordinates -> precise_coordinates (arrows not to scale)')    
 
     plt.show()
-            
-    
-
-

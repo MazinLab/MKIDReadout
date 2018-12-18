@@ -278,6 +278,22 @@ class Roach2Controls:
             #time.sleep(.2)
         self.v7_ready = 0
         self.sendUARTCommand(self.params['mbEnFracLO'])
+
+    def reInitADCDACBoard(self): 
+        """
+        Rerun startup initialization routines
+        """
+        while(not(self.v7_ready)):
+            self.v7_ready = self.fpga.read_int(self.params['v7Ready_reg'])
+            time.sleep(.2)
+        self.sendUARTCommand(0x31, True)
+        self.sendUARTCommand(0x32, True)
+        self.sendUARTCommand(0x33, True)
+        self.sendUARTCommand(0x34, True)
+        self.sendUARTCommand(0x35, True)
+        self.sendUARTCommand(0x36, True)
+        self.sendUARTCommand(0x30, True)
+        self.sendUARTCommand(self.params['mbEnableDACs'], True)
         
     def generateDdsTones(self, freqChannels=None, fftBinIndChannels=None, phaseList=None):
         """
@@ -922,7 +938,10 @@ class Roach2Controls:
         adcFullScale = 2.**11
         curAtten=startAtten
         rmsTarget = np.mean(rmsRange)
+        nMaxIters = 10
         
+        nIters = 0
+
         while True:
             atten3 = np.floor(curAtten*2)/4.
             atten4 = np.ceil(curAtten*2)/4.
@@ -970,6 +989,15 @@ class Roach2Controls:
                     self.changeAtten(4, 31.75)
                     raise Exception('Dynamic range target unachievable... setting ADC Atten to max')
                     break
+
+            nIters += 1
+            
+            if nIters >= nMaxIters:
+                self.changeAtten(3, 31.75)
+                self.changeAtten(4, 31.75)
+                raise Exception('Max Iters exceeded... setting ADC Atten to max')
+                break
+                
 
         if checkForSpikes:
             specDict = streamSpectrum(snapDict['iVals'], snapDict['qVals'])

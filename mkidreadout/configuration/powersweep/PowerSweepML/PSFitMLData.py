@@ -146,6 +146,7 @@ class PSFitMLData():
         self.freqs, self.iq_vels,self.Is,self.Qs, self.attens, self.resIDs = self.get_PS_data()
         self.opt_attens = None
         self.opt_freqs = None
+        self.scores = None
 
     def loadTrainData(self):                
         '''
@@ -201,16 +202,21 @@ class PSFitMLData():
         self.Qs = self.Qs[self.good_res]
         self.resIDs = self.resIDs[self.good_res]
 
-    def savePSTxtFile(self, flag = '', outputFN=None):
+    def savePSTxtFile(self, flag = '', outputFN=None, saveScores=False):
         '''
         Saves a frequency file after inference.  self.opt_attens and self.opt_freqs
         should be populated by an external ML algorithm.
         '''
         if self.opt_attens is None or self.opt_freqs is None:
             raise ValueError('Classify Resonators First!')
+
+        if saveScores:
+            scoreFlag = '_scored'
+        else:
+            scoreFlag = ''
         
-        if outputFN is None: PSSaveFile = self.baseFile + flag + '.txt'
-        else: PSSaveFile = outputFN.rsplit('.',1)[0]+flag+'.txt'
+        if outputFN is None: PSSaveFile = self.baseFile + flag + scoreFlag + '.txt'
+        else: PSSaveFile = outputFN.rsplit('.',1)[0]+flag+scoreFlag+'.txt'
         
         if os.path.isfile(PSSaveFile):
             raise Exception('PS Save data already exists!')
@@ -219,11 +225,18 @@ class PSFitMLData():
         print 'saving file', PSSaveFile
         print 'baseFile', self.baseFile
         #sf.write('1\t1\t1\t1 \n')
-        for r in range(len(self.opt_attens)):
-            line = "%4i \t %10.9e \t %4i \n" % (self.resIDs[r], self.opt_freqs[r], 
-                                         self.opt_attens[r])
-            sf.write(line)
-            #print line
+        if saveScores:
+            for r in range(len(self.opt_attens)):
+                line = "%4i \t %10.9e \t %4i \t %0.5f \n" % (self.resIDs[r], self.opt_freqs[r], 
+                                             self.opt_attens[r], self.scores[r])
+                sf.write(line)
+                #print line
+        else:
+            for r in range(len(self.opt_attens)):
+                line = "%4i \t %10.9e \t %4i \n" % (self.resIDs[r], self.opt_freqs[r], 
+                                             self.opt_attens[r])
+                sf.write(line)
+                #print line
         sf.close()        
 
     def get_PS_data(self, searchAllRes=True, res_nums=50):

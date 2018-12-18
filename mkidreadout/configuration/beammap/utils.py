@@ -9,12 +9,15 @@ from numba import jit
 import ConfigParser
 import scipy.optimize as spo
 from mkidreadout.configuration.beammap.flags import beamMapFlags
+import itertools
+from mkidreadout.instruments import MEC_FEEDLINE_INFO, DARKNESS_FEEDLINE_INFO
 
-MEC_FL_WIDTH = 14
-DARKNESS_FL_WIDTH = 25
-
-N_FL_MEC = 10
-N_FL_DARKNESS = 5
+MEC_FL_WIDTH = MEC_FEEDLINE_INFO['width']
+MEC_FL_LENGTH = MEC_FEEDLINE_INFO['length']
+N_FL_MEC = MEC_FEEDLINE_INFO['num']
+DARKNESS_FL_WIDTH = DARKNESS_FEEDLINE_INFO['width']
+DARKNESS_FL_LENGTH = DARKNESS_FEEDLINE_INFO['length']
+N_FL_DARKNESS = DARKNESS_FEEDLINE_INFO['num']
 
 def getFLCoordRangeDict(FLmap):
     """
@@ -269,6 +272,53 @@ def fitPeak(timestream, initialGuess=np.nan, fitWindow=20):
     except RuntimeError:
         return [providedInitialGuess, np.nan, np.nan, np.nan]
 
+
+def check_timestream(timestream, peak_location):
+    """
+    INPUT:
+        timestream -
+        peak_location - estimate of peak location returned by fitPeak
+    OUTPUT:
+        good_peak - True if all checks passed, False if any checks fail
+
+    checks:
+        - check if fitted peak and maximum value are in the same place, for both x and y
+        - check if peak is 5 sigma (or any reasonable threshold) above the mean
+        - check that the peak specified in the input argument is the only 'good' peak... no doubles allowed!
+        - check if peak is > 3*mean
+    """
+    good_peak = True
+    good_peak = np.logical_and(good_peak, np.abs(np.argmax(timestream) - peak_location) < 2)
+    if not good_peak:
+        print('peak_location is not close to actual maximum')
+        return good_peak
+    good_peak = np.logical_and(good_peak,np.amax(timestream) > 3*np.mean(timestream)  )
+    if not good_peak:
+        print('peak is < 3*mean')
+        return good_peak
+
+    # remove baseline from timestream
+    timestream -= np.mean(timestream)
+    sigma = np.std(timestream)
+    good_peak = np.logical_and(good_peak, np.amax(timestream) > 5*sigma)
+    if not good_peak:
+        print('peak is not > 5 sigma')
+        return good_peak
+
+    # check for other peaks. If there are others, then good_peak = False.
+    mask = np.ones(len(timestream), dtype=bool)
+    mask_window_width = 15
+    mask[int(peak_location) - mask_window_width: int(peak_location) + mask_window_width] = False
+    good_peak = np.logical_and(good_peak, (np.logical_and(timestream[mask] < 5*sigma, timestream[mask] < .5*np.amax(timestream))).all())
+
+    if not good_peak:
+        print('there are multiple peaks above 5 sigma or maximum/2')
+
+    return good_peak
+
+
+
+
 def getPeakCoM(timestream, initialGuess=np.nan, fitWindow=15):
     """
     This function determines the center of mass moment of the peak around fitWindow
@@ -484,9 +534,46 @@ def cal_q(a, corrMatrix, weights=None):
         C[i]=C_i
     
     return q/(2.*n**2.), C/(2.*n**2.)
-    
-    
-    
-    
 
 
+def isResonatorOnCorrectFeedline(resID, xcoordinate, ycoordinate, instrument='', flip=False):
+    correctFeedline = np.floor(resID / 10000)
+    flFromCoord = getFLFromCoords(xcoordinate, ycoordinate,instrument,flip)
+    if correctFeedline == flFromCoord:
+        return True
+    else:
+        return False
+
+def getFLFromCoords(x, y, instrument='', flip=False):
+    if instrument.lower() == 'mec':
+        numFL = 10
+        flWidth = 14
+        flCoord = x
+    elif instrument.lower() == 'darkness':
+        numFL = 5
+        flWidth = 25
+        flCoord = y
+
+    flFromCoords = np.floor(flCoord/flWidth)
+    if flip:
+        flFromCoords = numFL - flFromCoords
+    else:
+        flFromCoords = flFromCoords + 1
+    return flFromCoords
+
+
+def placeResonatorOnFeedline(xCoord,yCoord,instrument):
+    if instrument.lower() == 'mec':
+        x = int(xCoord % MEC_FL_WIDTH)
+        y = int(yCoord % MEC_FL_LENGTH)
+    elif instrument.lower() == 'darkness':
+        x = int(xCoord % DARKNESS_FL_LENGTH)
+        y = int(yCoord % DARKNESS_FL_WIDTH)
+
+    return x,y
+
+def generateCoords(coordinate, xSlack, ySlack):
+    xCoords = np.linspace(coordinate[0]-xSlack, coordinate[0]+xSlack, 2*xSlack+1).astype(int)
+    yCoords = np.linspace(coordinate[1]-ySlack, coordinate[1]+ySlack, 2*ySlack+1).astype(int)
+    coordinateList = list(itertools.product(xCoords, yCoords))
+    return np.array(coordinateList)

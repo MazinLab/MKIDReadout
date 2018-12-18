@@ -1,12 +1,4 @@
 import numpy as np
-from scipy.interpolate import UnivariateSpline
-from scipy import signal
-import Peaks
-#from interval import interval, inf, imath
-import math
-import os
-import matplotlib.pyplot as plt
-from matplotlib.backends.backend_pdf import PdfPages
 import argparse
 
 
