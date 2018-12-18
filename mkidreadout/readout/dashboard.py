@@ -41,6 +41,7 @@ from mkidreadout.readout.Telescope import *
 from mkidreadout.channelizer.Roach2Controls import Roach2Controls
 from mkidreadout.utils.utils import interpolateImage
 from mkidreadout.configuration.beammap.beammap import Beammap
+import mkidreadout.configuration.sweepdata as sweepdata
 from mkidreadout.readout.packetmaster import Packetmaster
 import mkidreadout.hardware.conex
 import mkidreadout.hardware.hsfw
@@ -614,6 +615,7 @@ class MKIDDashboard(QMainWindow):
         for roach in self.roachList:
             ffile = roach.tagfile(self.config.roaches.get('r{}.freqfileroot'.format(roach.num)),
                                   dir=self.config.paths.data)
+            roach.setLOFreq(self.config.roaches.get('r{}.lo_freq'.format(roach.num)))
             roach.loadBeammapCoords(self.beammap, freqListFile=ffile)
 
         self.beammapFailed = self.beammap.failmask
@@ -960,27 +962,27 @@ class MKIDDashboard(QMainWindow):
         """
         if self.pixelCurrent is not None:
             val = self.getPixCountRate([self.pixelCurrent])
-            self.label_pixelInfo.setText(
-                '(' + str(self.pixelCurrent[0]) + ' , ' + str(self.pixelCurrent[1]) + ') : ' + str(
-                    np.round(val, 2)) + ' #/second')
+            self.label_pixelInfo.setText('({p[0]}, {p[1]}) : {v:.2f} #/s'.format(p=self.pixelCurrent, v=val))
 
-            beammapData = np.loadtxt(self.beammap.file)
+            bm = Beammap(self.beammap.file)
             resID = 0
             freq = 0
             feedline = 0
             board = 'a'
             freqCh = 0
             try:
-                indx = \
-                np.where((beammapData[:, 2] == self.pixelCurrent[0]) & (beammapData[:, 3] == self.pixelCurrent[1]))[0][
-                    0]
-                resID = beammapData[indx, 0]
+                #TODO Noah, Neelay, Alex is this caution necessary/proper
+                resIDs = bm.resIDat(*self.pixelCurrent)
+                if len(resIDs) > 1:
+                    getLogger('Dashboard').warning('Multiple ResIDs for pixel {},{}. Using first.'.format(*self.pixelCurrent))
+                resID = resIDs[0]
                 for roach in self.roachList:
-                    freqFN = self.config.roaches.get('r{}.freqfileroot'.format(roach.num))
-                    freqFN = roach.tagfile(freqFN, dir=self.config.paths.data)
-                    resIDs, freqs = np.loadtxt(freqFN, unpack=True, usecols=(0, 1))
+                    freqFN = roach.tagfile(self.config.roaches.get('r{}.freqfileroot'.format(roach.num)),
+                                           dir=self.config.paths.data)
+                    sd = sweepdata.SweepMetadata(freqFN)
+                    resIDs, freqs, _ = sd.templar_data(self.config.roaches.get('r{}.lo_freq'.format(roach.num)))
                     try:
-                        freqCh = int(np.where(resIDs == resID)[0][0])
+                        freqCh = np.where(resIDs == resID)[0][0]
                         freq = freqs[freqCh]
                         feedline = self.config.roaches.get('r{}.feedline'.format(roach.num))
                         board = self.config.roaches.get('r{}.range'.format(roach.num))

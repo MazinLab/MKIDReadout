@@ -30,7 +30,13 @@ class Beammap(object):
                         default beammap.
                     If instance of Beammap, creates a copy
         """
-        self.file = ''
+        self.file = file
+        self.resIDs = None
+        self.flags = None
+        self.xCoords = None
+        self.yCoords = None
+        self.frequencies = None
+
         if file is not None:
             self._load(file)
             try:
@@ -114,12 +120,12 @@ class Beammap(object):
         """
         return copy.deepcopy(self)
 
-    def getResonatorsAtCoordinate(self, xCoordinate, yCoordinate):
-        indices = np.where((np.floor(self.xCoords) == xCoordinate) & (np.floor(self.yCoords) == yCoordinate))[0]
-        resonators = []
-        for idx in indices:
-            resonators.append(self.getResonatorData(self.resIDs[idx]))
-        return np.array(resonators)
+    def resIDat(self, x, y):
+        return self.resIDs[(np.floor(self.xCoords) == x) & (np.floor(self.yCoords) == y)]
+
+    def getResonatorsAtCoordinate(self, x, y):
+        resonators = [self.getResonatorData(r) for for r in  self.resIDat(x,y)]
+        return resonators
 
     def get(self, attribute='', flNum=None):
         """
@@ -161,9 +167,9 @@ class Beammap(object):
             raise Exception('This is not a valid Beammap attribute')
 
     def getResonatorData(self, resID):
-        index = np.where(self.resIDs == resID)[0][0]
+        index = np.where(self.resIDs == resID)[0][0]  #TODO Noah don't use where!
         resonator = [int(self.resIDs[index]), int(self.flags[index]), int(self.xCoords[index]), int(self.yCoords[index]),
-                          float(self.frequencies[index])]
+                     float(self.frequencies[index])]
         return resonator
 
     def beammapDict(self):

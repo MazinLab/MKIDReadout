@@ -13,7 +13,7 @@ from mkidreadout.channelizer.Roach2Controls import Roach2Controls
 from mkidreadout.utils import iqsweep
 from mkidcore.corelog import getLogger
 from pkg_resources import resource_filename
-
+import mkidreadout.configuration.powersweep.sweepdata as sweepdata
 
 class RoachStateMachine(QtCore.QObject):  # Extends QObject for use with QThreads
     """
@@ -249,36 +249,16 @@ class RoachStateMachine(QtCore.QObject):  # Extends QObject for use with QThread
         fn2 = '{0}_new.{1}'.format(*fn.rpartition('.')[::2])
         if os.path.isfile(fn2):
             fn = fn2
-            getLogger(__name__).info('Loading freqs from ' + fn)
 
-        freqFile = np.loadtxt(fn)
+        getLogger(__name__).info('Loading freqs from ' + fn)
 
-        if np.shape(freqFile)[1] == 3:
-            resIDs = np.atleast_1d(freqFile[:, 0])  # If there's only 1 resonator numpy loads it in as a float.
-            freqs = np.atleast_1d(freqFile[:, 1])  # We need an array of floats
-            attens = np.atleast_1d(freqFile[:, 2])
-            phaseOffsList = np.zeros(len(freqs))
-            iqRatioList = np.ones(len(freqs))
+        sd = sweepdata.SweepMetadata(fn)
 
-        else:
-            resIDs = np.atleast_1d(freqFile[:, 0])  # If there's only 1 resonator numpy loads it in as a float.
-            freqs = np.atleast_1d(freqFile[:, 1])  # We need an array of floats
-            attens = np.atleast_1d(freqFile[:, 2])
-            phaseOffsList = np.atleast_1d(freqFile[:, 3])
-            iqRatioList = np.atleast_1d(freqFile[:, 4])
+        resIDs, freqs, attens = sd.templar_data(self.config.roaches.get('r{}.lo_freq'.format(self.num)))
+        #TODO Neelay, alex what about phaseOffsList and iqRatioList in the metadatafile
+        phaseOffsList = np.zeros_like(attens)
+        iqRatioList = np.ones_like(attens)
 
-        try:
-            assert (len(freqs) == len(np.unique(freqs))), "Frequencies in " + fn + " need to be unique."
-            assert (len(resIDs) == len(np.unique(resIDs))), "Resonator IDs in " + fn + " need to be unique."
-        except AssertionError as e:
-            getLogger(__name__).error(exc_info=True)
-            raise e
-        argsSorted = np.argsort(freqs)  # sort them by frequency (I don't think this is needed)
-        freqs = freqs[argsSorted]
-        resIDs = resIDs[argsSorted]
-        attens = attens[argsSorted]
-        phaseOffsList = iqRatioList[argsSorted]
-        iqRatioList = iqRatioList[argsSorted]
         for i in range(len(freqs)):
             getLogger(__name__).info("{} {} {} {} {} {}".format(i, resIDs[i], freqs[i], attens[i], phaseOffsList[i],
                                                                 iqRatioList[i]))

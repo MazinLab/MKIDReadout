@@ -22,6 +22,7 @@ from PyQt4.QtCore import Qt
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_qt4agg import FigureCanvasQTAgg as FigureCanvas
 from mkidcore.corelog import getLogger
+import mkidreadout.configuration.powersweep.sweepdata as sweepdata
 
 try:
     from matplotlib.backends.backend_qt4agg import NavigationToolbar2QTAgg as NavigationToolbar
@@ -814,6 +815,7 @@ class RoachSweepWindow(QMainWindow):
         if attens is None:
             attens = np.copy(self.roach.roachController.attenList)
 
+        #TODO Alex, Neelay This function did not sttem to have any provision for keeping resIDs & freqs in sync
         keepRes = np.where(attens >= 0)  # remove any resonators with negative attenuation
         nFreqs = len(freqs)
         freqs = freqs[keepRes]
@@ -823,11 +825,12 @@ class RoachSweepWindow(QMainWindow):
 
         freqFile = self.roach.roachController.tagfile(self.config.get('r{}.freqfileroot'.format(self.roachNum)),
                                                       dir=self.config.paths.data)
-        resID, _, _ = np.loadtxt(freqFile, unpack=True) #TODO use frequency file loader
-        newFreqFile = '{0}_new.{1}'.format(*freqFile.lrpartition('.')[::2])
-        data = np.transpose([resID, freqs, attens])
-        getLogger(__name__).info("Saving %s", newFreqFile)
-        np.savetxt(newFreqFile, data, '%6i  %15.9e  %4i')
+        sd = sweepdata.SweepMetadata(freqFile)
+        sd.file = '{0}_new.{1}'.format(*freqFile.lrpartition('.')[::2])
+        lo = self.config.get('r{}.lo_freq'.format(self.roachNum))
+        sd.update_from_roach(lo, freqs=freqs, attens=attens)
+        getLogger(__name__).info("Saving %s", sd)
+        sd.save()
 
     def changedSetting(self, settingID, setting):
         """

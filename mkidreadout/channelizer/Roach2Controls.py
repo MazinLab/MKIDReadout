@@ -2135,7 +2135,8 @@ class Roach2Controls(object):
 
         getLogger(__name__).debug('Loading frequencies from %s', freqListFile)
         try:
-            resID_roach, freqs, _ = np.loadtxt(self.freqListFile, unpack=True)
+            sd = sweepdata.SweepMetadata(self.freqListFile)
+            resID_roach, freqs, attens = sd.templar_data(self.LOFreq)
         except IOError as e:
             getLogger(__name__).error('unable to load freqs {}'.format(os.path.isfile(freqListFile)),exc_info=True)
         self.generateResonatorChannels(freqs)
@@ -2286,7 +2287,7 @@ class Roach2Controls(object):
     @property
     def issetup(self):
         """Return true if roach has been configured by templar e.g. ready for use by dashboard"""
-        # TODO
+        # TODO Neelay implement code in firmware to see what the config state is
         return True
 
     def tagfile(self, root, dir='', epilog=''):
