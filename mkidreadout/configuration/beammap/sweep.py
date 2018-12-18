@@ -403,7 +403,7 @@ class ManualRoughBeammap(object):
         y = self.goodPix[0][self.curPixInd]
         x = self.goodPix[1][self.curPixInd]
 
-        if fastforward:
+        if fastforward or rewind:
             skip_timestream = True
             counter = 0
             while skip_timestream and counter < self.nGoodPix:
@@ -422,31 +422,11 @@ class ManualRoughBeammap(object):
                     print('y failed check')
                 skip_timestream = xStream_good and yStream_good
                 if skip_timestream:
-                    self.curPixInd += 1
+                    if fastforward:
+                        self.curPixInd += 1
+                    else:
+                        self.curPixInd -= 1
                     self.curPixInd %= self.nGoodPix
-
-        if rewind:
-            skip_timestream = True
-            counter = 0
-            while skip_timestream and counter < self.nGoodPix:
-                counter += 1
-                y = self.goodPix[0][self.curPixInd]
-                x = self.goodPix[1][self.curPixInd]
-                xStream = self.x_images[:, y, x]
-                yStream = self.y_images[:, y, x]
-                y_loc = self.y_loc[y, x]
-                x_loc = self.x_loc[y, x]
-                xStream_good = check_timestream(xStream, x_loc)
-                if not xStream_good:
-                    print('x failed check')
-                yStream_good = check_timestream(yStream, y_loc)
-                if not yStream_good:
-                    print('y failed check')
-                skip_timestream = xStream_good and yStream_good
-                if skip_timestream:
-                    self.curPixInd -= 1
-                    self.curPixInd %= self.nGoodPix
-
 
         if lineNum == 0 or lineNum >= 4:
             offset = self.x_loc[y, x]
