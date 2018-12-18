@@ -29,9 +29,8 @@ import matplotlib
 
 matplotlib.use('Qt4Agg')
 import matplotlib.pyplot as plt
-from mkidcore.config import config, importoldconfig, ConfigThing, _consolidateconfig
-
-from mkidcore.corelog import setup_logging, getLogger
+from mkidcore.config import importoldconfig, ConfigThing, _consolidateconfig
+from mkidcore.corelog import setup_logging, getLogger, create_log
 import argparse
 
 from mkidreadout.configuration.beammap.utils import crossCorrelateTimestreams, determineSelfconsistentPixelLocs2, \
@@ -772,26 +771,30 @@ def registersettings(cfgObj):
     cfgObj.register('beammap.sweep.imgfiledirectory', '')
     cfgObj.register('beammap.sweep.initialbeammap', '')
     cfgObj.register('beammap.sweep.roughbeammap', '')
-    cfgObj.register('detector.nrow', 145)
+    cfgObj.register('detector.nrow', 146)
     cfgObj.register('detector.ncol', 140)
 
     c = ConfigThing()
     c.register('type','x', allowed=('x', 'y'))
     c.register('direction', '+', allowed=('+', '-'))
     c.register('speed', 3)
-    c.register('duration', 215)
+    c.register('duration', 500)
     c.register('start', 1527724450)
     cfgObj.register('beammap.sweep.sweeps', [c])
 
 
 
 if __name__ == '__main__':
-    setup_logging()
+    #setup_logging()
+    create_log('Sweep')
+    create_log('mkidcore')
+    create_log('mkidreadout')
     log = getLogger('Sweep')
 
-    parser = argparse.ArgumentParser(description='MKID Wavelength Calibration Utility')
-    parser.add_argument('cfgfile', type=str, help='The config file', default='sweep.cfg')
+    parser = argparse.ArgumentParser(description='MKID Beammap Analysis Utility')
+    parser.add_argument('cfgfile', type=str, default='sweep.cfg',
                         help='Run sweep code to generate h5 files manually')
+    parser.add_argument('-cc', default=False, action='store_true', dest='use_cc', help='run in Xcor mode')
     args = parser.parse_args()
 
     thisconfig = ConfigThing()
@@ -802,7 +805,7 @@ if __name__ == '__main__':
     log.info('Starting rough beammap')
     b = RoughBeammap(thisconfig)
 
-    if args.CCMode:
+    if args.use_cc: #Cross correllation mode
         b.loadRoughBeammap()
         b.concatImages('x',False)
         b.concatImages('y',False)
@@ -811,13 +814,13 @@ if __name__ == '__main__':
         b.refinePeakLocs('x', b.config.beammap.sweep.fittype, b.x_locs, fitWindow=15)
         b.refinePeakLocs('y', b.config.beammap.sweep.fittype, b.y_locs, fitWindow=15)
         b.saveRoughBeammap()
-
-    if args.ManualMode:
+    else:   #Manual mode
         log.info('Stack x and y')
         b.stackImages('x')
         b.stackImages('y')
         log.info('Cleanup')
         b.manualSweepCleanup()
 
-    if not args.CCMode and not args.ManualMode:
-        print("Specify whether to run in manual or cc mode")
+    #if not args.CCMode and not args.ManualMode:
+    #    print("Specify whether to run in manual or cc mode")
+
