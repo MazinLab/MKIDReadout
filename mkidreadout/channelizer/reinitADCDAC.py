@@ -27,6 +27,8 @@ def worker(rNum, cfgFN='initgui.cfg'):
     print "r"+str(rNum)+ " ZDOK cal"
     roach.calZdok()
     print "r"+str(rNum)+ " Done"
+    del roach
+    del config
 
 def reinitADCDAC(roachNums, cfgFN='initgui.cfg'):
     threads = []
@@ -36,6 +38,8 @@ def reinitADCDAC(roachNums, cfgFN='initgui.cfg'):
         t.start()
     for t in threads:
         t.join()    #block until they complete
+        del t
+    del threads
 
 if __name__ == "__main__":
     

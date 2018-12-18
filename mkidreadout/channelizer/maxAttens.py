@@ -7,7 +7,7 @@ Usage: $python maxAttens.py 222 223
 
 """
 
-import sys
+import sys,time
 import threading
 from mkidreadout.channelizer.Roach2Controls import Roach2Controls
 
@@ -20,6 +20,8 @@ def worker(rNum, params='darknessfpga.param'):
     roach.changeAtten(1, 31.75)
     roach.changeAtten(2, 31.75)
     roach.changeAtten(3, 31.75)
+    del roach
+    
 
 def maxAttens(roachNums, params='darknessfpga.param'):
     threads = []
@@ -27,8 +29,12 @@ def maxAttens(roachNums, params='darknessfpga.param'):
         t=threading.Thread(target=worker, args=(rNum,params,))
         threads.append(t)
         t.start()
+        time.sleep(0.005)#too many files FPGA files opened at once. 
     for t in threads:
         t.join()    #block until they complete
+        del t
+    del threads
+        
 
 
 if __name__=='__main__':

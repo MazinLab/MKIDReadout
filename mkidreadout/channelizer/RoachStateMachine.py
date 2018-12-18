@@ -704,6 +704,13 @@ class RoachStateMachine(QtCore.QObject):        #Extends QObject for use with QT
         #data=self.roachController.takePhaseStreamData(selChanIndex=ch, duration=duration, hostIP=hostip)
         try:
             data=self.roachController.takePhaseStreamDataOfFreqChannel(freqChan=channel, duration=duration, hostIP=hostip, fabric_port=port)
+            
+        except:
+            traceback.print_exc()
+            self.finished.emit()
+            return
+
+        try:
             longSnapFN = self.config.get('Roach '+str(self.num),'longsnapfile')
             longSnapFN = longSnapFN.rsplit('.',1)[0]+'_resID'+str(int(resID))+'_'+time.strftime("%Y%m%d-%H%M%S",time.localtime())+'.'+longSnapFN.rsplit('.',1)[1]
             np.savez(longSnapFN,data)
@@ -713,10 +720,6 @@ class RoachStateMachine(QtCore.QObject):        #Extends QObject for use with QT
             print 'Making directory: '+path[0]
             os.mkdir(path[0])
             np.savez(longSnapFN,data)
-        except:
-            traceback.print_exc()
-            self.finished.emit()
-            return
         #time.sleep(timelen)
         #data=np.random.uniform(-.1,.1,timelen*10.**6)
         self.timestreamPhase.emit(channel,data)

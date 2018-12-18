@@ -2,10 +2,11 @@
 Author: Alex Walter
 Date: Sept 4, 2018
 
-This class is a container for the widesweep and powersweep data.
-It can load a previous sweep, or take a new one.
+This code does a frequency / power sweep
 
-
+Opening sockets / creating files / reading config files can cause a TOO MANY OPEN FILES ERROR
+If this happens you can increase the operating system's open file limit
+$ ulimit -n 4096
 
 TODO:
  - change configs to new format
@@ -70,7 +71,7 @@ def setupRoach4FreqSweep(roachNum, freqFN='rfFreqs.txt', defineLUTs=False):
         defineLUTs - Boolean to redefine the DAC/DDC LUTs. You only need to do this once
     OUTPUTS:
         Roach2Controls object
-        returns -1 if there's an error
+        returns None if there's an error
     """
     try: 
         FPGAParamFile = '/home/mecvnc/MKIDReadout/mkidreadout/channelizer/darknessfpga.param'
@@ -223,37 +224,38 @@ def makeRandomFreqSideband(startFreq, endFreq, nChannels, toneBandwidth, freqRes
     return freqs
 
 
-def mecSlowPowerSweeps(freqList='rfFreqs.txt', defineLUTs=False, outputFN='psData.npz'):
+def mecSlowPowerSweeps(freqList='rfFreqs.txt', defineLUTs=False, outputFN='psData.npz', startDacAtten=11.5, endDacAtten=41.5,attenStep=1):
     rNums=[236, 237, 238, 239, 220, 221, 222, 223, 232, 233, 228, 229, 224, 225]
     maxAttens(rNums,'/home/mecvnc/MKIDReadout/mkidreadout/channelizer/darknessfpga.param')
-    reinitADCDAC(rNums, '/home/mecvnc/MKIDReadout/mkidreadout/channelizer/initgui.cfg')
-    rNums=[236, 222, 232, 228, 224]
-    rNums2=np.asarray(rNums)+1
+    #reinitADCDAC(rNums, '/home/mecvnc/MKIDReadout/mkidreadout/channelizer/initgui.cfg')
+    rNums=[236, 220, 222, 232, 228, 224]
+    rNums2=np.roll(np.asarray(rNums)+1,int(len(rNums)/2))
     #rNums=[236]
     #rNums2=[237]
-    startFreq=3.9E9
-    endFreq=4.9E9
-    startDacAtten=15
-    endDacAtten=20
+    startFreq=3.43E9
+    endFreq=5.43E9
+    #startDacAtten=11.5
+    #endDacAtten=41.5
 
-    k_dict={'startFreq':startFreq,'endFreq':endFreq,'startDacAtten':startDacAtten, 'endDacAtten':endDacAtten, 'attenStep':1, 'loStepQ':2, 'nOverlap':7, 'freqList':freqList, 'defineLUTs':defineLUTs, 'outputFN':outputFN}
+    k_dict={'startFreq':startFreq,'endFreq':endFreq,'startDacAtten':startDacAtten, 'endDacAtten':endDacAtten, 'attenStep':attenStep, 'loStepQ':2, 'nOverlap':7, 'freqList':freqList, 'defineLUTs':defineLUTs, 'outputFN':outputFN}
     k_dict2=k_dict.copy()
-    k_dict2['startFreq']=k_dict2['startFreq']+2.E9
-    k_dict2['endFreq']=k_dict2['endFreq']+2.E9
+    k_dict2['startFreq']=k_dict2['startFreq']+2.02E9
+    k_dict2['endFreq']=k_dict2['endFreq']+2.02E9
     for i, rNum in enumerate(rNums):
-        maxAttens(np.append(rNums,rNums2),'/home/mecvnc/MKIDReadout/mkidreadout/channelizer/darknessfpga.param')
+        reinitADCDAC(np.asarray([rNum,rNums2[i]]), '/home/mecvnc/MKIDReadout/mkidreadout/channelizer/initgui.cfg')
 
         t1=threading.Thread(target=takePowerSweep, args=(rNum,),kwargs=k_dict)   
         t1.start()
         
-        r2 = rNums
-        t2=threading.Thread(target=takePowerSweep, args=(rNums2[(i+int(len(rNums2)/2))%len(rNums2)],),kwargs=k_dict2)   
+        t2=threading.Thread(target=takePowerSweep, args=(rNums2[i],),kwargs=k_dict2)   
         t2.start()
 
         t1.join()
-        t2.join()
+        t2.join()   #wait until they both finish
+        del t1, t2
         
-        #reinitADCDAC(np.append(rNums,rNums2), '/home/mecvnc/MKIDReadout/mkidreadout/channelizer/initgui.cfg')
+        maxAttens(np.asarray([rNum,rNums2[i]]),'/home/mecvnc/MKIDReadout/mkidreadout/channelizer/darknessfpga.param')
+
 
 
 def takeMultPowerSweeps(roachNums, startFreqs=None, endFreqs=None, startDacAtten=1, endDacAtten=None, attenStep=1., loStepQ=1, nOverlap=10, freqList='rfFreqs.txt', defineLUTs=False, outputFN='psData.npz'):
@@ -277,6 +279,8 @@ def takeMultPowerSweeps(roachNums, startFreqs=None, endFreqs=None, startDacAtten
         t.start()
     for t in threads:
         t.join()
+        del t
+    del threads
 
     #threads=[]
     #for i in range(len(roachNums)):
@@ -340,7 +344,7 @@ def takePowerSweep(rNum, startFreq=3.5E9, endFreq=6.E9, startDacAtten=1, endDacA
         sweepSpan=toneSpan+loSpan                                       #Total span of a single sweep
         if loSpan>freqSpan:                                          #This shouldn't happen but we'll handle it if it does
             loSpan=freqSpan                                             #The tones won't overlap in this case...
-            Warnings.warn("Either your DAC tones are too far apart or you're looking at a very small freq range")
+            warnings.warn("Either your DAC tones are too far apart or you're looking at a very small freq range")
         
         print '\nSweep Details:'
         print 'freqSpan: '+str(freqSpan/10.**6.)+' MHz'
@@ -355,6 +359,7 @@ def takePowerSweep(rNum, startFreq=3.5E9, endFreq=6.E9, startDacAtten=1, endDacA
         print 'nLOSteps: '+str(loSpan/loStep)
         print ''
 
+        outputFN = outputFN.rsplit('.npz',1)[0]+'_'+str(rNum)+'.npz'
         
         #Now start powersweeping!
         newADCAtten=30. #Arbitrary first guess
@@ -388,6 +393,10 @@ def takePowerSweep(rNum, startFreq=3.5E9, endFreq=6.E9, startDacAtten=1, endDacA
             Q_list = np.reshape(Q_list, (nSweeps*len(dacQuantizedFreqList), -1))
             I_vals.append(I_list)
             Q_vals.append(Q_list)
+            if outputFN is not None:
+                freqs2save = np.reshape(freq_list, (nSweeps*len(dacQuantizedFreqList), -1))
+                atten2save = np.asarray([attenList[i]- roachController.globalDacAtten + resAtten])
+                FreqSweep.savePowerSweep(outputFN, np.asarray([I_list]), np.asarray([Q_list]), freqs2save, atten2save)
 
         I_vals = np.reshape(I_vals, (len(attenList), nSweeps*len(dacQuantizedFreqList), -1))
         Q_vals = np.reshape(Q_vals, (len(attenList), nSweeps*len(dacQuantizedFreqList), -1))
@@ -402,9 +411,10 @@ def takePowerSweep(rNum, startFreq=3.5E9, endFreq=6.E9, startDacAtten=1, endDacA
         roachController.getOptimalADCAtten(newADCAtten)
 
         #Save and finish
-        if outputFN is not None:
-            outputFN = outputFN.rsplit('.npz',1)[0]+'_'+str(rNum)+'.npz'
-            FreqSweep.savePowerSweep(outputFN, I_vals, Q_vals, freq_list, attens)
+        #if outputFN is not None:
+        #    outputFN = outputFN.rsplit('.npz',1)[0]+'_'+str(rNum)+'.npz'
+        #    FreqSweep.savePowerSweep(outputFN, I_vals, Q_vals, freq_list, attens)
+        del roachController        
         return I_vals, Q_vals, freq_list, attens
     except:
         exc_info=sys.exc_info()
@@ -454,7 +464,7 @@ class FreqSweep:
             data=np.load(fn)
             axes=[-1,-1,-1]
             if len(np.intersect1d(attens,data['atten']))==0:   #CASE 1: all atten values are different
-                if np.array_equal(freqsList, data['freqs']):   #        and the tone freqs are the same
+                if np.array_equal(freqList, data['freqs']):   #        and the tone freqs are the same
                     axes=[0,-1,0]
             elif np.array_equal(attens,data['atten']):         #CASE 2: all attens are the same (tone freqs can be same or different)
                 if len(freqList[0]) == len(data['freqs'][0]):  #        and the same number of LO steps
@@ -468,14 +478,16 @@ class FreqSweep:
             if axes[2]>=0: attens=np.append(data['atten'],attens,axes[2])
 
             #Sort by attenuation and tone start frequency
-            attenSort=np.argsort(attens)
-            freqSort=np.argsort(freqList[:,0])
-            I_vals=I_vals[attenSort,freqSort,:]
-            Q_vals=Q_vals[attenSort,freqSort,:]
+            attenSort=np.argsort(attens)[::-1]
+            #freqSort=np.argsort(freqList[:,0])     #don't sort by tone frequency
+            #I_vals=I_vals[attenSort,freqSort,:]
+            #Q_vals=Q_vals[attenSort,freqSort,:]
+            I_vals=I_vals[attenSort,:,:]
+            Q_vals=Q_vals[attenSort,:,:]
             attens=attens[attenSort]
-            freqList=freqList[freqSort,:]
+            #freqList=freqList[freqSort,:]
 
-            if np.array_equal(axes,[-1,-1,-1]): Warnings.warn('Unable to append data! Overwriting file instead.')
+            if np.array_equal(axes,[-1,-1,-1]): warnings.warn('Unable to append data! Overwriting file instead.')
 
         np.savez_compressed(fn, I=I_vals, Q=Q_vals, freqs=freqList, atten=attens)
 
@@ -485,7 +497,7 @@ class FreqSweep:
     def plotTransmissionData(self,show=True):
         freqs=self.data['freqs'].flatten()
         plt.figure()
-        for i, atten in enumerate(self.data['atten']):
+        for i, atten in enumerate(self.data['atten'][::2]):
             print 'flattening '+str(i)
             I=self.data['I'][i].flatten()
             Q=self.data['Q'][i].flatten()
@@ -505,7 +517,7 @@ class FreqSweep:
 
 if __name__ == "__main__":
     
-    freqFN='/home/data/MEC/20181212/rfFreqs_full.txt'
+    freqFN='/home/data/MEC/20181213/rfFreqs_full.txt'
     #generateWidesweepFreqList('/home/mecvnc/MKIDReadout/mkidreadout/channelizer/darknessfpga.param', outputFN=freqFN, alias_BW=2.E9)
     
 
@@ -521,13 +533,22 @@ if __name__ == "__main__":
     #takePowerSweep(220, startFreq=3.5E9, endFreq=6.E9, startDacAtten=6, endDacAtten=6, attenStep=1., loStepQ=1, nOverlap=10, freqList=freqFN, defineLUTs=False, outputFN='psData.npz')
 
     #takeMultPowerSweeps(rNums,startFreqs=None, endFreqs=None, startDacAtten=7, endDacAtten=9, attenStep=1., loStepQ=1, nOverlap=10, freqList=freqFN, defineLUTs=False, outputFN='psData.npz')
-    startTime=time.time()
-    mecSlowPowerSweeps(freqList= freqFN, defineLUTs=False, outputFN='/home/data/MEC/20181212/psData')
-    print 'Time: '+str(time.time()-startTime)
 
-    #f=FreqSweep()
-    #f.loadPowerSweep('/home/data/MEC/20181212/psData_222.npz')
-    #f.plotTransmissionData(show=True)
+    #startTime=time.time()
+    #mecSlowPowerSweeps(freqList= freqFN, defineLUTs=False, outputFN='/home/data/MEC/20181213/psData',startDacAtten=3.75, endDacAtten=33.75,attenStep=1)
+    #t1=time.time()-startTime
+    #print t1
+    
+
+    #startTime=time.time()
+    #mecSlowPowerSweeps(freqList= freqFN, defineLUTs=False, outputFN='/home/data/MEC/20181212/psData2',startDacAtten=10.5, endDacAtten=40.5,attenStep=2)
+    #t2=time.time()-startTime
+    #print 'Time1: '+str(t1)
+    #print 'Time2: '+str(t2)
+
+    f=FreqSweep()
+    f.loadPowerSweep('/home/data/MEC/20181213/psData_221.npz')
+    f.plotTransmissionData(show=True)
     #f.loadPowerSweep('psData_225.npz')
     #f.plotTransmissionData(show=True)
 
