@@ -35,7 +35,7 @@ from mkidcore.corelog import setup_logging, getLogger
 import argparse
 
 from mkidreadout.configuration.beammap.utils import crossCorrelateTimestreams, determineSelfconsistentPixelLocs2, \
-    loadImgFiles, minimizePixelLocationVariance, snapToPeak, shapeBeammapIntoImages, fitPeak, getPeakCoM
+    loadImgFiles, minimizePixelLocationVariance, snapToPeak, shapeBeammapIntoImages, fitPeak, getPeakCoM, check_timestream
 from mkidreadout.configuration.beammap.flags import beamMapFlags
 
 
@@ -347,6 +347,18 @@ class ManualRoughBeammap(object):
             self.updateTimestreamPlot()
             self.updateXYPlot(1)
             self.updateFlagMapPlot()
+        elif event.key in [' ']:
+            self.curPixInd += 1
+            self.curPixInd %= self.nGoodPix
+            self.updateTimestreamPlot(fastforward=True)
+            self.updateXYPlot(1)
+            self.updateFlagMapPlot()
+        elif event.key in ['r']:
+            self.curPixInd -= 1
+            self.curPixInd %= self.nGoodPix
+            self.updateTimestreamPlot(rewind=True)
+            self.updateXYPlot(1)
+            self.updateFlagMapPlot()
         elif event.key in ['left']:
             self.curPixInd -= 1
             self.curPixInd %= self.nGoodPix
@@ -387,9 +399,54 @@ class ManualRoughBeammap(object):
         # event.ignore()
         # self.fig_time.show()
 
-    def updateTimestreamPlot(self, lineNum=4):
+    def updateTimestreamPlot(self, lineNum=4, fastforward = False, rewind = False):
         y = self.goodPix[0][self.curPixInd]
         x = self.goodPix[1][self.curPixInd]
+
+        if fastforward:
+            skip_timestream = True
+            counter = 0
+            while skip_timestream and counter < self.nGoodPix:
+                counter += 1
+                y = self.goodPix[0][self.curPixInd]
+                x = self.goodPix[1][self.curPixInd]
+                xStream = self.x_images[:, y, x]
+                yStream = self.y_images[:, y, x]
+                y_loc = self.y_loc[y, x]
+                x_loc = self.x_loc[y, x]
+                xStream_good = check_timestream(xStream, x_loc)
+                if not xStream_good:
+                    print('x failed check')
+                yStream_good = check_timestream(yStream, y_loc)
+                if not yStream_good:
+                    print('y failed check')
+                skip_timestream = xStream_good and yStream_good
+                if skip_timestream:
+                    self.curPixInd += 1
+                    self.curPixInd %= self.nGoodPix
+
+        if rewind:
+            skip_timestream = True
+            counter = 0
+            while skip_timestream and counter < self.nGoodPix:
+                counter += 1
+                y = self.goodPix[0][self.curPixInd]
+                x = self.goodPix[1][self.curPixInd]
+                xStream = self.x_images[:, y, x]
+                yStream = self.y_images[:, y, x]
+                y_loc = self.y_loc[y, x]
+                x_loc = self.x_loc[y, x]
+                xStream_good = check_timestream(xStream, x_loc)
+                if not xStream_good:
+                    print('x failed check')
+                yStream_good = check_timestream(yStream, y_loc)
+                if not yStream_good:
+                    print('y failed check')
+                skip_timestream = xStream_good and yStream_good
+                if skip_timestream:
+                    self.curPixInd -= 1
+                    self.curPixInd %= self.nGoodPix
+
 
         if lineNum == 0 or lineNum >= 4:
             offset = self.x_loc[y, x]

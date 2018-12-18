@@ -272,6 +272,53 @@ def fitPeak(timestream, initialGuess=np.nan, fitWindow=20):
     except RuntimeError:
         return [providedInitialGuess, np.nan, np.nan, np.nan]
 
+
+def check_timestream(timestream, peak_location):
+    """
+    INPUT:
+        timestream -
+        peak_location - estimate of peak location returned by fitPeak
+    OUTPUT:
+        good_peak - True if all checks passed, False if any checks fail
+
+    checks:
+        - check if fitted peak and maximum value are in the same place, for both x and y
+        - check if peak is 5 sigma (or any reasonable threshold) above the mean
+        - check that the peak specified in the input argument is the only 'good' peak... no doubles allowed!
+        - check if peak is > 3*mean
+    """
+    good_peak = True
+    good_peak = np.logical_and(good_peak, np.abs(np.argmax(timestream) - peak_location) < 2)
+    if not good_peak:
+        print('peak_location is not close to actual maximum')
+        return good_peak
+    good_peak = np.logical_and(good_peak,np.amax(timestream) > 3*np.mean(timestream)  )
+    if not good_peak:
+        print('peak is < 3*mean')
+        return good_peak
+
+    # remove baseline from timestream
+    timestream -= np.mean(timestream)
+    sigma = np.std(timestream)
+    good_peak = np.logical_and(good_peak, np.amax(timestream) > 5*sigma)
+    if not good_peak:
+        print('peak is not > 5 sigma')
+        return good_peak
+
+    # check for other peaks. If there are others, then good_peak = False.
+    mask = np.ones(len(timestream), dtype=bool)
+    mask_window_width = 15
+    mask[int(peak_location) - mask_window_width: int(peak_location) + mask_window_width] = False
+    good_peak = np.logical_and(good_peak, (np.logical_and(timestream[mask] < 5*sigma, timestream[mask] < .5*np.amax(timestream))).all())
+
+    if not good_peak:
+        print('there are multiple peaks above 5 sigma or maximum/2')
+
+    return good_peak
+
+
+
+
 def getPeakCoM(timestream, initialGuess=np.nan, fitWindow=15):
     """
     This function determines the center of mass moment of the peak around fitWindow
