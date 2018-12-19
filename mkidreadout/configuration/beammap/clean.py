@@ -54,6 +54,8 @@ class BMCleaner(object):
         self.instrument = instrument.lower()
         self.designFile = designMapPath
         self.beamMap = beamMap.copy()
+        self.preciseXs = self.beamMap.xCoords
+        self.preciseYs = self.beamMap.yCoords
 
         if self.instrument.lower() == 'mec':
             self.nFL = N_FL_MEC
@@ -386,35 +388,28 @@ class BMCleaner(object):
 
 if __name__=='__main__':
     parser = argparse.ArgumentParser(description='argument parser')
-    parser.add_argument('cfgFile', nargs=1, type=str, default='/mnt/data0/MKIDReadoout/configuration/clean.cfg', help='Configuration file')
+    parser.add_argument('cfgFile', nargs=1, type=str, default='/mnt/data0/MEC/20181218/clean.cfg', help='Configuration file')
     #default config file location
     args = parser.parse_args()
     configFileName = args.cfgFile[0]
     log.setLevel(logging.INFO)
-    
-    # Open config file
+
     configData = readDict()
     configData.read_from_file(configFileName)
     beammapDirectory = configData['beammapDirectory']
     finalBMFile = configData['finalBMFile']
     rawBMFile = configData['rawBMFile']
-    psFiles = configData['powersweeps']
+    # psFiles = configData['powersweeps']
     designFile = configData['designMapFile']
+    numRows = configData['numRows']
+    numCols = configData['numCols']
+    flipParam = configData['flip']
+    inst = configData['instrument']
 
-    #put together full input/output BM paths
-    finalPath = os.path.join(beammapDirectory, finalBMFile)
-    rawPath = os.path.join(beammapDirectory, rawBMFile)
-    frequencySweepPath = os.path.join(beammapDirectory, "ps_*.txt")
-
-
-    #load location data from rough BM file
-    rawBM = Beammap(rawPath)
-    rawBM.loadFrequencies(frequencySweepPath)
-    cleaner = BMCleaner(rawBM, int(configData['numRows']), int(configData['numCols']), configData['flip'], configData['instrument'])
-    cleaner.resolveOverlapWithFrequency()
-
-    cleaner.fixPreciseCoordinates() #fix wrong feedline and oob coordinates
-    cleaner.placeOnGrid() #initial grid placement
+    rawBeamMap = Beammap(rawBMFile, (146, 140), 'MEC')
+    cleaner = BMCleaner(beamMap=rawBeamMap, nRows=numRows, nCols=numCols, flip=flipParam, instrument=inst)
+    cleaner.fixPreciseCoordinates()
+    cleaner.placeOnGrid()
 
     #plt.ion()
     fig1 = plt.figure()
@@ -425,7 +420,7 @@ if __name__=='__main__':
     # resolve overlaps and place failed pixels
     cleaner.resolveOverlaps()
     cleaner.placeFailedPixels()
-    cleaner.saveBeammap(finalPath)
+    cleaner.saveBeammap(finalBMFile)
 
     fig2 = plt.figure()
     ax2 = fig2.add_subplot(111)
@@ -434,7 +429,7 @@ if __name__=='__main__':
 
     fig3 = plt.figure()
     ax3 = fig3.add_subplot(111)
-    goodPixMask = (cleaner.flags==beamMapFlags['good']) | (cleaner.flags==beamMapFlags['double'])
+    goodPixMask = (cleaner.beamMap.flags==beamMapFlags['good']) | (cleaner.beamMap.flags==beamMapFlags['double'])
     placedXsGood = cleaner.placedXs[goodPixMask]
     placedYsGood = cleaner.placedYs[goodPixMask]
     preciseXsGood = cleaner.preciseXs[goodPixMask] - 0.5
