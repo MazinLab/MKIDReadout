@@ -11,15 +11,21 @@ ISBAD = 0
 MAX_ML_SCORE = 1
 MAX_ATTEN = 100
 
+LOCUT = 1e9
 
-LOCUT=1e9
+A_RANGE_CUTOFF = 6e9
+
+
+def genResIDsForFreqs(freqs, flnum):
+    return np.arange(freqs.size) + flnum * 10000 + (freqs > A_RANGE_CUTOFF) * 5000
+
 
 def resID2fl(resID):
     return int(resID/10000)
 
 
 def bandfor(lo):
-    return 'a' if lo < 6.e9 else 'b'
+    return 'a' if lo < A_RANGE_CUTOFF else 'b'
 
 
 class FreqSweep(object):
@@ -234,7 +240,7 @@ class SweepMetadata(object):
     def _settypes(self):
         self.flag = self.flag.astype(int)
         self.resIDs = self.resIDs.astype(int)
-        self.feedline = int(self.resIDs[0]/10000)
+        self.feedline = resID2fl(self.resIDs[0])
 
     def _load(self):
         d = np.loadtxt(self.file.format(feedline=self.feedline), unpack=True)

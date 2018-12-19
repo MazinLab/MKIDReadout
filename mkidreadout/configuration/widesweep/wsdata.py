@@ -30,7 +30,7 @@ class WSFitMLData(object):
 
         self.effective_atten = np.mean(self.effective_atten)
 
-        s=np.argsort(self.freqs)
+        s = np.argsort(self.freqs)
 
         self.freqs[s]=self.freqs
         self.iVals =self.iVals[s]

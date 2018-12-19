@@ -8,6 +8,7 @@ from PyQt4.QtCore import *
 from mkidreadout.utils.iqsweep import *
 from matplotlib.backends.backend_qt4 import NavigationToolbar2QT as NavigationToolbar
 from mkidreadout.configuration.powersweep.autopeak import Finder
+import mkidreadout.instruments as instruments
 
 from pkg_resources import resource_filename
 
@@ -430,10 +431,12 @@ if __name__ == "__main__":
     create_log('mkidcore', console=True, mpsafe=True, fmt='%(asctime)s mkidcore: %(levelname)s %(message)s')
 
     parser = argparse.ArgumentParser(description='MKID Powersweep GUI')
+    parser.add_argument('psweep', type=str, help='A sweep npz file.')
+    parser.add_argument('--meta', dest='metafile', default='', type=str, help='The matching metadata.txt file to load')
 
     subparsers = parser.add_subparsers(help='find->[applyml]->click', dest='mode')
     find_parser = subparsers.add_parser('find', help='Find resonators')
-    find_parser.add_argument('psweep2', type=str, default=.5, help='The other sweep file for the FL (both needed).')
+    find_parser.add_argument('psweep2', type=str, default='', help='The other sweep file for the FL (both needed).')
     find_parser.add_argument('-s', '--sigma', dest='sigma', type=float, default=.5, help='Peak inference threshold')
 
     ml_parser = subparsers.add_parser('applyml', help='Apply a ML model')
@@ -449,10 +452,8 @@ if __name__ == "__main__":
     click_parser.add_argument('-gc', dest='gcut', default=1, type=float, help='Assume good if net ML score > (EXACT)')
     click_parser.add_argument('-bc', dest='bcut', default=-1, type=float, help='Assume bad if net ML score < (EXACT)')
 
-    parser.add_argument('psweep', type=str, help='A sweep npz file.')
-    parser.add_argument('-meta', dest='metafile', default='', type=str, help='The matching metadata.txt file to load')
-
     args = parser.parse_args()
+    metafile = args.metafile if args.metafile else os.path.splitext(args.psweep)[0] + '_metadata.txt'
 
     if args.mode == 'find':
         finder = Finder([args.psweep, args.psweep2])
@@ -460,11 +461,11 @@ if __name__ == "__main__":
         finder.findLocalMinima()
         finder.markCollisions(resBWkHz=200)
         getLogger(__name__).info('Found {} for clickthrough peaks.'.format(finder.num_good))
-        smd = finder.getSweepMetadata()
-        smd.save()
+        smd = finder.getSweepMetadata(instruments.guessFeedline(args.psweep))
+        smd.save(file=metafile)
     elif args.mode == 'applyml':
-        smd = sweepdata.SweepMetadata(args.metafile)
-        mlDict = ReadDict(file=ml_parser.mlconfig)
+        smd = sweepdata.SweepMetadata(metafile)
+        mlDict = ReadDict(file=args.mlconfig)
         inferenceData = MLData(args.psweep, smd)
         mlArgs = dict(xWidth=mlDict['xWidth'], resWidth=mlDict['resWidth'], pad_res_win=mlDict['padResWin'],
                       useIQV=mlDict['useIQV'], useMag=mlDict['useMag'], mlDictnAttens=mlDict['nAttens'])
@@ -474,7 +475,7 @@ if __name__ == "__main__":
     else:
         Ui = gui.Ui_MainWindow_Small if args.smallui else gui.Ui_MainWindow
         app = QApplication(sys.argv)
-        myapp = StartQt4(args.psweep, args.metafile, Ui, startndx=args.start_ndx,
+        myapp = StartQt4(args.psweep, metafile, Ui, startndx=args.start_ndx,
                          goodcut=args.gcut, badcut=args.bcut, useml=args.useml)
         myapp.show()
         app.exec_()
