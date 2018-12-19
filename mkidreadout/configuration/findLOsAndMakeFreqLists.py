@@ -14,11 +14,9 @@ Usage: python findLOsAndMakeFreqFiles.py <setupcfgfile> <templarcfgfile>
 '''
 import os, sys
 import numpy as np
-import matplotlib.pyplot as plt
-import pdb
 import ConfigParser
 from mkidreadout.configuration.createTemplarResList import createTemplarResList
-from mkidreadout.utils.readDict import readDict
+from mkidcore.readdict import ReadDict
 
 def findLOs(freqs, loRange=0.2, nIters=10000, colParamWeight=1, resBW=0.0002, ifHole=0.003):
     '''
@@ -143,7 +141,7 @@ if __name__=='__main__':
     if len(sys.argv)<3:
         print 'Usage: python findLOsAndMakeFreqFiles.py <setupcfgfile> <templarcfgfile>'
     
-    setupDict = readDict()
+    setupDict = ReadDict()
     try: 
         setupDict.readFromFile(sys.argv[1])
         try: mdd = setupDict['MKID_DATA_DIR']

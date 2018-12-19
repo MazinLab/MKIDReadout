@@ -3,10 +3,23 @@ import re
 import os
 import matplotlib.pyplot as plt
 from mkidcore.corelog import getLogger
-
+import mkidreadout.instruments as instruments
 
 ISGOOD = 1
 ISBAD = 0
+
+MAX_ML_SCORE = 1
+MAX_ATTEN = 100
+
+
+LOCUT=1e9
+
+def resID2fl(resID):
+    return int(resID/10000)
+
+
+def bandfor(lo):
+    return 'a' if lo < 6.e9 else 'b'
 
 
 class FreqSweep(object):
@@ -115,6 +128,9 @@ class SweepMetadata(object):
         self._settypes()
         self.sort()
 
+    def __str__(self):
+        return self.file
+
     @property
     def goodmlfreq(self):
         return self.mlfreq[self.flag == ISGOOD]
@@ -152,42 +168,54 @@ class SweepMetadata(object):
         return np.array([self.resIDs, self.flag, self.wsfreq, self.mlfreq, self.atten, self.ml_isgood_score,
                          self.ml_isbad_score])
 
-    def save(self, file=''):
-        sf = file.format(feedline=self.feedline) if file else self.file.format(feedline=self.feedline)
+    def update_from_roach(self, lo, freqs=None, attens=None):
+        #TODO move these to user attens/frequencies
+        use = self.lomask(lo, LOCUT)
+        if attens is not None:
+            self.attens[use] = attens
+            assert use.sum() == attens.size
+        if freqs is not None:
+            self.mlfreq[use] = freqs
+            assert use.sum() == freqs.size
 
-        if (np.abs(self.atten[~np.isnan(self.atten)])>100).any():
+    def lomask(self, lo, locut):
+        return (self.flag == ISGOOD) & (~np.isnan(self.mlfreq)) & (np.abs(self.mlfreq - lo)<LOCUT)
+
+    def vet(self):
+        if (np.abs(self.atten[~np.isnan(self.atten)]) > MAX_ATTEN).any():
             getLogger(__name__).warning('odd attens')
-        if (np.abs(self.ml_isgood_score[~np.isnan(self.ml_isgood_score)])>1).any():
+        if (np.abs(self.ml_isgood_score[~np.isnan(self.ml_isgood_score)]) > MAX_ML_SCORE).any():
             getLogger(__name__).warning('bad ml good score')
-        if (np.abs(self.ml_isbad_score[~np.isnan(self.ml_isbad_score)]) > 1).any():
+        if (np.abs(self.ml_isbad_score[~np.isnan(self.ml_isbad_score)]) > MAX_ML_SCORE).any():
             getLogger(__name__).warning('bad ml bad scores')
 
+        assert self.resIDs.size == np.unique(self.resIDs).size, "Resonator IDs must be unique."
+
+        assert (self.resIDs.size==self.wsfreq.size==self.flag.size==
+                self.atten.size==self.mlfreq.size==self.ml_isgood_score.size==
+                self.ml_isbad_score.size)
+
+    def save(self, file=''):
+        sf = file.format(feedline=self.feedline) if file else self.file.format(feedline=self.feedline)
+        self.vet()
         np.savetxt(sf, self.toarray().T, fmt="%8d %1u %16.7f %16.7f %5.1f %6.4f %6.4f",
                    header='feedline={}\nrID\trFlag\twsFreq\tmlFreq\tatten\tmlGood\tmlBad'.format(self.feedline))
 
-    def save_templar_freqfile(self, lo):
-        try:
-            roachstr = re.search('\D(\d{3})\D', self.file).group()
-            self.roachnum = int(roachstr[1:-1])
-        except AttributeError:
-            roachstr = '_'
+    def templar_data(self, lo, locut=None):
+        locut = LOCUT if locut is not None else np.inf
+        aResMask = self.lomask(lo, locut)
+        freq = self.mlfreq[aResMask]
+        s = np.argsort(freq)
+        #TODO should this be moved to VET?
+        assert freq.size == np.unique(freq).size, "Frequencies for templar must be be unique."
+        return self.resIDs[aResMask][s], freq[s], self.atten[aResMask][s]
 
-        fileloc = os.path.dirname(self.file)
-        if lo<6.e9:
-            abflag = 'a'
-        else:
-            abflag = 'b'
-
-        aFile = os.path.join(fileloc, 'ps_freqs' + roachstr + 'FL' + str(self.feedline) + abflag + '.txt') 
-
-        aResMask = (self.flag == ISGOOD) & (~np.isnan(self.mlfreq)) & (np.abs(self.mlfreq - lo)<1.e9)
-       
-        resIDsA = self.resIDs[aResMask]
-        freqsA = self.mlfreq[aResMask]
-        attensA = self.atten[aResMask]
-
-        np.savetxt(aFile, np.transpose([resIDsA, freqsA, attensA]), fmt='%4i %10.9e %.2f')
-        return aFile
+    def save_templar_freqfiles(self, lo, template='ps_freqs{roach}_FL{feedline}{band}.txt'):
+        band = bandfor(lo)
+        aFile = os.path.join(os.path.dirname(self.file),
+                             template.format(roach=instruments.roachnum(self.feedline, band),
+                                             feedline=self.feedline, band=band))
+        np.savetxt(aFile, np.transpose(self.templar_data(lo)), fmt='%4i %10.9e %.2f')
 
     def _settypes(self):
         self.flag = self.flag.astype(int)
@@ -202,6 +230,37 @@ class SweepMetadata(object):
         self.ml_isgood_score[self.flag == ISBAD] = 0
         self.ml_isbad_score[self.flag == ISBAD] = 1
         self._settypes()
+
+
+class FreqFile(object):
+    def __init__(self, file, feedline=None, band=None, resids=None, freq=None, atten=None):
+
+        self.file = file
+        self.feedline = feedline
+        self.band = band
+        self.file = 'ps_freqs{roach}_FL{feedline}{band}.txt'
+
+        if resids is None:
+            self.load()
+
+        self.resIDs, self.freqs, self.attens = resids, freq, atten
+        self._coerce()
+
+    def _coerce(self):
+        assert self.resIDs.size == self.freqs.size == self.attens.size, "Frequencies in " + self.file + " must be unique."
+        assert np.unique(self.resIDs).size == self.resIDs.size, 'Resonator IDs in ' + self.file + " must be unique."
+        assert resID2fl(self.resIDs[0]) == self.feedline, 'Resonator ID/ feedline mismatch'
+        s = self.freq.argsort()
+        self.resIDs = self.resIDs[s]
+        self.freqs = self.freqs[s]
+        self.attens = self.attens[s]
+
+    def save(self):
+        np.savetxt(self.file, np.transpose([self.resIDs, self.freqs, self.attens]), fmt='%4i %10.9e %.2f')
+
+    def load(self):
+        self.resIDs, self.freqs, self.attens = np.loadtxt(self.file, unpack=True)
+        self._coerce()
 
 
 def loadold(allfile, goodfile, outfile='digWS_FL{feedline}_metadata.txt'):

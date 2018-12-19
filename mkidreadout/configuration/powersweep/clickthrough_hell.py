@@ -426,6 +426,26 @@ class StartQt4(QMainWindow):
 
 
 if __name__ == "__main__":
+
+
+
+
+    parser = argparse.ArgumentParser(description='WS Auto Peak Finding')
+    parser.add_argument('wsDataFile', nargs=2, help='Raw Widesweep data')
+    parser.add_argument('-d', '--digital', action='store_true', help='Perform preprocessing step for digital data')
+    parser.add_argument('-s', '--sigma', dest='sigma', type=float, default=.5, help='Peak inference threshold')
+    args = parser.parse_args()
+
+    wsFilt = AutoPeakFinder(args.wsDataFile, args.digital)
+    wsFilt.inferPeaks(sigThresh=args.sigma)
+    wsFilt.findLocalMinima()
+    wsFilt.markCollisions(resBWkHz=200)
+    getLogger(__name__).info('Found {} good peaks.'.format(len(wsFilt.goodPeakIndices)))
+    wsFilt.saveInferenceFile()
+
+
+
+    #TODO Integrate autowidesweep and powersweepml.findpowers
     parser = argparse.ArgumentParser(description='MKID Powersweep GUI')
     parser.add_argument('psweep', default='', type=str, help='A frequency sweep npz file to load')
     parser.add_argument('metafile', default='', type=str, help='The matching metadata.txt file to load')

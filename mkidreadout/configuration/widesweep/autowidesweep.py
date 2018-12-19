@@ -17,17 +17,9 @@ class AutoPeakFinder(object):
         self.spacing = self.inferenceData.freqStep/1.e3 #convert to kHz
 
     def inferPeaks(self,  sigThresh=0.5):
-        # if isDigital:
-        #     self.inferenceData.stitchDigitalData()
-            #self.inferenceData.saveData(inferenceFile.split('.')[0] + '_stitched.txt')
-            
+
         bpFilt = signal.firwin(1001, (0.7*0.005*12.5/7.6*self.spacing/7.63, 0.175*self.spacing/7.63), pass_zero=False, window=('chebwin', 100))
         firFiltMagsDB = np.convolve(self.inferenceData.magsdb, bpFilt, mode='same')
-        #bpFiltLP = signal.firwin(1001, 0.175, pass_zero=True, window=('chebwin', 100))
-        #bpFiltHP = signal.firwin(1001, 0.75*0.005*12.5/7.6, pass_zero=False, window=('chebwin', 100))
-        #firFiltMags2 = np.convolve(self.inferenceData.mags, bpFiltLP, mode='same')
-        #firFiltMagsDB2 = 20*np.log10(firFiltMags2)
-        #firFiltMagsDB2 = np.convolve(firFiltMagsDB2, bpFiltHP, mode='same')
 
         thresh = sigThresh*np.std(firFiltMagsDB)
         print 'threshold', thresh
@@ -37,13 +29,6 @@ class AutoPeakFinder(object):
         peaks = np.unique(peaks)
         peaks = np.sort(peaks)
         print 'sp signal found', len(peaks), 'peaks'
-
-        #freqs = self.inferenceData.freqs
-        #plt.plot(freqs, firFiltMagsDB, label = 'fir cheby window')
-        ##plt.plot(freqs, self.inferenceData.magsdb - np.mean(self.inferenceData.magsdb), label='raw data')
-        #plt.plot(freqs[peaks], firFiltMagsDB[peaks], '.', label = 'signal peaks')
-        #plt.legend()
-        #plt.show()
 
         self.peakIndices = peaks
 
@@ -90,7 +75,7 @@ class AutoPeakFinder(object):
             try:
 
                 ip = int(os.path.splitext(self.inferenceData.filenameList[0])[0][-3:])
-                flNum = int(instrument.MEC_IP_FL_MAP[ip][0])
+                flNum = int(instrument.MEC_NUM_FL_MAP[ip][0])
             except (KeyError, ValueError, IndexError):
                 getLogger(__name__).warning('Could not guess feedline from filename {}.')
                 flNum = 0
