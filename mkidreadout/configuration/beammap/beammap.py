@@ -5,6 +5,17 @@ import copy
 import glob
 from mkidreadout.instruments import DEFAULT_ARRAY_SIZES
 import mkidcore.config
+import os
+
+
+class _BeamDict(dict):
+    def __missing__(self, key):
+        bfile = os.path.join(os.path.dirname(__file__), key.lower()+'.bmap')
+        self[key] = bfile
+        return bfile
+
+
+DEFAULT_BMAP_CFGFILES = _BeamDict()
 
 
 class Beammap(object):
@@ -124,7 +135,7 @@ class Beammap(object):
         return self.resIDs[(np.floor(self.xCoords) == x) & (np.floor(self.yCoords) == y)]
 
     def getResonatorsAtCoordinate(self, x, y):
-        resonators = [self.getResonatorData(r) for for r in  self.resIDat(x,y)]
+        resonators = [self.getResonatorData(r) for r in  self.resIDat(x,y)]
         return resonators
 
     def get(self, attribute='', flNum=None):
