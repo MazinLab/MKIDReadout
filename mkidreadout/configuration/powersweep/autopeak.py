@@ -1,8 +1,6 @@
-#!/usr/bin/env python
 """ Implements a template filter to identify WS peaks """
 import numpy as np
 import scipy.signal as signal
-import matplotlib.pyplot as plt
 import mkidreadout.instruments as instrument
 from mkidcore.corelog import getLogger
 from mkidreadout.configuration.widesweep.wsdata import WSFitMLData
@@ -11,13 +9,13 @@ import os
 import argparse
 import re
 
-class AutoPeakFinder(object):
-    def __init__(self, inferenceFileAB, isDigital=True,):
+
+class Finder(object):
+    def __init__(self, inferenceFileAB):
         self.inferenceData = WSFitMLData(inferenceFileAB)
         self.spacing = self.inferenceData.freqStep/1.e3 #convert to kHz
 
     def inferPeaks(self,  sigThresh=0.5):
-
         bpFilt = signal.firwin(1001, (0.7*0.005*12.5/7.6*self.spacing/7.63, 0.175*self.spacing/7.63), pass_zero=False, window=('chebwin', 100))
         firFiltMagsDB = np.convolve(self.inferenceData.magsdb, bpFilt, mode='same')
 
@@ -43,6 +41,10 @@ class AutoPeakFinder(object):
         self.badPeakIndices = self.peakIndices[collisionInds]
         self.goodPeakIndices = self.peakIndices[goodPeakInds]
 
+    @property
+    def num_good(self):
+        return self.goodPeakIndices.size
+
     def findLocalMinima(self):
         if self.peakIndices is None:
             raise Exception('Infer peak locations first!')
@@ -67,7 +69,7 @@ class AutoPeakFinder(object):
 
         self.peakIndices = np.unique(self.peakIndices)
 
-    def saveInferenceFile(self):
+    def getSweepMetadata(self):
 
         try:
             flNum = int(re.search('fl\d', self.inferenceData.filenameList[0], re.IGNORECASE).group()[-1])
@@ -90,21 +92,7 @@ class AutoPeakFinder(object):
 
         flag = np.full(freqs.size, sweepdata.ISBAD)
         flag[:ws_good_inds.size] = sweepdata.ISGOOD
-        smd = sweepdata.SweepMetadata(resid=resIds, flag=flag[sort_inds], wsfreq=freqs[sort_inds], file=metadatafile)
-        smd.save()
+        smd = sweepdata.SweepMetadata(resid=resIds, flag=flag[sort_inds], wsfreq=freqs[sort_inds], file=metadatafile,
+                                      wsatten=self.inferenceData.effective_atten)
+        return smd
 
-
-if __name__ == '__main__':
-
-    parser = argparse.ArgumentParser(description='WS Auto Peak Finding')
-    parser.add_argument('wsDataFile', nargs=2, help='Raw Widesweep data')
-    parser.add_argument('-d', '--digital', action='store_true', help='Perform preprocessing step for digital data')
-    parser.add_argument('-s', '--sigma', dest='sigma', type=float, default=.5, help='Peak inference threshold')
-    args = parser.parse_args()
-
-    wsFilt = AutoPeakFinder(args.wsDataFile, args.digital)
-    wsFilt.inferPeaks(sigThresh=args.sigma)
-    wsFilt.findLocalMinima()
-    wsFilt.markCollisions(resBWkHz=200)
-    getLogger(__name__).info('Found {} good peaks.'.format(len(wsFilt.goodPeakIndices)))
-    wsFilt.saveInferenceFile()

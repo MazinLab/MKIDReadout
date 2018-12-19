@@ -25,10 +25,10 @@ import pickle
 import random
 import time
 import math
-from mkidreadout.configuration.powersweep.PowerSweepML.PSFitMLData import *
+from mkidreadout.configuration.powersweep.ml.PSFitMLData import *
 from mkidreadout.configuration.powersweep.psmldata import *
 np.set_printoptions(threshold=np.inf)
-import mkidreadout.configuration.powersweep.PowerSweepML.PSFitMLTools as mlt
+import mkidreadout.configuration.powersweep.ml.PSFitMLTools as mlt
 
 #removes visible depreciation warnings from lib.iqsweep
 import warnings

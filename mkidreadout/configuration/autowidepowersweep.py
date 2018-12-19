@@ -1,5 +1,5 @@
 import sys
-# from mkidreadout.configuration.powersweep.PowerSweepML.PSFitMLData import PSFitMLData
+# from mkidreadout.configuration.powersweep.ml.PSFitMLData import PSFitMLData
 
 import matplotlib.pylab as plt
 
@@ -9,7 +9,7 @@ from scipy.optimize import curve_fit
 import scipy.signal as signal
 from mkidcore.corelog import getLogger
 import mkidreadout.configuration.sweepdata as sweepdata
-# from mkidreadout.configuration.widesweep.autowidesweep import AutoPeakFinder
+# from mkidreadout.configuration.widesweep.autowidesweep import Finder
 import re
 import argparse
 
@@ -344,7 +344,7 @@ if __name__ == '__main__':
     #     ANALOG_SPACING = 12.5
     #     DIGITAL_SPACING = 7.629
     #     spacing = DIGITAL_SPACING if args.digital else ANALOG_SPACING
-    #     wsFilt = AutoPeakFinder(spacing)
+    #     wsFilt = Finder(spacing)
     #     wsFilt.inferPeaks(wsFile, isDigital=args.digital, sigThresh=args.sigma)
     #     wsFilt.findLocalMinima()
     #     wsFilt.markCollisions(resBWkHz=200)

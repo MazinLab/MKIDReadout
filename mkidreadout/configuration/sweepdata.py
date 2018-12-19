@@ -48,6 +48,11 @@ class FreqSweep(object):
         self.i = self.i[sortedAttenInds, :, :]
         self.q = self.q[sortedAttenInds, :, :]
 
+    def oldwsformat_effective_atten(self, atten, amax=None):
+        atten = np.abs(self.atten-atten).argmin()
+        attenlast = atten+1 if amax is None else np.abs(self.atten - amax).argmin()
+        return self.atten[atten:max(atten+1, attenlast)].mean()
+
     def oldwsformat(self, atten, amax=None):
         """Q vals are GARBAGE!!! use for magnitude only"""
         atten = np.abs(self.atten-atten).argmin()
@@ -93,7 +98,8 @@ class FreqSweep(object):
 
 class SweepMetadata(object):
     def __init__(self, resid=None, wsfreq=None, flag=None, mlfreq=None, atten=None,
-                 ml_isgood_score=None, ml_isbad_score=None, file=''):
+                 ml_isgood_score=None, ml_isbad_score=None, file='',
+                 wsatten=np.nan):
 
         self.file = file
         self.feedline = None
@@ -101,6 +107,8 @@ class SweepMetadata(object):
         self.resIDs = resid
         self.wsfreq = wsfreq
         self.flag = flag
+
+        self.wsatten = wsatten
 
         if resid is not None:
             assert self.resIDs.size==self.wsfreq.size==self.flag.size
@@ -195,11 +203,17 @@ class SweepMetadata(object):
                 self.atten.size==self.mlfreq.size==self.ml_isgood_score.size==
                 self.ml_isbad_score.size)
 
+    def genheader(self):
+        header = ('feedline={}\n'
+                  'wsatten={}\n'
+                  'rID\trFlag\twsFreq\tmlFreq\tatten\tmlGood\tmlBad')
+        return header.format(self.feedline, self.wsatten)
+
     def save(self, file=''):
         sf = file.format(feedline=self.feedline) if file else self.file.format(feedline=self.feedline)
         self.vet()
         np.savetxt(sf, self.toarray().T, fmt="%8d %1u %16.7f %16.7f %5.1f %6.4f %6.4f",
-                   header='feedline={}\nrID\trFlag\twsFreq\tmlFreq\tatten\tmlGood\tmlBad'.format(self.feedline))
+                   header=self.genheader())
 
     def templar_data(self, lo, locut=None):
         locut = LOCUT if locut is not None else np.inf
@@ -224,6 +238,7 @@ class SweepMetadata(object):
 
     def _load(self):
         d = np.loadtxt(self.file.format(feedline=self.feedline), unpack=True)
+        #TODO convert to load metadata from file
         self.resIDs, self.flag, self.wsfreq, self.mlfreq, self.atten, self.ml_isgood_score, self.ml_isbad_score = d
 
         self.mlfreq[self.flag == ISBAD] = self.wsfreq[self.flag == ISBAD]

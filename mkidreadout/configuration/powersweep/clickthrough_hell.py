@@ -7,6 +7,7 @@ from PyQt4.QtGui import *
 from PyQt4.QtCore import *
 from mkidreadout.utils.iqsweep import *
 from matplotlib.backends.backend_qt4 import NavigationToolbar2QT as NavigationToolbar
+from mkidreadout.configuration.powersweep.autopeak import Finder
 
 from pkg_resources import resource_filename
 
@@ -375,15 +376,6 @@ class StartQt4(QMainWindow):
                 self.ui.plot_3.canvas.ax.lines[-1].set_alpha(.3)
             self.ui.plot_3.canvas.ax.plot(self.Res1.I[use], self.Res1.Q[use], '.-')
 
-            # if self.widesweep is not None:
-            #     ws_I = self.widesweep[wsmask, 1]
-            #     ws_Q = self.widesweep[wsmask, 2]
-            #     ws_dataRange_I = self.ui.plot_3.canvas.ax.xaxis.get_data_interval()
-            #     ws_dataRange_Q = self.ui.plot_3.canvas.ax.yaxis.get_data_interval()
-            #     ws_I -= numpy.median(ws_I) - numpy.median(ws_dataRange_I)
-            #     ws_Q -= numpy.median(ws_Q) - numpy.median(ws_dataRange_Q)
-
-            getLogger(__name__).debug('makeplots')
             self.ui.plot_3.canvas.draw()
 
         except IndexError:
@@ -427,45 +419,58 @@ class StartQt4(QMainWindow):
 
 if __name__ == "__main__":
 
-
-
-
-    parser = argparse.ArgumentParser(description='WS Auto Peak Finding')
-    parser.add_argument('wsDataFile', nargs=2, help='Raw Widesweep data')
-    parser.add_argument('-d', '--digital', action='store_true', help='Perform preprocessing step for digital data')
-    parser.add_argument('-s', '--sigma', dest='sigma', type=float, default=.5, help='Peak inference threshold')
-    args = parser.parse_args()
-
-    wsFilt = AutoPeakFinder(args.wsDataFile, args.digital)
-    wsFilt.inferPeaks(sigThresh=args.sigma)
-    wsFilt.findLocalMinima()
-    wsFilt.markCollisions(resBWkHz=200)
-    getLogger(__name__).info('Found {} good peaks.'.format(len(wsFilt.goodPeakIndices)))
-    wsFilt.saveInferenceFile()
-
-
-
-    #TODO Integrate autowidesweep and powersweepml.findpowers
-    parser = argparse.ArgumentParser(description='MKID Powersweep GUI')
-    parser.add_argument('psweep', default='', type=str, help='A frequency sweep npz file to load')
-    parser.add_argument('metafile', default='', type=str, help='The matching metadata.txt file to load')
-    parser.add_argument('--small', action='store_true', dest='smallui', default=False, help='Use small GUI')
-    parser.add_argument('--use-ml', action='store_true', dest='useml', default=False, help='Use ML as initial guess')
-    parser.add_argument('-i', dest='start_ndx', type=int, default=0, help='Starting resonator index')
-    parser.add_argument('-gc', dest='gcut', default=1, type=float, help='Assume good if net ML score > (EXACT)')
-    parser.add_argument('-bc', dest='bcut', default=-1, type=float, help='Assume bad if net ML score < (EXACT)')
-    args = parser.parse_args()
+    import mkidreadout.configuration.powersweep.ml.findPowers as findpowers
+    from mkidcore.readdict import ReadDict
+    from mkidreadout.configuration.powersweep.psmldata import MLData
 
     create_log('__main__', console=True, mpsafe=True, fmt='%(asctime)s PSClickthrough: %(levelname)s %(message)s')
     create_log('mkidreadout', console=True, mpsafe=True, fmt='%(asctime)s mkidreadout: %(levelname)s %(message)s')
     create_log('mkidcore', console=True, mpsafe=True, fmt='%(asctime)s mkidcore: %(levelname)s %(message)s')
 
-    Ui = gui.Ui_MainWindow_Small if args.smallui else gui.Ui_MainWindow
+    parser = argparse.ArgumentParser(description='MKID Powersweep GUI')
 
-    app = QApplication(sys.argv)
-    myapp = StartQt4(args.psweep, args.metafile, Ui, startndx=args.start_ndx,
-                     goodcut=args.gcut, badcut=args.bcut, useml=args.useml)
-    myapp.show()
-    app.exec_()
+    subparsers = parser.add_subparsers(help='find->[applyml]->click', dest='mode')
+    find_parser = subparsers.add_parser('find', help='Find resonators')
+    find_parser.add_argument('psweep2', type=str, default=.5, help='The other sweep file for the FL (both needed).')
+    find_parser.add_argument('-s', '--sigma', dest='sigma', type=float, default=.5, help='Peak inference threshold')
 
+    ml_parser = subparsers.add_parser('applyml', help='Apply a ML model')
+    ml_parser.add_argument('mlconfig', help='Machine learning model config file')
+    ml_parser.add_argument('model', help='Machine learning model (good)')
+    ml_parser.add_argument('--bmodel', dest='bmodel', default='', help='A bad model file')
 
+    click_parser = subparsers.add_parser('click', help='Clickthrough the resonators')
+    click_parser.add_argument('--small', action='store_true', dest='smallui', default=False, help='Use small GUI')
+    click_parser.add_argument('--use-ml', action='store_true', dest='useml', default=False, help='Use ML as initial guess')
+    click_parser.add_argument('-i', dest='start_ndx', type=int, default=0, help='Starting resonator index')
+    click_parser.add_argument('-gc', dest='gcut', default=1, type=float, help='Assume good if net ML score > (EXACT)')
+    click_parser.add_argument('-bc', dest='bcut', default=-1, type=float, help='Assume bad if net ML score < (EXACT)')
+
+    parser.add_argument('psweep', type=str, help='A sweep npz file.')
+    parser.add_argument('-meta', dest='metafile', default='', type=str, help='The matching metadata.txt file to load')
+
+    args = parser.parse_args()
+
+    if args.mode == 'find':
+        finder = Finder([args.psweep, args.psweep2])
+        finder.inferPeaks(sigThresh=args.sigma)
+        finder.findLocalMinima()
+        finder.markCollisions(resBWkHz=200)
+        getLogger(__name__).info('Found {} for clickthrough peaks.'.format(finder.num_good))
+        smd = finder.getSweepMetadata()
+        smd.save()
+    elif args.mode == 'applyml':
+        smd = sweepdata.SweepMetadata(args.metafile)
+        mlDict = ReadDict(file=ml_parser.mlconfig)
+        inferenceData = MLData(args.psweep, smd)
+        mlArgs = dict(xWidth = mlDict['xWidth'], resWidth = mlDict['resWidth'], pad_res_win = mlDict['padResWin'],
+                      useIQV = mlDict['useIQV'], useMag = mlDict['useMag'], mlDictnAttens = mlDict['nAttens'])
+        findpowers.apply_ml_model(inferenceData, smd.wsatten, mlDict['nAttens'], mlArgs=mlArgs,
+                                  goodModel=args.model, badModel=args.bmodel, center_loop=mlDict['center_loop'])
+    else:
+        Ui = gui.Ui_MainWindow_Small if args.smallui else gui.Ui_MainWindow
+        app = QApplication(sys.argv)
+        myapp = StartQt4(args.psweep, args.metafile, Ui, startndx=args.start_ndx,
+                         goodcut=args.gcut, badcut=args.bcut, useml=args.useml)
+        myapp.show()
+        app.exec_()
