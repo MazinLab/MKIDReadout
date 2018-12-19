@@ -405,9 +405,8 @@ class StartQt4(QMainWindow):
     def savevalues(self):
         self.freqList[self.resnum] = self.resfreq
         self.attenList[self.resnum] = self.atten
-        self.metadata_out.atten[self.resID == self.metadata_out.resIDs] = self.atten
-        self.metadata_out.mlfreq[self.resID == self.metadata_out.resIDs] = self.resfreq
-        self.metadata_out.save()
+        self.metadata_out.set(self.resID, atten=self.atten, freq=self.resfreq,
+                              reviewed=True, save=True)
 
         msg = " ....... Saved to file:  resnum={} resID={} resfreq={} atten={}"
         getLogger(__name__).info(msg.format(self.resnum, self.resID, self.resfreq, self.atten))
@@ -471,6 +470,7 @@ if __name__ == "__main__":
                       useIQV=mlDict['useIQV'], useMag=mlDict['useMag'], mlDictnAttens=mlDict['nAttens'])
         findpowers.apply_ml_model(inferenceData, smd.wsatten, mlDict['nAttens'], mlArgs=mlArgs,
                                   goodModel=args.model, badModel=args.bmodel, center_loop=mlDict['center_loop'])
+        inferenceData.updatemetadata()
         smd.save()
     else:
         Ui = gui.Ui_MainWindow_Small if args.smallui else gui.Ui_MainWindow

@@ -285,7 +285,7 @@ class widePowerSweep():
         print(flag.shape, self.ws_good_inds.shape)
         flag[self.scores >= self.score_cut] = sweepdata.ISGOOD
         smd = sweepdata.SweepMetadata(resid=resIds, flag=flag, wsfreq=freqs, file=metadatafile,
-                                      mlfreq = self.mlfreq, atten = None,
+                                      mlfreq = self.mlfreq, mlatten= None,
                                       ml_isgood_score =None, ml_isbad_score=None)
         smd.save()
 

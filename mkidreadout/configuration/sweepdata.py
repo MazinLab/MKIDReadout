@@ -5,8 +5,11 @@ import matplotlib.pyplot as plt
 from mkidcore.corelog import getLogger
 import mkidreadout.instruments as instruments
 
-ISGOOD = 1
+#flags
+ISGOOD = 0b1
+ISREVIEWED = 0b10
 ISBAD = 0
+
 
 MAX_ML_SCORE = 1
 MAX_ATTEN = 100
@@ -103,7 +106,7 @@ class FreqSweep(object):
 
 
 class SweepMetadata(object):
-    def __init__(self, resid=None, wsfreq=None, flag=None, mlfreq=None, atten=None,
+    def __init__(self, resid=None, wsfreq=None, flag=None, mlfreq=None, mlatten=None,
                  ml_isgood_score=None, ml_isbad_score=None, file='',
                  wsatten=np.nan):
 
@@ -113,19 +116,15 @@ class SweepMetadata(object):
         self.resIDs = resid
         self.wsfreq = wsfreq
         self.flag = flag
-
         self.wsatten = wsatten
 
-        if resid is not None:
-            assert self.resIDs.size==self.wsfreq.size==self.flag.size
-
-        self.atten = atten
+        self.mlatten = mlatten
         self.mlfreq = mlfreq
         self.ml_isgood_score = ml_isgood_score
         self.ml_isbad_score = ml_isbad_score
 
-        if atten is None:
-            self.atten = np.full_like(self.resIDs, np.nan, dtype=float)
+        if mlatten is None:
+            self.mlatten = np.full_like(self.resIDs, np.nan, dtype=float)
         if mlfreq is None:
             self.mlfreq = np.full_like(self.resIDs, np.nan, dtype=float)
         if ml_isgood_score is None:
@@ -133,13 +132,13 @@ class SweepMetadata(object):
         if ml_isbad_score is None:
             self.ml_isbad_score = np.full_like(self.resIDs, np.nan, dtype=float)
 
+        self.freq = self.mlfreq.copy()
+        self.atten = self.mlatten.copy()
+
         if file and resid is None:
             self._load()
 
-        assert (self.resIDs.size==self.wsfreq.size==self.flag.size==
-                self.atten.size==self.mlfreq.size==self.ml_isgood_score.size==self.ml_isbad_score.size)
-
-        self._settypes()
+        self._vet()
         self.sort()
 
     def __str__(self):
@@ -168,28 +167,45 @@ class SweepMetadata(object):
         plt.legend()
         plt.show(False)
 
+    def set(self, resID, atten=None, freq=None, save=False, reviewed=False):
+        mask = resID == self.resIDs
+        if not mask.any():
+            getLogger(__name__).warning('Unable to set values for unknown resID: {}'.format(resID))
+            return False
+        if atten is not None:
+            self.atten[mask] = atten
+        if freq is not None:
+            self.freq[mask] = freq
+        if reviewed:
+            self.flag[mask] |= ISREVIEWED
+        if save:
+            self.save()
+        return True
+
     def sort(self):
         s = np.argsort(self.resIDs)
         self.resIDs = self.resIDs[s]
         self.wsfreq = self.wsfreq[s]
         self.flag = self.flag[s]
         self.mlfreq = self.mlfreq[s]
+        self.mlatten = self.mlatten[s]
         self.atten = self.atten[s]
         self.ml_isgood_score = self.ml_isgood_score[s]
         self.ml_isbad_score = self.ml_isbad_score[s]
+        self.freq = self.freq[s]
 
     def toarray(self):
         return np.array([self.resIDs, self.flag, self.wsfreq, self.mlfreq, self.atten, self.ml_isgood_score,
                          self.ml_isbad_score])
 
     def update_from_roach(self, lo, freqs=None, attens=None):
-        #TODO move these to user attens/frequencies
         use = self.lomask(lo, LOCUT)
         if attens is not None:
             self.attens[use] = attens
+            #TODO do we need a flag specifiying the source
             assert use.sum() == attens.size
         if freqs is not None:
-            self.mlfreq[use] = freqs
+            self.freq[use] = freqs
             assert use.sum() == freqs.size
 
     def lomask(self, lo, locut):
@@ -226,8 +242,10 @@ class SweepMetadata(object):
         aResMask = self.lomask(lo, locut)
         freq = self.mlfreq[aResMask]
         s = np.argsort(freq)
+
         #TODO should this be moved to VET?
         assert freq.size == np.unique(freq).size, "Frequencies for templar must be be unique."
+
         return self.resIDs[aResMask][s], freq[s], self.atten[aResMask][s]
 
     def save_templar_freqfiles(self, lo, template='ps_freqs{roach}_FL{feedline}{band}.txt'):
@@ -237,7 +255,11 @@ class SweepMetadata(object):
                                              feedline=self.feedline, band=band))
         np.savetxt(aFile, np.transpose(self.templar_data(lo)), fmt='%4i %10.9e %.2f')
 
-    def _settypes(self):
+    def _vet(self):
+
+        assert (self.resIDs.size==self.wsfreq.size==self.flag.size==
+                self.atten.size==self.mlfreq.size==self.ml_isgood_score.size==self.ml_isbad_score.size)
+
         self.flag = self.flag.astype(int)
         self.resIDs = self.resIDs.astype(int)
         self.feedline = resID2fl(self.resIDs[0])
@@ -250,7 +272,7 @@ class SweepMetadata(object):
         self.mlfreq[self.flag == ISBAD] = self.wsfreq[self.flag == ISBAD]
         self.ml_isgood_score[self.flag == ISBAD] = 0
         self.ml_isbad_score[self.flag == ISBAD] = 1
-        self._settypes()
+        self._vet()
 
 
 class FreqFile(object):
