@@ -246,6 +246,8 @@ def fitPeak(timestream, initialGuess=np.nan, fitWindow=20):
         fitParams - center, scale, width of fitted gaussian
     """ 
     providedInitialGuess = initialGuess #initial guess provided by user
+    timestream = np.asarray(timestream)
+    timestream = timestream.flatten()
 
     if not(np.isfinite(initialGuess) and initialGuess >=0 and initialGuess<len(timestream)):
         initialGuess=np.argmax(timestream)
