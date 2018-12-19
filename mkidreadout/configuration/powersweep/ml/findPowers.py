@@ -43,7 +43,8 @@ def findPowers(mlDict, mlBadDict, psDataFileName, metadataFn=None,
     if psDataFileName.split('.')[1] == 'h5':
         inferenceData.savePSTxtFile(flag='_' + mlDict['modelName'], outputFN=None, saveScores=saveScores)
     elif psDataFileName.split('.')[1] == 'npz':
-        inferenceData.saveInferenceData()
+        inferenceData.updatemetadata()
+        inferenceData.metadata.save()
 
 
 def apply_ml_model(inferenceData, wsAtten, modelNatten, goodModel='', badModel='', center_loop=True,
