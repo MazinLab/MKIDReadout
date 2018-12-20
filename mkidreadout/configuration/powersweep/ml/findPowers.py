@@ -34,11 +34,12 @@ def findPowers(mlDict, mlBadDict, psDataFileName, metadataFn=None,
 
     modelBadPath = os.path.join(mlBadDict['modelDir'], mlBadDict['modelName']) + '.meta'
 
-    mlArgs = dict(xWidth = mlDict['xWidth'], resWidth = mlDict['resWidth'], pad_res_win = mlDict['padResWin'],
-                  useIQV = mlDict['useIQV'], useMag = mlDict['useMag'], mlDictnAttens = mlDict['nAttens'])
+    mlArgs = dict(xWidth=mlDict['xWidth'], resWidth=mlDict['resWidth'], pad_res_win=mlDict['padResWin'],
+                  useIQV=mlDict['useIQV'], useMag=mlDict['useMag'], mlDictnAttens=mlDict['nAttens'],
+                  center_loop=mlDict['center_loop'])
 
     apply_ml_model(inferenceData, wsAtten, mlDict['nAttens'], mlArgs=mlArgs,
-                   goodModel=modelPath, badModel=modelBadPath, center_loop=mlDict['center_loop'])
+                   goodModel=modelPath, badModel=modelBadPath)
 
     if psDataFileName.split('.')[1] == 'h5':
         inferenceData.savePSTxtFile(flag='_' + mlDict['modelName'], outputFN=None, saveScores=saveScores)
@@ -94,9 +95,9 @@ def apply_ml_model(inferenceData, wsAtten, modelNatten, goodModel='', badModel='
     for i, rn in enumerate(span):
         getLogger(__name__).debug("%d of %i" % (i + 1, res_nums))
 
-        image, freqCube, attenList = mlt.makeResImage(res_num=rn, center_loop=center_loop,
+        image, freqCube, attenList = mlt.makeResImage(res_num=rn, wsAttenInd=wsAttenInd,
                                                       phase_normalise=False, showFrames=False, dataObj=inferenceData,
-                                                      wsAttenInd=wsAttenInd,**mlArgs)
+                                                      **mlArgs)
 
         inferenceImage = []
         inferenceImage.append(image)  # inferenceImage is just reformatted image

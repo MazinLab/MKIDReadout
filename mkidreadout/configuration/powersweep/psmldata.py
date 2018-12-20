@@ -15,7 +15,7 @@ class MLData(object):
         #   self.opt_attens, self.opt_freqs, self.scores
 
         freqSpan = np.array([self.freqSweep.freqs[0,0], self.freqSweep.freqs[-1,-1]])
-        self.mdResMask = ((self.metadata.flag == ISGOOD) &
+        self.mdResMask = ((self.metadata.flag & ISGOOD) &
                           (self.metadata.wsfreq > freqSpan[0]) &
                           (self.metadata.wsfreq < freqSpan[1]))
         self.nRes = self.mdResMask.sum()

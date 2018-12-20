@@ -20,8 +20,8 @@ A_RANGE_CUTOFF = 6e9
 
 
 def genResIDsForFreqs(freqs, flnum):
+    #TODO where does this live
     return np.arange(freqs.size) + flnum * 10000 + (freqs > A_RANGE_CUTOFF) * 5000
-
 
 def resID2fl(resID):
     return int(resID/10000)
@@ -146,7 +146,7 @@ class SweepMetadata(object):
 
     @property
     def goodmlfreq(self):
-        return self.mlfreq[self.flag == ISGOOD]
+        return self.mlfreq[self.flag & ISGOOD]
 
     @property
     def netscore(self):
@@ -208,8 +208,8 @@ class SweepMetadata(object):
             self.freq[use] = freqs
             assert use.sum() == freqs.size
 
-    def lomask(self, lo, locut):
-        return (self.flag == ISGOOD) & (~np.isnan(self.mlfreq)) & (np.abs(self.mlfreq - lo)<LOCUT)
+    def lomask(self, lo):
+        return (self.flag & ISGOOD) & (~np.isnan(self.mlfreq)) & (np.abs(self.mlfreq - lo)<LOCUT)
 
     def vet(self):
         if (np.abs(self.atten[~np.isnan(self.atten)]) > MAX_ATTEN).any():
@@ -237,15 +237,10 @@ class SweepMetadata(object):
         np.savetxt(sf, self.toarray().T, fmt="%8d %1u %16.7f %16.7f %5.1f %6.4f %6.4f",
                    header=self.genheader())
 
-    def templar_data(self, lo, locut=None):
-        locut = LOCUT if locut is not None else np.inf
-        aResMask = self.lomask(lo, locut)
+    def templar_data(self, lo):
+        aResMask = self.lomask(lo)
         freq = self.mlfreq[aResMask]
         s = np.argsort(freq)
-
-        #TODO should this be moved to VET?
-        assert freq.size == np.unique(freq).size, "Frequencies for templar must be be unique."
-
         return self.resIDs[aResMask][s], freq[s], self.atten[aResMask][s]
 
     def save_templar_freqfiles(self, lo, template='ps_freqs{roach}_FL{feedline}{band}.txt'):
@@ -257,8 +252,12 @@ class SweepMetadata(object):
 
     def _vet(self):
 
-        assert (self.resIDs.size==self.wsfreq.size==self.flag.size==
-                self.atten.size==self.mlfreq.size==self.ml_isgood_score.size==self.ml_isbad_score.size)
+        assert (self.resIDs.size==self.wsfreq.size==self.flag.size==self.atten.size==self.freq.size==
+                self.mlatten.size==self.mlfreq.size==self.ml_isgood_score.size==self.ml_isbad_score.size)
+
+        for x in (self.freq, self.mlfreq, self.wsfreq):
+            use = ~np.isnan(x)
+            assert x[use].size == np.unique(x[use]).size, "Frequencies must be be unique."
 
         self.flag = self.flag.astype(int)
         self.resIDs = self.resIDs.astype(int)
@@ -267,11 +266,22 @@ class SweepMetadata(object):
     def _load(self):
         d = np.loadtxt(self.file.format(feedline=self.feedline), unpack=True)
         #TODO convert to load metadata from file
-        self.resIDs, self.flag, self.wsfreq, self.mlfreq, self.atten, self.ml_isgood_score, self.ml_isbad_score = d
+        try:
+            self.resIDs, self.flag, self.wsfreq, self.mlfreq, self.mlatten, \
+                self.freq, self.atten, self.ml_isgood_score, self.ml_isbad_score= d
+        except:
+            self.resIDs, self.flag, self.wsfreq, self.mlfreq, self.mlatten, \
+                self.ml_isgood_score, self.ml_isbad_score = d
+            self.freq = self.mlfreq.copy()
+            self.atten = self.mlatten.copy()
 
-        self.mlfreq[self.flag == ISBAD] = self.wsfreq[self.flag == ISBAD]
-        self.ml_isgood_score[self.flag == ISBAD] = 0
-        self.ml_isbad_score[self.flag == ISBAD] = 1
+        self.freq[np.isnan(self.freq)] = self.mlfreq[np.isnan(self.freq)]
+        self.freq[np.isnan(self.freq)] = self.wsfreq[np.isnan(self.freq)]
+        self.atten[np.isnan(self.atten)] = self.mlatten[np.isnan(self.atten)]
+
+        self.mlfreq[self.flag & ISBAD] = self.wsfreq[self.flag & ISBAD]
+        self.ml_isgood_score[self.flag & ISBAD] = 0
+        self.ml_isbad_score[self.flag & ISBAD] = 1
         self._vet()
 
 

@@ -22,6 +22,7 @@ def makeResImage(res_num, center_loop=False, showFrames=False,
         pad_res_win = mlDict['padResWin']
         useIQV = mlDict['useIQV']
         useMag = mlDict['useMag']
+        center_loop = mlDict['center_loop']
         mlDictnAttens = mlDict['nAttens']
     resSearchWin = 20
 

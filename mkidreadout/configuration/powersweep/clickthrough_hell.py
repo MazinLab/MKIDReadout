@@ -57,7 +57,7 @@ class StartQt4(QMainWindow):
         self.mlFreqs = None
         self.mlAttens = None
 
-        self.widesweep_goodFreqs = mdata.wsfreq[mdata.flag == sweepdata.ISGOOD]
+        self.widesweep_goodFreqs = mdata.wsfreq[mdata.flag & sweepdata.ISGOOD]
         self.widesweep_allResIDs = mdata.resIDs
         self.widesweep_allFreqs = mdata.wsfreq
 
