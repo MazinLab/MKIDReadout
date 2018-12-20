@@ -971,7 +971,6 @@ class MKIDDashboard(QMainWindow):
             board = 'a'
             freqCh = 0
             try:
-                #TODO Noah, Neelay, Alex is this caution necessary/proper
                 resIDs = bm.resIDat(*self.pixelCurrent)
                 if len(resIDs) > 1:
                     getLogger('Dashboard').warning('Multiple ResIDs for pixel {},{}. Using first.'.format(*self.pixelCurrent))

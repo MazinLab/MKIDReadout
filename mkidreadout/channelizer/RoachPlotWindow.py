@@ -815,13 +815,13 @@ class RoachSweepWindow(QMainWindow):
         if attens is None:
             attens = np.copy(self.roach.roachController.attenList)
 
-        #TODO Alex, Neelay This function did not sttem to have any provision for keeping resIDs & freqs in sync
-        keepRes = np.where(attens >= 0)  # remove any resonators with negative attenuation
-        nFreqs = len(freqs)
-        freqs = freqs[keepRes]
-        attens = attens[keepRes]
-        if len(freqs) != nFreqs:
-            self.resetRoach.emit(RoachStateMachine.LOADFREQ)
+        #TODO Alex, Neelay This function did not seem to have any provision for keeping resIDs & freqs in sync
+        # keepRes = np.where(attens >= 0)  # remove any resonators with negative attenuation
+        # nFreqs = len(freqs)
+        # freqs = freqs[keepRes]
+        # attens = attens[keepRes]
+        # if len(freqs) != nFreqs:
+        #     self.resetRoach.emit(RoachStateMachine.LOADFREQ)
 
         freqFile = self.roach.roachController.tagfile(self.config.get('r{}.freqfileroot'.format(self.roachNum)),
                                                       dir=self.config.paths.data)
