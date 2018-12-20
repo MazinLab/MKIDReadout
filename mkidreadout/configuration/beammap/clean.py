@@ -336,11 +336,11 @@ class BMCleaner(object):
         # Plots the 'process' of overlap resolution. Arrows start where the pixel began to where it was placed. Dots
         # are shown where the 'best placement' for a resonator that was not moved.
         # NOTE: If a pixel has a dot, it MUST also have an arrow coming from it.
-        plt.scatter(original[:, 0][~didMove.astype(bool)], original[:, 1][~didMove.astype(bool)], c='green', marker='.')
-        plt.quiver(original[:, 0][didMove.astype(bool)], original[:, 1][didMove.astype(bool)],
-                   (placed[:, 0]-original[:, 0])[didMove.astype(bool)], (placed[:, 1]-original[:, 1])[didMove.astype(bool)],
-                   color='blue', angles='xy', scale_units='xy', scale=1, headlength=3, headwidth=2)
-        plt.show(block=False)
+        # plt.scatter(original[:, 0][~didMove.astype(bool)], original[:, 1][~didMove.astype(bool)], c='green', marker='.')
+        # plt.quiver(original[:, 0][didMove.astype(bool)], original[:, 1][didMove.astype(bool)],
+        #            (placed[:, 0]-original[:, 0])[didMove.astype(bool)], (placed[:, 1]-original[:, 1])[didMove.astype(bool)],
+        #            color='blue', angles='xy', scale_units='xy', scale=1, headlength=3, headwidth=2)
+        # plt.show(block=False)
 
     def runShiftingCode(self):
         shifter = shift.BeammapShifter(self.designFile, self.beamMap, self.instrument)
@@ -399,6 +399,7 @@ if __name__=='__main__':
     beammapDirectory = configData['beammapDirectory']
     finalBMFile = configData['finalBMFile']
     rawBMFile = configData['rawBMFile']
+    useFreqs = configData['useFreqs']
     psFiles = configData['powersweeps']
     designFile = configData['designMapFile']
     numRows = configData['numRows']
@@ -407,8 +408,13 @@ if __name__=='__main__':
     inst = configData['instrument']
 
     rawBeamMap = Beammap(rawBMFile, (146, 140), 'MEC')
-    rawBeamMap.loadFrequencies(psFiles)
-    cleaner = BMCleaner(beamMap=rawBeamMap, nRows=numRows, nCols=numCols, flip=flipParam, instrument=inst)
+    if useFreqs:
+        rawBeamMap.loadFrequencies(psFiles)
+        cleaner = BMCleaner(beamMap=rawBeamMap, nRows=numRows, nCols=numCols,
+                            flip=flipParam, instrument=inst, designMapPath=designFile)
+    else:
+        cleaner = BMCleaner(beamMap=rawBeamMap, nRows=numRows, nCols=numCols,
+                            flip=flipParam, instrument=inst, designMapPath=designFile)
     cleaner.fixPreciseCoordinates()
     cleaner.placeOnGrid()
 
@@ -420,9 +426,14 @@ if __name__=='__main__':
 
     # resolve overlaps and place failed pixels
 
-    cleaner.resolveOverlaps()
-    cleaner.placeFailedPixels()
-    cleaner.saveBeammap(finalBMFile)
+    if useFreqs:
+        cleaner.resolveOverlapWithFrequency()
+        cleaner.placeFailedPixels()
+        cleaner.saveBeammap(finalBMFile)
+    else:
+        cleaner.resolveOverlaps()
+        cleaner.placeFailedPixels()
+        cleaner.saveBeammap(finalBMFile)
 
     fig2 = plt.figure()
     ax2 = fig2.add_subplot(111)
