@@ -13,7 +13,8 @@ from mkidreadout.channelizer.Roach2Controls import Roach2Controls
 from mkidreadout.utils import iqsweep
 from mkidcore.corelog import getLogger
 from pkg_resources import resource_filename
-import mkidreadout.configuration.powersweep.sweepdata as sweepdata
+import mkidreadout.configuration.sweepdata as sweepdata
+
 
 class RoachStateMachine(QtCore.QObject):  # Extends QObject for use with QThreads
     """

@@ -22,7 +22,7 @@ from PyQt4.QtCore import Qt
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_qt4agg import FigureCanvasQTAgg as FigureCanvas
 from mkidcore.corelog import getLogger
-import mkidreadout.configuration.powersweep.sweepdata as sweepdata
+import mkidreadout.configuration.sweepdata as sweepdata
 
 try:
     from matplotlib.backends.backend_qt4agg import NavigationToolbar2QTAgg as NavigationToolbar
