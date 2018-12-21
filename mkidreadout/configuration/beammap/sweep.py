@@ -556,8 +556,8 @@ class ManualRoughBeammap(object):
             if x >= 0 and x < nCols and y >= 0 and y < nRows:
                 msg = 'Clicked Flag Map! [{}, {}] -> {} Flag: {}'
                 getLogger('beammap').info(msg.format(x, y, self.resIDsMap[y, x], self.flagMap[y, x]))
-                pixInd = np.where((self.goodPix[0] == y) * (self.goodPix[1] == x))
-                if len(pixInd[0]) == 1:
+                pixInd = np.where((self.goodPix[0] == y) * (self.goodPix[1] == x))[0]
+                if len(pixInd) == 1:
                     self.curPixInd = pixInd[0]
                     self.updateFlagMapPlot()
                     self.updateXYPlot(1)
