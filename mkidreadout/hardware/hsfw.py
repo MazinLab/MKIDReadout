@@ -252,7 +252,7 @@ def getfilter(host='localhost:50000', timeout=.01):
         return 'Error: '+str(e)
 
 
-def setfilter(fnum, home=False, host='localhost:50000', killserver=False, timeout=.01):
+def setfilter(fnum, home=False, host='localhost:50000', killserver=False, timeout=2):
 
     if killserver:
         try:
