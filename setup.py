@@ -79,7 +79,6 @@ setuptools.setup(
     scripts=['mkidreadout/channelizer/initgui.py',
              'mkidreadout/channelizer/hightemplar.py',
              'mkidreadout/readout/dashboard.py',
-             'mkidreadout/configuration/widesweep/WideAna.py',
              'mkidreadout/configuration/powersweep/clickthrough_hell.py'],
     classifiers=(
         "Programming Language :: Python :: 3",

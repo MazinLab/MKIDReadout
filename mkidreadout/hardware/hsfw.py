@@ -150,9 +150,9 @@ def connection_handler(conn):
                 # TODO closeout filter
                 break
 
-    getLogger(__name__).info('Closing connection')
     try:
         conn.sendall('Closing connection'.encode('utf-8'))
+        getLogger(__name__).info('Closing connection')
     except Exception:
         pass
     conn.close()
@@ -182,6 +182,8 @@ def connect(host, port, timeout=10.0):
 
 
 def _setfilter(num, home=False):
+    from win32com.client import Dispatch
+    import pythoncom, pywintypes
     pythoncom.CoInitialize()
     if num not in (1,2,3,4,5,6):
         return
@@ -206,6 +208,8 @@ def _setfilter(num, home=False):
 
 
 def _getfilter():
+    from win32com.client import Dispatch
+    import pythoncom, pywintypes
     pythoncom.CoInitialize()
     try:
         fwheels = Dispatch("OptecHID_FilterWheelAPI.FilterWheels")
@@ -229,6 +233,7 @@ def getfilter(host='localhost:50000', timeout=.01):
         data = conn.recv(2048).decode('utf-8').strip()
         getLogger(__name__).info("Response: {}".format(data))
         conn.close()
+        print(data)
         if data.lower().startswith('error'):
             getLogger(__name__).error(data)
             return data
@@ -309,6 +314,10 @@ if __name__ == '__main__':
     from win32com.client import Dispatch
     import pythoncom, pywintypes
 
+    mkidcore.corelog.create_log('__main__', console=True, mpsafe=True, propagate=False,
+                                fmt='%(asctime)s HSFW SERVER:%(levelname)s %(message)s')
+    mkidcore.corelog.create_log('mkidcore', console=True, mpsafe=True, propagate=False,
+                                fmt='%(asctime)s %(levelname)s %(message)s')
     mkidcore.corelog.create_log('mkidreadout', console=True, mpsafe=True, propagate=False,
                                 fmt='%(asctime)s %(levelname)s %(message)s')
     start_server(args.port)
