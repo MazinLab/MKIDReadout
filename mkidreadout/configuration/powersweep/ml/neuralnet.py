@@ -279,6 +279,8 @@ class mlClassification():
         #squared_loss = tf.reduce_mean(tf.to_float(tf.square(yInd-y_Ind)))
 
         train_step = tf.train.AdamOptimizer(self.mlDict['learning_rate']).minimize(cross_entropy) # the best result is when the wrongness is minimal
+        
+        tf.add_to_collection('mlDict', self.mlDict)
 
         init = tf.initialize_all_variables()
 

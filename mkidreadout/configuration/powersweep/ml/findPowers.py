@@ -72,6 +72,7 @@ def apply_ml_model(inferenceData, wsAtten, modelNatten, goodModel='', badModel='
     sess = tf.Session()
     saver = tf.train.import_meta_graph(goodModel)
     saver.restore(sess, tf.train.latest_checkpoint(os.path.dirname(goodModel)))
+    mlDictMeta = tf.get_collection('mlDict')
 
     graph = tf.get_default_graph()
     x_input = graph.get_tensor_by_name('inputImage:0')
