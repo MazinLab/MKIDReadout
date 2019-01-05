@@ -105,7 +105,7 @@ class mlClassification():
                 # for t in range(num_rotations):
                 #     image = self.makeResImage(res_num = rn, iAtten= iAttens[rn,c], angle=angle[t],showFrames=False, 
                 #                                 test_if_noisy=test_if_noisy, xCenter=self.res_indicies[rn,c])
-                image, _, _ = mlt.makeResImage(res_num = rn, center_loop=self.mlDict['center_loop'], phase_normalise=False ,showFrames=False, dataObj=rawTrainData, mlDict=self.mlDict, wsAttenInd=wsAttenInd) 
+                image, _, _ = mlt.makeResImage(res_num = rn, center_loop=self.mlDict['center_loop'], showFrames=False, dataObj=rawTrainData, mlDict=self.mlDict, wsAttenInd=wsAttenInd) 
                 if image is not None:
                     trainImages.append(image)
                     oneHot = np.zeros(self.mlDict['nAttens'])
@@ -116,7 +116,7 @@ class mlClassification():
 
 
             for rn in test_ind:#range(int(self.trainFrac*rawTrainData.res_nums), int(self.trainFrac*rawTrainData.res_nums + self.testFrac*rawTrainData.res_nums)):
-                image, _, _ = mlt.makeResImage(res_num = rn, center_loop=self.mlDict['center_loop'], phase_normalise=False, dataObj=rawTrainData, mlDict=self.mlDict, wsAttenInd=wsAttenInd)
+                image, _, _ = mlt.makeResImage(res_num = rn, center_loop=self.mlDict['center_loop'], dataObj=rawTrainData, mlDict=self.mlDict, wsAttenInd=wsAttenInd)
                 if image is not None:
                     testImages.append(image)
                     oneHot = np.zeros(self.mlDict['nAttens'])
@@ -282,7 +282,7 @@ class mlClassification():
         
         tf.add_to_collection('mlDict', self.mlDict)
 
-        init = tf.initialize_all_variables()
+        init = tf.global_variables_initializer()
 
         saver = tf.train.Saver()
         
@@ -341,6 +341,7 @@ class mlClassification():
         modelSavePath = os.path.join(self.mlDict['modelDir'], self.mlDict['modelName'])
         print 'Saving model in', modelSavePath
         save_path = saver.save(self.sess, modelSavePath)
+        saver.export_meta_graph(os.path.join(modelSavePath, self.mlDict['modelName']) + '.meta')
         ys_true = self.sess.run(tf.argmax(y_,1), feed_dict={self.x: testImages, y_: testLabels, self.keep_prob: 1})
         y_probs = self.sess.run(self.y, feed_dict={self.x: testImages, y_: testLabels, self.keep_prob: 1})
         ys_guess = np.argmax(y_probs, 1)
@@ -363,6 +364,7 @@ class mlClassification():
 
         score = self.sess.run(accuracy, feed_dict={self.x: trainImages, y_: trainLabels, self.keep_prob: 1}) * 100
         print 'Accuracy of model in training: ', score, '%'
+        print tf.get_default_graph().get_all_collection_keys()
         
         np.savez(modelSavePath+'_confusion.npz', ys_true=ys_true, ys_guess=ys_guess, y_probs=y_probs, ce=ce_log, acc=acc_log)
 

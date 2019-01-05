@@ -12,8 +12,9 @@ import numpy as np
 import tensorflow as tf
 import os, sys
 import argparse
+import logging
 from mkidreadout.configuration.powersweep.ml.PSFitMLData import PSFitMLData
-import mkidreadout.configuration.powersweep.ml.PSFitMLTools as mlt
+import mkidreadout.configuration.powersweep.ml.tools as mlt
 from mkidreadout.utils.readDict import readDict
 from mkidreadout.configuration.powersweep.psmldata import MLData
 from mkidcore.corelog import getLogger
@@ -32,7 +33,10 @@ def findPowers(mlDict, mlBadDict, psDataFileName, metadataFn=None,
 
     modelPath = os.path.join(mlDict['modelDir'], mlDict['modelName']) + '.meta'
 
-    modelBadPath = os.path.join(mlBadDict['modelDir'], mlBadDict['modelName']) + '.meta'
+    if mlBadDict is not None:
+        modelBadPath = os.path.join(mlBadDict['modelDir'], mlBadDict['modelName']) + '.meta'
+    else:
+        modelBadPath = ''
 
     mlArgs = dict(xWidth=mlDict['xWidth'], resWidth=mlDict['resWidth'], pad_res_win=mlDict['padResWin'],
                   useIQV=mlDict['useIQV'], useMag=mlDict['useMag'], mlDictnAttens=mlDict['nAttens'],
@@ -97,7 +101,7 @@ def apply_ml_model(inferenceData, wsAtten, modelNatten, goodModel='', badModel='
         getLogger(__name__).debug("%d of %i" % (i + 1, res_nums))
 
         image, freqCube, attenList = mlt.makeResImage(res_num=rn, wsAttenInd=wsAttenInd,
-                                                      phase_normalise=False, showFrames=False, dataObj=inferenceData,
+                                                      showFrames=False, dataObj=inferenceData,
                                                       **mlArgs)
 
         inferenceImage = []
