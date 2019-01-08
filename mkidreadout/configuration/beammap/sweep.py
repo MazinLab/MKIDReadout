@@ -34,7 +34,7 @@ import matplotlib
 matplotlib.use('Qt4Agg')
 import matplotlib.pyplot as plt
 from mkidcore.config import importoldconfig, ConfigThing, _consolidateconfig
-from mkidcore.corelog import setup_logging, getLogger, create_log
+from mkidcore.corelog import getLogger, create_log
 
 import argparse
 

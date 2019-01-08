@@ -53,8 +53,11 @@ class Beammap(object):
 
     @classmethod
     def from_yaml(cls, constructor, node):
-        d = mkidcore.config.extract_from_node(('file', 'nrows', 'ncols'), node)
-        return cls(file=d['file'], xydim=(int(d['ncols']), int(d['nrows'])))
+        d = mkidcore.config.extract_from_node(('file', 'nrows', 'ncols', 'default'), node)
+        if 'default' in d:
+            return cls(default=d['default'])
+        else:
+            return cls(file=d['file'], xydim=(int(d['ncols']), int(d['nrows'])))
 
     def setData(self, bmData):
         """

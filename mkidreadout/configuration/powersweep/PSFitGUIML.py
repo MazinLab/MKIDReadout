@@ -30,6 +30,26 @@ import mkidreadout.configuration.powersweep.gui as gui
 import argparse
 
 
+def quantcut(cut, d):
+    msg = ("Cut resolves {nres} ({pres:.0f}%) resonators, requiring clickthourgh of {nclick}.\n"
+           "{nbad} ({pbad:.0f}% of all res.) bad resonators would have been accepted with power of {bpwr:.1f}+-{bstd:.1f} "
+           "dB\n"
+           "{nok} ({pok:.0f}% of all res.) would have been accepted suboptimally with "
+           "powers {okpwrd:.1f}+-{okstdd:.1f} from optimal.\n"
+           "The accepted good resonators are {adbd:.1f}+-{adbdstd:.1f} dB from their optimal values.")
+    remain = ~cut
+    bad_accept = d.bad & cut
+    ok_accept = cut & ~d.bad & ~d.correct
+    print(msg.format(nres=cut.sum(), pres=cut.sum() * 100. / cut.size, nclick=remain.sum(),
+                     nbad=bad_accept.sum(), pbad=bad_accept.sum() * 100. / cut.size,
+                     bpwr=d.guessed[bad_accept].mean(), bstd=d.guessed[bad_accept].std(),
+                     nok=ok_accept.sum(), pok=ok_accept.sum()*100/cut.size,
+                     okpwrd=d.shift[ok_accept].mean(), okstdd=d.shift[ok_accept].std(),
+                     adbd=d.shift[~d.bad & cut].mean(), adbdstd=d.shift[~d.bad & cut].std()))
+
+
+
+
 class StartQt4(QMainWindow):
     def __init__(self, cfgfile, feedline, Ui, parent=None):
         QWidget.__init__(self, parent)
