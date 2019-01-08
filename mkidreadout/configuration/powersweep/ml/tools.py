@@ -3,10 +3,8 @@ from PSFitMLData import *
 from mkidreadout.configuration.powersweep.psmldata import *
 
 
-def makeResImage(res_num, center_loop=False, showFrames=False,
-                 dataObj=None, mlDict=None, wsAttenInd=None,
-                 xWidth=None, resWidth=None, pad_res_win=None, useIQV=True, useMag=True,
-                 mlDictnAttens=None):
+def makeResImage(res_num, dataObj, wsAttenInd, xWidth, resWidth, 
+            pad_res_win, useIQV, useMag, centerLoop, nAttensModel):
     """Creates a table with 2 rows, I and Q for makeTrainData(mag_data=True)
 
     inputs
@@ -16,14 +14,6 @@ def makeResImage(res_num, center_loop=False, showFrames=False,
     showFrames: pops up a window of the frame plotted using matplotlib.plot
     """
     # TODO: remove assumption that res is centered on window at wsAttenInd
-    if mlDict is not None:
-        xWidth = mlDict['xWidth']  #
-        resWidth = mlDict['resWidth']
-        pad_res_win = mlDict['padResWin']
-        useIQV = mlDict['useIQV']
-        useMag = mlDict['useMag']
-        center_loop = mlDict['center_loop']
-        mlDictnAttens = mlDict['nAttens']
     resSearchWin = 20
 
     assert resWidth <= xWidth, 'res width must be <= xWidth'
@@ -38,27 +28,7 @@ def makeResImage(res_num, center_loop=False, showFrames=False,
     Qs = dataObj.Qs[res_num, :, :-1]
     freqs = dataObj.freqs[res_num][:-1]
     freqCube = np.zeros((nAttens, resWidth))
-
-    # plt.plot(self.Is[res_num,iAtten], self.Qs[res_num,iAtten])
-    # plt.show()
-    # for spectra where the peak is close enough to the edge that some points falls across the bounadry, pad zeros
-
     magsdb = Is ** 2 + Qs ** 2
-
-    # iq_vels = np.round(iq_vels * xWidth / max(dataObj.iq_vels[res_num, iAtten, :]) )
-
-    if showFrames:
-        fig = plt.figure(frameon=False, figsize=(15.0, 5.0))
-        fig.add_subplot(131)
-        plt.plot(iq_vels)
-        plt.ylim(0, 1)
-        fig.add_subplot(132)
-        plt.plot(Is)
-        plt.plot(Qs)
-        fig.add_subplot(133)
-        plt.plot(Is, Qs)
-        plt.show()
-        plt.close()
 
     # make sliding window images
     singleFrameImage = np.zeros((nAttens, resWidth, 2))
@@ -183,10 +153,11 @@ def makeResImage(res_num, center_loop=False, showFrames=False,
     singleFrameImage[:, :, 0] = np.transpose(np.transpose(singleFrameImage[:, :, 0]) / res_mag)
     singleFrameImage[:, :, 1] = np.transpose(np.transpose(singleFrameImage[:, :, 1]) / res_mag)
 
-    iqVelImage = np.transpose(np.transpose(iqVelImage) / np.sqrt(np.amax(iqVelImage ** 2, axis=1)))
+    #iqVelImage = np.transpose(np.transpose(iqVelImage) / np.sqrt(np.amax(iqVelImage ** 2, axis=1))) 
+        #replaced with edit after 'if center_loop' on 20190107
     magsdbImage = np.transpose(np.transpose(magsdbImage) / np.sqrt(np.mean(magsdbImage ** 2, axis=1)))
 
-    if center_loop:
+    if centerLoop:
         singleFrameImage[:, :, 0] = np.transpose(
             np.transpose(singleFrameImage[:, :, 0]) - np.mean(singleFrameImage[:, :, 0], 1))
 
@@ -194,6 +165,8 @@ def makeResImage(res_num, center_loop=False, showFrames=False,
             np.transpose(singleFrameImage[:, :, 1]) - np.mean(singleFrameImage[:, :, 1], 1))
         iqVelImage = np.transpose(np.transpose(iqVelImage) - np.mean(iqVelImage, 1))  # added by NF 20180423
         magsdbImage = np.transpose(np.transpose(magsdbImage) - np.mean(magsdbImage, 1))  # added by NF 20180423
+
+    iqVelImage = iqVelImage/np.sqrt(np.mean(iqVelImage**2)) #changed 20190107, probably a mistake earlier
 
     if useIQV:
         singleFrameImage = np.dstack((singleFrameImage, iqVelImage))
@@ -212,8 +185,8 @@ def makeResImage(res_num, center_loop=False, showFrames=False,
         singleFrameImage = singleFrameImageFS
         freqCube = freqCubeFS
 
-    if nAttens < mlDictnAttens:
-        singleFrameImageFS = np.zeros((mlDictnAttens, xWidth, singleFrameImage.shape[2]))
+    if nAttens < nAttensModel:
+        singleFrameImageFS = np.zeros((nAttensModel, xWidth, singleFrameImage.shape[2]))
         freqCubeFS = np.zeros((nAttens, xWidth))
         for i in range(singleFrameImage.shape[2]):
             singleFrameImageFS[:, :, i] = np.pad(singleFrameImage[:, :, i], [(0, mlDictnAttens - nAttens), (0, 0)],
@@ -222,6 +195,12 @@ def makeResImage(res_num, center_loop=False, showFrames=False,
         singleFrameImage = singleFrameImageFS
         freqCube = freqCubeFS
         attenList = np.pad(attenList, (0, mlDictnAttens - nAttens), 'edge')
+
+    #truncate the highest attens, consider expanding this if necessary
+    elif nAttens > nAttensModel:
+        singleFrameImage = singleFrameImage[:nAttensModel, :, :]
+        freqCube = freqCube[:nAttensModel, :]
+        attenList = attenList[:nAttensModel]
 
     return singleFrameImage, freqCube, attenList
 

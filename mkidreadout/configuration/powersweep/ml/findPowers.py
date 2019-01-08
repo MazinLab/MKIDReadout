@@ -10,7 +10,7 @@ Usage: python findPowers.py <mlConfigFile> <h5File>
 """
 import numpy as np
 import tensorflow as tf
-import os, sys
+import os, sys, glob
 import argparse
 import logging
 from mkidreadout.configuration.powersweep.ml.PSFitMLData import PSFitMLData
@@ -22,8 +22,8 @@ from mkidcore.corelog import getLogger
 FREQ_USE_MAG = False
 
 
-def findPowers(mlDict, mlBadDict, psDataFileName, metadataFn=None,
-               saveScores=False, wsAtten=None):
+def findPowers(goodModelDir, badModelDir, psDataFileName, metadataFn=None,
+               saveScores=False, wsAtten=None, resWidth=None):
     if psDataFileName.split('.')[1] == 'h5':
         inferenceData = PSFitMLData(h5File=psDataFileName, useAllAttens=False, useResID=True)
         inferenceData.wsatten = wsAtten
@@ -31,59 +31,69 @@ def findPowers(mlDict, mlBadDict, psDataFileName, metadataFn=None,
         assert os.path.isfile(metadataFn), 'Must resonator metadata file'
         inferenceData = MLData(psDataFileName, metadataFn)
 
-    modelPath = os.path.join(mlDict['modelDir'], mlDict['modelName']) + '.meta'
-
-    if mlBadDict is not None:
-        modelBadPath = os.path.join(mlBadDict['modelDir'], mlBadDict['modelName']) + '.meta'
-    else:
-        modelBadPath = ''
-
-    mlArgs = dict(xWidth=mlDict['xWidth'], resWidth=mlDict['resWidth'], pad_res_win=mlDict['padResWin'],
-                  useIQV=mlDict['useIQV'], useMag=mlDict['useMag'], mlDictnAttens=mlDict['nAttens'],
-                  center_loop=mlDict['center_loop'])
-
-    apply_ml_model(inferenceData, wsAtten, mlDict['nAttens'], mlArgs=mlArgs,
-                   goodModel=modelPath, badModel=modelBadPath)
+    apply_ml_model(inferenceData, wsAtten, resWidth, goodModelDir=goodModelDir, badModelDir=badModelDir)
 
     if psDataFileName.split('.')[1] == 'h5':
-        inferenceData.savePSTxtFile(flag='_' + mlDict['modelName'], outputFN=None, saveScores=saveScores)
+        inferenceData.savePSTxtFile(flag='_' + os.path.basename(goodModelDir), outputFN=None, saveScores=saveScores)
     elif psDataFileName.split('.')[1] == 'npz':
         inferenceData.updatemetadata()
         inferenceData.metadata.save()
 
 
-def apply_ml_model(inferenceData, wsAtten, modelNatten, goodModel='', badModel='', center_loop=True,
-                   mlArgs={}):
+def apply_ml_model(inferenceData, wsAtten, resWidth, goodModelDir='', badModelDir=''):
     """
     Uses Trained model, specified by mlDict, to infer powers from a powersweep
     saved in psDataFileName. Saves results in .txt file in $MKID_DATA_DIR
     """
 
-    total_res_nums = np.shape(inferenceData.freqs)[0]
-    res_nums = total_res_nums
-    span = range(res_nums)
+    res_nums = np.shape(inferenceData.freqs)[0]
 
     inferenceData.opt_attens = np.zeros((res_nums))
     inferenceData.opt_freqs = np.zeros((res_nums))
     inferenceData.scores = np.zeros((res_nums))
-    wsAttenInd = np.argmin(np.abs(inferenceData.attens - wsAtten))
 
     getLogger(__name__).debug("Inference attens: {}".format(inferenceData.attens))
 
-    inferenceLabels = np.zeros((res_nums, modelNatten))
 
+    goodModelList = glob.glob(os.path.join(goodModelDir, '*.meta'))
+    if len(goodModelList) > 1:
+        raise Exception('Multiple models (.meta files) found in directory: ' + goodModelDir)
+    elif len(goodModelList) == 0:
+        raise Exception('No models (.meta files) found in directory ' + goodModelDir)
+    goodModel = goodModelList[0]
     getLogger(__name__).info('Loading good model from %s', goodModel)
     sess = tf.Session()
     saver = tf.train.import_meta_graph(goodModel)
     saver.restore(sess, tf.train.latest_checkpoint(os.path.dirname(goodModel)))
-    mlDictMeta = tf.get_collection('mlDict')
 
     graph = tf.get_default_graph()
     x_input = graph.get_tensor_by_name('inputImage:0')
     y_output = graph.get_tensor_by_name('outputLabel:0')
     keep_prob = graph.get_tensor_by_name('keepProb:0')
 
-    if badModel:
+    mlDict = {}
+    for param in tf.get_collection('mlDict'):
+        mlDict[param.op.name] = param.eval(session=sess)
+
+    if wsAtten is None:
+        wsAtten = mlDict['wsAtten']
+        getLogger(__name__).warning('No WS atten specified; using value of ', str(wsAtten), 
+                            ' from training config')
+
+    wsAttenInd = np.argmin(np.abs(inferenceData.attens - wsAtten))
+
+    if resWidth is None:
+        resWidth = mlDict['resWidth']
+
+    inferenceLabels = np.zeros((res_nums, mlDict['nAttens']))
+
+    if badModelDir:
+        badModelList = glob.glob(os.path.join(badModelDir, '*.meta'))
+        if len(badModelList) > 1:
+            raise Exception('Multiple models (.meta files) found in directory: ' + badModelDir)
+        elif len(badModelList) == 0:
+            raise Exception('No models (.meta files) found in directory: ' + badModelDir)
+        badModel = badModelList[0]
         getLogger(__name__).info('Loading good model from %s', badModel)
         sess_bad = tf.Session()
         saver_bad = tf.train.import_meta_graph(badModel)
@@ -94,18 +104,23 @@ def apply_ml_model(inferenceData, wsAtten, modelNatten, goodModel='', badModel='
         y_output_bad = graph.get_tensor_by_name('outputLabel:0')
         keep_prob_bad = graph.get_tensor_by_name('keepProb:0')
 
+        mlDictBad = {}
+        for param in tf.get_collection('mlDict'):
+            mlDictBad[param.op.name] = param.eval(session=sess_bad)
+
+        inferenceLabelsBad = np.zeros((res_nums, mlDictBad['nAttens']))
+
     getLogger(__name__).debug('Using trained algorithm on images on each resonator')
 
     doubleCounter = 0
-    for i, rn in enumerate(span):
-        getLogger(__name__).debug("%d of %i" % (i + 1, res_nums))
+    for rn in range(res_nums):
+        getLogger(__name__).debug("%d of %i" % (rn + 1, res_nums))
 
-        image, freqCube, attenList = mlt.makeResImage(res_num=rn, wsAttenInd=wsAttenInd,
-                                                      showFrames=False, dataObj=inferenceData,
-                                                      **mlArgs)
+        image, freqCube, attenList = mlt.makeResImage(rn, inferenceData, wsAttenInd, mlDict['xWidth'],
+                                        resWidth, mlDict['padResWin'], mlDict['useIQV'], mlDict['useMag'],
+                                        mlDict['centerLoop'], mlDict['nAttens'])
 
-        inferenceImage = []
-        inferenceImage.append(image)  # inferenceImage is just reformatted image
+        inferenceImage = [image]
         inferenceLabels[rn, :] = sess.run(y_output, feed_dict={x_input: inferenceImage, keep_prob: 1})
         iAtt = np.argmax(inferenceLabels[rn, :])
         inferenceData.opt_attens[rn] = attenList[iAtt]
@@ -120,41 +135,36 @@ def apply_ml_model(inferenceData, wsAtten, modelNatten, goodModel='', badModel='
 
         inferenceData.scores[rn] = inferenceLabels[rn, iAtt]
 
-        if rn > 0 and np.abs(inferenceData.opt_freqs[rn] - inferenceData.opt_freqs[rn - 1]) < 100.e3:
+        if rn > 0 and np.abs(inferenceData.opt_freqs[rn] - inferenceData.opt_freqs[rn - 1]) < 200.e3:
             doubleCounter += 1
 
-        if badModel:
-            badInferenceLabels = sess_bad.run(y_output_bad, feed_dict={x_input_bad: inferenceImage, keep_prob_bad: 1})
-            inferenceData.bad_scores[rn] = badInferenceLabels.max()
+        if badModelDir:
+            image, freqCube, attenList = mlt.makeResImage(rn, inferenceData, wsAttenInd, mlDictBad['xWidth'],
+                                            resWidth, mlDictBad['padResWin'], mlDictBad['useIQV'], mlDictBad['useMag'],
+                                            mlDictBad['centerLoop'], mlDictBad['nAttens'])
+            inferenceImage = [image]
+            inferenceLabelsBad = sess_bad.run(y_output_bad, feed_dict={x_input_bad: inferenceImage, keep_prob_bad: 1})
+            inferenceData.bad_scores[rn] = inferenceLabelsBad.max()
 
     getLogger(__name__).info('Had {} doubles'.format(doubleCounter))
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='ML Inference Script')
-    parser.add_argument('mlConfig', nargs=1, help='Machine learning model config file')
-    parser.add_argument('inferenceData', nargs=1, help='HDF5 file containing powersweep data')
-    parser.add_argument('-m', '--metadata', nargs=1, default=[None], help='Directory to save output file')
+    parser.add_argument('model', help='Directory containing ML model')
+    parser.add_argument('inferenceData', help='HDF5 file containing powersweep data')
+    parser.add_argument('-m', '--metadata', default=None, help='Directory to save output file')
     # parser.add_argument('-o', '--output-dir', nargs=1, default=[None], help='Directory to save output file')
     parser.add_argument('-s', '--add-scores', action='store_true', help='Adds a score column to the output file')
-    parser.add_argument('-w', '--ws-atten', nargs=1, type=float, default=[None],
+    parser.add_argument('-w', '--ws-atten', type=float, default=None,
                         help='Attenuation where peak finding code was run')
-    parser.add_argument('-b', '--badscore-model', nargs=1, default=[None], help='ML config file for bad score model')
+    parser.add_argument('--res-width', type=int, default=None, 
+                        help='Width of window (in units nFreqStep) to use for power/freq classification')
+    parser.add_argument('-b', '--badscore-model', default='', help='Directory containing bad score model')
     args = parser.parse_args()
 
-    mlDict = readDict()
-    mlDict.readFromFile(args.mlConfig[0])
-    if args.badscore_model[0] is not None:
-        mlBadDict = readDict()
-        mlBadDict.readFromFile(args.badscore_model[0])
-    else:
-        mlBadDict = None
-
-    wsAtten = args.ws_atten[0]
-    metadataFn = args.metadata[0]
-
-    psDataFileName = args.inferenceData[0]
+    psDataFileName = args.inferenceData
     if not os.path.isfile(psDataFileName):
         psDataFileName = os.path.join(os.environ['MKID_DATA_DIR'], psDataFileName)
 
-    findPowers(mlDict, mlBadDict, psDataFileName, metadataFn, args.add_scores, wsAtten)
+    findPowers(args.model, args.badscore_model, psDataFileName, args.metadata, args.add_scores, args.ws_atten, args.res_width)

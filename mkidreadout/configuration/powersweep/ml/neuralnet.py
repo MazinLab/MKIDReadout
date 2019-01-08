@@ -105,7 +105,9 @@ class mlClassification():
                 # for t in range(num_rotations):
                 #     image = self.makeResImage(res_num = rn, iAtten= iAttens[rn,c], angle=angle[t],showFrames=False, 
                 #                                 test_if_noisy=test_if_noisy, xCenter=self.res_indicies[rn,c])
-                image, _, _ = mlt.makeResImage(res_num = rn, center_loop=self.mlDict['center_loop'], showFrames=False, dataObj=rawTrainData, mlDict=self.mlDict, wsAttenInd=wsAttenInd) 
+                image, _, _ = mlt.makeResImage(rn, rawTrainData, wsAttenInd, self.mlDict['xWidth'], 
+                                        self.mlDict['resWidth'], self.mlDict['padResWin'], self.mlDict['useIQV'], 
+                                        self.mlDict['useMag'], self.mlDict['center_loop'], self.mlDict['nAttens']) 
                 if image is not None:
                     trainImages.append(image)
                     oneHot = np.zeros(self.mlDict['nAttens'])
@@ -116,7 +118,9 @@ class mlClassification():
 
 
             for rn in test_ind:#range(int(self.trainFrac*rawTrainData.res_nums), int(self.trainFrac*rawTrainData.res_nums + self.testFrac*rawTrainData.res_nums)):
-                image, _, _ = mlt.makeResImage(res_num = rn, center_loop=self.mlDict['center_loop'], dataObj=rawTrainData, mlDict=self.mlDict, wsAttenInd=wsAttenInd)
+                image, _, _ = mlt.makeResImage(rn, rawTrainData, wsAttenInd, self.mlDict['xWidth'], 
+                                        self.mlDict['resWidth'], self.mlDict['padResWin'], self.mlDict['useIQV'], 
+                                        self.mlDict['useMag'], self.mlDict['center_loop'], self.mlDict['nAttens']) 
                 if image is not None:
                     testImages.append(image)
                     oneHot = np.zeros(self.mlDict['nAttens'])
@@ -280,7 +284,8 @@ class mlClassification():
 
         train_step = tf.train.AdamOptimizer(self.mlDict['learning_rate']).minimize(cross_entropy) # the best result is when the wrongness is minimal
         
-        tf.add_to_collection('mlDict', self.mlDict)
+        for k, v in self.mlDict.items():
+            tf.add_to_collection('mlDict', tf.constant(value=v, name=k))
 
         init = tf.global_variables_initializer()
 
