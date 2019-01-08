@@ -80,9 +80,9 @@ class mlClassification():
             rawTrainData.Is = rawTrainData.Is[good_res]
             rawTrainData.Qs = rawTrainData.Qs[good_res]
             rawTrainData.resIDs = rawTrainData.resIDs[good_res]
-            rawTrainData.attens = rawTrainData.attens[good_res]
+            #rawTrainData.attens = rawTrainData.attens[good_res]
             rawTrainData.opt_iAttens = rawTrainData.opt_iAttens[good_res]
-            wsAttenInd = np.where(rawTrainData.attens[0]==self.mlDict['wsAtten'])[0][0]
+            wsAttenInd = np.argmin(np.abs(rawTrainData.attens-self.mlDict['wsAtten']))
             print wsAttenInd
             
             #class_steps = 300
@@ -362,16 +362,25 @@ class mlClassification():
 
         print len(right), len(ys_true), float(len(right))/len(ys_true)
 
-        score = self.sess.run(accuracy, feed_dict={self.x: testImages, y_: testLabels, self.keep_prob: 1}) * 100
-        print 'Accuracy of model in testing: ', score, '%'
-        if score < 85: print 'Consider making more training images'
+        testScore = self.sess.run(accuracy, feed_dict={self.x: testImages, y_: testLabels, self.keep_prob: 1}) * 100
+        print 'Accuracy of model in testing: ', testScore, '%'
+        if testScore < 85: print 'Consider making more training images'
         print 'Testing accuracy within 1 dB: ', float(len(within1dB))/len(ys_true)*100, '%' 
 
-        score = self.sess.run(accuracy, feed_dict={self.x: trainImages, y_: trainLabels, self.keep_prob: 1}) * 100
-        print 'Accuracy of model in training: ', score, '%'
+        trainScore = self.sess.run(accuracy, feed_dict={self.x: trainImages, y_: trainLabels, self.keep_prob: 1}) * 100
+        print 'Accuracy of model in training: ', trainScore, '%'
         print tf.get_default_graph().get_all_collection_keys()
         
         np.savez(modelSavePath+'_confusion.npz', ys_true=ys_true, ys_guess=ys_guess, y_probs=y_probs, ce=ce_log, acc=acc_log)
+        logfile = modelSavePath + '_train_' + time.strftime("%Y%m%d-%H%M%S",time.localtime()) + '.log'
+        with open(logfile, 'w') as lf:
+            lf.write('Test Accuracy: ' + str(testScore/100.) + '\n')
+            lf.write('Test Accuracy within 1dB: ' + str(float(len(within1dB))/len(ys_true)) + '\n')
+            lf.write('Train Accuracy: ' + str(trainScore/100.) + '\n')
+            lf.write('\n')
+            for k, v in self.mlDict.items():
+                lf.write(k + ': ' + str(v) + '\n')
+
 
         del trainImages, trainLabels, testImages, testLabels
 

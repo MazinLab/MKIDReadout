@@ -17,7 +17,7 @@ class MLData(object):
         freqSpan = np.array([self.freqSweep.freqs[0,0], self.freqSweep.freqs[-1,-1]])
         self.mdResMask = ((self.metadata.flag & ISGOOD) &
                           (self.metadata.wsfreq > freqSpan[0]) &
-                          (self.metadata.wsfreq < freqSpan[1]))
+                          (self.metadata.wsfreq < freqSpan[1])).astype(bool)
         self.nRes = self.mdResMask.sum()
         if not self.nRes:
             raise RuntimeError('No rood resonators with freqs within sweep bounds')
@@ -29,13 +29,13 @@ class MLData(object):
 
         self.resIDs = self.metadata.resIDs[self.mdResMask]
         self.initfreqs = self.metadata.wsfreq[self.mdResMask]
-        self.opt_attens = self.metadata.mlatten[self.mdResMask]
+        self.opt_attens = self.metadata.mlatten[self.mdResMask] # maybe change to freq and atten?
         self.opt_freqs = self.metadata.mlfreq[self.mdResMask]
         self.scores = np.zeros(self.nRes)
         self.bad_scores = np.zeros(self.nRes)
         if not np.all(np.isnan(self.opt_attens)):
             attenblock = np.tile(self.freqSweep.atten, (len(self.opt_attens),1))
-            self.opt_iAttens = np.where(self.opt_attens==attenblock.T)[0]
+            self.opt_iAttens = np.argmin(np.abs(attenblock.T - self.opt_attens), axis=0)
 
         self.generateMLWindows(self.initfreqs)
 
