@@ -16,7 +16,7 @@ from flask_restful import Api, Resource, reqparse, fields, marshal
 import requests
 
 
-TIMEOUT = .01
+TIMEOUT = .25
 CONEX_PORT = 50001
 
 
@@ -79,7 +79,7 @@ class Conex(object):
         self.u_upperLimit = np.inf
         self.v_upperLimit = np.inf
 
-        self._started = False
+        self._started = 0
         try:
             self._init()
         except serial.SerialException:
@@ -89,6 +89,7 @@ class Conex(object):
         try:
             self._device = serial.Serial(port=self.port, baudrate=self.baudrate, bytesize=self.bytesize,
                                          stopbits=self.stopbits, timeout=self.timeout, xonxoff=self.xonxoff)
+            self._started = 1
             time.sleep(0.1)  # wait for port to open
             self.write('ID?')
             self.status
@@ -104,11 +105,11 @@ class Conex(object):
                 raise
             self.close()
         except serial.SerialException:
-            getLogger('conex').debug("Could not connect to Conex Mount")
+            getLogger('conex').debug("Could not connect to Conex Mount", exc_info=True)
             raise
 
         getLogger('conex').debug("Connected to Conex Mount")
-        self._started = True
+        self._started = 2
 
     def close(self):
         self._device.close()
@@ -116,6 +117,8 @@ class Conex(object):
     def open(self):
         if not self._started:
             self._init()
+        if self._started==1:
+            return
         if self._device.is_open:
             return
         self._device.open()
