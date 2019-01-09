@@ -2293,9 +2293,9 @@ class Roach2Controls(object):
     def tagfile(self, root, dir='', epilog=''):
         root, ext = os.path.splitext(root)
         el = '_' + epilog if epilog else epilog
-        root = root.format(roach=self.num, feedline=self.feedline, range=self.range)
         tag = '{}{}'.format('_{roach}' if '{roach}' not in root else '',
                             '_FL{feedline}_{range}' if '{feedline}' not in root else '')
+        root = root.format(roach=self.num, feedline=self.feedline, range=self.range)
         tag = tag.format(roach=self.num, feedline=self.feedline, range=self.range)
         return os.path.join(dir, '{root}{tag}{el}{ext}'.format(root=root, tag=tag, ext=ext, el=el))
 
