@@ -253,7 +253,7 @@ class RoachStateMachine(QtCore.QObject):  # Extends QObject for use with QThread
 
         getLogger(__name__).info('Loading freqs from ' + fn)
 
-        sd = sweepdata.SweepMetadata(fn)
+        sd = sweepdata.SweepMetadata(file=fn)
 
         resIDs, freqs, attens = sd.templar_data(self.config.roaches.get('r{}.lo_freq'.format(self.num)))
         #TODO Neelay, alex what about phaseOffsList and iqRatioList in the metadatafile

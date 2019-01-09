@@ -103,7 +103,7 @@ class SweepMetadata(object):
         self.flag = flag
 
         if resid is not None:
-            assert self.resIDs.size==self.wsfreq.size==self.flag.size
+            assert self.resIDs.size == self.wsfreq.size == self.flag.size
 
         self.atten = atten
         self.mlfreq = mlfreq

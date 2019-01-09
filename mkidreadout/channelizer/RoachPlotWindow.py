@@ -825,7 +825,7 @@ class RoachSweepWindow(QMainWindow):
 
         freqFile = self.roach.roachController.tagfile(self.config.get('r{}.freqfileroot'.format(self.roachNum)),
                                                       dir=self.config.paths.data)
-        sd = sweepdata.SweepMetadata(freqFile)
+        sd = sweepdata.SweepMetadata(file=freqFile)
         sd.file = '{0}_new.{1}'.format(*freqFile.lrpartition('.')[::2])
         lo = self.config.get('r{}.lo_freq'.format(self.roachNum))
         sd.update_from_roach(lo, freqs=freqs, attens=attens)

@@ -978,7 +978,7 @@ class MKIDDashboard(QMainWindow):
                 for roach in self.roachList:
                     freqFN = roach.tagfile(self.config.roaches.get('r{}.freqfileroot'.format(roach.num)),
                                            dir=self.config.paths.data)
-                    sd = sweepdata.SweepMetadata(freqFN)
+                    sd = sweepdata.SweepMetadata(file=freqFN)
                     resIDs, freqs, _ = sd.templar_data(self.config.roaches.get('r{}.lo_freq'.format(roach.num)))
                     try:
                         freqCh = np.where(resIDs == resID)[0][0]
