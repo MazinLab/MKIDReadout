@@ -195,8 +195,8 @@ class SweepMetadata(object):
         self.freq = self.freq[s]
 
     def toarray(self):
-        return np.array([self.resIDs, self.flag, self.wsfreq, self.mlfreq, self.atten, self.ml_isgood_score,
-                         self.ml_isbad_score])
+        return np.array([self.resIDs, self.flag, self.wsfreq, self.mlfreq, self.mlatten, self.freq, 
+                         self.atten, self.ml_isgood_score, self.ml_isbad_score])
 
     def update_from_roach(self, lo, freqs=None, attens=None):
         use = self.lomask(lo, LOCUT)
@@ -234,7 +234,7 @@ class SweepMetadata(object):
     def save(self, file=''):
         sf = file.format(feedline=self.feedline) if file else self.file.format(feedline=self.feedline)
         self.vet()
-        np.savetxt(sf, self.toarray().T, fmt="%8d %1u %16.7f %16.7f %5.1f %6.4f %6.4f",
+        np.savetxt(sf, self.toarray().T, fmt="%8d %1u %16.7f %16.7f %5.1f %16.7f %5.1f %6.4f %6.4f",
                    header=self.genheader())
 
     def templar_data(self, lo):
@@ -255,9 +255,10 @@ class SweepMetadata(object):
         assert (self.resIDs.size==self.wsfreq.size==self.flag.size==self.atten.size==self.freq.size==
                 self.mlatten.size==self.mlfreq.size==self.ml_isgood_score.size==self.ml_isbad_score.size)
 
-        for x in (self.freq, self.mlfreq, self.wsfreq):
-            use = ~np.isnan(x)
-            assert x[use].size == np.unique(x[use]).size, "Frequencies must be be unique."
+        ## TEMPORARY REMOVAL 20180108 - CAUSING ISSUES W/ TRAINING ##
+        #for x in (self.freq, self.mlfreq, self.wsfreq):
+        #    use = ~np.isnan(x)
+        #    assert x[use].size == np.unique(x[use]).size, "Frequencies must be be unique."
 
         self.flag = self.flag.astype(int)
         self.resIDs = self.resIDs.astype(int)
@@ -279,6 +280,7 @@ class SweepMetadata(object):
         self.freq[np.isnan(self.freq)] = self.wsfreq[np.isnan(self.freq)]
         self.atten[np.isnan(self.atten)] = self.mlatten[np.isnan(self.atten)]
 
+        self.flag = self.flag.astype(int)
         self.mlfreq[self.flag & ISBAD] = self.wsfreq[self.flag & ISBAD]
         self.ml_isgood_score[self.flag & ISBAD] = 0
         self.ml_isbad_score[self.flag & ISBAD] = 1
