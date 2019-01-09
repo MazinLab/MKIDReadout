@@ -268,13 +268,22 @@ class SweepMetadata(object):
         d = np.loadtxt(self.file.format(feedline=self.feedline), unpack=True)
         #TODO convert to load metadata from file
         try:
-            self.resIDs, self.flag, self.wsfreq, self.mlfreq, self.mlatten, \
-                self.freq, self.atten, self.ml_isgood_score, self.ml_isbad_score= d
+            if d.shape[0] == 9:
+                self.resIDs, self.flag, self.wsfreq, self.mlfreq, self.mlatten, \
+                self.freq, self.atten, self.ml_isgood_score, self.ml_isbad_score = d
+            elif d.shape[0] == 7:
+                self.resIDs, self.flag, self.wsfreq, self.mlfreq, self.mlatten, \
+                    self.ml_isgood_score, self.ml_isbad_score = d
+                self.freq = self.mlfreq.copy()
+                self.atten = self.mlatten.copy()
+            else:
+                self.resIDs, self.mlfreq, self.atten = d
+                self.flag = np.full_like(self.resIDs, ISGOOD, dtype=int)
+                self.wsfreq = self.mlfreq.copy()
+                self.ml_isgood_score = np.full_like(self.resIDs, np.nan, dtype=float)
+                self.ml_isbad_score = np.full_like(self.resIDs, np.nan, dtype=float)
         except:
-            self.resIDs, self.flag, self.wsfreq, self.mlfreq, self.mlatten, \
-                self.ml_isgood_score, self.ml_isbad_score = d
-            self.freq = self.mlfreq.copy()
-            self.atten = self.mlatten.copy()
+            raise ValueError('Unknown number of columns')
 
         self.freq[np.isnan(self.freq)] = self.mlfreq[np.isnan(self.freq)]
         self.freq[np.isnan(self.freq)] = self.wsfreq[np.isnan(self.freq)]
