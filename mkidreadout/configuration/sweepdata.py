@@ -225,7 +225,15 @@ class SweepMetadata(object):
 
     def _load(self):
         d = np.loadtxt(self.file.format(feedline=self.feedline), unpack=True)
-        self.resIDs, self.flag, self.wsfreq, self.mlfreq, self.atten, self.ml_isgood_score, self.ml_isbad_score = d
+
+        try:
+            self.resIDs, self.flag, self.wsfreq, self.mlfreq, self.atten, self.ml_isgood_score, self.ml_isbad_score = d
+        except ValueError:
+            self.resIDs, self.mlfreq, self.atten = d
+            self.flag = np.full_like(self.resIDs, ISGOOD, dtype=int)
+            self.wsfreq = self.mlfreq.copy()
+            self.ml_isgood_score = np.full_like(self.resIDs, np.nan, dtype=float)
+            self.ml_isbad_score = np.full_like(self.resIDs, np.nan, dtype=float)
 
         self.mlfreq[self.flag == ISBAD] = self.wsfreq[self.flag == ISBAD]
         self.ml_isgood_score[self.flag == ISBAD] = 0
