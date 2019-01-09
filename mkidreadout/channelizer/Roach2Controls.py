@@ -2294,9 +2294,10 @@ class Roach2Controls(object):
         root, ext = os.path.splitext(root)
         el = '_' + epilog if epilog else epilog
         root = root.format(roach=self.num, feedline=self.feedline, range=self.range)
-        file = '{root}_{roach}_FL{feedline}_{range}{el}{ext}'.format(root=root, roach=self.num, feedline=self.feedline,
-                                                                     range=self.range, ext=ext, el=el)
-        return os.path.join(dir, file)
+        tag = '{}{}'.format('_{roach}' if '{roach}' not in root else '',
+                            '_FL{feedline}_{range}' if '{feedline}' not in root else '')
+        tag = tag.format(roach=self.num, feedline=self.feedline, range=self.range)
+        return os.path.join(dir, '{root}{tag}{el}{ext}'.format(root=root, tag=tag, ext=ext, el=el))
 
 
 if __name__ == '__main__':
