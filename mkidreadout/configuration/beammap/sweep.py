@@ -19,7 +19,11 @@ RoughBeammap(configFN)
 BeamSweepGaussFit(imageList, initialGuessImage)
 
 Usage:
+    From the commandline:
+    $ python sweep.py sweep.cfg [-cc]
 
+    The optional -cc option will run the crosscorellation and create a new rough beammap
+    Otherwise, it will run the manual click GUI
 
 """
 
@@ -29,13 +33,13 @@ import matplotlib
 
 matplotlib.use('Qt4Agg')
 import matplotlib.pyplot as plt
-from mkidcore.config import config, importoldconfig, ConfigThing, _consolidateconfig
+from mkidcore.config import importoldconfig, ConfigThing, _consolidateconfig
+from mkidcore.corelog import getLogger, create_log
 
-from mkidcore.corelog import setup_logging, getLogger
 import argparse
 
 from mkidreadout.configuration.beammap.utils import crossCorrelateTimestreams, determineSelfconsistentPixelLocs2, \
-    loadImgFiles, minimizePixelLocationVariance, snapToPeak, shapeBeammapIntoImages, fitPeak, getPeakCoM
+    loadImgFiles, minimizePixelLocationVariance, snapToPeak, shapeBeammapIntoImages, fitPeak, getPeakCoM, check_timestream
 from mkidreadout.configuration.beammap.flags import beamMapFlags
 
 
@@ -347,6 +351,18 @@ class ManualRoughBeammap(object):
             self.updateTimestreamPlot()
             self.updateXYPlot(1)
             self.updateFlagMapPlot()
+        elif event.key in [' ']:
+            self.curPixInd += 1
+            self.curPixInd %= self.nGoodPix
+            self.updateTimestreamPlot(fastforward=True)
+            self.updateXYPlot(1)
+            self.updateFlagMapPlot()
+        elif event.key in ['r']:
+            self.curPixInd -= 1
+            self.curPixInd %= self.nGoodPix
+            self.updateTimestreamPlot(rewind=True)
+            self.updateXYPlot(1)
+            self.updateFlagMapPlot()
         elif event.key in ['left']:
             self.curPixInd -= 1
             self.curPixInd %= self.nGoodPix
@@ -387,9 +403,34 @@ class ManualRoughBeammap(object):
         # event.ignore()
         # self.fig_time.show()
 
-    def updateTimestreamPlot(self, lineNum=4):
+    def updateTimestreamPlot(self, lineNum=4, fastforward = False, rewind = False):
         y = self.goodPix[0][self.curPixInd]
         x = self.goodPix[1][self.curPixInd]
+
+        if fastforward or rewind:
+            skip_timestream = True
+            counter = 0
+            while skip_timestream and counter < self.nGoodPix:
+                counter += 1
+                y = self.goodPix[0][self.curPixInd]
+                x = self.goodPix[1][self.curPixInd]
+                xStream = self.x_images[:, y, x]
+                yStream = self.y_images[:, y, x]
+                y_loc = self.y_loc[y, x]
+                x_loc = self.x_loc[y, x]
+                xStream_good = check_timestream(xStream, x_loc)
+                if not xStream_good:
+                    print('x failed check')
+                yStream_good = check_timestream(yStream, y_loc)
+                if not yStream_good:
+                    print('y failed check')
+                skip_timestream = xStream_good and yStream_good
+                if skip_timestream:
+                    if fastforward:
+                        self.curPixInd += 1
+                    else:
+                        self.curPixInd -= 1
+                    self.curPixInd %= self.nGoodPix
 
         if lineNum == 0 or lineNum >= 4:
             offset = self.x_loc[y, x]
@@ -515,8 +556,8 @@ class ManualRoughBeammap(object):
             if x >= 0 and x < nCols and y >= 0 and y < nRows:
                 msg = 'Clicked Flag Map! [{}, {}] -> {} Flag: {}'
                 getLogger('beammap').info(msg.format(x, y, self.resIDsMap[y, x], self.flagMap[y, x]))
-                pixInd = np.where((self.goodPix[0] == y) * (self.goodPix[1] == x))
-                if len(pixInd[0]) == 1:
+                pixInd = np.where((self.goodPix[0] == y) * (self.goodPix[1] == x))[0]
+                if len(pixInd) == 1:
                     self.curPixInd = pixInd[0]
                     self.updateFlagMapPlot()
                     self.updateXYPlot(1)
@@ -772,26 +813,30 @@ def registersettings(cfgObj):
     cfgObj.register('beammap.sweep.imgfiledirectory', '')
     cfgObj.register('beammap.sweep.initialbeammap', '')
     cfgObj.register('beammap.sweep.roughbeammap', '')
-    cfgObj.register('detector.nrow', 145)
+    cfgObj.register('detector.nrow', 146)
     cfgObj.register('detector.ncol', 140)
 
     c = ConfigThing()
     c.register('type','x', allowed=('x', 'y'))
     c.register('direction', '+', allowed=('+', '-'))
     c.register('speed', 3)
-    c.register('duration', 215)
+    c.register('duration', 500)
     c.register('start', 1527724450)
     cfgObj.register('beammap.sweep.sweeps', [c])
 
 
 
 if __name__ == '__main__':
-    setup_logging()
+    #setup_logging()
+    create_log('Sweep')
+    create_log('mkidcore')
+    create_log('mkidreadout')
     log = getLogger('Sweep')
 
-    parser = argparse.ArgumentParser(description='MKID Wavelength Calibration Utility')
-    parser.add_argument('cfgfile', type=str, help='The config file', default='sweep.cfg')
-                        help='Run sweep code to generate h5 files manually')
+
+    parser = argparse.ArgumentParser(description='MKID Beammap Analysis Utility')
+    parser.add_argument('cfgfile', type=str, default='sweep.cfg',help='Configuration file for beammap sweeps')
+    parser.add_argument('-cc', default=False, action='store_true', dest='use_cc', help='run in Xcor mode')
     args = parser.parse_args()
 
     thisconfig = ConfigThing()
@@ -802,7 +847,7 @@ if __name__ == '__main__':
     log.info('Starting rough beammap')
     b = RoughBeammap(thisconfig)
 
-    if args.CCMode:
+    if args.use_cc: #Cross correllation mode
         b.loadRoughBeammap()
         b.concatImages('x',False)
         b.concatImages('y',False)
@@ -811,13 +856,10 @@ if __name__ == '__main__':
         b.refinePeakLocs('x', b.config.beammap.sweep.fittype, b.x_locs, fitWindow=15)
         b.refinePeakLocs('y', b.config.beammap.sweep.fittype, b.y_locs, fitWindow=15)
         b.saveRoughBeammap()
-
-    if args.ManualMode:
+    else:   #Manual mode
         log.info('Stack x and y')
         b.stackImages('x')
         b.stackImages('y')
         log.info('Cleanup')
         b.manualSweepCleanup()
 
-    if not args.CCMode and not args.ManualMode:
-        print("Specify whether to run in manual or cc mode")

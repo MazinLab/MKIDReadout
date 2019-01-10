@@ -54,6 +54,8 @@ class BMCleaner(object):
         self.instrument = instrument.lower()
         self.designFile = designMapPath
         self.beamMap = beamMap.copy()
+        self.preciseXs = self.beamMap.xCoords
+        self.preciseYs = self.beamMap.yCoords
 
         if self.instrument.lower() == 'mec':
             self.nFL = N_FL_MEC
@@ -218,23 +220,24 @@ class BMCleaner(object):
         if not hasattr(self.beamMap, 'frequencies'):
             raise Exception("This beammap does not have frequency data, this operation cannot be done")
 
+        shiftObject = self.runShiftingCode()
+
+        self.beamMap = shiftObject.shiftedBeammap
+        designMap = shiftObject.designArray
+
         self.fixPreciseCoordinates()
         self.placeOnGrid()
 
-        shiftObject = self.runShiftingCode()
-
-        beammap = shiftObject.shiftedBeammap
-        designMap = shiftObject.designArray
-
-        overlapGrid = getOverlapGrid(beammap.xCoords, beammap.yCoords, beammap.flags, self.nCols, self.nRows)
-        overlapCoords = np.asarray(np.where(overlapGrid > 1)).T
+        # self.placedXs = np.full(beammap.xCoords.shape, fill_value=np.nan)
+        # self.placedYs = np.full(beammap.yCoords.shape, fill_value=np.nan)
+        overlapCoords = np.asarray(np.where(self.bmGrid > 1)).T
         nOverlapsResolved = 0
         nPixelsPlaced = 0
         originalCoord = []
         placedCoord = []
 
         for coord in overlapCoords:
-            doubles = beammap.getResonatorsAtCoordinate(coord[0], coord[1])
+            doubles = self.beamMap.getResonatorsAtCoordinate(coord[0], coord[1])
 
             # Creates an list of coordinates to try to place the members of the overlap on. Creates a square around the
             # coordinate of the overlap, then removes all locations in the wrong feedline, off the array, or that are
@@ -259,7 +262,7 @@ class BMCleaner(object):
                 # Mask for if any of the search coordinates already have a resonator there
                 occupationMask = np.zeros(len(coordsToSearch))
                 for i in range(len(coordsToSearch)):
-                    if overlapGrid[coordsToSearch[i][0], coordsToSearch[i][1]] == 0:
+                    if self.bmGrid[coordsToSearch[i][0], coordsToSearch[i][1]] == 0:
                         occupationMask[i] = True
                     else:
                         occupationMask[i] = False
@@ -293,17 +296,17 @@ class BMCleaner(object):
 
             # Updates the overlap grid to reflect the new occupancy of coordinates. Updates the in-function beammap.
             # These updates will be applied to the class beammap
-            overlapGrid[coord[0], coord[1]] = 0
+            self.bmGrid[coord[0], coord[1]] = 0
             for i in range(len(doubles)):
                 resonator = doubles[i]
                 newCoordinate = newCoordinates[i].astype(int)
                 originalCoord.append(coord)
                 placedCoord.append(newCoordinate)
-                overlapGrid[newCoordinate[0], newCoordinate[1]] += 1
+                self.bmGrid[newCoordinate[0], newCoordinate[1]] += 1
                 index = np.where(self.beamMap.resIDs == resonator[0])[0]
-                beammap.xCoords[index] = newCoordinate[0]
-                beammap.yCoords[index] = newCoordinate[1]
-                beammap.flags[index] = beamMapFlags['good']
+                self.beamMap.xCoords[index] = newCoordinate[0]
+                self.beamMap.yCoords[index] = newCoordinate[1]
+                self.beamMap.flags[index] = beamMapFlags['good']
                 nPixelsPlaced += 1
 
             nOverlapsResolved += 1
@@ -311,10 +314,8 @@ class BMCleaner(object):
         log.info('Successfully resolved %d overlaps', nOverlapsResolved)
         log.info('Successfully placed %d pixels', nPixelsPlaced)
 
-        # Updates the class beammap
-        self.beamMap.xCoords = np.floor(beammap.xCoords)
-        self.beamMap.yCoords = np.floor(beammap.yCoords)
-        self.beamMap.flags = beammap.flags
+        self.placedXs = self.beamMap.xCoords
+        self.placedYs = self.beamMap.yCoords
 
         # For all of the resonators that were analyzed in this part of the code, figure out where they started (after
         # being shifted in space) and where they were moved (or not moved to).
@@ -335,11 +336,11 @@ class BMCleaner(object):
         # Plots the 'process' of overlap resolution. Arrows start where the pixel began to where it was placed. Dots
         # are shown where the 'best placement' for a resonator that was not moved.
         # NOTE: If a pixel has a dot, it MUST also have an arrow coming from it.
-        plt.scatter(original[:, 0][~didMove.astype(bool)], original[:, 1][~didMove.astype(bool)], c='green', marker='.')
-        plt.quiver(original[:, 0][didMove.astype(bool)], original[:, 1][didMove.astype(bool)],
-                   (placed[:, 0]-original[:, 0])[didMove.astype(bool)], (placed[:, 1]-original[:, 1])[didMove.astype(bool)],
-                   color='blue', angles='xy', scale_units='xy', scale=1, headlength=3, headwidth=2)
-        plt.show(block=False)
+        # plt.scatter(original[:, 0][~didMove.astype(bool)], original[:, 1][~didMove.astype(bool)], c='green', marker='.')
+        # plt.quiver(original[:, 0][didMove.astype(bool)], original[:, 1][didMove.astype(bool)],
+        #            (placed[:, 0]-original[:, 0])[didMove.astype(bool)], (placed[:, 1]-original[:, 1])[didMove.astype(bool)],
+        #            color='blue', angles='xy', scale_units='xy', scale=1, headlength=3, headwidth=2)
+        # plt.show(block=False)
 
     def runShiftingCode(self):
         shifter = shift.BeammapShifter(self.designFile, self.beamMap, self.instrument)
@@ -386,35 +387,36 @@ class BMCleaner(object):
 
 if __name__=='__main__':
     parser = argparse.ArgumentParser(description='argument parser')
-    parser.add_argument('cfgFile', nargs=1, type=str, default='/mnt/data0/MKIDReadoout/configuration/clean.cfg', help='Configuration file')
+    parser.add_argument('cfgFile', nargs=1, type=str, default='/mnt/data0/MEC/20181218/clean.cfg', help='Configuration file')
     #default config file location
     args = parser.parse_args()
     configFileName = args.cfgFile[0]
+    resolutionType = args
     log.setLevel(logging.INFO)
-    
-    # Open config file
+
     configData = readDict()
     configData.read_from_file(configFileName)
     beammapDirectory = configData['beammapDirectory']
     finalBMFile = configData['finalBMFile']
     rawBMFile = configData['rawBMFile']
+    useFreqs = configData['useFreqs']
     psFiles = configData['powersweeps']
     designFile = configData['designMapFile']
+    numRows = configData['numRows']
+    numCols = configData['numCols']
+    flipParam = configData['flip']
+    inst = configData['instrument']
 
-    #put together full input/output BM paths
-    finalPath = os.path.join(beammapDirectory, finalBMFile)
-    rawPath = os.path.join(beammapDirectory, rawBMFile)
-    frequencySweepPath = os.path.join(beammapDirectory, "ps_*.txt")
-
-
-    #load location data from rough BM file
-    rawBM = Beammap(rawPath)
-    rawBM.loadFrequencies(frequencySweepPath)
-    cleaner = BMCleaner(rawBM, int(configData['numRows']), int(configData['numCols']), configData['flip'], configData['instrument'])
-    cleaner.resolveOverlapWithFrequency()
-
-    cleaner.fixPreciseCoordinates() #fix wrong feedline and oob coordinates
-    cleaner.placeOnGrid() #initial grid placement
+    rawBeamMap = Beammap(rawBMFile, (146, 140), 'MEC')
+    if useFreqs:
+        rawBeamMap.loadFrequencies(psFiles)
+        cleaner = BMCleaner(beamMap=rawBeamMap, nRows=numRows, nCols=numCols,
+                            flip=flipParam, instrument=inst, designMapPath=designFile)
+    else:
+        cleaner = BMCleaner(beamMap=rawBeamMap, nRows=numRows, nCols=numCols,
+                            flip=flipParam, instrument=inst, designMapPath=designFile)
+    cleaner.fixPreciseCoordinates()
+    cleaner.placeOnGrid()
 
     #plt.ion()
     fig1 = plt.figure()
@@ -423,9 +425,15 @@ if __name__=='__main__':
     ax1.set_title('Initial (floored) beammap (value = res per pix coordinate)')
 
     # resolve overlaps and place failed pixels
-    cleaner.resolveOverlaps()
-    cleaner.placeFailedPixels()
-    cleaner.saveBeammap(finalPath)
+
+    if useFreqs:
+        cleaner.resolveOverlapWithFrequency()
+        cleaner.placeFailedPixels()
+        cleaner.saveBeammap(finalBMFile)
+    else:
+        cleaner.resolveOverlaps()
+        cleaner.placeFailedPixels()
+        cleaner.saveBeammap(finalBMFile)
 
     fig2 = plt.figure()
     ax2 = fig2.add_subplot(111)
@@ -434,7 +442,7 @@ if __name__=='__main__':
 
     fig3 = plt.figure()
     ax3 = fig3.add_subplot(111)
-    goodPixMask = (cleaner.flags==beamMapFlags['good']) | (cleaner.flags==beamMapFlags['double'])
+    goodPixMask = (cleaner.beamMap.flags==beamMapFlags['good']) | (cleaner.beamMap.flags==beamMapFlags['double'])
     placedXsGood = cleaner.placedXs[goodPixMask]
     placedYsGood = cleaner.placedYs[goodPixMask]
     preciseXsGood = cleaner.preciseXs[goodPixMask] - 0.5
@@ -447,7 +455,7 @@ if __name__=='__main__':
     #    if placedXsGood[i] < nCols and placedYsGood[i] < nRows and np.abs(placedXsGood[i] - preciseXsGood[i]) < 0.5 and np.abs(placedYsGood[i] - preciseYsGood[i]) < 0.5:
     #        u[int(placedYsGood[i]), int(placedXsGood[i])] = placedXsGood[i] - preciseXsGood[i]
     #        v[int(placedYsGood[i]), int(placedXsGood[i])] = placedYsGood[i] - preciseYsGood[i]
-    #    
+    #
     #ax3.streamplot(np.arange(0, nCols), np.arange(0, nRows), u, v, density=5)
 
     ax3.quiver(preciseXsGood, preciseYsGood, placedXsGood - preciseXsGood, placedYsGood - preciseYsGood, angles='xy', scale_units='xy', scale=1)
@@ -459,6 +467,6 @@ if __name__=='__main__':
     ax4 = fig4.add_subplot(111)
     smallVMask = ((placedXsGood - preciseXsGood) < 0.5) & ((placedYsGood - preciseYsGood) < 0.5)
     ax4.quiver(placedXsGood[smallVMask], placedYsGood[smallVMask], placedXsGood[smallVMask] - preciseXsGood[smallVMask], placedYsGood[smallVMask] - preciseYsGood[smallVMask], angles='xy', scale_units='xy', scale=None, width=0.001)
-    ax4.set_title('Quiver Plot showing final_coordinates -> precise_coordinates (arrows not to scale)')    
+    ax4.set_title('Quiver Plot showing final_coordinates -> precise_coordinates (arrows not to scale)')
 
     plt.show()

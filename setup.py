@@ -1,10 +1,13 @@
 from __future__ import print_function
-import setuptools, sys
+import setuptools, sys, numpy
 import os
 from setuptools.command.install import install
 from setuptools.command.develop import develop
 import subprocess
 import platform
+from setuptools.extension import Extension
+from Cython.Build import cythonize
+
 #pip install -e git+http://github.com/mazinlab/mkidreadout.git@restructure#egg=mkidreadout --src ./mkidtest
 
 
@@ -61,6 +64,12 @@ class CustomDevelop(develop, object):
         super(CustomDevelop,self).run()
 
 
+ext_module = Extension("Roach2Utils",
+                       ['./mkidreadout/channelize/Roach2Utils.pyx'],
+                       include_dirs=[numpy.get_include()],
+                       extra_compile_args=['-fopenmp'],
+                       extra_link_args=['-fopenmp'])
+
 with open("README.md", "r") as fh:
     long_description = fh.read()
 
@@ -75,13 +84,14 @@ setuptools.setup(
     long_description_content_type="text/markdown",
     url="https://github.com/MazinLab/MKIDReadout",
     packages=setuptools.find_packages(),
-    package_data = {'mkidreadout': ('config/*.yml', 'resources/firmware/*', 'resources/firfilters/*')},
+    package_data={'mkidreadout': ('config/*.yml', 'resources/firmware/*', 'resources/firfilters/*')},
     scripts=['mkidreadout/channelizer/initgui.py',
              'mkidreadout/channelizer/hightemplar.py',
              'mkidreadout/readout/dashboard.py',
              'mkidreadout/configuration/powersweep/clickthrough_hell.py'],
+    ext_modules=cythonize(ext_module),
     classifiers=(
-        "Programming Language :: Python :: 3",
+        "Programming Language :: Python :: 2.7",
         "License :: OSI Approved :: MIT License",
         "Operating System :: POSIX",
         "Development Status :: 1 - Planning",

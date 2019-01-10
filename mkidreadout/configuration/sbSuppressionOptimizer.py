@@ -19,8 +19,10 @@ from mkidreadout.channelizer.Roach2Controls import Roach2Controls
 import numpy as np
 import time, sys, os
 import matplotlib.pyplot as plt
+import ConfigParser
 import scipy.optimize as spo
 import threading
+import SDR.Projects.FirmwareTests.darkDebug.adcSnapCheck as adcSnap
 
 
 class SBOptimizer:
@@ -39,7 +41,7 @@ class SBOptimizer:
     """
             
     def __init__(self, ip='10.0.0.112',
-                 params='/mnt/data0/neelay/mkidreadout/mkidreadout/channelizer/darknessfpga.param',
+                 params='/mnt/data0/neelay/MkidDigitalReadout/mkidreadout/channelizer/darknessfpga.param',
                  freqList=None, toneAttenList=None, resIDList=None, loFreq=5.e9, adcAtten=31.75, globalDacAtten=9):
         """
         INPUTS:
@@ -87,7 +89,9 @@ class SBOptimizer:
         self.roach.loadLOFreq()
         self.roach.changeAtten(1,np.floor(self.globalDacAtten/31.75)*31.75)
         self.roach.changeAtten(2,self.globalDacAtten%31.75)
-        self.roach.changeAtten(3,self.adcAtten)
+        self.roach.changeAtten(3,np.floor(self.adcAtten*2)/4.)
+        self.roach.changeAtten(4,np.ceil(self.adcAtten*2)/4.)
+        self.loadDelayLUT()
 
     def loadLUT(self, sideband='all', phaseList=None, iqRatioList=None):
         """
@@ -131,6 +135,12 @@ class SBOptimizer:
         OUTPUTS:
             snapDict: Dictionary w/ I and Q values (see adcSnapCheck.py)
         """
+
+        snapDict = adcSnap.snapZdok(self.roach.fpga,nRolls=0)
+        
+        return snapDict
+
+    def loadDelayLUT(self):
         delayLut0 = zip(np.arange(0,12),np.ones(12)*14)
         delayLut1 = zip(np.arange(14,26),np.ones(12)*18)
         delayLut2 = zip(np.arange(28,40),np.ones(12)*14)
@@ -139,12 +149,8 @@ class SBOptimizer:
         adcSnap.loadDelayCal(self.roach.fpga,delayLut1)
         adcSnap.loadDelayCal(self.roach.fpga,delayLut2)
         adcSnap.loadDelayCal(self.roach.fpga,delayLut3)
-
-        snapDict = adcSnap.snapZdok(self.roach.fpga,nRolls=0)
         
-        return snapDict
-        
-    def gridSearchOptimizerFit(self, phases=np.arange(-25, 25), iqRatios=np.arange(0.8, 1.75, 0.02), sideband='upper', threshold=35, weightDecayDist=1, nAvgs=5, saveNPZ=False):
+    def gridSearchOptimizerFit(self, phases=np.arange(-25, 25), iqRatios=np.arange(0.8, 1.75, 0.02), sideband='upper', threshold=38, weightDecayDist=1, nAvgs=5, saveNPZ=False):
         """
         Determines optimal phase/iq offsets for each tone in comb simultaneosly. Treats all tones as independent. For each tone,
         samples the SB suppression at a few random points in phase/iq offset search space, then fits a 2D exponential decay. Takes
@@ -185,7 +191,16 @@ class SBOptimizer:
         print('nSamples', specDict['nSamples'])
         freqLocs = np.asarray(map(findFreq, quantFreqsMHz))
         sbLocs = -1*freqLocs + len(specDict['freqsMHz'])
-        
+
+        #take initial spectrum
+        self.loadLUT(sideband)
+        initialSpectrum = np.zeros(specDict['nSamples'])
+        for k in range(nAvgs):
+            snapDict = self.takeAdcSnap()
+            specDict = adcSnap.streamSpectrum(snapDict['iVals'], snapDict['qVals'])
+            initialSpectrum += specDict['spectrumDb']
+        initialSpectrum /= nAvgs
+
         #specifies the probability distribution from which to sample points in phase, IQ ratio, search space
         weights = np.ones((len(freqList), len(phases), len(iqRatios)))
 
@@ -195,7 +210,7 @@ class SBOptimizer:
         normWeights = np.transpose(np.transpose(np.reshape(weights,(len(freqList),-1)))/np.sum(weights, axis=(1,2)))
         normWeights = np.reshape(normWeights, np.shape(weights))
         
-        sbSupIndList = np.zeros((len(freqList), 2)) #points currently being sampled at each frequency (in I/Q ratio, phase search space
+        sbSupIndList = np.zeros((len(freqList), 2), dtype=np.int) #points currently being sampled at each frequency (in I/Q ratio, phase search space
         flatInds = np.arange(len(phases)*len(iqRatios))
         curSupList = np.zeros(len(freqList)) #list of last-sampled SB suppression at each frequency, averaged over nAvgs
         curRawSupList = np.zeros((len(freqList), nAvgs)) #unaveraged list of SB suppressions
@@ -217,11 +232,17 @@ class SBOptimizer:
         #sample initial points
         for i in range(7):
             for j in range(len(freqList)):
-                flatInd = np.random.choice(flatInds, p=normWeights[j,:].flatten())
-                sbSupInd = np.unravel_index(flatInd, np.shape(sampledSBSups[j]))
+                if i==0:
+                    sbSupInd = np.zeros(2, dtype=np.int)
+                    sbSupInd[0] = np.where(phases<=0.01)[0][0]
+                    print(iqRatios)
+                    sbSupInd[1] = np.where(iqRatios-1<=0.001)[0][0]
+                else:
+                    flatInd = np.random.choice(flatInds, p=normWeights[j,:].flatten())
+                    sbSupInd = np.unravel_index(flatInd, np.shape(sampledSBSups[j]))
                 phaseList[j] = phases[sbSupInd[0]]
                 iqRatioList[j] = iqRatios[sbSupInd[1]]
-                sbSupIndList[j] = np.asarray(sbSupInd)
+                sbSupIndList[j] = np.asarray(sbSupInd, dtype=np.int)
                 
             self.loadLUT(sideband, phaseList, iqRatioList)
 
@@ -233,6 +254,7 @@ class SBOptimizer:
             curSupList = np.mean(curRawSupList, axis=1)
             
             for j in range(len(freqList)):
+                print(j, sbSupIndList[j,0], sbSupIndList[j,1])
                 sampledSBSups[j, sbSupIndList[j,0], sbSupIndList[j,1]] = curSupList[j]
                 weights[j, sbSupIndList[j,0], sbSupIndList[j,1]] = 0
                     
@@ -316,7 +338,7 @@ class SBOptimizer:
             
             counter += 1
             
-            threshold -= 1
+            threshold -= 0.5
 
             print('Number of Failed Fits', nFailedFits)
             print('Number past threshold', sum(foundMaxList))
@@ -326,6 +348,15 @@ class SBOptimizer:
             #plt.imshow(normWeights)
             #plt.colorbar()
             #plt.show()
+
+        #take final spectrum
+        self.loadLUT(sideband, finalPhaseList, finalIQRatioList)
+        finalSpectrum = np.zeros(specDict['nSamples'])
+        for k in range(nAvgs):
+            snapDict = self.takeAdcSnap()
+            specDict = adcSnap.streamSpectrum(snapDict['iVals'], snapDict['qVals'])
+            finalSpectrum += specDict['spectrumDb']
+        finalSpectrum /= nAvgs
 
         if sideband=='lower':
             self.finalPhaseListLow = finalPhaseList
@@ -341,7 +372,7 @@ class SBOptimizer:
         if saveNPZ:
             np.savez('grid_search_opt_vals_'+'r'+self.roach.ip[-3:]+'_'+str(len(freqList))+'_freqs_'+sideband+'_'+time.strftime("%Y%m%d-%H%M%S",time.localtime()), freqs=freqList,
                             optPhases=finalPhaseList, optIQRatios=finalIQRatioList, maxSBSuppressions=finalSBSupList, toneAttenList=attenList, loFreq=self.loFreq,
-                                            globalDacAtten=self.globalDacAtten, adcAtten=self.adcAtten)
+                                            globalDacAtten=self.globalDacAtten, adcAtten=self.adcAtten, initialSpectrum=initialSpectrum, finalSpectrum=finalSpectrum)
 
         
     def saveGridSearchOptFreqList(self, filename, useResID=True):
@@ -666,13 +697,16 @@ if __name__=='__main__':
 
     roachNums = np.asarray(args, dtype=np.int)
 
+    templarConf = ConfigParser.ConfigParser()
+    templarConf.read(defaultValues)
+
     threadpool = []
 
     for roachNum in roachNums:
-        ip = templarConf.get('Roach '+str(roachNum), 'ip')
-        globalDacAtten = templarConf.get('Roach '+str(roachNum), 'dacatten_start')
-        adcAtten = templarConf.get('Roach '+str(roachNum), 'adcatten')
-        loFreq = templarConf.get('Roach '+str(roachNum), 'lo_freq')
+        ip = templarConf.get('Roach '+str(roachNum), 'ipaddress')
+        globalDacAtten = templarConf.getfloat('Roach '+str(roachNum), 'dacatten_start')
+        adcAtten = templarConf.getfloat('Roach '+str(roachNum), 'adcatten')
+        loFreq = templarConf.getfloat('Roach '+str(roachNum), 'lo_freq')
         freqFile = templarConf.get('Roach '+str(roachNum), 'freqfile')
         sbThread = sbOptThread(ip=ip, globalDacAtten=globalDacAtten, adcAtten=adcAtten, loFreq=loFreq, freqFile=freqFile)
         threadpool.append(sbThread)
