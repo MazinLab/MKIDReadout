@@ -1149,13 +1149,13 @@ class MKIDDashboard(QMainWindow):
     def state(self):
         #TODO this is the crap that populates the headers and the log, it needs to be prompt enough that
         #it won't cause the GUI to be sluggish so polls should be used with caution
-        targ, cmt = self.textbox_target.text(), self.textbox_log.toPlainText()
+        targ, cmt = str(self.textbox_target.text()), str(self.textbox_log.toPlainText())
         # state = InstrumentState(target=targ, comment=cmt, flipper=None, laser)
         # targetname, telescope params, filter, dither x y ts state, roach info if first log
-        return dict(target=str(self.textbox_target.text()), ditherx=self.dither_dialog.status.xpos,
-                    dithery=self.dither_dialog.status.xpos,
-                    flipper='image', filter=self.filter, ra='00:00:00.00', dec='00:00:00.00',
-                    utc=datetime.utcnow().strftime("%Y%m%d%H%M%S"), roaches='roach.yml', comment='cmt')
+        return dict(target=targ, ditherx=str(self.dither_dialog.status.xpos.text()),
+                    dithery=str(self.dither_dialog.status.xpos.text()),
+                    flipper='image', filter=str(self.filter), ra='00:00:00.00', dec='00:00:00.00',
+                    utc=datetime.utcnow().strftime("%Y%m%d%H%M%S"), roaches='roach.yml', comment=cmt)
 
     def logstate(self):
         getLogger('ObsLog').info(json.dumps(self.state()))
