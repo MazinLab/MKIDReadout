@@ -1165,8 +1165,8 @@ class MKIDDashboard(QMainWindow):
         targ, cmt = str(self.textbox_target.text()), str(self.textbox_log.toPlainText())
         # state = InstrumentState(target=targ, comment=cmt, flipper=None, laser)
         # targetname, telescope params, filter, dither x y ts state, roach info if first log
-        return dict(target=targ, ditherx=str(self.dither_dialog.status.xpos.text()),
-                    dithery=str(self.dither_dialog.status.ypos.text()),
+        return dict(target=targ, ditherx=str(self.dither_dialog.status.xpos),
+                    dithery=str(self.dither_dialog.status.ypos),
                     flipper='image', filter=self.filter, ra='00:00:00.00', dec='00:00:00.00',
                     utc=datetime.utcnow().strftime("%Y%m%d%H%M%S"), roaches='roach.yml', comment=cmt)
 
