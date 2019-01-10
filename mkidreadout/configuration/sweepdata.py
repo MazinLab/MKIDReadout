@@ -239,7 +239,7 @@ class SweepMetadata(object):
 
     def templar_data(self, lo):
         aResMask = self.lomask(lo)
-        freq = self.mlfreq[aResMask]
+        freq = self.freq[aResMask]
         s = np.argsort(freq)
         return self.resIDs[aResMask][s], freq[s], self.atten[aResMask][s]
 
@@ -277,9 +277,10 @@ class SweepMetadata(object):
                 self.freq = self.mlfreq.copy()
                 self.atten = self.mlatten.copy()
             else:
-                self.resIDs, self.mlfreq, self.atten = d
+                self.resIDs, self.freq, self.atten = d
                 self.flag = np.full_like(self.resIDs, ISGOOD, dtype=int)
                 self.wsfreq = self.mlfreq.copy()
+                self.mlfreq = self.freq.copy()
                 self.ml_isgood_score = np.full_like(self.resIDs, np.nan, dtype=float)
                 self.ml_isbad_score = np.full_like(self.resIDs, np.nan, dtype=float)
         except:
