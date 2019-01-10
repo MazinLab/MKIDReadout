@@ -186,17 +186,18 @@ class PixelHistogramWindow(QMainWindow):
     '''    
 
     def getCountRateHist(self, forCurrentPix=False):
-        imageList=self.parent.imageList
+        imageList = self.parent.imageList
         pixList = self.pixelList
-        if forCurrentPix: pixList = np.asarray([[p[0],p[1]] for p in self.parent.selectedPixels])
-        if len(imageList)>0 and len(pixList)>0:
-            x = pixList[:,0]
-            y = pixList[:,1]
-            c = np.asarray(imageList)[-1,y,x]
+        if forCurrentPix:
+            pixList = np.asarray([[p[0], p[1]] for p in self.parent.selectedPixels])
+        if len(imageList) and len(pixList):
+            x = pixList[:, 0]
+            y = pixList[:, 1]
+            c = np.asarray(imageList[-1].data)[y,x]
             #countRates = np.sum(c,axis=0)
             #if self.checkbox_normalize.isChecked():
             #    countRates/=len(pixList)
-            countRateHist, bin_edges = np.histogram(c, bins=50, range=(0,2500))
+            countRateHist, bin_edges = np.histogram(c, bins=50, range=(0, 2500))
             return countRateHist, bin_edges
         return []
         
