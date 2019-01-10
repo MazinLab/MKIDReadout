@@ -1365,7 +1365,7 @@ class Roach2Controls(object):
         streamCh = list(zip(*np.where(self.streamChannelToFreqChannel!= self.channelPadValue)))
         self.freqChannelToStreamChannel[[self.streamChannelToFreqChannel[l] for l in streamCh]]=streamCh
 
-        getLogger(__name__).debug('\tFreq Channels: %s', self.freqChannels)
+        #getLogger(__name__).debug('\tFreq Channels: %s', self.freqChannels)
         getLogger(__name__).debug('...Done!')
 
         return self.freqChannels
