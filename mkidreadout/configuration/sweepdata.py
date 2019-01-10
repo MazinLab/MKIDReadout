@@ -279,6 +279,10 @@ class SweepMetadata(object):
             else:
                 self.resIDs, self.freq, self.atten = d
                 self.flag = np.full_like(self.resIDs, ISGOOD, dtype=int)
+                _, u = np.unique(self.freq, return_index=True)
+                self.resIDs = self.resIDs[u]
+                self.freq = self.freq[u]
+                self.atten = self.atten[u]
                 self.wsfreq = self.freq.copy()
                 self.mlfreq = self.freq.copy()
                 self.mlatten = self.atten.copy()
