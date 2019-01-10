@@ -743,7 +743,7 @@ def move(x, y, address='http://localhost:50001', timeout=TIMEOUT):
 
 def status(address='http://localhost:50001', timeout=TIMEOUT):
     try:
-        getLogger(__name__).debug('Request Status from {} w/ to {}'.format(address, timeout))
+        getLogger(__name__).debug('Request status from {} w/ t/o {}'.format(address, timeout))
         r = requests.get(address + '/conex', timeout=timeout)
         j = r.json()
         ret=ConexStatus(state=j['state'], pos=(j['xpos'],j['ypos']), conexstatus=j['conexstatus'],

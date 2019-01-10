@@ -329,12 +329,13 @@ class DitherWindow(QMainWindow):
     complete = QtCore.pyqtSignal(object)
     statusupdate = QtCore.pyqtSignal()
 
-    def __init__(self, conexaddress, polltime=0.1, parent=None):
+    def __init__(self, conexaddress, idlepolltime=2, movepolltime=0.1, parent=None):
         """
         Window for gathing dither info
         """
         self.address = conexaddress
-        self.polltime = polltime
+        self.movepoll = movepolltime
+        self.polltime = self.idlepoll = idlepolltime
 
         QMainWindow.__init__(self, parent=parent)
         self._want_to_close = False
@@ -421,6 +422,7 @@ class DitherWindow(QMainWindow):
                     self.statusupdate.emit()
                     if not nstat.running and ostat.running:
                         self.complete.emit(nstat)
+                        self.polltime = self.idlepoll
                     time.sleep(self.polltime)
             except AttributeError:
                 pass
@@ -436,6 +438,8 @@ class DitherWindow(QMainWindow):
         dt = int(self.textbox_dwell.text())
         getLogger('Dashboard').info('Starting dither')
         self.status = status = mkidreadout.hardware.conex.dither(start=start, end=end, n=ns, t=dt, address=self.address)
+        self.statusupdate.emit()
+        self.polltime = self.movepoll
         if status.haserrors:
             getLogger('Dashboard').error('Error starting dither: {}'.format(status))
 
@@ -443,6 +447,7 @@ class DitherWindow(QMainWindow):
         getLogger('Dashboard').info('Dither halted by user.')
         self.status = status = mkidreadout.hardware.conex.stop(address=self.address)
         self.statusupdate.emit()
+        self.polltime = self.movepoll
         if status.haserrors:
             getLogger('Dashboard').error('Stop dither error: {}'.format(status))
 
@@ -450,9 +455,10 @@ class DitherWindow(QMainWindow):
         x, y = map(float, self.textbox_pos.text().split(','))
         getLogger('Dashboard').info('Starting move to {:.2f}, {:.2f}'.format(x,y))
         self.status = status = mkidreadout.hardware.conex.move(x, y, address=self.address)
+        self.statusupdate.emit()
+        self.polltime = self.movepoll
         if status.haserrors:
             getLogger('Dashboard').error('Start move error: {}'.format(status))
-        self.statusupdate.emit()
 
     def closeEvent(self, event):
         if self._want_to_close:
