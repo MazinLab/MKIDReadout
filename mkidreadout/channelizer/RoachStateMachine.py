@@ -510,43 +510,43 @@ class RoachStateMachine(QtCore.QObject):  # Extends QObject for use with QThread
         self.roachController.loadIQcenters(self.centers)
         return sweepDict
 
-    '''
-    def fitLoops(self):
-        """
-        Find the center
-            - If centerbool is false then use the old center if it exists
-        Upload center to ROACH2
-        
-        Find rotation phase
-            - Get average I and Q at resonant frequency
-        Rewrite the DDS LUT with new phases
-        
-        Sets self.centers
-        """
-        recenter = self.config.getboolean('Roach '+str(self.num),'centerbool')
-        if not hasattr(self, 'centers'): recenter = True
-        if recenter: 
-            self.fitLoopCenters()
-            self.roachController.loadIQcenters(self.centers)
-        
-        nIQPoints = 100
-        averageIQ = self.roachController.takeAvgIQData(nIQPoints)
-        avg_I = np.average(averageIQ['I'],1) - self.centers[:,0]
-        avg_Q = np.average(averageIQ['Q'],1) - self.centers[:,1]
-        rotation_phases = np.arctan2(avg_Q,avg_I)
-        
-        phaseList = np.copy(self.roachController.ddsPhaseList)
-        for i in range(len(self.roachController.freqList)):
-            arg = np.where(self.roachController.freqChannels == self.roachController.freqList[i])
-            phaseList[arg]-=rotation_phases[i]
-        
-        self.roachController.generateDdsTones(phaseList=phaseList)
-        self.roachController.loadDdsLUT()
-        
-        return {'centers':self.centers, 'iqOnRes':np.transpose([avg_I,avg_Q])}
-        
-        return True
-    '''
+    
+    #def fitLoops(self):
+    #    """
+    #    Find the center
+    #        - If centerbool is false then use the old center if it exists
+    #    Upload center to ROACH2
+    #    
+    #    Find rotation phase
+    #        - Get average I and Q at resonant frequency
+    #    Rewrite the DDS LUT with new phases
+    #    
+    #    Sets self.centers
+    #    """
+    #    recenter = self.config.getboolean('Roach '+str(self.num),'centerbool')
+    #    if not hasattr(self, 'centers'): recenter = True
+    #    if recenter: 
+    #        self.fitLoopCenters()
+    #        self.roachController.loadIQcenters(self.centers)
+    #    
+    #    nIQPoints = 100
+    #    averageIQ = self.roachController.takeAvgIQData(nIQPoints)
+    #    avg_I = np.average(averageIQ['I'],1) - self.centers[:,0]
+    #    avg_Q = np.average(averageIQ['Q'],1) - self.centers[:,1]
+    #    rotation_phases = np.arctan2(avg_Q,avg_I)
+    #    
+    #    phaseList = np.copy(self.roachController.ddsPhaseList)
+    #    for i in range(len(self.roachController.freqList)):
+    #        arg = np.where(self.roachController.freqChannels == self.roachController.freqList[i])
+    #        phaseList[arg]-=rotation_phases[i]
+    #    
+    #    self.roachController.generateDdsTones(phaseList=phaseList)
+    #    self.roachController.loadDdsLUT()
+    #    
+    #    return {'centers':self.centers, 'iqOnRes':np.transpose([avg_I,avg_Q])}
+    #    
+    #    return True
+    
 
     def fitLoopCenters(self):
         """
@@ -562,7 +562,7 @@ class RoachStateMachine(QtCore.QObject):  # Extends QObject for use with QThread
         """
         Loads FIR coefficients from file into firmware
         """
-        firname = self.config.roaches.get('r{}.fircoefffile'.format(self.num))
+        firname = self.config.roaches.get('r{}.fircoefffile'.format(self.num)).format(roach=self.num)
         if not os.path.isfile(firname):
             file = resource_filename('mkidreadout', os.path.join('resources', 'firfilters', firname))
         else:

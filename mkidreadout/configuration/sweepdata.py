@@ -209,7 +209,7 @@ class SweepMetadata(object):
             assert use.sum() == freqs.size
 
     def lomask(self, lo):
-        return (self.flag & ISGOOD) & (~np.isnan(self.mlfreq)) & (np.abs(self.mlfreq - lo) < LOCUT)
+        return ((self.flag & ISGOOD) & (~np.isnan(self.mlfreq)) & (np.abs(self.mlfreq - lo) < LOCUT)).astype(bool)
 
     def vet(self):
         if (np.abs(self.atten[~np.isnan(self.atten)]) > MAX_ATTEN).any():
