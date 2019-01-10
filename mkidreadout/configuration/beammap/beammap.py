@@ -191,7 +191,7 @@ class Beammap(object):
                 'yCoord': self.yCoords, 'flag': self.flags}
 
     @property
-    def failmask(self, ):
+    def failmask(self):
         mask = np.ones((self.nrows, self.ncols), dtype=bool)
         use = (self.yCoords.astype(int) < self.nrows) & (self.xCoords.astype(int) < self.ncols)
         mask[self.yCoords[use].astype(int), self.xCoords[use].astype(int)] = self.flags[use] != 0

@@ -557,7 +557,7 @@ class MKIDDashboard(QMainWindow):
                 roach.setPhotonCapturePort(self.packetmaster.captureport)
                 self.roachList.append(roach)
             self.turnOnPhotonCapture()
-            self.loadBeammap()
+        self.loadBeammap()
 
         # Setup search for image files from cuber
         getLogger('Dashboard').info('Setting up image searcher...')
@@ -604,7 +604,7 @@ class MKIDDashboard(QMainWindow):
         """
         try:
             self.beammap = Beammap(self.config.paths.beammap,
-                                   xydim=(self.config.detector.nrows, self.config.detector.ncols))
+                                   xydim=(self.config.detector.ncols, self.config.detector.nrows))
         except KeyError:
             getLogger('Dashboard').warning("No beammap specified in config, using default")
             self.beammap = Beammap(default=self.config.instrument)
@@ -612,14 +612,21 @@ class MKIDDashboard(QMainWindow):
             getLogger('Dashboard').warning("Could not find beammap %s. Using default", self.config.beammap)
             self.beammap = Beammap(default=self.config.instrument)
 
+        self.beammapFailed = self.beammap.failmask
+
+        getLogger('Dashboard').info('Loaded beammap: %s', self.beammap)
+
+        if self.offline:
+            return
+
         for roach in self.roachList:
             ffile = roach.tagfile(self.config.roaches.get('r{}.freqfileroot'.format(roach.num)),
                                   dir=self.config.paths.data)
             roach.setLOFreq(self.config.roaches.get('r{}.lo_freq'.format(roach.num)))
             roach.loadBeammapCoords(self.beammap, freqListFile=ffile)
 
-        self.beammapFailed = self.beammap.failmask
-        getLogger('Dashboard').info('Loaded beammap: %s', self.beammap)
+        getLogger('Dashboard').info('Loaded beammap into roaches')
+
 
     def addDarkImage(self, photonImage):
         self.spinbox_darkImage.setEnabled(False)
@@ -964,7 +971,7 @@ class MKIDDashboard(QMainWindow):
             val = self.getPixCountRate([self.pixelCurrent])
             self.label_pixelInfo.setText('({p[0]}, {p[1]}) : {v:.2f} #/s'.format(p=self.pixelCurrent, v=val))
 
-            bm = Beammap(self.beammap.file)
+            bm = self.beammap
             resID = 0
             freq = 0
             feedline = 0
@@ -1118,7 +1125,7 @@ class MKIDDashboard(QMainWindow):
             self.combobox_filter.setCurrentIndex(mkidreadout.hardware.hsfw.NFILTERS)
             self.filter = 'UNKNOWN'
         else:
-            self.filter = filter  # TODO this is not guaranteed, move might still be in progress
+            self.filter = int(filter)  # TODO this is not guaranteed, move might still be in progress
         self.logstate()
 
     def laserCalClicked(self, _, laserCalStyle = "simultaneous"):
@@ -1153,8 +1160,8 @@ class MKIDDashboard(QMainWindow):
         # state = InstrumentState(target=targ, comment=cmt, flipper=None, laser)
         # targetname, telescope params, filter, dither x y ts state, roach info if first log
         return dict(target=targ, ditherx=str(self.dither_dialog.status.xpos.text()),
-                    dithery=str(self.dither_dialog.status.xpos.text()),
-                    flipper='image', filter=str(self.filter), ra='00:00:00.00', dec='00:00:00.00',
+                    dithery=str(self.dither_dialog.status.ypos.text()),
+                    flipper='image', filter=self.filter, ra='00:00:00.00', dec='00:00:00.00',
                     utc=datetime.utcnow().strftime("%Y%m%d%H%M%S"), roaches='roach.yml', comment=cmt)
 
     def logstate(self):
