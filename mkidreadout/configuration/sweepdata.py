@@ -278,7 +278,6 @@ class SweepMetadata(object):
                 self.atten = self.mlatten.copy()
             else:
                 self.resIDs, self.freq, self.atten = d
-                self.flag = np.full_like(self.resIDs, ISGOOD, dtype=int)
                 _, u = np.unique(self.freq, return_index=True)
                 self.resIDs = self.resIDs[u]
                 self.freq = self.freq[u]
@@ -286,6 +285,7 @@ class SweepMetadata(object):
                 self.wsfreq = self.freq.copy()
                 self.mlfreq = self.freq.copy()
                 self.mlatten = self.atten.copy()
+                self.flag = np.full_like(self.resIDs, ISGOOD, dtype=int)
                 self.ml_isgood_score = np.full_like(self.resIDs, np.nan, dtype=float)
                 self.ml_isbad_score = np.full_like(self.resIDs, np.nan, dtype=float)
         except:
