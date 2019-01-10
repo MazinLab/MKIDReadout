@@ -392,6 +392,10 @@ class ConexStatus(object):
         self.last_dither = dither
         self.limits = limits
 
+    def __eq__(self, o):
+        return (self.state == o.state and self.pos == o.pos and self.conexstatus == o.conexstatus and
+                self.limits == o.limits and self.last_dither == o.last_dither)
+
     @property
     def xpos(self):
         return self.pos[0]
@@ -421,14 +425,6 @@ class ConexStatus(object):
         print(self.conexstatus)
         print(str(self.last_dither))
 
-    # def __eq__(self, o):
-    #     return (self.state == o.state and
-    #             self.pos == o.pos and
-    #             self.conexstatus == o.conexstatus and
-    #             self.limits == o.limits and
-    #             self.)
-
-
 class DitherPath(object):
     def __init__(self, dither, start_t, end_t, path):
         self.dither = dither
@@ -439,7 +435,8 @@ class DitherPath(object):
     def __str__(self):
         return '\n'.join(map(str, (self.dither, self.start, self.end, self.path)))
 
-
+    def __eq__(self, o):
+        return self.dither == o.dither and self.start == o.start and self.end == o.end and self.path == o.path
 
 
 class Dither(object):

@@ -336,6 +336,7 @@ class DitherWindow(QMainWindow):
         self.address = conexaddress
         self.movepoll = movepolltime
         self.polltime = self.idlepoll = idlepolltime
+        self.statuslock = threading.RLock()
 
         QMainWindow.__init__(self, parent=parent)
         self._want_to_close = False
@@ -417,12 +418,16 @@ class DitherWindow(QMainWindow):
         def updateloop():
             try:
                 while not self._want_to_close:
-                    ostat = self.status
-                    self.status = nstat = mkidreadout.hardware.conex.status(self.address)
-                    self.statusupdate.emit()
-                    if not nstat.running and ostat.running:
-                        self.complete.emit(nstat)
-                        self.polltime = self.idlepoll
+                    with self.statuslock:
+                        ostat = self.status
+                        self.status = nstat = mkidreadout.hardware.conex.status(self.address)
+                        if ostat != nstat:
+                            getLogger('Dashboard').debug('Conex status: {} -> {}'.format(ostat, nstat))
+                            self.statusupdate.emit()
+                        if not nstat.running:
+                            self.polltime = self.idlepoll
+                            if ostat.running:
+                                self.complete.emit(nstat)
                     time.sleep(self.polltime)
             except AttributeError:
                 pass
@@ -437,26 +442,32 @@ class DitherWindow(QMainWindow):
         ns = int(self.textbox_nsteps.text())
         dt = int(self.textbox_dwell.text())
         getLogger('Dashboard').info('Starting dither')
-        self.status = status = mkidreadout.hardware.conex.dither(start=start, end=end, n=ns, t=dt, address=self.address)
-        self.statusupdate.emit()
-        self.polltime = self.movepoll
+        with self.statuslock:
+            self.status = status = mkidreadout.hardware.conex.dither(start=start, end=end, n=ns, t=dt, address=self.address)
+            getLogger('Dashboard').info('Sent dither cmd. Status {}'.format(status))
+            self.statusupdate.emit()
+            self.polltime = self.movepoll
         if status.haserrors:
             getLogger('Dashboard').error('Error starting dither: {}'.format(status))
 
     def do_halt(self):
         getLogger('Dashboard').info('Dither halted by user.')
-        self.status = status = mkidreadout.hardware.conex.stop(address=self.address)
-        self.statusupdate.emit()
-        self.polltime = self.movepoll
+        with self.statuslock:
+            self.status = status = mkidreadout.hardware.conex.stop(address=self.address)
+            getLogger('Dashboard').info('Sent stop cmd. Status {}'.format(status))
+            self.statusupdate.emit()
+            self.polltime = self.movepoll
         if status.haserrors:
             getLogger('Dashboard').error('Stop dither error: {}'.format(status))
 
     def do_goto(self):
         x, y = map(float, self.textbox_pos.text().split(','))
         getLogger('Dashboard').info('Starting move to {:.2f}, {:.2f}'.format(x,y))
-        self.status = status = mkidreadout.hardware.conex.move(x, y, address=self.address)
-        self.statusupdate.emit()
-        self.polltime = self.movepoll
+        with self.statuslock:
+            self.status = status = mkidreadout.hardware.conex.move(x, y, address=self.address)
+            getLogger('Dashboard').info('Sent move cmd. Status {}'.format(status))
+            self.statusupdate.emit()
+            self.polltime = self.movepoll
         if status.haserrors:
             getLogger('Dashboard').error('Start move error: {}'.format(status))
 
