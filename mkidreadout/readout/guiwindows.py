@@ -51,18 +51,19 @@ class PixelTimestreamWindow(QMainWindow):
         self.draw()
 
     def getCountRate(self, forCurrentPix=False):
-        imageList = self.parent.imageList
+        imageList = self.parent.imageList  #a list of fits hdu
         pixList = self.pixelList
-        if forCurrentPix: pixList = np.asarray([[p[0], p[1]] for p in self.parent.selectedPixels])
+        if forCurrentPix:
+            pixList = np.asarray([[p[0], p[1]] for p in self.parent.selectedPixels])
         if len(imageList) > 0 and len(pixList) > 0:
             x = pixList[:, 0]
             y = pixList[:, 1]
-            c = np.asarray(imageList)[:, y, x]
+            c = np.asarray([i.data for i in imageList])[:, y, x]
             countRate = np.sum(c, axis=1)
             if self.checkbox_normalize.isChecked():
-                numZeroPix = len(np.where(np.sum(c, axis=0) == 0)[0])
+                numZeroPix = (np.sum(c, axis=0) == 0).sum()
                 if len(pixList) > numZeroPix:
-                    countRate /= (len(pixList) - numZeroPix)
+                    countRate /= len(pixList) - numZeroPix
             return countRate
         return []
 
