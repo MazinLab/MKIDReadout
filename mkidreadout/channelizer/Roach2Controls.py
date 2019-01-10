@@ -95,7 +95,7 @@ from mkidcore.readdict import ReadDict
 from mkidreadout.channelizer.adcTools import streamSpectrum, checkSpectrumForSpikes
 from mkidcore.corelog import getLogger
 import mkidcore.corelog
-
+from mkidreadout.configuration import sweepdata
 
 class Roach2Controls(object):
     def __init__(self, ip, paramFile='', feedline=1, range='a', num=112, verbose=False, debug=False,
@@ -1800,7 +1800,7 @@ class Roach2Controls(object):
         # Bind socket to local host and port
         try:
             sock.bind((host, port))
-        except socket.error, msg:
+        except socket.error as msg:
             getLogger(__name__).info('Bind failed. Error Code : ' + str(msg[0]) + ' Message ' + msg[1])
             sock.close()
             raise
@@ -2135,7 +2135,7 @@ class Roach2Controls(object):
 
         getLogger(__name__).debug('Loading frequencies from %s', freqListFile)
         try:
-            sd = sweepdata.SweepMetadata(self.freqListFile)
+            sd = sweepdata.SweepMetadata(file=self.freqListFile)
             resID_roach, freqs, attens = sd.templar_data(self.LOFreq)
         except IOError as e:
             getLogger(__name__).error('unable to load freqs {}'.format(os.path.isfile(freqListFile)),exc_info=True)
