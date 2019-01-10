@@ -279,7 +279,7 @@ class SweepMetadata(object):
             else:
                 self.resIDs, self.freq, self.atten = d
                 self.flag = np.full_like(self.resIDs, ISGOOD, dtype=int)
-                self.wsfreq = self.mlfreq.copy()
+                self.wsfreq = self.freq.copy()
                 self.mlfreq = self.freq.copy()
                 self.ml_isgood_score = np.full_like(self.resIDs, np.nan, dtype=float)
                 self.ml_isbad_score = np.full_like(self.resIDs, np.nan, dtype=float)
