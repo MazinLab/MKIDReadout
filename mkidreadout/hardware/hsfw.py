@@ -57,6 +57,7 @@ HSFWERRORS = {0: 'No error has occurred. (cleared state)',
 
 HSFW_PORT = 50000
 NFILTERS=NUM_FILTERS=5
+TIMEOUT=2
 global_KILL_SERVER = False
 
 
@@ -225,8 +226,9 @@ def _getfilter():
         return error
 
 
-def getfilter(host='localhost:50000', timeout=.01):
+def getfilter(host='localhost:50000', timeout=TIMEOUT):
     host, port = host.split(':')
+    getLogger(__name__).debug('Attempting to get filter from {} w/ t/o {}'.format(host, timeout))
     conn = connect(host, port, timeout=timeout)
     try:
         conn.sendall('?\n'.encode('utf-8'))
@@ -252,7 +254,7 @@ def getfilter(host='localhost:50000', timeout=.01):
         return 'Error: '+str(e)
 
 
-def setfilter(fnum, home=False, host='localhost:50000', killserver=False, timeout=2):
+def setfilter(fnum, home=False, host='localhost:50000', killserver=False, timeout=TIMEOUT):
 
     if killserver:
         try:

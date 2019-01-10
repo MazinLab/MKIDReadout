@@ -16,7 +16,7 @@ from flask_restful import Api, Resource, reqparse, fields, marshal
 import requests
 
 
-TIMEOUT = .25
+TIMEOUT = 2.25
 CONEX_PORT = 50001
 
 
@@ -743,6 +743,7 @@ def move(x, y, address='http://localhost:50001', timeout=TIMEOUT):
 
 def status(address='http://localhost:50001', timeout=TIMEOUT):
     try:
+        getLogger(__name__).debug('Request Status from {} w/ to {}'.format(address, timeout))
         r = requests.get(address + '/conex', timeout=timeout)
         j = r.json()
         ret=ConexStatus(state=j['state'], pos=(j['xpos'],j['ypos']), conexstatus=j['conexstatus'],
