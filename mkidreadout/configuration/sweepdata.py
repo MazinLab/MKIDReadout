@@ -5,21 +5,30 @@ import matplotlib.pyplot as plt
 from mkidcore.corelog import getLogger
 import mkidreadout.instruments as instruments
 
-ISGOOD = 1
+# flags
+ISGOOD = 0b1
+ISREVIEWED = 0b10
 ISBAD = 0
 
 MAX_ML_SCORE = 1
 MAX_ATTEN = 100
 
+LOCUT = 1e9
 
-LOCUT=1e9
+A_RANGE_CUTOFF = 6e9
+
+
+def genResIDsForFreqs(freqs, flnum):
+    # TODO where does this live
+    return np.arange(freqs.size) + flnum * 10000 + (freqs > A_RANGE_CUTOFF) * 5000
+
 
 def resID2fl(resID):
-    return int(resID/10000)
+    return int(resID / 10000)
 
 
 def bandfor(lo):
-    return 'a' if lo < 6.e9 else 'b'
+    return 'a' if lo < A_RANGE_CUTOFF else 'b'
 
 
 class FreqSweep(object):
@@ -41,18 +50,23 @@ class FreqSweep(object):
             self.q = self.q[::-1, :, :]
 
         self.natten, self.ntone, self.nlostep = data['I'].shape
-        self.freqStep = self.freqs[0,1] - self.freqs[0,0]
-        
+        self.freqStep = self.freqs[0, 1] - self.freqs[0, 0]
+
         sortedAttenInds = np.argsort(self.atten)
         self.atten = self.atten[sortedAttenInds]
         self.i = self.i[sortedAttenInds, :, :]
         self.q = self.q[sortedAttenInds, :, :]
 
+    def oldwsformat_effective_atten(self, atten, amax=None):
+        atten = np.abs(self.atten - atten).argmin()
+        attenlast = atten + 1 if amax is None else np.abs(self.atten - amax).argmin()
+        return self.atten[atten:max(atten + 1, attenlast)].mean()
+
     def oldwsformat(self, atten, amax=None):
         """Q vals are GARBAGE!!! use for magnitude only"""
-        atten = np.abs(self.atten-atten).argmin()
-        attenlast = atten+1 if amax is None else np.abs(self.atten - amax).argmin()
-        attenlast = max(atten+1, attenlast)
+        atten = np.abs(self.atten - atten).argmin()
+        attenlast = atten + 1 if amax is None else np.abs(self.atten - amax).argmin()
+        attenlast = max(atten + 1, attenlast)
 
         freqs = self.freqs.ravel().copy()
         iVals = self.i[atten:attenlast].squeeze()
@@ -92,8 +106,9 @@ class FreqSweep(object):
 
 
 class SweepMetadata(object):
-    def __init__(self, resid=None, wsfreq=None, flag=None, mlfreq=None, atten=None,
-                 ml_isgood_score=None, ml_isbad_score=None, file=''):
+    def __init__(self, resid=None, wsfreq=None, flag=None, mlfreq=None, mlatten=None,
+                 ml_isgood_score=None, ml_isbad_score=None, file='',
+                 wsatten=np.nan):
 
         self.file = file
         self.feedline = None
@@ -101,17 +116,15 @@ class SweepMetadata(object):
         self.resIDs = resid
         self.wsfreq = wsfreq
         self.flag = flag
+        self.wsatten = wsatten
 
-        if resid is not None:
-            assert self.resIDs.size == self.wsfreq.size == self.flag.size
-
-        self.atten = atten
+        self.mlatten = mlatten
         self.mlfreq = mlfreq
         self.ml_isgood_score = ml_isgood_score
         self.ml_isbad_score = ml_isbad_score
 
-        if atten is None:
-            self.atten = np.full_like(self.resIDs, np.nan, dtype=float)
+        if mlatten is None:
+            self.mlatten = np.full_like(self.resIDs, np.nan, dtype=float)
         if mlfreq is None:
             self.mlfreq = np.full_like(self.resIDs, np.nan, dtype=float)
         if ml_isgood_score is None:
@@ -119,13 +132,13 @@ class SweepMetadata(object):
         if ml_isbad_score is None:
             self.ml_isbad_score = np.full_like(self.resIDs, np.nan, dtype=float)
 
+        self.freq = self.mlfreq.copy()
+        self.atten = self.mlatten.copy()
+
         if file and resid is None:
             self._load()
 
-        assert (self.resIDs.size==self.wsfreq.size==self.flag.size==
-                self.atten.size==self.mlfreq.size==self.ml_isgood_score.size==self.ml_isbad_score.size)
-
-        self._settypes()
+        self._vet()
         self.sort()
 
     def __str__(self):
@@ -133,26 +146,41 @@ class SweepMetadata(object):
 
     @property
     def goodmlfreq(self):
-        return self.mlfreq[self.flag == ISGOOD]
+        return self.mlfreq[self.flag & ISGOOD]
 
     @property
     def netscore(self):
-        x=self.ml_isgood_score - self.ml_isbad_score
+        x = self.ml_isgood_score - self.ml_isbad_score
         x[np.isnan(x)] = 0
         return x
 
     def plot_scores(self):
         use = ~np.isnan(self.ml_isgood_score)
         plt.figure(20)
-        plt.subplot(2,1,1)
+        plt.subplot(2, 1, 1)
         plt.hist(self.netscore[use], np.linspace(-1, 1, 100), label='netscore')
         plt.xlabel('goodscore-badscore')
-        plt.subplot(2,1,2)
+        plt.subplot(2, 1, 2)
         plt.hist(self.ml_isbad_score[use], np.linspace(0, 1, 100), label='badscore')
         plt.hist(self.ml_isgood_score[use], np.linspace(0, 1, 100), alpha=.5, label='goodscore')
         plt.xlabel('ml scores')
         plt.legend()
         plt.show(False)
+
+    def set(self, resID, atten=None, freq=None, save=False, reviewed=False):
+        mask = resID == self.resIDs
+        if not mask.any():
+            getLogger(__name__).warning('Unable to set values for unknown resID: {}'.format(resID))
+            return False
+        if atten is not None:
+            self.atten[mask] = atten
+        if freq is not None:
+            self.freq[mask] = freq
+        if reviewed:
+            self.flag[mask] |= ISREVIEWED
+        if save:
+            self.save()
+        return True
 
     def sort(self):
         s = np.argsort(self.resIDs)
@@ -160,26 +188,28 @@ class SweepMetadata(object):
         self.wsfreq = self.wsfreq[s]
         self.flag = self.flag[s]
         self.mlfreq = self.mlfreq[s]
+        self.mlatten = self.mlatten[s]
         self.atten = self.atten[s]
         self.ml_isgood_score = self.ml_isgood_score[s]
         self.ml_isbad_score = self.ml_isbad_score[s]
+        self.freq = self.freq[s]
 
     def toarray(self):
-        return np.array([self.resIDs, self.flag, self.wsfreq, self.mlfreq, self.atten, self.ml_isgood_score,
-                         self.ml_isbad_score])
+        return np.array([self.resIDs, self.flag, self.wsfreq, self.mlfreq, self.mlatten, self.freq,
+                         self.atten, self.ml_isgood_score, self.ml_isbad_score])
 
     def update_from_roach(self, lo, freqs=None, attens=None):
-        #TODO move these to user attens/frequencies
         use = self.lomask(lo, LOCUT)
         if attens is not None:
             self.attens[use] = attens
+            # TODO do we need a flag specifiying the source
             assert use.sum() == attens.size
         if freqs is not None:
-            self.mlfreq[use] = freqs
+            self.freq[use] = freqs
             assert use.sum() == freqs.size
 
-    def lomask(self, lo, locut):
-        return (self.flag == ISGOOD) & (~np.isnan(self.mlfreq)) & (np.abs(self.mlfreq - lo)<LOCUT)
+    def lomask(self, lo):
+        return (self.flag & ISGOOD) & (~np.isnan(self.mlfreq)) & (np.abs(self.mlfreq - lo) < LOCUT)
 
     def vet(self):
         if (np.abs(self.atten[~np.isnan(self.atten)]) > MAX_ATTEN).any():
@@ -191,24 +221,26 @@ class SweepMetadata(object):
 
         assert self.resIDs.size == np.unique(self.resIDs).size, "Resonator IDs must be unique."
 
-        assert (self.resIDs.size==self.wsfreq.size==self.flag.size==
-                self.atten.size==self.mlfreq.size==self.ml_isgood_score.size==
+        assert (self.resIDs.size == self.wsfreq.size == self.flag.size ==
+                self.atten.size == self.mlfreq.size == self.ml_isgood_score.size ==
                 self.ml_isbad_score.size)
 
+    def genheader(self):
+        header = ('feedline={}\n'
+                  'wsatten={}\n'
+                  'rID\trFlag\twsFreq\tmlFreq\tatten\tmlGood\tmlBad')
+        return header.format(self.feedline, self.wsatten)
 
     def save(self, file=''):
         sf = file.format(feedline=self.feedline) if file else self.file.format(feedline=self.feedline)
         self.vet()
-        np.savetxt(sf, self.toarray().T, fmt="%8d %1u %16.7f %16.7f %5.1f %6.4f %6.4f",
-                   header='feedline={}\nrID\trFlag\twsFreq\tmlFreq\tatten\tmlGood\tmlBad'.format(self.feedline))
+        np.savetxt(sf, self.toarray().T, fmt="%8d %1u %16.7f %16.7f %5.1f %16.7f %5.1f %6.4f %6.4f",
+                   header=self.genheader())
 
-    def templar_data(self, lo, locut=None):
-        locut = LOCUT if locut is not None else np.inf
-        aResMask = self.lomask(lo, locut)
+    def templar_data(self, lo):
+        aResMask = self.lomask(lo)
         freq = self.mlfreq[aResMask]
-        s = np.argsort(freqs)
-        #TODO should this be moved to VET?
-        assert freq.size == np.unique(freq).size, "Frequencies for templar must be be unique."
+        s = np.argsort(freq)
         return self.resIDs[aResMask][s], freq[s], self.atten[aResMask][s]
 
     def save_templar_freqfiles(self, lo, template='ps_freqs{roach}_FL{feedline}{band}.txt'):
@@ -218,32 +250,54 @@ class SweepMetadata(object):
                                              feedline=self.feedline, band=band))
         np.savetxt(aFile, np.transpose(self.templar_data(lo)), fmt='%4i %10.9e %.2f')
 
-    def _settypes(self):
+    def _vet(self):
+
+        assert (self.resIDs.size == self.wsfreq.size == self.flag.size == self.atten.size == self.freq.size ==
+                self.mlatten.size == self.mlfreq.size == self.ml_isgood_score.size == self.ml_isbad_score.size)
+
+        ## TEMPORARY REMOVAL 20180108 - CAUSING ISSUES W/ TRAINING ##
+        # for x in (self.freq, self.mlfreq, self.wsfreq):
+        #    use = ~np.isnan(x)
+        #    assert x[use].size == np.unique(x[use]).size, "Frequencies must be be unique."
+
         self.flag = self.flag.astype(int)
         self.resIDs = self.resIDs.astype(int)
-        self.feedline = int(self.resIDs[0]/10000)
+        self.feedline = resID2fl(self.resIDs[0])
 
     def _load(self):
         d = np.loadtxt(self.file.format(feedline=self.feedline), unpack=True)
-
+        # TODO convert to load metadata from file
         try:
-            self.resIDs, self.flag, self.wsfreq, self.mlfreq, self.atten, self.ml_isgood_score, self.ml_isbad_score = d
-        except ValueError:
-            self.resIDs, self.mlfreq, self.atten = d
-            self.flag = np.full_like(self.resIDs, ISGOOD, dtype=int)
-            self.wsfreq = self.mlfreq.copy()
-            self.ml_isgood_score = np.full_like(self.resIDs, np.nan, dtype=float)
-            self.ml_isbad_score = np.full_like(self.resIDs, np.nan, dtype=float)
+            if d.shape[0] == 9:
+                self.resIDs, self.flag, self.wsfreq, self.mlfreq, self.mlatten, \
+                self.freq, self.atten, self.ml_isgood_score, self.ml_isbad_score = d
+            elif d.shape[0] == 7:
+                self.resIDs, self.flag, self.wsfreq, self.mlfreq, self.mlatten, \
+                self.ml_isgood_score, self.ml_isbad_score = d
+                self.freq = self.mlfreq.copy()
+                self.atten = self.mlatten.copy()
+            else:
+                self.resIDs, self.mlfreq, self.atten = d
+                self.flag = np.full_like(self.resIDs, ISGOOD, dtype=int)
+                self.wsfreq = self.mlfreq.copy()
+                self.ml_isgood_score = np.full_like(self.resIDs, np.nan, dtype=float)
+                self.ml_isbad_score = np.full_like(self.resIDs, np.nan, dtype=float)
+        except:
+            raise ValueError('Unknown number of columns')
 
-        self.mlfreq[self.flag == ISBAD] = self.wsfreq[self.flag == ISBAD]
-        self.ml_isgood_score[self.flag == ISBAD] = 0
-        self.ml_isbad_score[self.flag == ISBAD] = 1
-        self._settypes()
+        self.freq[np.isnan(self.freq)] = self.mlfreq[np.isnan(self.freq)]
+        self.freq[np.isnan(self.freq)] = self.wsfreq[np.isnan(self.freq)]
+        self.atten[np.isnan(self.atten)] = self.mlatten[np.isnan(self.atten)]
+
+        self.flag = self.flag.astype(int)
+        self.mlfreq[self.flag & ISBAD] = self.wsfreq[self.flag & ISBAD]
+        self.ml_isgood_score[self.flag & ISBAD] = 0
+        self.ml_isbad_score[self.flag & ISBAD] = 1
+        self._vet()
 
 
 class FreqFile(object):
     def __init__(self, file, feedline=None, band=None, resids=None, freq=None, atten=None):
-
         self.file = file
         self.feedline = feedline
         self.band = band
