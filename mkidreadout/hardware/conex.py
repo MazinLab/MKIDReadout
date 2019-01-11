@@ -691,6 +691,7 @@ class DitherAPI(Resource):
     def post(self):
         self.reqparse.args[0].choices = dithers.keys()
         args = self.reqparse.parse_args()
+        getLogger(__name__).debug('Got {}'.format(args))
         if args.dither is not None:
             dither = self.dither_parser.parse_args(req=args)
         else:
@@ -710,12 +711,14 @@ def dither(id='default', start=None, end=None, n=1, t=1, address='http://localho
     returns a requests result object
     """
     if start is not None:
-        req = {'startx': start[0], 'starty': start[1], 'endx': end[0], 'endy': end[1],
-               'n': n, 't': t}
+        req = {'dither': {'startx': start[0], 'starty': start[1], 'endx': end[0], 'endy': end[1],
+               'n': n, 't': t}}
     else:
         req = {'id': id}
     try:
         r = requests.post(address+'/dither', json=req, timeout=timeout)
+        if r.status_code == 400:
+            return ConexStatus(state='error: "{}"'.format(r.json()))
         j = r.json()
         ret = ConexStatus(state=j['state'], pos=(j['xpos'], j['ypos']), conexstatus=j['conexstatus'],
                           dither=DitherPath(j['last_dither']['dither'], j['last_dither']['start'],
@@ -731,6 +734,8 @@ def dither(id='default', start=None, end=None, n=1, t=1, address='http://localho
 def move(x, y, address='http://localhost:50001', timeout=TIMEOUT):
     try:
         r = requests.post(address+'/move', json={'x': x, 'y': y}, timeout=timeout)
+        if r.status_code == 400:
+            return ConexStatus(state='error: "{}"'.format(r.json()))
         j = r.json()
         ret = ConexStatus(state=j['state'], pos=(j['xpos'],j['ypos']), conexstatus=j['conexstatus'],
                           dither=DitherPath(j['last_dither']['dither'], j['last_dither']['start'],
@@ -762,6 +767,8 @@ def status(address='http://localhost:50001', timeout=TIMEOUT):
 def stop(address='http://localhost:50001', timeout=TIMEOUT):
     try:
         r = requests.post(address + '/conex', json={'command': 'stop'}, timeout=timeout)
+        if r.status_code == 400:
+            return ConexStatus(state='error: "{}"'.format(r.json()))
         j = r.json()
         ret = ConexStatus(state=j['state'], pos=(j['xpos'], j['ypos']), conexstatus=j['conexstatus'],
                           dither=DitherPath(j['last_dither']['dither'], j['last_dither']['start'],
