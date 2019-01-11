@@ -722,7 +722,9 @@ def dither(id='default', start=None, end=None, n=1, t=1, address='http://localho
                                             j['last_dither']['end'], j['last_dither']['path']))
     except requests.ConnectionError:
         ret = ConexStatus(state='error: unable to connect')
-
+    except ValueError:
+        getLogger(__name__).error('Got "{}" from request ({})'.format(r.text, r.status_code), exc_info=True)
+        ret = ConexStatus(state='error: malformed content "{}"'.format(r.text))
     return ret
 
 
@@ -730,11 +732,14 @@ def move(x, y, address='http://localhost:50001', timeout=TIMEOUT):
     try:
         r = requests.post(address+'/move', json={'x': x, 'y': y}, timeout=timeout)
         j = r.json()
-        ret=ConexStatus(state=j['state'], pos=(j['xpos'],j['ypos']), conexstatus=j['conexstatus'],
-                        dither=DitherPath(j['last_dither']['dither'], j['last_dither']['start'],
-                                          j['last_dither']['end'], j['last_dither']['path']))
+        ret = ConexStatus(state=j['state'], pos=(j['xpos'],j['ypos']), conexstatus=j['conexstatus'],
+                          dither=DitherPath(j['last_dither']['dither'], j['last_dither']['start'],
+                                            j['last_dither']['end'], j['last_dither']['path']))
     except requests.ConnectionError:
         ret = ConexStatus(state='error: unable to connect')
+    except ValueError:
+        getLogger(__name__).error('Got "{}" from request ({})'.format(r.text, r.status_code), exc_info=True)
+        ret = ConexStatus(state='error: malformed content "{}"'.format(r.text))
     return ret
 
 
@@ -743,11 +748,14 @@ def status(address='http://localhost:50001', timeout=TIMEOUT):
         getLogger(__name__).debug('Request status from {} w/ t/o {}'.format(address, timeout))
         r = requests.get(address + '/conex', timeout=timeout)
         j = r.json()
-        ret=ConexStatus(state=j['state'], pos=(j['xpos'],j['ypos']), conexstatus=j['conexstatus'],
-                        dither=DitherPath(j['last_dither']['dither'], j['last_dither']['start'],
-                                          j['last_dither']['end'], j['last_dither']['path']))
+        ret = ConexStatus(state=j['state'], pos=(j['xpos'],j['ypos']), conexstatus=j['conexstatus'],
+                          dither=DitherPath(j['last_dither']['dither'], j['last_dither']['start'],
+                                            j['last_dither']['end'], j['last_dither']['path']))
     except requests.ConnectionError:
         ret = ConexStatus(state='error: unable to connect')
+    except ValueError:
+        ret = ConexStatus(state='error: malformed content "{}"'.format(r.text))
+        getLogger(__name__).error('Got "{}" from request ({})'.format(r.text, r.status_code), exc_info=True)
     return ret
 
 
@@ -760,7 +768,9 @@ def stop(address='http://localhost:50001', timeout=TIMEOUT):
                                             j['last_dither']['end'], j['last_dither']['path']))
     except requests.ConnectionError:
         ret = ConexStatus(state='error: unable to connect')
-
+    except ValueError:
+        getLogger(__name__).error('Got "{}" from request ({})'.format(r.txt, r.status_code), exc_info=True)
+        ret = ConexStatus(state='error: malformed content "{}"'.format(r.text))
     return ret
 
 
