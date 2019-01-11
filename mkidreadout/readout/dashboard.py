@@ -414,6 +414,8 @@ class DitherWindow(QMainWindow):
         main_frame = QWidget()
         main_frame.setLayout(vbox)
         self.setCentralWidget(main_frame)
+        
+        self.dithering = False
 
         def updateloop():
             try:
@@ -426,7 +428,8 @@ class DitherWindow(QMainWindow):
                             self.statusupdate.emit()
                         if not nstat.running:
                             self.polltime = self.idlepoll
-                            if ostat.running:
+                            if self.dithering:
+                                self.dithering = False
                                 self.complete.emit(nstat)
                     time.sleep(self.polltime)
             except AttributeError:
@@ -447,8 +450,10 @@ class DitherWindow(QMainWindow):
             getLogger('Dashboard').info('Sent dither cmd. Status {}'.format(status))
             self.statusupdate.emit()
             self.polltime = self.movepoll
-        if status.haserrors:
-            getLogger('Dashboard').error('Error starting dither: {}'.format(status))
+            if status.haserrors:
+                getLogger('Dashboard').error('Error starting dither: {}'.format(status))
+            else:
+                self.dithering=True
 
     def do_halt(self):
         getLogger('Dashboard').info('Dither halted by user.')
