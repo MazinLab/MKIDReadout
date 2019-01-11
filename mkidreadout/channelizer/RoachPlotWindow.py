@@ -23,6 +23,7 @@ from matplotlib.figure import Figure
 from matplotlib.backends.backend_qt4agg import FigureCanvasQTAgg as FigureCanvas
 from mkidcore.corelog import getLogger
 import mkidreadout.configuration.sweepdata as sweepdata
+import scipy.signal, skimage.feature, scipy.integrate
 
 try:
     from matplotlib.backends.backend_qt4agg import NavigationToolbar2QTAgg as NavigationToolbar
@@ -697,21 +698,36 @@ class RoachSweepWindow(QMainWindow):
         """
         if channels is None:
             channels = self.spinbox_channel.value()
-        elif np.any(channels < 0):
+        elif (channels < 0).any():
             channels = range(len(self.roach.roachController.freqList))
-        channels = np.atleast_1d(channels)
-        data = self.dataList[-1]
-        newFreqs = np.copy(data['freqList'][channels])
-        for ch in channels:
+
+        data = self.dataList[-1]  #[sweep index, channel] i|q|freqOffsets|freqList
+
+        filt_wid = 3
+        thresh_rel = .25
+        peaksep = 1
+        newFreqs = np.zeros_like(data['freqList'])
+        for ch in np.atleast_1d(channels):
             iVals = data['I'][ch]
             qVals = data['Q'][ch]
-            iqVel = np.sqrt((iVals[1:] - iVals[:-1]) ** 2 + (qVals[1:] - qVals[:-1]) ** 2)
-            velMaxIndx = np.argmax(iqVel)
-            if velMaxIndx + 1 < len(iqVel) and iqVel[velMaxIndx - 1] < iqVel[velMaxIndx + 1]:
-                newFreqIndx = velMaxIndx + 1
-            else:
-                newFreqIndx = velMaxIndx
-            newFreqs[ch] = newFreqs[ch] + data['freqOffsets'][newFreqIndx]
+            freq = data['freqList'][ch] + data['freqOffsets'][ch]
+            iqVel = np.sqrt(np.diff(iVals) ** 2 + np.diff(qVals) ** 2)
+
+            filt_vel = scipy.signal.medfilt(iqVel, kernel_size=filt_wid)
+            peakloc = skimage.feature.peak_local_max(filt_vel, min_distance=peaksep, threshold_rel=thresh_rel,
+                                                     exclude_border=True, indices=True, num_peaks=np.inf)
+            com = scipy.integrate.trapz(filt_vel * freq[:-1]) / scipy.integrate.trapz(filt_vel)
+
+            ndx = np.abs(freq[:-1][peakloc] - com).argmin()
+            newFreqs[ch] = freq[peakloc[ndx]]
+
+        cv = FigureCanvas(Figure(figsize=(5, 3)))
+        ax = cv.figure.subplots()
+        ax.plot(data['freqList']/1024/1024, (data['freqList'] - newFreqs)/1024, '.')
+        ax.xlabel('Old Freq (MHz)')
+        ax.ylabel('Freq Shift (kHz)')
+        cv.show()
+
         return newFreqs
 
     def snapFreq(self, ch=None):
