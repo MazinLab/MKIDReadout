@@ -546,7 +546,7 @@ class ConexManager(object):
         """
         self._active_dither = dither
         self._halt = False
-        self.state = 'dithering: {}'.format(str(dither))
+        self.state = 'dithering: ({}) {}'.format(self.conex.position(), str(dither))
         estOverhead = 35. / 25.
         runtime = dither.nSteps ** 2. * (dither.intTime + estOverhead)
         getLogger('DitherManager').info("Est Time: {:.1f} s".format(runtime))
@@ -571,7 +571,9 @@ class ConexManager(object):
                 startTimes.append(time.time())
                 u, v = self.conex.position()
 
-                pos.append((u,v))
+                pos.append((u, v))
+                self.state = 'dithering: ({}) {}'.format((u, v), str(dither))
+                
                 getLogger('ConexManager').info('({}, {}) -> ({}, {})'.format(x, y, u, v))
 
                 intTime = dither.intTime - (time.time()-startTimes[-1])
