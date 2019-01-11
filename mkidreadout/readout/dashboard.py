@@ -1235,6 +1235,7 @@ class MKIDDashboard(QMainWindow):
             else:
                 dither_result = 'Dither Path: {}\n'.format(str(status.last_dither).replace('\n', '\n   '))
                 getLogger('Dashboard').info(dither_result)
+                getLogger('dither').info(dither_result)
         self.dither_dialog.complete.connect(logdither)
         self.dither_dialog.statusupdate.connect(self.logstate)
         self.dither_dialog.hide()
@@ -1637,6 +1638,11 @@ if __name__ == "__main__":
                logfile=os.path.join(config.paths.logs, 'obslog_{}.log'.format(timestamp)),
                console=False, mpsafe=True, propagate=False,
                fmt='%(message)s',
+               level=mkidcore.corelog.DEBUG)
+    create_log('dither',
+               logfile=os.path.join(config.paths.logs, 'dither_{}.log'.format(timestamp)),
+               console=False, mpsafe=True, propagate=False,
+               fmt='%(asctime)s %(message)s',
                level=mkidcore.corelog.DEBUG)
     create_log('Dashboard',
                logfile=os.path.join(config.paths.logs, 'dashboard_{}.log'.format(timestamp)),

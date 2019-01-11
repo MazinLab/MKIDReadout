@@ -425,6 +425,7 @@ class ConexStatus(object):
         print(self.conexstatus)
         print(str(self.last_dither))
 
+
 class DitherPath(object):
     def __init__(self, dither, start_t, end_t, path):
         self.dither = dither
@@ -433,7 +434,8 @@ class DitherPath(object):
         self.path = path
 
     def __str__(self):
-        return '\n'.join(map(str, (self.dither, self.start, self.end, self.path)))
+        strs = map(str, (self.dither, self.start, self.end, self.path))
+        return '{}\n  starts={}\n  ends={}\n  path={}\n'.format(*strs)
 
     def __eq__(self, o):
         return self.dither == o.dither and self.start == o.start and self.end == o.end and self.path == o.path

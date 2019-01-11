@@ -235,7 +235,6 @@ def getfilter(host='localhost:50000', timeout=TIMEOUT):
         data = conn.recv(2048).decode('utf-8').strip()
         getLogger(__name__).info("Response: {}".format(data))
         conn.close()
-        print(data)
         if data.lower().startswith('error'):
             getLogger(__name__).error(data)
             return data
