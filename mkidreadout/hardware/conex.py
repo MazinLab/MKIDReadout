@@ -406,7 +406,7 @@ class ConexStatus(object):
 
     @property
     def running(self):
-        return 'moving' in self.state or 'processing' in self.state
+        return 'moving' in self.state or 'processing' in self.state or 'dithering' in self.state
 
     @property
     def haserrors(self):
