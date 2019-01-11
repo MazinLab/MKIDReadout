@@ -1048,7 +1048,7 @@ class MKIDDashboard(QMainWindow):
 
         window = PixelTimestreamWindow(pixels, parent=self)
         self.timeStreamWindows.append(window)
-        window.closeWindow.connect( partial(self.timeStreamWindows.remove, window))  # remove from list if closed
+        window.closeWindow.connect(partial(self.timeStreamWindows.remove, window))  # remove from list if closed
         window.show()
 
     def plotHistogram(self):

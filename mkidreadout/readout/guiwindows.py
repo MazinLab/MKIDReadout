@@ -48,6 +48,8 @@ class PixelTimestreamWindow(QMainWindow):
         else:
             self.ax.set_xlim(oldx_lim)
             self.ax.set_ylim(oldy_lim)
+        self.ax.set_xlabel('Time (s)')
+        self.ax.set_ylabel('Counts/sec')
         self.draw()
 
     def getCountRate(self, forCurrentPix=False):
@@ -55,6 +57,7 @@ class PixelTimestreamWindow(QMainWindow):
         pixList = self.pixelList
         if forCurrentPix:
             pixList = np.asarray([[p[0], p[1]] for p in self.parent.selectedPixels])
+
         if len(imageList) > 0 and len(pixList) > 0:
             x = pixList[:, 0]
             y = pixList[:, 1]
