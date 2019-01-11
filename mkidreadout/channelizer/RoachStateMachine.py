@@ -420,10 +420,10 @@ class RoachStateMachine(QtCore.QObject):  # Extends QObject for use with QThread
         fList[fList > (self.roachController.params['dacSampleRate']/2.)] -= self.roachController.params['dacSampleRate']
         fList += LO_freq
         
-        return {'I': self.I_data.copy(), 'Q': self.Q_data.copy(), 'freqOffsets': self.freqOffsets.copy(),
+        return {'I': np.copy(self.I_data), 'Q': np.copy(self.Q_data), 'freqOffsets': np.copy(self.freqOffsets),
                 #'freqList':np.copy(self.roachController.freqList),
-                'freqList': fList, 'centers': self.centers.copy(), 'IonRes': iqOnRes['I'].copy(),
-                'QonRes': iqOnRes['Q'].copy()}
+                'freqList': fList, 'centers': np.copy(self.centers), 'IonRes': np.copy(iqOnRes['I']),
+                'QonRes': np.copy(iqOnRes['Q'])}
     
     def rotateLoops(self):
         """
