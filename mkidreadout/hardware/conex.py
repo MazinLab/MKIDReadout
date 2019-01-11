@@ -419,7 +419,7 @@ class ConexStatus(object):
     def __str__(self):
         return self.state
 
-    def print(self):
+    def show(self):
         print(self.state)
         print(self.pos)
         print(self.conexstatus)
@@ -489,7 +489,11 @@ class ConexManager(object):
     def start_dither(self, id):
         """id is either a key into dithers or a dictionary for creating a dither """
         self.state = 'processing'
-        dither = dithers[id] if id in dithers else Dither(**id)
+        try:
+            dither = dithers[id]
+        except:
+            dither = Dither(start=(id['startx'], id['starty']), 
+                            end=(id['endx'],id['endy']), nSteps=id['n'], intTime=id['t'])
         self.stop(wait=True)
         self._movement_thread = Thread(target=self.dither, args=(dither,), name=str(dither))
         self._movement_thread.daemon = True
@@ -693,7 +697,8 @@ class DitherAPI(Resource):
         args = self.reqparse.parse_args()
         getLogger(__name__).debug('Got {}'.format(args))
         if args.dither is not None:
-            dither = self.dither_parser.parse_args(req=args)
+            dither = dict(self.dither_parser.parse_args(req=args))
+            getLogger(__name__).debug('Got a custom dither {}'.format(dither))
         else:
             dither = args.id
 
