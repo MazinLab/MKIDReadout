@@ -2164,6 +2164,8 @@ class Roach2Controls(object):
             resID_roach, freqs, attens = sd.templar_data(self.LOFreq)
         except IOError as e:
             getLogger(__name__).error('unable to load freqs {}'.format(os.path.isfile(freqListFile)),exc_info=True)
+            raise
+
         self.generateResonatorChannels(freqs)
         freqCh_roach = np.arange(0, len(resID_roach))
         freqCh = np.ones(len(beammap.resIDs)) * -2

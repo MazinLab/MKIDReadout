@@ -682,7 +682,7 @@ class MKIDDashboard(QMainWindow):
             name = '{}_flat_{}'.format(self.config.dashboard.flatname, int(time.time()))
             self.flatField = self.flatFactory.generate(fname=os.path.join(self.config.paths.data, name+'.fits'),
                                                        name=name, badmask=self.beammapFailed, save=True)
-            getLogger('Dashboard').info('Finished flat:\n {}'.format(summarize(self.darkField).replace('\n', '\n  ')))
+            getLogger('Dashboard').info('Finished flat:\n {}'.format(summarize(self.flatField).replace('\n', '\n  ')))
             self.checkbox_flatImage.setChecked(True)
             self.spinbox_flatImage.setEnabled(True)
 
