@@ -696,9 +696,11 @@ class RoachSweepWindow(QMainWindow):
             newFreqs - list of new freqs
                        The freq is the old freq or the freq with highest iqVel if that channel was specified
         """
+        plot = False
         if channels is None:
             channels = self.spinbox_channel.value()
         elif (channels < 0).any():
+            plot=True
             channels = range(len(self.roach.roachController.freqList))
 
         data = self.dataList[-1]  #[sweep index, channel] i|q|freqOffsets|freqList
@@ -721,12 +723,13 @@ class RoachSweepWindow(QMainWindow):
             ndx = np.abs(freq[:-1][peakloc] - com).argmin()
             newFreqs[ch] = freq[peakloc[ndx]]
 
-        cv = FigureCanvas(Figure(figsize=(5, 3)))
-        ax = cv.figure.subplots()
-        ax.plot(data['freqList']/1024/1024, (data['freqList'] - newFreqs)/1024, '.')
-        ax.xlabel('Old Freq (MHz)')
-        ax.ylabel('Freq Shift (kHz)')
-        cv.show()
+        if plot:
+            cv = FigureCanvas(Figure(figsize=(5, 3)))
+            ax = cv.figure.subplots()
+            ax.plot(data['freqList']/1024/1024, (data['freqList'] - newFreqs)/1024, '.')
+            ax.xlabel('Old Freq (MHz)')
+            ax.ylabel('Freq Shift (kHz)')
+            cv.show()
 
         return newFreqs
 
@@ -1055,7 +1058,7 @@ class RoachSweepWindow(QMainWindow):
         button_snapFreq.clicked.connect(self.snapFreq)
         button_snapAllFreqs = QPushButton('Snap All Freqs')
         button_snapAllFreqs.clicked.connect(self.snapAllFreqs)
-        button_snapAllFreqs.setEnabled(False)
+        button_snapAllFreqs.setEnabled(True)
 
         dacAttenStart = self.config.get('r{}.dacatten_start'.format(self.roachNum))
         self.dacAtten = dacAttenStart
