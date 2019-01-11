@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-#clickthrough hell
+# clickthrough hell
 from __future__ import print_function
 from numpy import *
 import numpy
@@ -7,6 +7,8 @@ from PyQt4.QtGui import *
 from PyQt4.QtCore import *
 from mkidreadout.utils.iqsweep import *
 from matplotlib.backends.backend_qt4 import NavigationToolbar2QT as NavigationToolbar
+from mkidreadout.configuration.powersweep.autopeak import Finder
+import mkidreadout.instruments as instruments
 
 from pkg_resources import resource_filename
 
@@ -55,7 +57,7 @@ class StartQt4(QMainWindow):
         self.mlFreqs = None
         self.mlAttens = None
 
-        self.widesweep_goodFreqs = mdata.wsfreq[mdata.flag == sweepdata.ISGOOD]
+        self.widesweep_goodFreqs = mdata.wsfreq[mdata.flag & sweepdata.ISGOOD]
         self.widesweep_allResIDs = mdata.resIDs
         self.widesweep_allFreqs = mdata.wsfreq
 
@@ -76,7 +78,7 @@ class StartQt4(QMainWindow):
     #     self.loadps()
 
     def goback(self):
-        if self.resnum==0:
+        if self.resnum == 0:
             return
         self.resnum -= 1
         self.atten = self.attenList[self.resnum]
@@ -90,23 +92,23 @@ class StartQt4(QMainWindow):
 
         if not (self.Res1.freq[0] < self.resfreq < self.Res1.freq[-1]):
             raise RuntimeError('Out of order resfreq flag={}'.format(self.fsweepdata.mdResMask[
-                                                                     self.fsweepdata.resIDs==self.Res1.resID]))
+                                                                         self.fsweepdata.resIDs == self.Res1.resID]))
 
         self.resID = self.Res1.resID
         self.NAttens = self.Res1.atten1s.size
 
         self.ui.res_num.setText(str(self.resnum))
         self.ui.jumptonum.setValue(self.resnum)
-        self.ui.frequency.setText(str(self.resfreq/1e9))
+        self.ui.frequency.setText(str(self.resfreq / 1e9))
 
         getLogger(__name__).info("Res: {} --> ID: {}".format(self.resnum, self.resID))
 
         self.res1_iq_vels = np.zeros((self.NAttens, self.Res1.fsteps - 1))
         self.res1_iq_amps = np.zeros((self.NAttens, self.Res1.fsteps))
 
-        foo = np.sqrt(np.diff(self.Res1.Qs, axis=1)**2 + np.diff(self.Res1.Is, axis=1)**2)
+        foo = np.sqrt(np.diff(self.Res1.Qs, axis=1) ** 2 + np.diff(self.Res1.Is, axis=1) ** 2)
         self.res1_iq_vels[:, 1:] = foo[:, :-1]
-        self.res1_iq_amps = np.sqrt(self.Res1.Qs**2 + self.Res1.Is**2)
+        self.res1_iq_amps = np.sqrt(self.Res1.Qs ** 2 + self.Res1.Is ** 2)
 
         # Sort the IQ velocities for each attenuation, to pick out the maximums
         sorted_vels = numpy.sort(self.res1_iq_vels, axis=1)
@@ -166,7 +168,7 @@ class StartQt4(QMainWindow):
             dratio = np.diff(self.res1_max_ratio) / np.diff(self.Res1.atten1s)
             nratiosp1 = np.where(dratio >= np.median(dratio))[0]
             nratiosp1 = nratiosp1[nratiosp1 > self.res1_max_vels.argmax()][0]
-            guesses['dratio'] = self.Res1.atten1s[:-1][nratiosp1] + 2 #added +2 fudge factor b/c saturating on average
+            guesses['dratio'] = self.Res1.atten1s[:-1][nratiosp1] + 2  # added +2 fudge factor b/c saturating on average
         except IndexError:
             guesses['dratio'] = None
 
@@ -199,13 +201,13 @@ class StartQt4(QMainWindow):
         self.select_atten(guess)
         self.ui.atten.setValue(round(guess))
 
-    def guess_res_freq(self): 
+    def guess_res_freq(self):
         if self.useml and np.any(self.resID == self.mlResIDs):
             resInd = np.where(self.resID == self.mlResIDs)[0]
             self.select_freq(self.mlFreqs[resInd])
         else:
             use = np.abs(self.Res1.freq[:-1] - self.fsweepdata.initfreqs[self.resnum]) < .25e6
-            com_guess = (scipy.integrate.trapz(self.res1_iq_vel[use] * self.Res1.freq[:-1][use])/
+            com_guess = (scipy.integrate.trapz(self.res1_iq_vel[use] * self.Res1.freq[:-1][use]) /
                          scipy.integrate.trapz(self.res1_iq_vel[use]))
 
             self.select_freq(com_guess)
@@ -213,8 +215,8 @@ class StartQt4(QMainWindow):
 
     def loadps(self):
         self.fsweepdata = psmldata.MLData(fsweep=self.openfile, mdata=self.metadata_out)
-        self.widesweep = self.fsweepdata.freqSweep.oldwsformat(60,66)
-        getLogger(__name__).info('Loaded '+self.openfile)
+        self.widesweep = self.fsweepdata.freqSweep.oldwsformat(60, 66)
+        getLogger(__name__).info('Loaded ' + self.openfile)
 
         self.stop_ndx = self.fsweepdata.prioritize_and_cut(self.badcut, self.goodcut, plot=True)
 
@@ -244,7 +246,7 @@ class StartQt4(QMainWindow):
             return
 
         self.resfreq = freq
-        self.ui.frequency.setText(str(self.resfreq/1e9))
+        self.ui.frequency.setText(str(self.resfreq / 1e9))
         self.ui.plot_2.canvas.ax.plot(self.Res1.freq[self.indx], self.res1_iq_vel[self.indx], 'bo')
         self.ui.plot_3.canvas.ax.plot(self.Res1.I[self.indx], self.Res1.Q[self.indx], 'bo')
 
@@ -277,21 +279,22 @@ class StartQt4(QMainWindow):
 
     def makeplots(self):
         try:
-            #plot 1
+            # plot 1
             self.ui.plot_1.canvas.ax.clear()
             # self.ui.plot_1.canvas.ax.plot(self.Res1.atten1s, self.res1_max_vels, 'b.-', label='Max IQ velocity')
             self.ui.plot_1.canvas.ax.plot(self.Res1.atten1s, self.res1_max_ratio, 'k.-', label='Ratio (Max Vel)/(2nd '
                                                                                                'Max Vel)')
             dratio = np.diff(self.res1_max_ratio) / np.diff(self.Res1.atten1s)
 
-            self.ui.plot_1.canvas.ax.plot(self.Res1.atten1s[:-1], dratio, 'g.-',  label='D(Ratio)')
+            self.ui.plot_1.canvas.ax.plot(self.Res1.atten1s[:-1], dratio, 'g.-', label='D(Ratio)')
             self.ui.plot_1.canvas.ax.legend()
 
-            self.ui.plot_1.canvas.ax.set_ylim(-1,2.5)
-            self.ui.plot_1.canvas.ax.axhline(np.median(dratio)+dratio.std()/3,linestyle=':',linewidth=.5,color='grey')
+            self.ui.plot_1.canvas.ax.set_ylim(-1, 2.5)
+            self.ui.plot_1.canvas.ax.axhline(np.median(dratio) + dratio.std() / 3, linestyle=':', linewidth=.5,
+                                             color='grey')
             self.ui.plot_1.canvas.ax.axhline(0, linestyle='-', linewidth=.5, color='black')
             self.ui.plot_1.canvas.ax.axhline(np.median(dratio), linestyle='-', linewidth=.5, color='grey')
-            self.ui.plot_1.canvas.ax.axhline(np.median(dratio)-dratio.std()/3,
+            self.ui.plot_1.canvas.ax.axhline(np.median(dratio) - dratio.std() / 3,
                                              linestyle=':', linewidth=.5, color='grey')
             self.ui.plot_1.canvas.ax.set_xlabel('Attenuation')
             self.ui.plot_1.canvas.ax.set_ylabel('IQVel Ratio')
@@ -316,21 +319,20 @@ class StartQt4(QMainWindow):
                 self.ui.plot_2.canvas.ax.plot(self.Res1.freq[:-1], self.res1_iq_vels[self.iAtten - 2], 'g.-')
                 self.ui.plot_2.canvas.ax.lines[-1].set_alpha(.3)
 
-            self.ui.plot_2.canvas.ax.set_xlim(self.resfreq-1e6, self.resfreq+1e6)
+            self.ui.plot_2.canvas.ax.set_xlim(self.resfreq - 1e6, self.resfreq + 1e6)
             cid = self.ui.plot_2.canvas.mpl_connect('button_press_event', self.on_press)
 
-
-            #test integration for center
+            # test integration for center
             # import scipy.integrate
             # use = np.abs(self.Res1.freq[:-1]-self.fsweepdata.initfreqs[self.resnum])<.25e6
             # foo=scipy.integrate.trapz(self.res1_iq_vel[use]*self.Res1.freq[:-1][use],
             #                           dx=self.Res1.freq[1]-self.Res1.freq[0])
             # foo/=scipy.integrate.trapz(self.res1_iq_vel[use], dx=self.Res1.freq[1]-self.Res1.freq[0])
             # self.ui.plot_2.canvas.ax.axvline(foo,c='orange')
-            self.ui.plot_2.canvas.ax.axvline(self.fsweepdata.initfreqs[self.resnum]-.25e6, c='orange',linestyle=':')
-            self.ui.plot_2.canvas.ax.axvline(self.fsweepdata.initfreqs[self.resnum]+.25e6, c='orange',linestyle=':')
+            self.ui.plot_2.canvas.ax.axvline(self.fsweepdata.initfreqs[self.resnum] - .25e6, c='orange', linestyle=':')
+            self.ui.plot_2.canvas.ax.axvline(self.fsweepdata.initfreqs[self.resnum] + .25e6, c='orange', linestyle=':')
 
-            #self.widesweep=None
+            # self.widesweep=None
             freq_start = self.Res1.freq[0]
             freq_stop = self.Res1.freq[-1]
             if self.widesweep is not None:
@@ -362,28 +364,21 @@ class StartQt4(QMainWindow):
                                               self.fsweepdata.initfreqs[self.resnum] + 1e6)
             self.ui.plot_2.canvas.draw()
 
-            #Plot 3
+            # Plot 3
             self.ui.plot_3.canvas.ax.clear()
 
-            use = ((self.Res1.freq>self.fsweepdata.initfreqs[self.resnum] - 1e6) &
-                   (self.Res1.freq<self.fsweepdata.initfreqs[self.resnum] + 1e6))
+            use = ((self.Res1.freq > self.fsweepdata.initfreqs[self.resnum] - 1e6) &
+                   (self.Res1.freq < self.fsweepdata.initfreqs[self.resnum] + 1e6))
             if self.iAtten > 0:
-                self.ui.plot_3.canvas.ax.plot(self.Res1.Is[self.iAtten - 1][use], self.Res1.Qs[self.iAtten - 1][use], 'g.-')
+                self.ui.plot_3.canvas.ax.plot(self.Res1.Is[self.iAtten - 1][use], self.Res1.Qs[self.iAtten - 1][use],
+                                              'g.-')
                 self.ui.plot_3.canvas.ax.lines[0].set_alpha(.6)
             if self.iAtten > 1:
-                self.ui.plot_3.canvas.ax.plot(self.Res1.Is[self.iAtten - 2][use], self.Res1.Qs[self.iAtten - 2][use], 'g.-')
+                self.ui.plot_3.canvas.ax.plot(self.Res1.Is[self.iAtten - 2][use], self.Res1.Qs[self.iAtten - 2][use],
+                                              'g.-')
                 self.ui.plot_3.canvas.ax.lines[-1].set_alpha(.3)
             self.ui.plot_3.canvas.ax.plot(self.Res1.I[use], self.Res1.Q[use], '.-')
 
-            # if self.widesweep is not None:
-            #     ws_I = self.widesweep[wsmask, 1]
-            #     ws_Q = self.widesweep[wsmask, 2]
-            #     ws_dataRange_I = self.ui.plot_3.canvas.ax.xaxis.get_data_interval()
-            #     ws_dataRange_Q = self.ui.plot_3.canvas.ax.yaxis.get_data_interval()
-            #     ws_I -= numpy.median(ws_I) - numpy.median(ws_dataRange_I)
-            #     ws_Q -= numpy.median(ws_Q) - numpy.median(ws_dataRange_Q)
-
-            getLogger(__name__).debug('makeplots')
             self.ui.plot_3.canvas.draw()
 
         except IndexError:
@@ -410,12 +405,11 @@ class StartQt4(QMainWindow):
     def savevalues(self):
         self.freqList[self.resnum] = self.resfreq
         self.attenList[self.resnum] = self.atten
-        self.metadata_out.atten[self.resID == self.metadata_out.resIDs] = self.atten
-        self.metadata_out.mlfreq[self.resID == self.metadata_out.resIDs] = self.resfreq
-        self.metadata_out.save()
+        self.metadata_out.set(self.resID, atten=self.atten, freq=self.resfreq,
+                              reviewed=True, save=True)
 
         msg = " ....... Saved to file:  resnum={} resID={} resfreq={} atten={}"
-        getLogger(__name__).info(msg.format(self.resnum,self.resID,self.resfreq,self.atten))
+        getLogger(__name__).info(msg.format(self.resnum, self.resID, self.resfreq, self.atten))
         self.resnum += 1
         self.atten = -1
 
@@ -426,26 +420,62 @@ class StartQt4(QMainWindow):
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description='MKID Powersweep GUI')
-    parser.add_argument('psweep', default='', type=str, help='A frequency sweep npz file to load')
-    parser.add_argument('metafile', default='', type=str, help='The matching metadata.txt file to load')
-    parser.add_argument('--small', action='store_true', dest='smallui', default=False, help='Use small GUI')
-    parser.add_argument('--use-ml', action='store_true', dest='useml', default=False, help='Use ML as initial guess')
-    parser.add_argument('-i', dest='start_ndx', type=int, default=0, help='Starting resonator index')
-    parser.add_argument('-gc', dest='gcut', default=1, type=float, help='Assume good if net ML score > (EXACT)')
-    parser.add_argument('-bc', dest='bcut', default=-1, type=float, help='Assume bad if net ML score < (EXACT)')
-    args = parser.parse_args()
+
+    import mkidreadout.configuration.powersweep.ml.findPowers as findpowers
+    from mkidcore.readdict import ReadDict
+    from mkidreadout.configuration.powersweep.psmldata import MLData
 
     create_log('__main__', console=True, mpsafe=True, fmt='%(asctime)s PSClickthrough: %(levelname)s %(message)s')
     create_log('mkidreadout', console=True, mpsafe=True, fmt='%(asctime)s mkidreadout: %(levelname)s %(message)s')
     create_log('mkidcore', console=True, mpsafe=True, fmt='%(asctime)s mkidcore: %(levelname)s %(message)s')
 
-    Ui = gui.Ui_MainWindow_Small if args.smallui else gui.Ui_MainWindow
+    parser = argparse.ArgumentParser(description='MKID Powersweep GUI')
+    parser.add_argument('psweep', type=str, help='A sweep npz file.')
+    parser.add_argument('--meta', dest='metafile', default='', type=str, help='The matching metadata.txt file to load')
 
-    app = QApplication(sys.argv)
-    myapp = StartQt4(args.psweep, args.metafile, Ui, startndx=args.start_ndx,
-                     goodcut=args.gcut, badcut=args.bcut, useml=args.useml)
-    myapp.show()
-    app.exec_()
+    subparsers = parser.add_subparsers(help='find->[applyml]->click', dest='mode')
+    find_parser = subparsers.add_parser('find', help='Find resonators')
+    find_parser.add_argument('psweep2', type=str, default='', help='The other sweep file for the FL (both needed).')
+    find_parser.add_argument('-s', '--sigma', dest='sigma', type=float, default=.5, help='Peak inference threshold')
 
+    ml_parser = subparsers.add_parser('applyml', help='Apply a ML model')
+    ml_parser.add_argument('mlconfig', help='Machine learning model config file')
+    ml_parser.add_argument('model', help='Machine learning model (good)')
+    ml_parser.add_argument('--bmodel', dest='bmodel', default='', help='A bad model file')
 
+    click_parser = subparsers.add_parser('click', help='Clickthrough the resonators')
+    click_parser.add_argument('--small', action='store_true', dest='smallui', default=False, help='Use small GUI')
+    click_parser.add_argument('--use-ml', action='store_true', dest='useml', default=False,
+                              help='Use ML as initial guess')
+    click_parser.add_argument('-i', dest='start_ndx', type=int, default=0, help='Starting resonator index')
+    click_parser.add_argument('-gc', dest='gcut', default=1, type=float, help='Assume good if net ML score > (EXACT)')
+    click_parser.add_argument('-bc', dest='bcut', default=-1, type=float, help='Assume bad if net ML score < (EXACT)')
+
+    args = parser.parse_args()
+    metafile = args.metafile if args.metafile else os.path.splitext(args.psweep)[0] + '_metadata.txt'
+
+    if args.mode == 'find':
+        finder = Finder([args.psweep, args.psweep2])
+        finder.inferPeaks(sigThresh=args.sigma)
+        finder.findLocalMinima()
+        finder.markCollisions(resBWkHz=200)
+        getLogger(__name__).info('Found {} for clickthrough peaks.'.format(finder.num_good))
+        smd = finder.getSweepMetadata(instruments.guessFeedline(args.psweep))
+        smd.save(file=metafile)
+    elif args.mode == 'applyml':
+        smd = sweepdata.SweepMetadata(metafile)
+        mlDict = ReadDict(file=args.mlconfig)
+        inferenceData = MLData(args.psweep, smd)
+        mlArgs = dict(xWidth=mlDict['xWidth'], resWidth=mlDict['resWidth'], pad_res_win=mlDict['padResWin'],
+                      useIQV=mlDict['useIQV'], useMag=mlDict['useMag'], mlDictnAttens=mlDict['nAttens'])
+        findpowers.apply_ml_model(inferenceData, smd.wsatten, mlDict['nAttens'], mlArgs=mlArgs,
+                                  goodModel=args.model, badModel=args.bmodel, center_loop=mlDict['center_loop'])
+        inferenceData.updatemetadata()
+        smd.save()
+    else:
+        Ui = gui.Ui_MainWindow_Small if args.smallui else gui.Ui_MainWindow
+        app = QApplication(sys.argv)
+        myapp = StartQt4(args.psweep, metafile, Ui, startndx=args.start_ndx,
+                         goodcut=args.gcut, badcut=args.bcut, useml=args.useml)
+        myapp.show()
+        app.exec_()

@@ -15,9 +15,9 @@ class MLData(object):
         #   self.opt_attens, self.opt_freqs, self.scores
 
         freqSpan = np.array([self.freqSweep.freqs[0,0], self.freqSweep.freqs[-1,-1]])
-        self.mdResMask = ((self.metadata.flag == ISGOOD) &
+        self.mdResMask = ((self.metadata.flag & ISGOOD) &
                           (self.metadata.wsfreq > freqSpan[0]) &
-                          (self.metadata.wsfreq < freqSpan[1]))
+                          (self.metadata.wsfreq < freqSpan[1])).astype(bool)
         self.nRes = self.mdResMask.sum()
         if not self.nRes:
             raise RuntimeError('No rood resonators with freqs within sweep bounds')
@@ -29,13 +29,13 @@ class MLData(object):
 
         self.resIDs = self.metadata.resIDs[self.mdResMask]
         self.initfreqs = self.metadata.wsfreq[self.mdResMask]
-        self.opt_attens = self.metadata.atten[self.mdResMask]
+        self.opt_attens = self.metadata.mlatten[self.mdResMask] # maybe change to freq and atten?
         self.opt_freqs = self.metadata.mlfreq[self.mdResMask]
         self.scores = np.zeros(self.nRes)
         self.bad_scores = np.zeros(self.nRes)
         if not np.all(np.isnan(self.opt_attens)):
             attenblock = np.tile(self.freqSweep.atten, (len(self.opt_attens),1))
-            self.opt_iAttens = np.where(self.opt_attens==attenblock.T)[0]
+            self.opt_iAttens = np.argmin(np.abs(attenblock.T - self.opt_attens), axis=0)
 
         self.generateMLWindows(self.initfreqs)
 
@@ -49,13 +49,12 @@ class MLData(object):
             self.Qs[i] = self.freqSweep.q[:, freqWinInd, :]
             self.iq_vels[i] = np.sqrt(np.diff(self.Is[i])**2 + np.diff(self.Qs[i])**2)
 
-    def saveInferenceData(self, flag=''):
-        self.metadata.atten[self.mdResMask] = self.opt_attens
+    def updatemetadata(self):
+        self.metadata.mlatten[self.mdResMask] = self.opt_attens
         self.metadata.mlfreq[self.mdResMask] = self.opt_freqs
-        self.metadata.ml_isgood_score[self.mdResMask] = self.scores #TODO: implement ml bad scores
+        self.metadata.ml_isgood_score[self.mdResMask] = self.scores
         self.metadata.ml_isbad_score[self.mdResMask] = self.bad_scores
-        self.metadata.save(os.path.splitext(self.metadata.file)[0] + flag + '.txt')
-    
+
     def prioritize_and_cut(self, assume_bad_cut=-np.inf, assume_good_cut=np.inf, plot=False):
         #return self.mdResMask.sum()
 
@@ -67,7 +66,7 @@ class MLData(object):
         netscore = self.metadata.netscore
         badcutmask = netscore < assume_bad_cut
         goodcutmask = netscore > assume_good_cut
-        self.metadata.atten[badcutmask] = np.inf
+        self.metadata.mlatten[badcutmask] = np.inf
 
         getLogger(__name__).info('Sorting {} resonators'.format(self.mdResMask.sum()))
         msg = 'Bad score cut of {:.2f} kills {} resonators'

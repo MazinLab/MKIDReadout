@@ -7,8 +7,6 @@ import numpy as np
 import glob
 import matplotlib.pyplot as plt
 from astropy.stats import mad_std
-import sys, os
-# from mkidreadout.utils.ReadDict import ReadDict
 
 
 def readInFrequencies(powerSweepFiles):

@@ -1,5 +1,4 @@
 import numpy as np
-from scipy import signal
 from mkidreadout.configuration import sweepdata
 
 
@@ -18,14 +17,20 @@ class WSFitMLData(object):
         self.boundaryInds = np.empty(0)
         self.filenameList = np.asarray(filenameList)
 
+        self.effective_atten = []
+
         for fn in self.filenameList:
-            freqs, iVals, qVals = sweepdata.FreqSweep(fn).oldwsformat(*attenrange).T
+            sd = sweepdata.FreqSweep(fn)
+            freqs, iVals, qVals = sd.oldwsformat(*attenrange).T
+            self.effective_atten.append(sd.oldwsformat_effective_atten(*attenrange))
             self.boundaryInds = np.append(self.boundaryInds, len(self.freqs))
             self.freqs = np.append(self.freqs, freqs)
             self.iVals = np.append(self.iVals, iVals)
             self.qVals = np.append(self.qVals, qVals)
 
-        s=np.argsort(self.freqs)
+        self.effective_atten = np.mean(self.effective_atten)
+
+        s = np.argsort(self.freqs)
 
         self.freqs[s]=self.freqs
         self.iVals =self.iVals[s]

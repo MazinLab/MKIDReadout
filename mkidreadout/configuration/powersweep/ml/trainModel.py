@@ -8,15 +8,15 @@ Trained model is saved in .meta file in
 modelDir specified in config file.
 '''
 
-from PSFitNNModel import *
-from mkidcore.readdict import ReadDict
+from neuralnet import *
+from mkidreadout.utils.readDict import readDict
 
 if len(sys.argv)<2:
     print 'Must supply config file!'
     exit(1)
 
 mlDictFile = sys.argv[1]
-mlDict = ReadDict()
+mlDict = readDict()
 mlDict.readFromFile(mlDictFile)
 
 mlClass = mlClassification(mlDict)
