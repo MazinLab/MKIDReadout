@@ -661,7 +661,7 @@ class ConexAPI(Resource):
 
     def get(self):
         stat = conex_manager.status()
-        stat.print()
+        stat.show()
         return marshal(stat, conex_fields)
 
     def post(self):
