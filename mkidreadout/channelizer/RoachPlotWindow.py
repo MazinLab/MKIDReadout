@@ -708,12 +708,14 @@ class RoachSweepWindow(QMainWindow):
         filt_wid = 3
         thresh_rel = .25
         peaksep = 1
-        newFreqs = np.zeros_like(data['freqList'])
+
+        newFreqs = np.copy(data['freqList'][channels])
+
         for ch in np.atleast_1d(channels):
             iVals = data['I'][ch]
             qVals = data['Q'][ch]
-            freq = data['freqList'][ch] + data['freqOffsets'][ch]
             iqVel = np.sqrt(np.diff(iVals) ** 2 + np.diff(qVals) ** 2)
+            freq = np.arange(iqVel.size)#data['freqList'][ch] + data['freqOffsets']
 
             filt_vel = scipy.signal.medfilt(iqVel, kernel_size=filt_wid)
             peakloc = skimage.feature.peak_local_max(filt_vel, min_distance=peaksep, threshold_rel=thresh_rel,
@@ -721,7 +723,7 @@ class RoachSweepWindow(QMainWindow):
             com = scipy.integrate.trapz(filt_vel * freq[:-1]) / scipy.integrate.trapz(filt_vel)
 
             ndx = np.abs(freq[:-1][peakloc] - com).argmin()
-            newFreqs[ch] = freq[peakloc[ndx]]
+            newFreqs[ch] += data['freqOffsets'][peakloc[ndx]]
 
         if plot:
             cv = FigureCanvas(Figure(figsize=(5, 3)))
