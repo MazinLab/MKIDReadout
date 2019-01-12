@@ -345,12 +345,11 @@ class RoachStateMachine(QtCore.QObject):  # Extends QObject for use with QThread
         LO_step = self.config.roaches.get('r{}.sweeplostep'.format(self.num))
         LO_offsets = np.arange(LO_start, LO_end, LO_step) - LO_freq
         start_DACAtten = self.config.roaches.get('r{}.dacatten_start'.format(self.num))
-        stop_DACAtten  = self.config.roaches.get('r{}.dacatten_stop'.format(self.num))
+        stop_DACAtten = self.config.roaches.get('r{}.dacatten_stop'.format(self.num))
         start_ADCAtten = self.config.roaches.get('r{}.adcatten'.format(self.num))
         newADCAtten = start_ADCAtten
 
-        powerSweepFile = self.roachController.tagfile(self.config.roaches.get('r{}.powersweeproot'.format(
-            self.num)),
+        powerSweepFile = self.roachController.tagfile(self.config.roaches.get('r{}.powersweeproot'.format(self.num)),
                                                       dir=self.config.paths.data,
                                                       epilog=time.strftime("%Y%m%d-%H%M%S", time.localtime()))
         for dacAtten in np.arange(start_DACAtten, stop_DACAtten + 1):
