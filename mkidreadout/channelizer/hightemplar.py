@@ -549,6 +549,7 @@ if __name__ == "__main__":
                console=True, mpsafe=True, propagate=False,
                fmt='%(asctime)s %(name)s %(funcName)s: %(levelname)s %(message)s ',
                level=mkidcore.corelog.DEBUG)
+    getLogger('mkidreadout.channelizer.Roach2Controls').setLevel(mkidcore.corelog.INFO)
     create_log('casperfpga',
                console=True, mpsafe=True, propagate=False,
                fmt='%(asctime)s %(name)s %(funcName)s: %(levelname)s %(message)s ',
