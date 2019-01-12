@@ -1153,6 +1153,9 @@ class Roach2Controls(object):
         # Make sure dac tones are unique
         dacFreqList, args, args_inv = np.unique(dacFreqList, return_index=True, return_inverse=True)
         self.attenList = (resAttenList[args])[args_inv]     # Force any duplicate frequencies to also have duplicate attens
+
+        rstate = np.random.get_state()
+        np.random.seed(0)
         toneParams={
                 'freqList': dacFreqList,
                 'nSamples': nSamples,
@@ -1184,6 +1187,8 @@ class Roach2Controls(object):
                 toneDict = self.generateTones(**toneParams)
                 iValues=np.sum(toneDict['I'],axis=0)
                 qValues=np.sum(toneDict['Q'],axis=0)
+
+        np.random.set_state(rstate)
 
         self.dacQuantizedFreqList = (toneDict['quantizedFreqList'])[args_inv]
         self.dacPhaseList = (toneDict['phaseList'])[args_inv]
@@ -1227,7 +1232,8 @@ class Roach2Controls(object):
 
         return {'I':iValues,'Q':qValues,'quantizedFreqList':self.dacQuantizedFreqList,'dacAtten':globalDacAtten}
 
-    def generateTones(self, freqList, nSamples, sampleRate, amplitudeList=None, phaseList=None, iqRatioList=None, iqPhaseOffsList=None):
+    def generateTones(self, freqList, nSamples, sampleRate, amplitudeList=None, phaseList=None, iqRatioList=None,
+                      iqPhaseOffsList=None):
         """
         Generate a list of complex signals with amplitudes and phases specified and frequencies quantized
         
