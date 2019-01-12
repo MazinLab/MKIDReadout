@@ -699,8 +699,8 @@ class RoachSweepWindow(QMainWindow):
         plot = False
         if channels is None:
             channels = self.spinbox_channel.value()
-        elif (channels < 0).any():
-            plot=True
+        elif (np.atleast_1d(channels) < 0).any():
+            plot = True
             channels = range(len(self.roach.roachController.freqList))
 
         data = self.dataList[-1]  #[sweep index, channel] i|q|freqOffsets|freqList
