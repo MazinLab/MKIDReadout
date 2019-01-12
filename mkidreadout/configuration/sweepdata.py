@@ -238,7 +238,7 @@ class SweepMetadata(object):
                    header=self.genheader())
 
     def templar_data(self, lo):
-        aResMask = self.lomask(lo)
+        aResMask = slice(None,None) #self.lomask(lo)  #TODO URGENT add range assignment to each resonator
         freq = self.freq[aResMask]
         s = np.argsort(freq)
         return self.resIDs[aResMask][s], freq[s], self.atten[aResMask][s]
