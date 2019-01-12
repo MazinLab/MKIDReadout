@@ -634,8 +634,6 @@ class RoachStateMachine(QtCore.QObject):  # Extends QObject for use with QThread
         OUTPUTS:
             phaseSnap - list of phase in radians
         """
-
-        getLogger(__name__).info("r{}: ch{} Getting phase snap".format(self.num, channel))
         # try:
         #    ch, stream = np.where(self.roachController.freqChannels == self.roachController.freqList[channel])
         # except AttributeError:

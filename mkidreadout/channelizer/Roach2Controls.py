@@ -2385,7 +2385,7 @@ if __name__ == '__main__':
     roach_0.generateResonatorChannels(freqList)
     roach_0.generateFftChanSelection()
     # roach_0.generateDacComb(resAttenList=attenList,globalDacAtten=9)
-    roach_0.generateDacComb(freqList=freqList, resAttenList=attenList, globalDacAtten=globalDacAtten)
+    roach_0.generateDacComb(freqList=freqList, resAttenList=attenList)
     getLogger(__name__).info('Generating DDS Tones...')
     roach_0.generateDdsTones()
     roach_0.debug = False
