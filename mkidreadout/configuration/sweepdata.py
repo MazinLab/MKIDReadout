@@ -23,6 +23,7 @@ def genResIDsForFreqs(freqs, flnum):
     return np.arange(freqs.size) + flnum * 10000 + (freqs > A_RANGE_CUTOFF) * 5000
 
 
+#This function is already implemented in beammap/utils.py
 def resID2fl(resID):
     return int(resID / 10000)
 
@@ -139,7 +140,7 @@ class SweepMetadata(object):
             self._load()
 
         self._vet()
-        self.sort()
+        #self.sort()
 
     def __str__(self):
         return self.file
@@ -240,8 +241,9 @@ class SweepMetadata(object):
     def templar_data(self, lo):
         aResMask = slice(None,None) #self.lomask(lo)  #TODO URGENT add range assignment to each resonator
         freq = self.freq[aResMask]
-        s = np.argsort(freq)
-        return self.resIDs[aResMask][s], freq[s], self.atten[aResMask][s]
+        return self.resIDs[aResMask], freq, self.atten[aResMask]    #Do not sort or force things to be unique
+        #s = np.argsort(freq)
+        #return self.resIDs[aResMask][s], freq[s], self.atten[aResMask][s]
 
     def save_templar_freqfiles(self, lo, template='ps_freqs{roach}_FL{feedline}{band}.txt'):
         band = bandfor(lo)
@@ -278,10 +280,10 @@ class SweepMetadata(object):
                 self.atten = self.mlatten.copy()
             else:
                 self.resIDs, self.freq, self.atten = d
-                _, u = np.unique(self.freq, return_index=True)
-                self.resIDs = self.resIDs[u]
-                self.freq = self.freq[u]
-                self.atten = self.atten[u]
+                #_, u = np.unique(self.freq, return_index=True)
+                #self.resIDs = self.resIDs[u]
+                #self.freq = self.freq[u]
+                #self.atten = self.atten[u]
                 self.wsfreq = self.freq.copy()
                 self.mlfreq = self.freq.copy()
                 self.mlatten = self.atten.copy()
