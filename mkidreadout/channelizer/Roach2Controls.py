@@ -601,6 +601,7 @@ class Roach2Controls(object):
             self.v7_ready = self.fpga.read_int(self.params['v7Ready_reg'])
 
         if self.v7_ready == self.params['v7Err']:
+            getLogger(__name__).warning('MicroBlaze did not properly execute last command.  Proceed with caution...')
             warnings.warn('MicroBlaze did not properly execute last command.  Proceed with caution...')
 
         self.v7_ready = 0
@@ -995,6 +996,7 @@ class Roach2Controls(object):
             iqRatio = iRms / qRms
 
             if iqRatio < iqBalRange[0] or iqRatio > iqBalRange[1]:
+                getLogger(__name__).warning('IQ balance out of range for roach ' + self.ip[-3:])
                 warnings.warn('IQ balance out of range for roach ' + self.ip[-3:])
 
             if rmsRange[0] < iRms < rmsRange[1] and rmsRange[0] < qRms < rmsRange[1]:
@@ -1011,26 +1013,28 @@ class Roach2Controls(object):
                     curAtten = 0
                     self.changeAtten(3, 0)
                     self.changeAtten(4, 0)
+                    getLogger(__name__).warning('Dynamic range target unachievable... setting ADC Atten to 0')
                     warnings.warn('Dynamic range target unachievable... setting ADC Atten to 0')
                     break
                 elif curAtten > 63.5:
                     curAtten = 63.5
                     self.changeAtten(3, 31.75)
                     self.changeAtten(4, 31.75)
+                    getLogger(__name__).critical('Dynamic range target unachievable... setting ADC Atten to max')
                     raise Exception('Dynamic range target unachievable... setting ADC Atten to max')
-                    break
 
             nIters += 1
 
             if nIters >= nMaxIters:
                 self.changeAtten(3, 31.75)
                 self.changeAtten(4, 31.75)
+                getLogger(__name__).critical('Max Iters exceeded... setting ADC Atten to max')
                 raise Exception('Max Iters exceeded... setting ADC Atten to max')
-                break
 
         if checkForSpikes:
             specDict = streamSpectrum(snapDict['iVals'], snapDict['qVals'])
             if checkSpectrumForSpikes(specDict):
+                getLogger(__name__).warning('Spikes in ADC snap spectrum! for roach ' + self.ip[-3:])
                 warnings.warn('Spikes in ADC snap spectrum! for roach ' + self.ip[-3:])
 
         return curAtten
@@ -1102,6 +1106,7 @@ class Roach2Controls(object):
             except AttributeError:
                 raise AttributeError("Provide a freqList or call generateResonatorChannels() first!")
         if len(freqList)>self.params['nChannels']:
+            getLogger(__name__).warning("Too many freqs provided. Can only accommodate "+str(self.params['nChannels'])+" resonators")
             warnings.warn("Too many freqs provided. Can only accommodate "+str(self.params['nChannels'])+" resonators")
             freqList = freqList[:self.params['nChannels']]
         freqList = np.ravel(freqList).flatten()
@@ -1182,6 +1187,7 @@ class Roach2Controls(object):
         if avoidSpikes and sig_i>0 and sig_q>0:
             expectedHighestVal_sig = scipy.special.erfinv((len(iValues)-0.1)/len(iValues))*np.sqrt(2.)   # 10% of the time there should be a point this many sigmas higher than average
             while max(1.0*np.abs(iValues).max()/sig_i, 1.0*np.abs(qValues).max()/sig_q)>=expectedHighestVal_sig:
+                getLogger(__name__).warning("The freq comb's relative phases may have added up sub-optimally. Calculating with new random phases")
                 warnings.warn("The freq comb's relative phases may have added up sub-optimally. Calculating with new random phases")
                 toneParams['phaseList']=None    # If it was defined before it didn't work. So do random ones this time
                 toneDict = self.generateTones(**toneParams)
@@ -1206,6 +1212,7 @@ class Roach2Controls(object):
         globalDacAtten-=dBexcess
         if globalDacAtten>31.75*2.:
             dB_reduce = globalDacAtten-31.75*2.
+            getLogger(__name__).warning("Unable to fully utilize DAC dynamic range by "+str(dB_reduce)+"dB")
             warnings.warn("Unable to fully utilize DAC dynamic range by "+str(dB_reduce)+"dB")
             globalDacAtten-=dB_reduce
             dBexcess+=dB_reduce
