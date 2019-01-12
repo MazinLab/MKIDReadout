@@ -842,11 +842,11 @@ class RoachSweepWindow(QMainWindow):
         # if len(freqs) != nFreqs:
         #     self.resetRoach.emit(RoachStateMachine.LOADFREQ)
 
-        freqFile = self.roach.roachController.tagfile(self.config.get('r{}.freqfileroot'.format(self.roachNum)),
+        freqFile = self.roach.roachController.tagfile(self.config.roaches.get('r{}.freqfileroot'.format(self.roachNum)),
                                                       dir=self.config.paths.data)
         sd = sweepdata.SweepMetadata(file=freqFile)
         sd.file = '{0}_new.{1}'.format(*freqFile.lrpartition('.')[::2])
-        lo = self.config.get('r{}.lo_freq'.format(self.roachNum))
+        lo = self.config.roaches.get('r{}.lo_freq'.format(self.roachNum))
         sd.update_from_roach(lo, freqs=freqs, attens=attens)
         getLogger(__name__).info("Saving %s", sd)
         sd.save()
@@ -859,9 +859,9 @@ class RoachSweepWindow(QMainWindow):
             settingID - the key in the configparser
             setting - the value
         """
-        old = self.config.get('r{}.{}'.format(self.roachNum, settingID))
-        self.config.update('r{}.{}'.format(self.roachNum, settingID), setting)
-        new = self.config.get('r{}.{}'.format(self.roachNum, settingID))
+        old = self.config.roaches.get('r{}.{}'.format(self.roachNum, settingID))
+        self.config.roaches.update('r{}.{}'.format(self.roachNum, settingID), setting)
+        new = self.config.roaches.get('r{}.{}'.format(self.roachNum, settingID))
         getLogger(__name__).info('setting {} from {} to {}'.format(settingID, old, new))
 
     def keyPressed(self, event):
@@ -930,7 +930,7 @@ class RoachSweepWindow(QMainWindow):
         Works similiarly to phaseSnapShot()
         """
         adcAtten = self.spinbox_adcAtten.value()
-        if adcAtten != self.config.get('r{}.adcatten'.format(self.roachNum)):
+        if adcAtten != self.config.roaches.get('r{}.adcatten'.format(self.roachNum)):
             self.changedSetting('adcatten', self.spinbox_adcAtten.value())
             QtCore.QMetaObject.invokeMethod(self.roach, 'loadADCAtten', Qt.QueuedConnection,
                                             QtCore.Q_ARG(float, adcAtten))
@@ -947,7 +947,7 @@ class RoachSweepWindow(QMainWindow):
             dacAtten - the dac attenuation
         """
         dacAtten = self.spinbox_dacAttenStart.value()
-        if dacAtten != self.config.get('r{}.dacatten_start'.format(self.roachNum)):
+        if dacAtten != self.config.roaches.get('r{}.dacatten_start'.format(self.roachNum)):
             self.changedSetting('dacatten_start', self.spinbox_dacAttenStart.value())
             if self.checkbox_resAttenFixed.isChecked():
                 self.resetRoach.emit(RoachStateMachine.DEFINEDACLUT)
@@ -969,7 +969,7 @@ class RoachSweepWindow(QMainWindow):
         if self.checkbox_resAttenFixed.isChecked():
             self.checkbox_resAttenFixed.setText('Keep Res Atten Fixed')
         else:
-            dacAtten = self.config.get('r{}.dacatten_start'.format(self.roachNum))
+            dacAtten = self.config.roaches.get('r{}.dacatten_start'.format(self.roachNum))
             self.checkbox_resAttenFixed.setText('Keep Res Atten Fixed (was ' + str(dacAtten) + ' dB)')
 
     def create_main_frame(self):
@@ -1060,7 +1060,7 @@ class RoachSweepWindow(QMainWindow):
         button_snapAllFreqs.clicked.connect(self.snapAllFreqs)
         button_snapAllFreqs.setEnabled(True)
 
-        dacAttenStart = self.config.get('r{}.dacatten_start'.format(self.roachNum))
+        dacAttenStart = self.config.roaches.get('r{}.dacatten_start'.format(self.roachNum))
         self.dacAtten = dacAttenStart
         label_dacAttenStart = QLabel('DAC atten:')
         self.spinbox_dacAttenStart = QDoubleSpinBox()
@@ -1072,7 +1072,7 @@ class RoachSweepWindow(QMainWindow):
         self.spinbox_dacAttenStart.setWrapping(False)
         self.spinbox_dacAttenStart.setCorrectionMode(QAbstractSpinBox.CorrectToNearestValue)
 
-        dacAttenStop = self.config.get('r{}.dacatten_stop'.format(self.roachNum))
+        dacAttenStop = self.config.roaches.get('r{}.dacatten_stop'.format(self.roachNum))
         label_dacAttenStop = QLabel(' to ')
         spinbox_dacAttenStop = QDoubleSpinBox()
         spinbox_dacAttenStop.setValue(dacAttenStop)
@@ -1093,7 +1093,7 @@ class RoachSweepWindow(QMainWindow):
         # self.spinbox_dacAttenStart.valueChanged.connect(self.changeDACAtten)
         self.spinbox_dacAttenStart.editingFinished.connect(self.changeDACAtten)
 
-        adcAtten = self.config.get('r{}.adcatten'.format(self.roachNum))
+        adcAtten = self.config.roaches.get('r{}.adcatten'.format(self.roachNum))
         label_adcAtten = QLabel('ADC Atten:')
         self.spinbox_adcAtten = QDoubleSpinBox()
         self.spinbox_adcAtten.setValue(adcAtten)
@@ -1113,7 +1113,7 @@ class RoachSweepWindow(QMainWindow):
         self.checkbox_resAttenFixed.setChecked(True)
         self.checkbox_resAttenFixed.stateChanged.connect(lambda x: self.toggleResAttenFixed())
 
-        psFile = self.config.get('r{}.powersweeproot'.format(self.roachNum))
+        psFile = self.config.roaches.get('r{}.powersweeproot'.format(self.roachNum))
         label_psFile = QLabel('Powersweep File:')
         textbox_psFile = QLineEdit(psFile)
         textbox_psFile.setMaximumWidth(300)
@@ -1121,7 +1121,7 @@ class RoachSweepWindow(QMainWindow):
         textbox_psFile.textChanged.connect(partial(self.changedSetting, 'powersweeproot'))
 
 
-        loSpan = self.config.get('r{}.sweeplospan'.format(self.roachNum))
+        loSpan = self.config.roaches.get('r{}.sweeplospan'.format(self.roachNum))
         label_loSpan = QLabel('LO Span [Hz]:')
         loSpan_str = "%.3e" % loSpan
         textbox_loSpan = QLineEdit(loSpan_str)
@@ -1130,7 +1130,7 @@ class RoachSweepWindow(QMainWindow):
         # textbox_loSpan.textChanged.connect(partial(self.changedSetting,'sweeplospan'))     # This just saves whatever string you type in
         textbox_loSpan.textChanged.connect(lambda x: self.changedSetting('sweeplospan', float(x)))
 
-        loStep = self.config.get('r{}.sweeplostep'.format(self.roachNum))
+        loStep = self.config.roaches.get('r{}.sweeplostep'.format(self.roachNum))
         label_loStep = QLabel('LO Step [Hz]:')
         loStep_str = "%.3e" % loStep
         textbox_loStep = QLineEdit(loStep_str)

@@ -95,7 +95,7 @@ class HighTemplar(QMainWindow):
         # Create plot windows
         self.sweepWindows = []
         for roach_i in self.roaches:
-            window = RoachSweepWindow(roach_i, self.config.roaches)
+            window = RoachSweepWindow(roach_i, self.config)
             window.sweepClicked.connect(partial(self.commandButtonClicked, [roach_i.num], RoachStateMachine.SWEEP))
             # window.fitClicked.connect(partial(self.commandButtonClicked, [roach_i.num] , RoachStateMachine.FIT))
             window.rotateClicked.connect(partial(self.commandButtonClicked, [roach_i.num], RoachStateMachine.ROTATE))
