@@ -384,8 +384,8 @@ class RoachPhaseStreamWindow(QMainWindow):
         spinbox_threshSigs.setButtonSymbols(QAbstractSpinBox.NoButtons)
         spinbox_threshSigs.setCorrectionMode(QAbstractSpinBox.CorrectToNearestValue)
         spinbox_threshSigs.valueChanged.connect(partial(self.changedSetting, 'numsigs_thresh'))
-        spinbox_threshSigs.valueChanged.connect(
-            lambda x: self.resetRoach.emit(RoachStateMachine.LOADTHRESHOLD))  # reset state of roach
+        # reset state of roach
+        spinbox_threshSigs.valueChanged.connect(lambda x: self.resetRoach.emit(RoachStateMachine.LOADTHRESHOLD))
 
         button_loadThresh = QPushButton("Load Thresholds")
         button_loadThresh.setEnabled(True)
