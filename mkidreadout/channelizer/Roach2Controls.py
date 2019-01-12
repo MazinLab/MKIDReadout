@@ -424,8 +424,8 @@ class Roach2Controls(object):
             # put into list
             iStreamList.append(iValues)
             qStreamList.append(qValues)
-            phaseList[:len(toneDict['phaseList']), i] = toneDict[
-                'phaseList']  # We need this if we let self.generateTones() choose random phases
+            # We need this if we let self.generateTones() choose random phases
+            phaseList[:len(toneDict['phaseList']), i] = toneDict['phaseList']
 
         self.ddsPhaseList = phaseList
         self.ddsIStreamsList = iStreamList
