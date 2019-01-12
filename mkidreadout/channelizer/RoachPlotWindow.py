@@ -711,19 +711,31 @@ class RoachSweepWindow(QMainWindow):
 
         newFreqs = np.copy(data['freqList'][channels])
 
+        getLogger(__name__).debug("channels: {}".format(channels) +
+                                  "data['freqOffsets'] {}".format(data['freqOffsets']) +
+                                  "data['freqList'] {}".format(data['freqList']))
+
         for ch in np.atleast_1d(channels):
             iVals = data['I'][ch]
             qVals = data['Q'][ch]
             iqVel = np.sqrt(np.diff(iVals) ** 2 + np.diff(qVals) ** 2)
             freq = np.arange(iqVel.size)#data['freqList'][ch] + data['freqOffsets']
 
-            filt_vel = scipy.signal.medfilt(iqVel, kernel_size=filt_wid)
-            peakloc = skimage.feature.peak_local_max(filt_vel, min_distance=peaksep, threshold_rel=thresh_rel,
-                                                     exclude_border=True, indices=True, num_peaks=np.inf)
-            com = scipy.integrate.trapz(filt_vel * freq[:-1]) / scipy.integrate.trapz(filt_vel)
+            getLogger(__name__).debug('ivals: {}'.format(iVals.shape) +
+                                      'qvals: {}'.format(iVals.shape) +
+                                      'iqvel: {}'.format(iqVel.shape) +
+                                      "data['freqList'][ch]: {}".format(data['freqList'][ch].shape) +
+                                      'freq:  {}'.format(freq.shape))
+            try:
+                filt_vel = scipy.signal.medfilt(iqVel, kernel_size=filt_wid)
+                peakloc = skimage.feature.peak_local_max(filt_vel, min_distance=peaksep, threshold_rel=thresh_rel,
+                                                         exclude_border=True, indices=True, num_peaks=np.inf)
+                com = scipy.integrate.trapz(filt_vel * freq[:-1]) / scipy.integrate.trapz(filt_vel)
 
-            ndx = np.abs(freq[:-1][peakloc] - com).argmin()
-            newFreqs[ch] += data['freqOffsets'][peakloc[ndx]]
+                ndx = np.abs(freq[:-1][peakloc] - com).argmin()
+                newFreqs[ch] += data['freqOffsets'][peakloc[ndx]]
+            except Exception:
+                getLogger(__name__).error('Unable to snap {}'.format(ch), exc_info=True)
 
         if plot:
             cv = FigureCanvas(Figure(figsize=(5, 3)))
