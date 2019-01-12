@@ -98,6 +98,7 @@ import mkidcore.corelog
 from mkidreadout.configuration import sweepdata
 #from mkidreadout.channelizer.Roach2Utils import cy_generateTones
 
+
 class Roach2Controls(object):
     def __init__(self, ip, paramFile='', feedline=1, range='a', num=112, verbose=False, debug=False,
                  freqListFile=''):
@@ -126,8 +127,9 @@ class Roach2Controls(object):
         if debug and not os.path.exists(self.params['debugDir']):
             os.makedirs(self.params['debugDir'])
 
-        if self.verbose:
-            getLogger(__name__).setLevel(mkidcore.corelog.DEBUG)
+        #TODO Figure out
+        # if self.verbose:
+        #     getLogger(__name__).setLevel(mkidcore.corelog.DEBUG)
 
         # Some more parameters
         self.freqPadValue = -1  # pad frequency lists so that we have a multiple of number of streams
@@ -630,11 +632,10 @@ class Roach2Controls(object):
 
             iqList = iqList.astype(np.int16)
             toWriteStr = struct.pack('<{}{}'.format(len(iqList), 'h'), *iqList)
-            if self.verbose:
-                # getLogger(__name__).info('To Write Str Length: ', str(len(toWriteStr)))
-                # getLogger(__name__).info(iqList.dtype)
-                # getLogger(__name__).info(iqList)
-                getLogger(__name__).info('bram dump #' + str(i))
+            # getLogger(__name__).info('To Write Str Length: ', str(len(toWriteStr)))
+            # getLogger(__name__).info(iqList.dtype)
+            # getLogger(__name__).info(iqList)
+            getLogger(__name__).debug('bram dump #' + str(i))
             while sending_data:
                 sending_data = self.fpga.read_int(self.params['lutDumpBusy_reg'])
             self.fpga.blindwrite(self.params['lutBramAddr_reg'], toWriteStr)
