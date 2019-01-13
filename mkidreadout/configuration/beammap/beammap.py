@@ -6,6 +6,7 @@ import glob
 from mkidreadout.instruments import DEFAULT_ARRAY_SIZES
 import mkidcore.config
 import os
+from mkidcore.corelog import getLogger
 
 
 class _BeamDict(dict):
@@ -101,6 +102,7 @@ class Beammap(object):
         Loads beammap data from filename
         """
         self.file = filename
+        getLogger(__name__).debug('Reading {}'.format(self.file))
         self.resIDs, self.flags, self.xCoords, self.yCoords = np.loadtxt(filename, unpack=True)
 
     def loadFrequencies(self, filepath):

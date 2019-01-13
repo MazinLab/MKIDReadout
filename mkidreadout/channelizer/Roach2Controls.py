@@ -2167,34 +2167,33 @@ class Roach2Controls(object):
             if not freqListFile:
                 raise RuntimeError('A freqListFile is required')
         elif freqListFile:
-            getLogger(__name__).debug('Replaced freqListFile from init with %s', freqListFile)
+            getLogger(__name__).warning('Replaced freqListFile from init with %s', freqListFile)
 
         if freqListFile:
             self.freqListFile = freqListFile
 
-        getLogger(__name__).debug('Loading frequencies from %s', freqListFile)
+        getLogger(__name__).info('Loading frequencies from %s', freqListFile)
         try:
             sd = sweepdata.SweepMetadata(file=self.freqListFile)
-            resID_roach, freqs, attens = sd.templar_data(self.LOFreq)
-        except IOError as e:
-            getLogger(__name__).error('unable to load freqs {}'.format(os.path.isfile(freqListFile)),exc_info=True)
+            resID_roach, freqs, attens = sd.templar_data(self.LOFreq) #TODO feed in the range for this roach self.range
+        except IOError:
+            getLogger(__name__).error('unable to load freqs {}'.format(os.path.isfile(freqListFile)), exc_info=True)
             raise
 
-        self.generateResonatorChannels(freqs)
-        freqCh_roach = np.arange(0, len(resID_roach))
+        freqCh_roach = np.arange(len(resID_roach))
         freqCh = np.ones(len(beammap.resIDs)) * -2
         for rID, fCh in zip(resID_roach, freqCh_roach):
             freqCh[beammap.resIDs == rID] = fCh
-        # End code brought out of dashboard
 
+        self.generateResonatorChannels(freqs)
         allStreamChannels, allStreams = self.getStreamChannelFromFreqChannel()
         for stream in np.unique(allStreams):
-            streamChannels = allStreamChannels[np.where(allStreams == stream)]
             streamCoordBits = []
-            for streamChannel in streamChannels:
+            for streamChannel in allStreamChannels[allStreams == stream]:
                 freqChannel = self.getFreqChannelFromStreamChannel(streamChannel, stream)
                 indx = np.where(freqCh == freqChannel)[0]
                 if len(indx) == 0:
+                    getLogger(__name__).warning('Frequency channel {} for found in beammap, should not happen.'.format(freqChannel))
                     # If a resonator is being probed but isn't mentioned in the beammap file
                     # This shouldn't happen since all 10000 pixels should be in the beammap...
                     # First 20 bits are 10111111111111111111. Fake photons are 01111's. Headers have the frist 8 bits as 1's
