@@ -208,9 +208,9 @@ class SweepMetadata(object):
             #TODO vectorize!
             use = self.resIDs == r
             if attens is not None:
-                self.atten[use] = attens
+                self.atten[use] = attens[use]
             if freqs is not None:
-                self.freq[use] = freqs
+                self.freq[use] = freqs[use]
 
     def lomask(self, lo):
         return ((self.flag & ISGOOD) & (~np.isnan(self.mlfreq)) & (np.abs(self.mlfreq - lo) < LOCUT)).astype(bool)
