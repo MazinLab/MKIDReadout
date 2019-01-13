@@ -111,6 +111,8 @@ class Packetmaster(object):
 
         self.log.info('Starting packetmaster...')
 
+        self._cleanup()
+
         with tempfile.NamedTemporaryFile('w', suffix='.cfg', delete=False) as tfile:
             tfile.write(self.ramdisk + '\n')
             tfile.write('{} {}\n'.format(self.detector[1], self.detector[0])) #TODO is this column row order correct
@@ -129,6 +131,17 @@ class Packetmaster(object):
             self._pmmonitorthread.start()
         else:
             self.log.info('started. terminated with return code {}'.format(code))
+
+    def _cleanup(self):
+        try:
+            if os.path.exists(os.path.join(self.ramdisk, 'QUIT')):
+                os.remove(os.path.join(self.ramdisk, 'QUIT'))
+            if os.path.exists(os.path.join(self.ramdisk, 'START')):
+                os.remove(os.path.join(self.ramdisk, 'START'))
+            if os.path.exists(os.path.join(self.ramdisk, 'STOP')):
+                os.remove(os.path.join(self.ramdisk, 'STOP'))
+        except Exception:
+            getLogger(__name__).warning('Unable to cleanup control files',exc_info=True)
 
     def startobs(self, datadir):
         sfile = os.path.join(self.ramdisk, 'START_tmp')
