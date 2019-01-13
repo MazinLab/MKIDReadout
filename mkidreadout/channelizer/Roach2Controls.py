@@ -1653,7 +1653,7 @@ class Roach2Controls(object):
                         ch_freq = int(np.atleast_1d(ch_freqs)[np.where(np.atleast_1d(
                             ch_stream) == ch)])  # The freq channel of the resonator corresponding to ch/stream
                         toWriteStr = struct.pack('>{}{}'.format(len(firInts[ch_freq]), 'l'), *firInts[ch_freq])
-                        getLogger(__name__).info(' ch:' + str(ch_freq) + ' ch/stream: ' + str(ch) + '/' + str(stream))
+                        getLogger(__name__).debug(' ch:' + str(ch_freq) + ' ch/stream: ' + str(ch) + '/' + str(stream))
                     else:
                         toWriteStr = zeroWriteStr
                     self.fpga.blindwrite(self.params['firTapsMem_regs'][stream], toWriteStr, 0)

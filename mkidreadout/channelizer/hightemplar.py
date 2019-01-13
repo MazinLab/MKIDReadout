@@ -99,8 +99,8 @@ class HighTemplar(QMainWindow):
             window.sweepClicked.connect(partial(self.commandButtonClicked, [roach_i.num], RoachStateMachine.SWEEP))
             # window.fitClicked.connect(partial(self.commandButtonClicked, [roach_i.num] , RoachStateMachine.FIT))
             window.rotateClicked.connect(partial(self.commandButtonClicked, [roach_i.num], RoachStateMachine.ROTATE))
-            window.translateClicked.connect(
-                partial(self.commandButtonClicked, [roach_i.num], RoachStateMachine.TRANSLATE))
+            window.translateClicked.connect(partial(self.commandButtonClicked, [roach_i.num],
+                                                    RoachStateMachine.TRANSLATE))
             window.resetRoach.connect(partial(self.resetRoachState, roach_i.num))
             window.adcAttenChanged.connect(partial(self.commandButtonClicked, [roach_i.num]))
             window.dacAttenChanged.connect(partial(self.commandButtonClicked, [roach_i.num]))
@@ -108,12 +108,12 @@ class HighTemplar(QMainWindow):
         self.phaseWindows = []
         for roach_i in self.roaches:
             window = RoachPhaseStreamWindow(roach_i, self.config.roaches)
-            window.thresholdClicked.connect(
-                partial(self.commandButtonClicked, [roach_i.num], RoachStateMachine.LOADTHRESHOLD))
+            window.thresholdClicked.connect(partial(self.commandButtonClicked, [roach_i.num],
+                                                    RoachStateMachine.LOADTHRESHOLD))
             # window.phaseSnapClicked.connect(partial(self.commandButtonClicked, [roach_i.num] , RoachStateMachine.LOADTHRESHOLD+1))
             # window.phaseTimestreamClicked.connect(partial(self.commandButtonClicked, [roach_i.num] , RoachStateMachine.LOADTHRESHOLD+1))
-            window.phaseSnapClicked.connect(partial(self.commandButtonClicked, [
-                roach_i.num]))  # we don't need to loadthresholds before taking a snapshot
+            # we don't need to loadthresholds before taking a snapshot
+            window.phaseSnapClicked.connect(partial(self.commandButtonClicked, [roach_i.num]))
             window.phaseTimestreamClicked.connect(partial(self.commandButtonClicked, [roach_i.num]))
             window.resetRoach.connect(partial(self.resetRoachState, roach_i.num))
             self.phaseWindows.append(window)
@@ -125,8 +125,8 @@ class HighTemplar(QMainWindow):
             colorStatus = self.roaches[i].addCommands(RoachStateMachine.CONNECT)  # add command to roach queue
             self.colorCommandButtons(self.roachNums[i], colorStatus)  # color the command buttons appropriately
             # QtCore.QMetaObject.invokeMethod(roach, 'executeCommands', Qt.QueuedConnection)
-            self.roachThreads[
-                i].start()  # starting the thread automatically invokes the roach's executeCommand function
+            # starting the thread automatically invokes the roach's executeCommand function
+            self.roachThreads[i].start()
 
         # Also auto set DDS shift
         # for i in range(self.numRoaches):
