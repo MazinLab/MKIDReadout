@@ -734,21 +734,29 @@ class RoachSweepWindow(QMainWindow):
                 com = scipy.integrate.trapz(filt_vel * freq) / scipy.integrate.trapz(filt_vel)
 
                 ndx = np.abs(freq[peakloc] - com).argmin()
+                old = newFreqs[ch]
                 newFreqs[ch] += data['freqOffsets'][peakloc[ndx]]
+                msg = 'Snapped channel {} (rid={}) {} kHz from {} to {} Hz'
+                getLogger(__name__).info(msg.format(ch, self.roach.roachController.resIDs[ch],
+                                                    (newFreqs[ch]-old)/1024, old, newFreqs[ch]))
             except Exception:
-                getLogger(__name__).error('Unable to snap {}'.format(ch), exc_info=True)
+                getLogger(__name__).error('Unable to snap channel {}'.format(ch), exc_info=True)
 
         if plot:
             cv = FigureCanvas(Figure(figsize=(5, 3)))
             ax = cv.figure.subplots()
             ax.plot(data['freqList']/1024/1024, (data['freqList'] - newFreqs)/1024, '.')
-            ax.xlabel('Old Freq (MHz)')
-            ax.ylabel('Freq Shift (kHz)')
+            ax.set_xlabel('Old Freq (MHz)')
+            ax.set_ylabel('Freq Shift (kHz)')
             cv.show()
 
         return newFreqs
 
     def snapFreq(self, ch=None):
+
+        if isinstance(ch, bool):  #This is a hack to deal with the button state being passed
+            ch = None
+
         if ch is None:
             ch = self.spinbox_channel.value()
 
