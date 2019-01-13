@@ -100,6 +100,7 @@ class Packetmaster(object):
 
         while True:
             if not self.is_running:
+                self.log.info('Ending monitor thread, packetmaster no longer running')
                 break
             doselect()
         doselect(0)
@@ -120,10 +121,14 @@ class Packetmaster(object):
         self._process = psutil.Popen((self.binary_path, tfile.name), stdout=subprocess.PIPE,
                                      stderr=subprocess.PIPE,
                                      shell=False, cwd=None, env=None, creationflags=0)
-
-        self._pmmonitorthread = threading.Thread(target=self._monitor, name='Packetmaster IO Handler')
-        self._pmmonitorthread.daemon = True
-        self._pmmonitorthread.start()
+        code = self._process.poll()
+        if code is None:
+            self.log.info('started. Starting monitor.')
+            self._pmmonitorthread = threading.Thread(target=self._monitor, name='Packetmaster IO Handler')
+            self._pmmonitorthread.daemon = True
+            self._pmmonitorthread.start()
+        else:
+            self.log.info('started. terminated with return code {}'.format(code))
 
     def startobs(self, datadir):
         sfile = os.path.join(self.ramdisk, 'START_tmp')
