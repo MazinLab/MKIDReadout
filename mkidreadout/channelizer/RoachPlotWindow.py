@@ -1100,6 +1100,7 @@ class RoachSweepWindow(QMainWindow):
         spinbox_dacAttenStop.setSingleStep(1.)
         spinbox_dacAttenStop.setWrapping(False)
         spinbox_dacAttenStop.setCorrectionMode(QAbstractSpinBox.CorrectToNearestValue)
+        spinbox_dacAttenStop.setEnabled(False)
 
         # self.spinbox_dacAttenStart.valueChanged.connect(partial(self.changedSetting,'dacatten_start'))
         self.spinbox_dacAttenStart.valueChanged.connect(spinbox_dacAttenStop.setValue)  # Automatically change value of dac atten stop when start value changes
