@@ -711,10 +711,10 @@ class RoachSweepWindow(QMainWindow):
 
         newFreqs = np.copy(data['freqList'])
 
-        getLogger(__name__).debug("   channels: {} {}\n".format(type(channels),channels) +
-                                  "   data['freqOffsets'] {}\n   {}\n".format(type(data['I']), data['I']) +
-                                  "   data['freqOffsets'] {}\n   {}\n".format(type(data['freqOffsets']), data['freqOffsets']) +
-                                  "   data['freqList'] {}\n{}".format(type(data['freqList']), data['freqList']))
+        # getLogger(__name__).debug("   channels: {} {}\n".format(type(channels),channels) +
+        #                           "   data['freqOffsets'] {}\n   {}\n".format(type(data['I']), data['I']) +
+        #                           "   data['freqOffsets'] {}\n   {}\n".format(type(data['freqOffsets']), data['freqOffsets']) +
+        #                           "   data['freqList'] {}\n{}".format(type(data['freqList']), data['freqList']))
 
         for ch in np.atleast_1d(channels):
             iVals = data['I'][ch]
@@ -722,11 +722,11 @@ class RoachSweepWindow(QMainWindow):
             iqVel = np.sqrt(np.diff(iVals) ** 2 + np.diff(qVals) ** 2)
             freq = data['freqList'][ch] + data['freqOffsets'][:-1]
 
-            getLogger(__name__).debug('   ivals: {}\n'.format(iVals.shape) +
-                                      '   qvals: {}\n'.format(qVals.shape) +
-                                      '   iqvel: {}\n'.format(iqVel.shape) +
-                                      "   data['freqList'][ch]: {}\n".format(data['freqList'][ch]) +
-                                      '   freq:  {}'.format(freq.shape))
+            # getLogger(__name__).debug('   ivals: {}\n'.format(iVals.shape) +
+            #                           '   qvals: {}\n'.format(qVals.shape) +
+            #                           '   iqvel: {}\n'.format(iqVel.shape) +
+            #                           "   data['freqList'][ch]: {}\n".format(data['freqList'][ch]) +
+            #                           '   freq:  {}'.format(freq.shape))
             try:
                 filt_vel = scipy.signal.medfilt(iqVel, kernel_size=filt_wid)
                 peakloc = skimage.feature.peak_local_max(filt_vel, min_distance=peaksep, threshold_rel=thresh_rel,
@@ -743,11 +743,16 @@ class RoachSweepWindow(QMainWindow):
                 getLogger(__name__).error('Unable to snap channel {}'.format(ch), exc_info=True)
 
         if plot:
-            cv = FigureCanvas(Figure(figsize=(5, 3)))
+            fig = Figure(figsize=(5, 3))
+            cv = FigureCanvas(fig)
             ax = cv.figure.subplots()
-            ax.plot(data['freqList']/1024/1024, (data['freqList'] - newFreqs)/1024, '.')
+            shifts = (data['freqList'] - newFreqs)/1024
+            ax.plot(data['freqList']/1024/1024, shifts, '.',
+                    label='Shifts: {:.2f}+/-{:.2f} kHz'.format(shifts.mean(), shifts.std()))
             ax.set_xlabel('Old Freq (MHz)')
             ax.set_ylabel('Freq Shift (kHz)')
+            ax.legend(frameon=False, shadow=False)
+            fig.tight_layout()
             cv.show()
 
         return newFreqs if np.atleast_1d(channels).size > 1 else newFreqs[channels]
