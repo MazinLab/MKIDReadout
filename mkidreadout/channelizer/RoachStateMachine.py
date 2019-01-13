@@ -784,7 +784,7 @@ class RoachStateMachine(QtCore.QObject):  # Extends QObject for use with QThread
                     self.finishedCommand_Signal.emit(com, True)
                 if com == RoachStateMachine.DEFINEDACLUT:
                     dacAtten = self.config.roaches.get('r{}.dacatten_start'.format(self.num))
-                    self.roachController.generateDacComb(globalDacAtten=dacAtten)
+                    self.roachController.generateDacComb()
                     self.finishedCommand_Signal.emit(com, True)
                 if com == RoachStateMachine.SWEEP:
                     self.I_data = np.ones((len(self.roachController.freqList), 2))
