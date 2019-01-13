@@ -598,9 +598,9 @@ class RoachSweepWindow(QMainWindow):
             self.ax.plot(iOnRes[ch], qOnRes[ch], 'g.', alpha=kwargs['alpha'])
 
             # resFreq = self.roach.roachController.freqList[ch]
-            # loSpan = self.config.getfloat('Roach '+str(self.roachNum),'sweeplospan')
+            # loSpan = self.config.roaches.get('r{}.sweeplospan'.format(roachNum))
             # nSteps = len(I[ch])
-            # loStep = self.config.getfloat('Roach '+str(self.roachNum),'sweeplostep')
+            # loStep = self.config.roaches.get('r{}.sweeplostep'.format(roachNum))
             # freqs = np.linspace(resFreq-loSpan/2., resFreq+loSpan/2., nSteps)
             try:
                 # freqs = data['freqOffsets'] + self.roach.roachController.freqList[ch]
