@@ -709,7 +709,7 @@ class RoachSweepWindow(QMainWindow):
         thresh_rel = .25
         peaksep = 1
 
-        newFreqs = np.copy(data['freqList'][channels])
+        newFreqs = np.copy(data['freqList'])
 
         getLogger(__name__).debug("   channels: {} {}\n".format(type(channels),channels) +
                                   "   data['freqOffsets'] {}\n   {}\n".format(type(data['I']), data['I']) +
@@ -720,7 +720,7 @@ class RoachSweepWindow(QMainWindow):
             iVals = data['I'][ch]
             qVals = data['Q'][ch]
             iqVel = np.sqrt(np.diff(iVals) ** 2 + np.diff(qVals) ** 2)
-            freq = np.arange(iqVel.size)#data['freqList'][ch] + data['freqOffsets']
+            freq = data['freqList'][ch] + data['freqOffsets'][:-1]
 
             getLogger(__name__).debug('   ivals: {}\n'.format(iVals.shape) +
                                       '   qvals: {}\n'.format(qVals.shape) +
@@ -734,7 +734,7 @@ class RoachSweepWindow(QMainWindow):
                 com = scipy.integrate.trapz(filt_vel * freq) / scipy.integrate.trapz(filt_vel)
 
                 ndx = np.abs(freq[peakloc] - com).argmin()
-                old = newFreqs[ch]
+                old = data['freqList'][ch]
                 newFreqs[ch] += data['freqOffsets'][peakloc[ndx]]
                 msg = 'Snapped channel {} (rid={}) {} kHz from {} to {} Hz'
                 getLogger(__name__).info(msg.format(ch, self.roach.roachController.resIDs[ch],
@@ -750,7 +750,7 @@ class RoachSweepWindow(QMainWindow):
             ax.set_ylabel('Freq Shift (kHz)')
             cv.show()
 
-        return newFreqs
+        return newFreqs if np.atleast_1d(channels).size > 1 else newFreqs[channels]
 
     def snapFreq(self, ch=None):
 
@@ -760,7 +760,7 @@ class RoachSweepWindow(QMainWindow):
         if ch is None:
             ch = self.spinbox_channel.value()
 
-        newFreq = self.getBestFreqs(ch)[0]
+        newFreq = self.getBestFreqs(ch)
 
         if ch == self.spinbox_channel.value():
             self.textbox_modifyFreq.setText("%.9e" % newFreq)
