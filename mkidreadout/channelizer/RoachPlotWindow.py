@@ -711,9 +711,10 @@ class RoachSweepWindow(QMainWindow):
 
         newFreqs = np.copy(data['freqList'][channels])
 
-        getLogger(__name__).debug("channels: {}".format(channels) +
-                                  "data['freqOffsets'] {}".format(data['freqOffsets']) +
-                                  "data['freqList'] {}".format(data['freqList']))
+        getLogger(__name__).debug("   channels: {} {}\n".format(type(channels),channels) +
+                                  "   data['freqOffsets'] {}\n   {}\n".format(type(data['I']), data['I']) +
+                                  "   data['freqOffsets'] {}\n   {}\n".format(type(data['freqOffsets']), data['freqOffsets']) +
+                                  "   data['freqList'] {}\n{}".format(type(data['freqList']), data['freqList']))
 
         for ch in np.atleast_1d(channels):
             iVals = data['I'][ch]
@@ -721,18 +722,18 @@ class RoachSweepWindow(QMainWindow):
             iqVel = np.sqrt(np.diff(iVals) ** 2 + np.diff(qVals) ** 2)
             freq = np.arange(iqVel.size)#data['freqList'][ch] + data['freqOffsets']
 
-            getLogger(__name__).debug('ivals: {}'.format(iVals.shape) +
-                                      'qvals: {}'.format(iVals.shape) +
-                                      'iqvel: {}'.format(iqVel.shape) +
-                                      "data['freqList'][ch]: {}".format(data['freqList'][ch].shape) +
-                                      'freq:  {}'.format(freq.shape))
+            getLogger(__name__).debug('   ivals: {}\n'.format(iVals.shape) +
+                                      '   qvals: {}\n'.format(qVals.shape) +
+                                      '   iqvel: {}\n'.format(iqVel.shape) +
+                                      "   data['freqList'][ch]: {}\n".format(data['freqList'][ch]) +
+                                      '   freq:  {}'.format(freq.shape))
             try:
                 filt_vel = scipy.signal.medfilt(iqVel, kernel_size=filt_wid)
                 peakloc = skimage.feature.peak_local_max(filt_vel, min_distance=peaksep, threshold_rel=thresh_rel,
                                                          exclude_border=True, indices=True, num_peaks=np.inf)
-                com = scipy.integrate.trapz(filt_vel * freq[:-1]) / scipy.integrate.trapz(filt_vel)
+                com = scipy.integrate.trapz(filt_vel * freq) / scipy.integrate.trapz(filt_vel)
 
-                ndx = np.abs(freq[:-1][peakloc] - com).argmin()
+                ndx = np.abs(freq[peakloc] - com).argmin()
                 newFreqs[ch] += data['freqOffsets'][peakloc[ndx]]
             except Exception:
                 getLogger(__name__).error('Unable to snap {}'.format(ch), exc_info=True)
@@ -748,7 +749,9 @@ class RoachSweepWindow(QMainWindow):
         return newFreqs
 
     def snapFreq(self, ch=None):
-        if ch is None: ch = self.spinbox_channel.value()
+        if ch is None:
+            ch = self.spinbox_channel.value()
+
         newFreq = self.getBestFreqs(ch)[0]
 
         if ch == self.spinbox_channel.value():
