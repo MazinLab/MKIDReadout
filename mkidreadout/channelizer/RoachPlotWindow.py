@@ -863,11 +863,14 @@ class RoachSweepWindow(QMainWindow):
 
         freqFile = self.roach.roachController.tagfile(self.config.roaches.get('r{}.freqfileroot'.format(self.roachNum)),
                                                       dir=self.config.paths.data)
+        legacyFile = self.roach.roachController.tagfile(self.config.roaches.get('r{}.freqfileroot'.format(self.roachNum)),
+                                                      dir=self.config.paths.data, epilog='legacy')
         sd = sweepdata.SweepMetadata(file=freqFile)
         sd.file = '{0}_new.{1}'.format(*freqFile.rpartition('.')[::2])
         sd.update_from_roach(resIDs, freqs=freqs, attens=attens)
         getLogger(__name__).info("Saving %s", sd)
         sd.save()
+        sd.legacy_save(file=legacyFile)
 
     def changedSetting(self, settingID, setting):
         """

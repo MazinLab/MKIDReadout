@@ -111,6 +111,7 @@ class SweepMetadata(object):
                  ml_isgood_score=None, ml_isbad_score=None, file='',
                  wsatten=np.nan):
 
+        #TODO add channel, range (a|b)
         self.file = file
         self.feedline = None
 
@@ -244,16 +245,12 @@ class SweepMetadata(object):
     def templar_data(self, lo):
         aResMask = slice(None,None) #self.lomask(lo)  #TODO URGENT add range assignment to each resonator
         freq = self.freq[aResMask]
-        return self.resIDs[aResMask], freq, self.atten[aResMask]    #Do not sort or force things to be unique
-        #s = np.argsort(freq)
-        #return self.resIDs[aResMask][s], freq[s], self.atten[aResMask][s]
+        # Do not sort or force things to be unique, doing so would break the implicity channel order
+        return self.resIDs[aResMask], freq, self.atten[aResMask]
 
-    def save_templar_freqfiles(self, lo, template='ps_freqs{roach}_FL{feedline}{band}.txt'):
-        band = bandfor(lo)
-        aFile = os.path.join(os.path.dirname(self.file),
-                             template.format(roach=instruments.roachnum(self.feedline, band),
-                                             feedline=self.feedline, band=band))
-        np.savetxt(aFile, np.transpose(self.templar_data(lo)), fmt='%4i %10.9e %.2f')
+    def legacy_save(self, file=''):
+        sf = file.format(feedline=self.feedline) if file else self.file.format(feedline=self.feedline)
+        np.savetxt(sf, self.templar_data(0).T, fmt='%4i %10.9e %.2f')  #TODO remove 0 after sorting out lo issue
 
     def _vet(self):
 
@@ -305,36 +302,6 @@ class SweepMetadata(object):
         self.ml_isgood_score[self.flag & ISBAD] = 0
         self.ml_isbad_score[self.flag & ISBAD] = 1
         self._vet()
-
-
-class FreqFile(object):
-    def __init__(self, file, feedline=None, band=None, resids=None, freq=None, atten=None):
-        self.file = file
-        self.feedline = feedline
-        self.band = band
-        self.file = 'ps_freqs{roach}_FL{feedline}{band}.txt'
-
-        if resids is None:
-            self.load()
-
-        self.resIDs, self.freqs, self.attens = resids, freq, atten
-        self._coerce()
-
-    def _coerce(self):
-        assert self.resIDs.size == self.freqs.size == self.attens.size, "Frequencies in " + self.file + " must be unique."
-        assert np.unique(self.resIDs).size == self.resIDs.size, 'Resonator IDs in ' + self.file + " must be unique."
-        assert resID2fl(self.resIDs[0]) == self.feedline, 'Resonator ID/ feedline mismatch'
-        s = self.freq.argsort()
-        self.resIDs = self.resIDs[s]
-        self.freqs = self.freqs[s]
-        self.attens = self.attens[s]
-
-    def save(self):
-        np.savetxt(self.file, np.transpose([self.resIDs, self.freqs, self.attens]), fmt='%4i %10.9e %.2f')
-
-    def load(self):
-        self.resIDs, self.freqs, self.attens = np.loadtxt(self.file, unpack=True)
-        self._coerce()
 
 
 def loadold(allfile, goodfile, outfile='digWS_FL{feedline}_metadata.txt'):
