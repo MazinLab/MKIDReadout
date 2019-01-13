@@ -208,7 +208,7 @@ class SweepMetadata(object):
             #TODO vectorize!
             use = self.resIDs == r
             if attens is not None:
-                self.attens[use] = attens
+                self.atten[use] = attens
             if freqs is not None:
                 self.freq[use] = freqs
 
