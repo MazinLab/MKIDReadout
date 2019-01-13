@@ -199,15 +199,18 @@ class SweepMetadata(object):
         return np.array([self.resIDs, self.flag, self.wsfreq, self.mlfreq, self.mlatten, self.freq,
                          self.atten, self.ml_isgood_score, self.ml_isbad_score])
 
-    def update_from_roach(self, lo, freqs=None, attens=None):
-        use = self.lomask(lo, LOCUT)
+    def update_from_roach(self, resIDs, freqs=None, attens=None):
         if attens is not None:
-            self.attens[use] = attens
-            # TODO do we need a flag specifiying the source
-            assert use.sum() == attens.size
+            assert resIDs.size == attens.size
         if freqs is not None:
-            self.freq[use] = freqs
-            assert use.sum() == freqs.size
+            assert resIDs.size == freqs.size
+        for r in resIDs:
+            #TODO vectorize!
+            use = self.resIDs == r
+            if attens is not None:
+                self.attens[use] = attens
+            if freqs is not None:
+                self.freq[use] = freqs
 
     def lomask(self, lo):
         return ((self.flag & ISGOOD) & (~np.isnan(self.mlfreq)) & (np.abs(self.mlfreq - lo) < LOCUT)).astype(bool)
