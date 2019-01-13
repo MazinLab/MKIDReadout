@@ -318,7 +318,7 @@ class HighTemplar(QMainWindow):
             if self.roachThreads[roachArg].isRunning():
                 getLogger(__name__).info('Roach ' + str(roachNum) + ' is busy')
             else:
-                adcAtten = self.roaches[roachArg].config.getfloat('Roach ' + str(roachNum), 'adcatten')
+                adcAtten = self.roaches[roachArg].config.roaches.get('r{}.adcatten'.format(roachNum))
                 newAdcAtten = self.roaches[roachArg].roachController.getOptimalADCAtten(adcAtten)
                 self.sweepWindows[roachArg].updateADCAttenSpinBox(newAdcAtten)
 
