@@ -250,7 +250,8 @@ class SweepMetadata(object):
 
     def legacy_save(self, file=''):
         sf = file.format(feedline=self.feedline) if file else self.file.format(feedline=self.feedline)
-        np.savetxt(sf, self.templar_data(0).T, fmt='%4i %10.9e %.2f')  #TODO remove 0 after sorting out lo issue
+        np.savetxt(sf, np.transpose(self.templar_data(0)), fmt='%4i %10.9e %.2f')  #TODO remove 0 after sorting out
+        # lo issue
 
     def _vet(self):
 
