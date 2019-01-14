@@ -120,6 +120,7 @@ class Roach2Controls(object):
         self.ip = ip
         try:
             paramFile = paramFile if paramFile else os.path.join(os.path.dirname(__file__), 'darknessfpga.param')
+            getLogger(__name__).info('Loading params from {}'.format(paramFile))
             self.params = ReadDict(file=paramFile)
         except TypeError:
             self.params = paramFile
