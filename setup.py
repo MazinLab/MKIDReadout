@@ -51,11 +51,13 @@ def compile_and_install_software():
         print(str(e))
         raise e
 
+
 class CustomInstall(install, object):
     """Custom handler for the 'install' command."""
     def run(self):
         compile_and_install_software()
         super(CustomInstall,self).run()
+
 
 class CustomDevelop(develop, object):
     """Custom handler for the 'install' command."""
@@ -64,11 +66,12 @@ class CustomDevelop(develop, object):
         super(CustomDevelop,self).run()
 
 
-ext_module = Extension("Roach2Utils",
-                       ['./mkidreadout/channelize/Roach2Utils.pyx'],
+ext_module = Extension(name="mkidreadout.channelizer.roach2utils",
+                       sources=['mkidreadout/channelizer/roach2utils.pyx'],
                        include_dirs=[numpy.get_include()],
                        extra_compile_args=['-fopenmp'],
                        extra_link_args=['-fopenmp'])
+
 
 with open("README.md", "r") as fh:
     long_description = fh.read()
