@@ -13,7 +13,7 @@ DEFAULT_CAPTURE_PORT = 50000  #This should be whatever is hardcoded in packetmas
 @yaml_object(yaml)
 class PacketMasterConfig(object):
     _template = ('{rdsk}\n'
-                 '{nrow} {ncol}\n'
+                 '{ncol} {nrow}\n'
                  '{nuller:.0f}\n'
                  '{nroach}\n'
                  '{captureport}\n')
