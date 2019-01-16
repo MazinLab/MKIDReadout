@@ -560,9 +560,12 @@ class RoachStateMachine(QtCore.QObject):  # Extends QObject for use with QThread
         threshSig = self.config.roaches.get('r{}.numsigs_thresh'.format(self.num))
         nSnap = self.config.roaches.get('r{}.numsnaps_thresh'.format(self.num))
         thresh = []
+        modnum=int(nfreqs*nSnap/10)
         for i in range(nfreqs):
             data = []
             for k in range(nSnap):
+                if not (nfreqs*k+k) % modnum:
+                    getLogger(__name__).info("Collecting phase on channel {}/{} snap {}/{}".format(i,nfreqs,k+1, nSnap))
                 # sys.stdout.write("\rCollecting Phase on Ch: "+str(i)+" Snap "+str(k+1)+'/'+str(nSnap))
                 # sys.stdout.flush()
                 data.append(self.getPhaseFromSnap(i))

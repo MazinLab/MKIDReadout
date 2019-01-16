@@ -1679,7 +1679,7 @@ class Roach2Controls(object):
         # ch, stream = self.freqChannelToStreamChannel(freqChan)
         ch, stream = self.getStreamChannelFromFreqChannel(freqChan)
         selChanIndex = (int(stream) << 8) + int(ch)
-        getLogger(__name__).info("Taking phase snap from ch/stream: {}/{} selChanIndex:{}".format(ch, stream,
+        getLogger(__name__).debug("Taking phase snap from ch/stream: {}/{} selChanIndex:{}".format(ch, stream,
                                                                                                   selChanIndex))
         return self.takePhaseSnapshot(selChanIndex)
 
