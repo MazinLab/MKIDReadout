@@ -12,11 +12,11 @@ DEFAULT_CAPTURE_PORT = 50000  #This should be whatever is hardcoded in packetmas
 
 @yaml_object(yaml)
 class PacketMasterConfig(object):
-    _template = ('{rdsk}\n'
-                 '{ncol} {nrow}\n'
-                 '{nuller:.0f}\n'
-                 '{nroach}\n'
-                 '{captureport}\n')
+    template = ('{ramdisk}\n'
+                '{ncol:.0f} {nrow:.0f}\n'
+                '{nuller:.0f}\n'
+                '{nroach:.0f}\n'
+                '{captureport:.0f}')
 
     def __init__(self, ramdisk='/mnt/ramdisk/', nrow=80, ncol=125, nuller=False, nroach=1, captureport=DEFAULT_CAPTURE_PORT):
         self.ramdisk = ramdisk
@@ -29,7 +29,7 @@ class PacketMasterConfig(object):
 
 class Packetmaster(object):
     # TODO overall log configuration must configure for a 'packetmaster' log
-    def __init__(self, nroaches, detinfo=(100,100), nuller=False, ramdisk=None,
+    def __init__(self, nroaches, nrows=100, ncols=100, nuller=False, ramdisk=None,
                  binary='', resume=False, captureport=DEFAULT_CAPTURE_PORT, start=True):
         self.ramdisk = ramdisk
         self.nroaches = nroaches
@@ -37,7 +37,8 @@ class Packetmaster(object):
             self.binary_path = binary
         else:
             self.binary_path = os.path.join(os.path.dirname(__file__), 'packetmaster', 'packetmaster')
-        self.detector = detinfo
+        self.nrows = nrows
+        self.ncols = ncols
         self.captureport = captureport
         self.nuller = nuller
         self.log = getLogger(__name__)
@@ -114,11 +115,10 @@ class Packetmaster(object):
         self._cleanup()
 
         with tempfile.NamedTemporaryFile('w', suffix='.cfg', delete=False) as tfile:
-            tfile.write(self.ramdisk + '\n')
-            tfile.write('{} {}\n'.format(self.detector[1], self.detector[0])) #TODO is this column row order correct
-            tfile.write(str(int(self.nuller)) + '\n')
-            tfile.write(str(self.nroaches) + '\n')
-            tfile.write(str(self.captureport))
+            s = PacketMasterConfig.template.format(ramdisk=self.ramdisk, nrow=self.nrows,
+                                                   ncol=self.ncols, nuller=self.nuller,
+                                                   nroach=self.nroaches, captureport=self.captureport)
+            tfile.write(s)
 
         self._process = psutil.Popen((self.binary_path, tfile.name), stdout=subprocess.PIPE,
                                      stderr=subprocess.PIPE,
