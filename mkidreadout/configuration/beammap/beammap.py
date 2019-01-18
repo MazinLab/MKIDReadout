@@ -5,6 +5,18 @@ import copy
 import glob
 from mkidreadout.instruments import DEFAULT_ARRAY_SIZES
 import mkidcore.config
+import os
+from mkidcore.corelog import getLogger
+
+
+class _BeamDict(dict):
+    def __missing__(self, key):
+        bfile = os.path.join(os.path.dirname(__file__), key.lower()+'.bmap')
+        self[key] = bfile
+        return bfile
+
+
+DEFAULT_BMAP_CFGFILES = _BeamDict()
 
 
 class Beammap(object):
@@ -30,7 +42,13 @@ class Beammap(object):
                         default beammap.
                     If instance of Beammap, creates a copy
         """
-        self.file = ''
+        self.file = file
+        self.resIDs = None
+        self.flags = None
+        self.xCoords = None
+        self.yCoords = None
+        self.frequencies = None
+
         if file is not None:
             self._load(file)
             try:
@@ -84,6 +102,7 @@ class Beammap(object):
         Loads beammap data from filename
         """
         self.file = filename
+        getLogger(__name__).debug('Reading {}'.format(self.file))
         self.resIDs, self.flags, self.xCoords, self.yCoords = np.loadtxt(filename, unpack=True)
 
     def loadFrequencies(self, filepath):
@@ -117,12 +136,12 @@ class Beammap(object):
         """
         return copy.deepcopy(self)
 
-    def getResonatorsAtCoordinate(self, xCoordinate, yCoordinate):
-        indices = np.where((np.floor(self.xCoords) == xCoordinate) & (np.floor(self.yCoords) == yCoordinate))[0]
-        resonators = []
-        for idx in indices:
-            resonators.append(self.getResonatorData(self.resIDs[idx]))
-        return np.array(resonators)
+    def resIDat(self, x, y):
+        return self.resIDs[(np.floor(self.xCoords) == x) & (np.floor(self.yCoords) == y)]
+
+    def getResonatorsAtCoordinate(self, x, y):
+        resonators = [self.getResonatorData(r) for r in  self.resIDat(x,y)]
+        return resonators
 
     def get(self, attribute='', flNum=None):
         """
@@ -164,14 +183,39 @@ class Beammap(object):
             raise Exception('This is not a valid Beammap attribute')
 
     def getResonatorData(self, resID):
-        index = np.where(self.resIDs == resID)[0][0]
+        index = np.where(self.resIDs == resID)[0][0]  #TODO Noah don't use where!
         resonator = [int(self.resIDs[index]), int(self.flags[index]), int(self.xCoords[index]), int(self.yCoords[index]),
-                          float(self.frequencies[index])]
+                     float(self.frequencies[index])]
         return resonator
 
     def beammapDict(self):
         return {'resID': self.resIDs, 'freqCh': self.freqs, 'xCoord': self.xCoords,
                 'yCoord': self.yCoords, 'flag': self.flags}
+
+    @property
+    def failmask(self):
+        mask = np.ones((self.nrows, self.ncols), dtype=bool)
+        use = (self.yCoords.astype(int) < self.nrows) & (self.xCoords.astype(int) < self.ncols)
+        mask[self.yCoords[use].astype(int), self.xCoords[use].astype(int)] = self.flags[use] != 0
+        return mask
+
+    @property
+    def residmap(self):
+        map = np.zeros((self.ncols, self.nrows), dtype=self.resIDs.dtype)
+        use = (self.yCoords.astype(int) < self.nrows) & (self.xCoords.astype(int) < self.ncols)
+        map[self.xCoords[use].astype(int), self.yCoords[use].astype(int)] = self.resIDs
+        return map
+
+    @property
+    def flagmap(self):
+        map = np.zeros((self.ncols, self.nrows), dtype=self.flags.dtype)
+        use = (self.yCoords.astype(int) < self.nrows) & (self.xCoords.astype(int) < self.ncols)
+        map[self.xCoords[use].astype(int), self.yCoords[use].astype(int)] = self.flags
+        return map
+
+    def __str__(self):
+        return 'File: "{}"\nWell Mapped: {}'.format(self.file, self.nrows * self.ncols - (self.flags!=0).sum())
+
 
 
 mkidcore.config.yaml.register_class(Beammap)

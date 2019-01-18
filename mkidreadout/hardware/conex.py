@@ -12,29 +12,28 @@ from mkidcore.corelog import getLogger
 from threading import RLock, Thread
 import itertools
 import argparse
-from flask import Flask, jsonify, abort, make_response
 from flask_restful import Api, Resource, reqparse, fields, marshal
+import requests
 
-import requests, json
+
+TIMEOUT = 2.25
+CONEX_PORT = 50001
+
 
 # from flask_httpauth import HTTPBasicAuth
-
-app = Flask(__name__, static_url_path="")
-api = Api(app)
 # auth = HTTPBasicAuth()
-
-
+#
 # @auth.get_password
-def get_password(username):
-    if username == 'mec':
-        return 'python'
-    return None
-
-
+# def get_password(username):
+#     if username == 'mec':
+#         return 'python'
+#     return None
+#
+#
 # @auth.error_handler
-def unauthorized():
-    # return 403 instead of 401 to prevent browsers from displaying the default auth dialog
-    return make_response(jsonify({'message': 'Unauthorized access'}), 403)
+# def unauthorized():
+#     # return 403 instead of 401 to prevent browsers from displaying the default auth dialog
+#     return make_response(jsonify({'message': 'Unauthorized access'}), 403)
 
 
 dither_fields = {
@@ -48,10 +47,12 @@ dither_fields = {
 dither_path_fields = {'path': fields.List(fields.List(fields.Float)), 'dither':fields.String,
                    'start': fields.List(fields.Float), 'end': fields.List(fields.Float)}
 conex_fields = {
-    'status': fields.String,
+    'conexstatus': fields.String,
     'xpos': fields.Float,
     'ypos': fields.Float,
     'state': fields.String,
+    'limits': fields.Nested({'umin': fields.Float, 'umax': fields.Float,
+                             'vmin': fields.Float, 'vmax': fields.Float}),
     'last_dither': fields.Nested({'path': fields.List(fields.List(fields.Float)),
                                   'dither': fields.String,
                                   'start': fields.List(fields.Float),
@@ -66,29 +67,70 @@ class Conex(object):
         self._rlock = RLock()
         # Generally 1. This is for when you daisy chain multiple conex stages together
         self.ctrlN = controllerNum
-        self._device = serial.Serial(port=port, baudrate=baudrate, bytesize=bytesize,
-                                     stopbits=stopbits, timeout=timeout, xonxoff=xonxoff)
-        time.sleep(0.1)  # wait for port to open
 
-        self.u_lowerLimit = float(self.query('SLU?')[4:-2])
-        self.v_lowerLimit = float(self.query('SLV?')[4:-2])
-        self.u_upperLimit = float(self.query('SRU?')[4:-2])
-        self.v_upperLimit = float(self.query('SRV?')[4:-2])
+        self.port = port
+        self.baudrate = baudrate
+        self.bytesize = bytesize
+        self.stopbits = stopbits
+        self.timeout = timeout
+        self.xonxoff = xonxoff
+        self.u_lowerLimit = -np.inf
+        self.v_lowerLimit = -np.inf
+        self.u_upperLimit = np.inf
+        self.v_upperLimit = np.inf
+
+        self._started = 0
+        try:
+            self._init()
+        except serial.SerialException:
+            pass
+
+    def _init(self):
+        try:
+            self._device = serial.Serial(port=self.port, baudrate=self.baudrate, bytesize=self.bytesize,
+                                         stopbits=self.stopbits, timeout=self.timeout, xonxoff=self.xonxoff)
+            self._started = 1
+            time.sleep(0.1)  # wait for port to open
+            self.write('ID?')
+            self.status
+
+            try:
+                q = [self.query(q) for q in ('SLU?','SLV?','SRU?','SRV?')]
+                f = lambda x: float(x[4:-2])
+                self.u_lowerLimit = f(q[0])
+                self.v_lowerLimit = f(q[1])
+                self.u_upperLimit = f(q[2])
+                self.v_upperLimit = f(q[3])
+            except ValueError:
+                raise
+            self.close()
+        except serial.SerialException:
+            getLogger('conex').debug("Could not connect to Conex Mount", exc_info=True)
+            raise
 
         getLogger('conex').debug("Connected to Conex Mount")
+        self._started = 2
 
     def close(self):
         self._device.close()
 
     def open(self):
+        if not self._started:
+            self._init()
+        if self._started==1:
+            return
+        if self._device.is_open:
+            return
         self._device.open()
+        self._device.write('*IDN?\r\n'.encode())
+        self.read()
 
     @property
     def status(self):
         status = self.query('TS')
         getLogger('conex').debug("Status: " + status[7:-2])
         getLogger('conex').debug("Err State: " + status[3:-4])
-        return status
+        return status.strip()
 
     def write(self, command):
         """
@@ -102,7 +144,8 @@ class Conex(object):
             command - The two letter ascii command (CC above)
         """
         with self._rlock:
-            self._device.write('{}{}\r\n'.format(self.ctrlN, command))
+            self.open()
+            self._device.write('{}{}\r\n'.format(self.ctrlN, command).encode())
 
     def read(self, bufferSize=1):
         """
@@ -115,25 +158,33 @@ class Conex(object):
             bufferSize = abs(bufferSize)
             if not bufferSize:
                 return ''
-            ret = self._device.read(bufferSize)
+            ret = new = self._device.read(bufferSize).decode()
             if not ret:
                 return ret
-            while ret[-2:] != '\r\n':
-                ret += self._device.read(self._device.in_waiting)
+            while ret[-2:]  != '\r\n':
+                #getLogger('conex').debug('Got "{}"'.format(new))
+                new = self._device.read(self._device.in_waiting).decode()
+                ret += new
             return ret
 
-    def query(self, command, bufferSize=0):
+    def query(self, command, bufferSize=1):
         """
         Send an ascii command to the conex controller
         Read the output
         """
         with self._rlock:
+            self.open()
             self._device.reset_output_buffer()  # abandon any command it's currently sending
             self._device.reset_input_buffer()  # clear the input buffer
             self.write(command)
             self._device.flush()  # wait for command to finish writing
             return self.read(bufferSize)
 
+    @property
+    def limits(self):
+        return dict(umin=self.u_lowerLimit, vmin=self.v_lowerLimit,
+                    umax=self.u_upperLimit, vmax=self.v_upperLimit)
+    
     def ready(self):
         """
         Checks the status of the conex
@@ -324,16 +375,54 @@ class ConexDummy(object):
 
 
 class ConexStatus(object):
-    def __init__(self, state='offline', pos=(np.NaN, np.NaN), status='', dither=None):
+    def __init__(self, state='offline', pos=(np.NaN, np.NaN), conexstatus='',
+                 dither=None, limits=None):
+        """
+            state is a ConexManager state : 'idle' 'offline' 'processing' 'stopped/stopping'
+                                         'moving to {}, {}'
+                                         'move to {:.2f}, {:.2f} failed'
+            pos is the (x,y) pos (nan nan) if issues
+            limits are the conex limits (a dict umin umax vmin vmax)
+            dither is a dither result or None
+            conexstatus is the conex result of TS or ''
+        """
         self.state = state
         self.pos = pos
-        self.status = status
+        self.conexstatus = conexstatus
         self.last_dither = dither
+        self.limits = limits
 
-    def print(self):
+    def __eq__(self, o):
+        return (self.state == o.state and self.pos == o.pos and self.conexstatus == o.conexstatus and
+                self.limits == o.limits and self.last_dither == o.last_dither)
+
+    @property
+    def xpos(self):
+        return self.pos[0]
+
+    @property
+    def ypos(self):
+        return self.pos[1]
+
+    @property
+    def running(self):
+        return 'moving' in self.state or 'processing' in self.state or 'dithering' in self.state
+
+    @property
+    def haserrors(self):
+        return 'error' in self.state
+
+    @property
+    def offline(self):
+        return 'offline' in self.state
+
+    def __str__(self):
+        return self.state
+
+    def show(self):
         print(self.state)
         print(self.pos)
-        print(self.status)
+        print(self.conexstatus)
         print(str(self.last_dither))
 
 
@@ -345,7 +434,11 @@ class DitherPath(object):
         self.path = path
 
     def __str__(self):
-        return '\n'.join(map(str, (self.dither, self.start, self.end, self.path)))
+        strs = map(str, (self.dither, self.start, self.end, self.path))
+        return '{}\n  starts={}\n  ends={}\n  path={}\n'.format(*strs)
+
+    def __eq__(self, o):
+        return self.dither == o.dither and self.start == o.start and self.end == o.end and self.path == o.path
 
 
 class Dither(object):
@@ -364,7 +457,7 @@ class Dither(object):
 
 class ConexManager(object):
     def __init__(self, port):
-        self.conex = ConexDummy(port=port)
+        self.conex = Conex(port=port)
         self._dither_result = None
         self._active_dither = None
         self._movement_thread = None
@@ -372,32 +465,48 @@ class ConexManager(object):
         self.state = 'idle'
 
     def status(self):
+        """
+        returns a conex status object:
+            state is a ConexManager state : 'idle' 'offline' 'processing' 'stopped/stopping'
+                                         'moving to {}, {}'
+                                         'move to {:.2f}, {:.2f} failed'
+            pos is the (x,y) pos (nan nan) if issues
+            limits are the conex limits (a dict umin umax vmin vmax)
+            dither is a dither result or None
+            conexstatus is the conex result of TS or ''
+        """
         status = ''
         pos = (np.NaN, np.NaN)
         try:
             status = self.conex.status
             pos = self.conex.position()
-        except IOError:
-            getLogger('ConexManager').error('Unable to get conex status',exec_info=True)
+            getLogger('ConexManager').debug("Conex: {} @ pos {}".format(status,pos))
+        except (IOError, serial.SerialException):
+            getLogger('ConexManager').error('Unable to get conex status', exc_info=True)
             self._halt = True
             self.state = 'offline'
-        return ConexStatus(state=self.state, pos=pos, status=status,
-                           dither=self._dither_result)
+        return ConexStatus(state=self.state, pos=pos, conexstatus=status,
+                           dither=self._dither_result, limits=self.conex.limits)
 
     def start_dither(self, id):
         """id is either a key into dithers or a dictionary for creating a dither """
         self.state = 'processing'
-        dither = dithers[id] if id in dithers else Dither(**id)
+        try:
+            dither = dithers[id]
+        except:
+            dither = Dither(start=(id['startx'], id['starty']), 
+                            end=(id['endx'],id['endy']), nSteps=id['n'], intTime=id['t'])
         self.stop(wait=True)
         self._movement_thread = Thread(target=self.dither, args=(dither,), name=str(dither))
         self._movement_thread.daemon = True
         self._movement_thread.start()
         return self.status()
 
-    def start_move(self, (x, y)):
+    def start_move(self, x, y):
         self.state = 'processing'
+        getLogger('ConexManager').error("Starting move to {:.2f}, {:.2f}".format(x,y))
         self.stop(wait=True)
-        self._movement_thread = Thread(target=self.move, args=((x, y),),
+        self._movement_thread = Thread(target=self.move, args=(x, y,),
                                        name='Move to ({}, {})'.format(x,y))
         self._movement_thread.daemon = True
         self._movement_thread.start()
@@ -408,17 +517,18 @@ class ConexManager(object):
         self._halt = True
         if wait and self._movement_thread is not None:
             self._movement_thread.join()
-        self.state = 'stopped/stopping'
+        self.state = 'stopped'
 
-    def move(self, (x, y)):
+    def move(self, x, y):
         self.state = 'moving to {:.2f}, {:.2f}'.format(x, y)
         try:
             self.conex.move((x, y))
             self.wait_on_conex()
+            self.state = 'idle'
             return True
-        except IOError as e:
-            self.state = 'move to {:.2f}, {:.2f} failed'.format(x, y)
-            getLogger('ConexManager').error('Error on move', exec_info=True)
+        except (IOError, serial.SerialException) as e:
+            self.state = 'error: move to {:.2f}, {:.2f} failed'.format(x, y)
+            getLogger('ConexManager').error('Error on move', exc_info=True)
             return False
 
     def dither(self, dither, return_to_start=False):
@@ -436,7 +546,7 @@ class ConexManager(object):
         """
         self._active_dither = dither
         self._halt = False
-        self.state = 'dithering: {}'.format(str(dither))
+        self.state = 'dithering: ({}) {}'.format(self.conex.position(), str(dither))
         estOverhead = 35. / 25.
         runtime = dither.nSteps ** 2. * (dither.intTime + estOverhead)
         getLogger('DitherManager').info("Est Time: {:.1f} s".format(runtime))
@@ -455,12 +565,15 @@ class ConexManager(object):
             for x, y in itertools.product(x_list, y_list):
 
                 if not self._move((x,y)):
+                    self._dither_result = DitherPath(dither, startTimes, endTimes, pos)
                     return False
 
                 startTimes.append(time.time())
                 u, v = self.conex.position()
 
-                pos.append((u,v))
+                pos.append((u, v))
+                self.state = 'dithering: ({}) {}'.format((u, v), str(dither))
+                
                 getLogger('ConexManager').info('({}, {}) -> ({}, {})'.format(x, y, u, v))
 
                 intTime = dither.intTime - (time.time()-startTimes[-1])
@@ -484,8 +597,8 @@ class ConexManager(object):
             self.state = 'idle'
             return True
 
-        except IOError as e:
-            getLogger('ConexManager').error("Dither failed ", exec_info=True)
+        except (IOError, serial.SerialException) as e:
+            getLogger('ConexManager').error("Dither failed ", exc_info=True)
             #TODO do we kill the conex object here?
             self.state = self.state = 'dither {} failed'.format(str(dither))
             return False
@@ -502,6 +615,7 @@ class ConexManager(object):
         return True
 
     def wait_on_conex(self, timeout=15):
+        """wait until conex in position, timeout or _halt gets set"""
         movestart = time.time()
         while not self.conex.ready():
             if self._halt:
@@ -524,9 +638,9 @@ class MoveAPI(Resource):
 
     def __init__(self):
         self.reqparse = reqparse.RequestParser()
-        self.reqparse.add_argument('x', type=int, required=True,
+        self.reqparse.add_argument('x', type=float, required=True,
                                    help='Desired X position', location='json')
-        self.reqparse.add_argument('y', type=int, required=True,
+        self.reqparse.add_argument('y', type=float, required=True,
                                    help='Desired Y position', location='json')
         super(MoveAPI, self).__init__()
 
@@ -535,7 +649,8 @@ class MoveAPI(Resource):
 
     def post(self):
         args = self.reqparse.parse_args()
-        conex_manager.start_move((args.x, args.y))
+        getLogger('ConexAPI').debug('API request to move to {:.2f}, {:.2f}'.format(args.x,args.y))
+        conex_manager.start_move(args.x, args.y)
         return self.get(), 201
 
 
@@ -550,7 +665,7 @@ class ConexAPI(Resource):
 
     def get(self):
         stat = conex_manager.status()
-        stat.print()
+        stat.show()
         return marshal(stat, conex_fields)
 
     def post(self):
@@ -570,12 +685,12 @@ class DitherAPI(Resource):
         self.reqparse.add_argument('dither', type=dict, required=False, location='json')
 
         self.dither_parser = reqparse.RequestParser()
-        self.dither_parser.add_argument('startx', type=int, required=True, location='dither')
-        self.dither_parser.add_argument('starty', type=int, required=True, location='dither')
+        self.dither_parser.add_argument('startx', type=float, required=True, location='dither')
+        self.dither_parser.add_argument('starty', type=float, required=True, location='dither')
         self.dither_parser.add_argument('n', type=check_positive, required=True, location='dither')
         self.dither_parser.add_argument('t', type=check_positive, required=True, location='dither')
-        self.dither_parser.add_argument('endx', type=int, required=True, location='dither')
-        self.dither_parser.add_argument('endy', type=int, required=True, location='dither')
+        self.dither_parser.add_argument('endx', type=float, required=True, location='dither')
+        self.dither_parser.add_argument('endy', type=float, required=True, location='dither')
         super(DitherAPI, self).__init__()
 
     def get(self):
@@ -584,8 +699,10 @@ class DitherAPI(Resource):
     def post(self):
         self.reqparse.args[0].choices = dithers.keys()
         args = self.reqparse.parse_args()
+        getLogger(__name__).debug('Got {}'.format(args))
         if args.dither is not None:
-            dither = self.dither_parser.parse_args(req=args)
+            dither = dict(self.dither_parser.parse_args(req=args))
+            getLogger(__name__).debug('Got a custom dither {}'.format(dither))
         else:
             dither = args.id
 
@@ -598,47 +715,89 @@ class DitherAPI(Resource):
 dithers = {"0": Dither()}
 
 
-def dither(id='default', start=None, end=None, n=1, t=1, address='localhost:50000'):
-    """ Do a Dither by ID or full settings. Uses full settings if start is not None """
+def dither(id='default', start=None, end=None, n=1, t=1, address='http://localhost:50001', timeout=TIMEOUT):
+    """ Do a Dither by ID or full settings. Uses full settings if start is not None
+    returns a requests result object
+    """
     if start is not None:
-        req = {'startx': start[0], 'starty': start[1], 'endx': end[0], 'endy': end[1],
-               'n': n, 't': t}
+        req = {'dither': {'startx': start[0], 'starty': start[1], 'endx': end[0], 'endy': end[1],
+               'n': n, 't': t}}
     else:
         req = {'id': id}
-    r = requests.post(address+'/dither/', json=req)
+    try:
+        r = requests.post(address+'/dither', json=req, timeout=timeout)
+        if r.status_code == 400:
+            return ConexStatus(state='error: "{}"'.format(r.json()))
+        j = r.json()
+        ret = ConexStatus(state=j['state'], pos=(j['xpos'], j['ypos']), conexstatus=j['conexstatus'],
+                          dither=DitherPath(j['last_dither']['dither'], j['last_dither']['start'],
+                                            j['last_dither']['end'], j['last_dither']['path']))
+    except requests.ConnectionError:
+        ret = ConexStatus(state='error: unable to connect')
+    except ValueError:
+        getLogger(__name__).error('Got "{}" from request ({})'.format(r.text, r.status_code), exc_info=True)
+        ret = ConexStatus(state='error: malformed content "{}"'.format(r.text))
+    return ret
 
 
-def move((x,y), address='localhost:50000'):
-    r = requests.post(address+'/move/', json={'x': x, 'y': y})
+def move(x, y, address='http://localhost:50001', timeout=TIMEOUT):
+    try:
+        r = requests.post(address+'/move', json={'x': x, 'y': y}, timeout=timeout)
+        if r.status_code == 400:
+            return ConexStatus(state='error: "{}"'.format(r.json()))
+        j = r.json()
+        ret = ConexStatus(state=j['state'], pos=(j['xpos'],j['ypos']), conexstatus=j['conexstatus'],
+                          dither=DitherPath(j['last_dither']['dither'], j['last_dither']['start'],
+                                            j['last_dither']['end'], j['last_dither']['path']))
+    except requests.ConnectionError:
+        ret = ConexStatus(state='error: unable to connect')
+    except ValueError:
+        getLogger(__name__).error('Got "{}" from request ({})'.format(r.text, r.status_code), exc_info=True)
+        ret = ConexStatus(state='error: malformed content "{}"'.format(r.text))
+    return ret
 
 
-def status(address='localhost:50000'):
-    r = requests.get(address + '/conex/')
-    j = r.json()
-    ret=ConexStatus(state=j['state'], pos=(j['xpos'],j['ypos']), status=j['status'],
-                    dither=DitherPath(j['last_dither']['dither'], j['last_dither']['start'],
-                                      j['last_dither']['end'], j['path']))
+def status(address='http://localhost:50001', timeout=TIMEOUT):
+    try:
+        getLogger(__name__).debug('Request status from {} w/ t/o {}'.format(address, timeout))
+        r = requests.get(address + '/conex', timeout=timeout)
+        j = r.json()
+        ret = ConexStatus(state=j['state'], pos=(j['xpos'],j['ypos']), conexstatus=j['conexstatus'],
+                          dither=DitherPath(j['last_dither']['dither'], j['last_dither']['start'],
+                                            j['last_dither']['end'], j['last_dither']['path']))
+    except requests.ConnectionError:
+        ret = ConexStatus(state='error: unable to connect')
+    except ValueError:
+        ret = ConexStatus(state='error: malformed content "{}"'.format(r.text))
+        getLogger(__name__).error('Got "{}" from request ({})'.format(r.text, r.status_code), exc_info=True)
+    return ret
+
+
+def stop(address='http://localhost:50001', timeout=TIMEOUT):
+    try:
+        r = requests.post(address + '/conex', json={'command': 'stop'}, timeout=timeout)
+        if r.status_code == 400:
+            return ConexStatus(state='error: "{}"'.format(r.json()))
+        j = r.json()
+        ret = ConexStatus(state=j['state'], pos=(j['xpos'], j['ypos']), conexstatus=j['conexstatus'],
+                          dither=DitherPath(j['last_dither']['dither'], j['last_dither']['start'],
+                                            j['last_dither']['end'], j['last_dither']['path']))
+    except requests.ConnectionError:
+        ret = ConexStatus(state='error: unable to connect')
+    except ValueError:
+        getLogger(__name__).error('Got "{}" from request ({})'.format(r.txt, r.status_code), exc_info=True)
+        ret = ConexStatus(state='error: malformed content "{}"'.format(r.text))
     return ret
 
 
 if __name__=='__main__':
+    from flask import Flask, jsonify, make_response
+
+    app = Flask(__name__, static_url_path="")
+    api = Api(app)
     api.add_resource(MoveAPI, '/move', endpoint='move')
     api.add_resource(DitherAPI, '/dither', endpoint='dither')
     api.add_resource(ConexAPI, '/conex', endpoint='conex')
 
-    conex_manager = ConexManager(port='foo')
-    app.run(debug=True)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+    conex_manager = ConexManager(port='COM9')
+    app.run(host='0.0.0.0', debug=True, port=CONEX_PORT)

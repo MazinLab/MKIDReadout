@@ -28,7 +28,7 @@ import math
 from mkidreadout.configuration.powersweep.ml.PSFitMLData import *
 from mkidreadout.configuration.powersweep.psmldata import *
 np.set_printoptions(threshold=np.inf)
-import mkidreadout.configuration.powersweep.ml.PSFitMLTools as mlt
+import mkidreadout.configuration.powersweep.ml.tools as mlt
 
 #removes visible depreciation warnings from lib.iqsweep
 import warnings
@@ -48,50 +48,7 @@ class mlClassification():
         self.trainFrac = self.mlDict['trainFrac']
         self.testFrac = 1-self.trainFrac
 
-        #self.initialFile = initialFile
-        #self.baseFile = ('.').join(initialFile.split('.')[:-1])
-        #self.PSFile = self.baseFile[:-16] + '.txt'#os.environ['MKID_DATA_DIR']+'20160712/ps_FL1_1.txt' # power sweep fit, .txt 
-        #self.mldir = './machine_learning_metadata/' 
-
-        #self.trainFile = 'ps_peaks_train_faceless_lf_img_cube_normed.pkl'
-        #print self.trainFile
-        #self.trainFrac = 0.9
-        #self.testFrac=1 - self.trainFrac
-        
-        #if not inferenceFile is None:
-        #    print 'Inference File:', inferenceFile
-        #    self.inferenceData = PSFitMLData(h5File = inferenceFile, useAllAttens = False, useResID=True)
-
-
     def makeTrainData(self):                
-        '''creates 1d arrays using makeWindowImage of each class with associated labels and saves to pkl file
-
-        0: saturated peak, too much power
-        1: goldilocks, not too narrow or short
-        2: underpowered peak, too little power
-        
-        or if plotting IQ mags (mag_data==True)
-
-        outputs
-        train file.pkl. contains...
-            trainImages: table of size- xWidth * xCenters*trainFrac
-            trainLabels: 1d array of size- xCenters*trainFrac
-            testImages: table of size- xWidth * xCenters*testFrac
-            testLabels: 1d array of size- xCenters*testFrac
-
-        creates the training data to be passed to function mlClass. For each resonator and attenuation a 2 x num_freqs table is created 
-        with associated labels and saves to pkl file
-
-        -3              :
-        -2:             :
-        -1: slightly saturated too much power  
-        0:  goldilocks, not too narrow or short
-        1:  underpowered peak, too little power
-        2:              :
-        3:              :
-
-        '''
-
         for i,rawTrainFile in enumerate(self.mlDict['rawTrainFiles']):
             rawTrainFile = os.path.join(self.mlDict['trainFileDir'], rawTrainFile)
             rawTrainLabelFile = os.path.join(self.mlDict['trainFileDir'], self.mlDict['rawTrainLabels'][i])
@@ -103,25 +60,10 @@ class mlClassification():
             else:
                 raise Exception('Could not open ' + rawTrainFile)
             
-            a=0 # index to remove values from all_freqs
-            b = 0  # backtrack on g when good freqs can't be used
-                # g index for the good freqs
-            bad_opt_res = []
             
             good_res = np.arange(len(rawTrainData.resIDs))
 
             iAttens = np.zeros((len(good_res),self.nClass))
-            print 'iAttens shape', np.shape(iAttens)
-            print 'opt_iAttens shape', np.shape(rawTrainData.opt_iAttens)
-            # for i in range(self.nClass-1):
-            #     iAttens[:,i] = np.delete(self.opt_iAttens,bad_opt_res) + attDist[i]        
-            # print len(self.attens)
-
-            # iAttens[:,2] = np.ones((len(good_res)))*len(self.attens)-1#self.opt_iAttens[:self.res_nums] + self.uAttDist
-
-            #self.opt_iAttens = np.delete(self.opt_iAttens,bad_opt_res)
-
-
 
             if self.mlDict['trimAttens']:
                 good_res = np.delete(good_res, np.where(rawTrainData.opt_iAttens < self.mlDict['attenWinBelow'])[0])
@@ -138,9 +80,9 @@ class mlClassification():
             rawTrainData.Is = rawTrainData.Is[good_res]
             rawTrainData.Qs = rawTrainData.Qs[good_res]
             rawTrainData.resIDs = rawTrainData.resIDs[good_res]
-            rawTrainData.attens = rawTrainData.attens[good_res]
+            #rawTrainData.attens = rawTrainData.attens[good_res]
             rawTrainData.opt_iAttens = rawTrainData.opt_iAttens[good_res]
-            wsAttenInd = np.where(rawTrainData.attens[0]==self.mlDict['wsAtten'])[0][0]
+            wsAttenInd = np.argmin(np.abs(rawTrainData.attens-self.mlDict['wsAtten']))
             print wsAttenInd
             
             #class_steps = 300
@@ -158,11 +100,14 @@ class mlClassification():
             print train_ind[:10], test_ind[:10]
 
 
+            #TODO: fix append if this is too slow
             for rn in train_ind:#range(int(self.trainFrac*rawTrainData.res_nums)):
                 # for t in range(num_rotations):
                 #     image = self.makeResImage(res_num = rn, iAtten= iAttens[rn,c], angle=angle[t],showFrames=False, 
                 #                                 test_if_noisy=test_if_noisy, xCenter=self.res_indicies[rn,c])
-                image, _, _ = mlt.makeResImage(res_num = rn, center_loop=self.mlDict['center_loop'], phase_normalise=False ,showFrames=False, dataObj=rawTrainData, mlDict=self.mlDict, wsAttenInd=wsAttenInd) 
+                image, _, _ = mlt.makeResImage(rn, rawTrainData, wsAttenInd, self.mlDict['xWidth'], 
+                                        self.mlDict['resWidth'], self.mlDict['padResWin'], self.mlDict['useIQV'], 
+                                        self.mlDict['useMag'], self.mlDict['center_loop'], self.mlDict['nAttens']) 
                 if image is not None:
                     trainImages.append(image)
                     oneHot = np.zeros(self.mlDict['nAttens'])
@@ -173,7 +118,9 @@ class mlClassification():
 
 
             for rn in test_ind:#range(int(self.trainFrac*rawTrainData.res_nums), int(self.trainFrac*rawTrainData.res_nums + self.testFrac*rawTrainData.res_nums)):
-                image, _, _ = mlt.makeResImage(res_num = rn, center_loop=self.mlDict['center_loop'], phase_normalise=False, dataObj=rawTrainData, mlDict=self.mlDict, wsAttenInd=wsAttenInd)
+                image, _, _ = mlt.makeResImage(rn, rawTrainData, wsAttenInd, self.mlDict['xWidth'], 
+                                        self.mlDict['resWidth'], self.mlDict['padResWin'], self.mlDict['useIQV'], 
+                                        self.mlDict['useMag'], self.mlDict['center_loop'], self.mlDict['nAttens']) 
                 if image is not None:
                     testImages.append(image)
                     oneHot = np.zeros(self.mlDict['nAttens'])
@@ -184,15 +131,7 @@ class mlClassification():
                 pickle.dump([trainImages, trainLabels], tf)
                 pickle.dump([testImages, testLabels], tf)
 
-    def initializeAndTrainModel(self):       
-        '''Code adapted from the tensor flow MNIST tutorial 1.
-        
-        Using training images and labels the machine learning class (mlClass) "learns" how to classify IQ velocity peaks. 
-        Using similar data the ability of mlClass to classify peaks is tested
-
-        The training and test matricies are loaded from file (those made earlier if chosen to not be appended to file 
-        will not be used)
-        '''
+    def initializeAndTrainModel(self, debug=False, saveGraph=False):
         print self.trainFile
         if not os.path.isfile(self.trainFile):
             print 'Could not find train file. Making new training images from initialFile'
@@ -218,35 +157,11 @@ class mlClassification():
         if self.mlDict['useMag']:
             nColors += 1
 
-        # print len(trainImages)
-        # for i in range(len(trainImages)):
-        #     if i % 50 ==0:
-        #         print trainLabels[i]
-        #         print np.shape(trainImages[i][:])
-        #         plt.plot(trainImages[i][:40])
-        #         plt.plot(trainImages[i][40:])
-        #         plt.show()
-      
-        #if self.mlDict['scaleXWidth'] != 1:
-        #    self.mlDict['xWidth'] = int(self.mlDict['xWidth']/self.mlDict['scaleXWidth'])
-        #if np.shape(trainImages)[1]/3!=self.mlDict['xWidth']:
-        #    print 'Please make new training images of the correct size'
-        #    exit()
-          
-        #self.nClass = np.shape(trainLabels)[1]
-
-        #self.x = tf.placeholder(tf.float32, [None, self.mlDict['xWidth']]) # correspond to the images
         
         self.x = tf.placeholder(tf.float32, [None, self.mlDict['nAttens'], self.mlDict['xWidth'], nColors], name='inputImage')
-        attenWin = 1 + self.mlDict['attenWinBelow'] + self.mlDict['attenWinAbove']
-        #print type(self.x[0][0])
-        #print self.x[0][0]
-        #print self.mlDict['xWidth']
-        #exit()
-
-        #x_image = tf.reshape(self.x, [-1,1,self.mlDict['xWidth'],1])
-        #x_image = tf.reshape(self.x, [-1,3,self.mlDict['xWidth'],1])
         x_image = tf.reshape(self.x, [-1, self.mlDict['nAttens'], self.mlDict['xWidth'], nColors])
+
+        attenWin = 1 + self.mlDict['attenWinBelow'] + self.mlDict['attenWinAbove']
         numImg = tf.shape(x_image)[0]
 
         def weight_variable(shape):
@@ -368,8 +283,11 @@ class mlClassification():
         #squared_loss = tf.reduce_mean(tf.to_float(tf.square(yInd-y_Ind)))
 
         train_step = tf.train.AdamOptimizer(self.mlDict['learning_rate']).minimize(cross_entropy) # the best result is when the wrongness is minimal
+        
+        for k, v in self.mlDict.items():
+            tf.add_to_collection('mlDict', tf.constant(value=v, name=k))
 
-        init = tf.initialize_all_variables()
+        init = tf.global_variables_initializer()
 
         saver = tf.train.Saver()
         
@@ -379,110 +297,37 @@ class mlClassification():
         merged = tf.summary.merge_all()
         train_writer = tf.summary.FileWriter(os.path.join(self.mlDict['modelDir'], 'train'))
         test_writer = tf.summary.FileWriter(os.path.join(self.mlDict['modelDir'], 'test'))
-        graph_writer = tf.summary.FileWriter(os.path.join(self.mlDict['modelDir'], 'graphs'), tf.get_default_graph())
-
-        #modelName = ('.').join(self.trainFile.split('.')[:-1]) + '_3layer_img_cube.ckpt'
-        #print modelName
-
-        # if os.path.isfile("%s%s" % (self.mldir,modelName)):
-        #     #with tf.Session() as sess:
-        #     self.sess = tf.Session()
-        #     self.sess.run(init)           #do I need this? 
-        #     # Restore variables from disk.
-        #     saver.restore(self.sess, "%s%s" % (self.mldir,modelName) )
-
+        if saveGraph:
+            graph_writer = tf.summary.FileWriter(os.path.join(self.mlDict['modelDir'], 'graphs'), tf.get_default_graph())
        
         self.sess = tf.Session(config=tf.ConfigProto(log_device_placement=True))
-        #self.sess = tf_debug.LocalCLIDebugWrapperSession(self.sess)
+        if debug:
+            self.sess = tf_debug.LocalCLIDebugWrapperSession(self.sess)
         self.sess.run(init) # need to do this everytime you want to access a tf variable (for example the true class labels calculation or plotweights)
-
-        # for i in range(len(trainImages)):
-        #     if i % 30 ==0:
-        #         print trainLabels[i]
-        #         print np.shape(trainImages[i][:])
-        #         plt.plot(self.sess.run(self.x)[i][0],feed_dict={self.x: trainImages})
-        #         plt.plot(self.sess.run(self.x)[i][1],feed_dict={self.x: trainImages})
-        #         plt.show()
-        
+ 
         start_time = time.time()
         trainReps = self.mlDict['trainReps']
         batches = self.mlDict['batches']
         if np.shape(trainLabels)[0]< batches:
             batches = np.shape(trainLabels)[0]/2
-        
-
-
-        # print self.sess.run(tf.shape(W_conv1), feed_dict={self.x: testImages, y_: testLabels})    
-        # print self.sess.run(tf.shape(h_conv1), feed_dict={self.x: testImages})    
-        # #print self.sess.run(tf.shape(h_pool1), feed_dict={self.x: testImages})
-        # print '\n'
-        # print self.sess.run(tf.shape(W_conv2))    
-        # print self.sess.run(tf.shape(h_conv2), feed_dict={self.x: testImages})    
-        # print self.sess.run(tf.shape(h_pool2), feed_dict={self.x: testImages})
-        # print '\n'
-        # print self.sess.run(tf.shape(W_conv3))    
-        # print self.sess.run(tf.shape(h_conv3), feed_dict={self.x: testImages})    
-        # #print self.sess.run(tf.shape(h_pool3), feed_dict={self.x: testImages})
-        # print '\n'
-        # print self.sess.run(tf.shape(W_conv4))    
-        # print self.sess.run(tf.shape(h_conv4), feed_dict={self.x: testImages})    
-        # print self.sess.run(tf.shape(h_pool4), feed_dict={self.x: testImages})
-        # print '\n'
-        # print self.sess.run(tf.shape(W_conv5))    
-        # print self.sess.run(tf.shape(h_conv5), feed_dict={self.x: testImages})    
-        # #print self.sess.run(tf.shape(h_pool3), feed_dict={self.x: testImages})
-        # print '\n'
-        # print self.sess.run(tf.shape(W_conv6))    
-        # print self.sess.run(tf.shape(h_conv6), feed_dict={self.x: testImages})    
-        # print self.sess.run(tf.shape(h_pool6), feed_dict={self.x: testImages})
-        # print '\n'
-        # print self.sess.run(tf.shape(W_fc1))    
-        # print self.sess.run(tf.shape(h_pool6_flat), feed_dict={self.x: testImages})    
-        # print self.sess.run(tf.shape(h_fc1), feed_dict={self.x: testImages})
-        # print '\n'
-
-        # print '\n'
-        # print self.sess.run(tf.shape(self.W_fc2)) 
-
-
+       
 
         ce_log = []
         acc_log=[]
         print 'Performing', trainReps, 'training repeats, using batches of', batches
         for i in range(trainReps):  #perform the training step using random batches of images and according labels
             batch_xs, batch_ys = next_batch(trainImages, trainLabels, batches) 
-            #print 'batch_xs shape', np.shape(batch_xs) 
-            #print np.shape(batch_xs), np.shape(batch_ys)
             sys.stdout.write('\rbatch: %i ' % (i))
             sys.stdout.flush()
 
             if i % 500 == 0:
-                #print'Plotting final Weights'
-                #self.plotW_fc2(self.sess.run(self.W_fc3))
-                #print 'Plotting W_conv1'
-                #self.plotWeights(self.sess.run(W_conv1))
-                #print 'Plotting h_conv1 activations'
-                #self.plotActivations(self.sess.run(h_conv1, feed_dict={self.x: batch_xs}), 'h_conv1', i)
-                #print 'Plotting W_conv2'
-                #self.plotWeights(self.sess.run(W_conv2))
-                #print 'Plotting W_conv2 activations'
-                #self.plotActivations(self.sess.run(h_conv2, feed_dict={self.x: testImages}), 'h_conv2', i)
-                #print self.sess.run(W_conv1, feed_dict={self.x: testImages, y_: testLabels})
-                #print "max W vales: %g %g %g %g"%(self.sess.run(tf.reduce_max(tf.abs(W_conv1))),self.sess.run(tf.reduce_max(tf.abs(W_conv2))),self.sess.run(tf.reduce_max(tf.abs(W_fc1))),self.sess.run(tf.reduce_max(tf.abs(self.W_fc2))))
-                #print "max b vales: %g %g %g %g"%(self.sess.run(tf.reduce_max(tf.abs(b_conv1))),self.sess.run(tf.reduce_max(tf.abs(b_conv2))),self.sess.run(tf.reduce_max(tf.abs(b_fc1))),self.sess.run(tf.reduce_max(tf.abs(b_fc2))))
                 ce_log.append(self.sess.run(cross_entropy, feed_dict={self.x: batch_xs, y_: batch_ys, self.keep_prob: 1}))
-                # print batch_ys[10],#, feed_dict={y_: batch_ys}),
-                # print self.sess.run(self.y, feed_dict={self.x: batch_xs})[10]
                 summary, acc = self.sess.run([merged, accuracy], feed_dict={self.x: testImages, y_: testLabels, self.keep_prob: 1})
                 acc_log.append(acc*100)
                 test_writer.add_summary(summary, i)
-                graph_writer.add_summary(summary, i)
+                if saveGraph:
+                    graph_writer.add_summary(summary, i)
 
-            # if i % 1000 ==0:
-                # saver.save(self.sess, "/tmp/model.ckpt",global_step=i)#self.plotWeights(self.sess.run(W_fc2))
-                #print ' ', self.sess.run(squared_loss, feed_dict={self.x: batch_xs, y_: batch_ys, self.keep_prob: 1}),
-                # print batch_ys[10],#, feed_dict={y_: batch_ys}),
-                # print self.sess.run(self.y, feed_dict={self.x: batch_xs})[10]
                 print acc*100
                 summary, _ = self.sess.run([merged, train_step], feed_dict={self.x: batch_xs, y_: batch_ys, self.keep_prob: self.mlDict['keep_prob']}) #calculate train_step using feed_dict
                 train_writer.add_summary(summary, i)
@@ -497,26 +342,14 @@ class mlClassification():
                 self.sess.run(train_step, feed_dict={self.x: batch_xs, y_: batch_ys, self.keep_prob: self.mlDict['keep_prob']}) #calculate train_step using feed_dict
         
         print "--- %s seconds ---" % (time.time() - start_time)
-        #print ce_log, acc_log
-        #fig = plt.figure(frameon=False,figsize=(15.0, 5.0))
-        #fig.add_subplot(121)
-        #plt.plot(ce_log)
-        #fig.add_subplot(122)
-        #plt.plot(acc_log)
-        #plt.show()
 
         modelSavePath = os.path.join(self.mlDict['modelDir'], self.mlDict['modelName'])
         print 'Saving model in', modelSavePath
         save_path = saver.save(self.sess, modelSavePath)
-        print 'true class labels: ', self.sess.run(tf.argmax(y_,1), 
-                                                   feed_dict={self.x: testImages, y_: testLabels, self.keep_prob: 1})
-        print 'class estimates:   ', self.sess.run(tf.argmax(self.y,1), 
-                                                   feed_dict={self.x: testImages, y_: testLabels, self.keep_prob: 1}) #1st 25 printed
-        print self.sess.run(self.y, feed_dict={self.x: testImages, y_: testLabels, self.keep_prob: 1})[:100]  # print the scores for each class
+        saver.export_meta_graph(os.path.join(modelSavePath, self.mlDict['modelName']) + '.meta')
         ys_true = self.sess.run(tf.argmax(y_,1), feed_dict={self.x: testImages, y_: testLabels, self.keep_prob: 1})
         y_probs = self.sess.run(self.y, feed_dict={self.x: testImages, y_: testLabels, self.keep_prob: 1})
         ys_guess = np.argmax(y_probs, 1)
-        print np.sum(self.sess.run(self.y, feed_dict={self.x: testImages, y_: testLabels, self.keep_prob: 1}),axis=0)
         right = []
         within1dB = []
         for i,y in enumerate(ys_true):
@@ -529,32 +362,25 @@ class mlClassification():
 
         print len(right), len(ys_true), float(len(right))/len(ys_true)
 
-        score = self.sess.run(accuracy, feed_dict={self.x: testImages, y_: testLabels, self.keep_prob: 1}) * 100
-        print 'Accuracy of model in testing: ', score, '%'
-        if score < 85: print 'Consider making more training images'
+        testScore = self.sess.run(accuracy, feed_dict={self.x: testImages, y_: testLabels, self.keep_prob: 1}) * 100
+        print 'Accuracy of model in testing: ', testScore, '%'
+        if testScore < 85: print 'Consider making more training images'
         print 'Testing accuracy within 1 dB: ', float(len(within1dB))/len(ys_true)*100, '%' 
 
-        score = self.sess.run(accuracy, feed_dict={self.x: trainImages, y_: trainLabels, self.keep_prob: 1}) * 100
-        print 'Accuracy of model in training: ', score, '%'
-        #acc_log.append(score)
-        # train_log = np.array([['score ', score], ['keep_prob', 1], ['num_filt1', self.num_filt1], ['num_filt2', self.num_filt2], ['num_filt3', self.num_filt3],
-        #     ['num_filt4', 0], ['n_pool1', n_pool1], ['n_pool2', n_pool2], ['n_pool3', n_pool3], ['n_pool4', 0]])
-        # print train_log
-        # np.savetxt(modelName[:-4]+'.log', train_log, ('%10s', '%10s'))
-        #plt.hist(ys_guess[right])
-        #plt.title('correct guesses')
-        #plt.show()
-        #plt.hist(ys_guess)
-        #plt.title('all guesses')
-        #plt.show()
-        #plt.hist(ys_true)
-        #plt.title('correct attens')
-        #plt.show()
-        #plt.plot(ys_true, ys_guess, '.')
-        #plt.title('confusion')
-        #plt.show()
+        trainScore = self.sess.run(accuracy, feed_dict={self.x: trainImages, y_: trainLabels, self.keep_prob: 1}) * 100
+        print 'Accuracy of model in training: ', trainScore, '%'
+        print tf.get_default_graph().get_all_collection_keys()
         
         np.savez(modelSavePath+'_confusion.npz', ys_true=ys_true, ys_guess=ys_guess, y_probs=y_probs, ce=ce_log, acc=acc_log)
+        logfile = modelSavePath + '_train_' + time.strftime("%Y%m%d-%H%M%S",time.localtime()) + '.log'
+        with open(logfile, 'w') as lf:
+            lf.write('Test Accuracy: ' + str(testScore/100.) + '\n')
+            lf.write('Test Accuracy within 1dB: ' + str(float(len(within1dB))/len(ys_true)) + '\n')
+            lf.write('Train Accuracy: ' + str(trainScore/100.) + '\n')
+            lf.write('\n')
+            for k, v in self.mlDict.items():
+                lf.write(k + ': ' + str(v) + '\n')
+
 
         del trainImages, trainLabels, testImages, testLabels
 
@@ -615,67 +441,6 @@ class mlClassification():
         plt.show()
         #plt.close()
     
-    def checkLoopAtten(self, res_num, iAtten, showLoop=False, min_theta = 135, max_theta = 200, max_ratio_threshold = 1.5):
-        '''function to check if the IQ loop at a certain attenuation is saturated. 3 checks are made.
-        if the angle on either side of the sides connected to the longest edge is < min_theta or > max_theta
-        the loop is saturated. Or if the ratio between the 1st and 2nd largest edge is > max_ratio_threshold.
-
-        A True result means that the loop is unsaturated.
-
-        Inputs:
-        res_num: index of resonator in question
-        iAtten: index of attenuation in question
-        showLoop: pops up a window of the frame plotted using matplotlib.plot
-        min/max_theta: limits outside of which the loop is considered saturated
-        max_ratio_threshold: maximum largest/ 2nd largest IQ velocity allowed before loop is considered saturated
-
-        Output:
-        Boolean. True if unsaturated
-        '''
-        
-        vindx = (-self.inferenceData.iq_vels[res_num,iAtten,:]).argsort()[:3]
-        max_theta_vel  = math.atan2(self.inferenceData.Qs[res_num,iAtten,vindx[0]-1] - self.inferenceData.Qs[res_num,iAtten,vindx[0]], 
-                                    self.inferenceData.Is[res_num,iAtten,vindx[0]-1] - self.inferenceData.Is[res_num,iAtten,vindx[0]])
-        low_theta_vel = math.atan2(self.inferenceData.Qs[res_num,iAtten,vindx[0]-2] - self.inferenceData.Qs[res_num,iAtten,vindx[0]-1], 
-                                   self.inferenceData.Is[res_num,iAtten,vindx[0]-2] - self.inferenceData.Is[res_num,iAtten,vindx[0]-1])
-        upp_theta_vel = math.atan2(self.inferenceData.Qs[res_num,iAtten,vindx[0]] - self.inferenceData.Qs[res_num,iAtten,vindx[0]+1], 
-                                   self.inferenceData.Is[res_num,iAtten,vindx[0]] - self.inferenceData.Is[res_num,iAtten,vindx[0]+1])
-
-        theta1 = (math.pi + max_theta_vel - low_theta_vel)/math.pi * 180
-        theta2 = (math.pi + upp_theta_vel - max_theta_vel)/math.pi * 180
-
-        theta1 = abs(theta1)
-        if theta1 > 360:
-            theta1 = theta1-360
-        theta2= abs(theta2)
-        if theta2 > 360:
-            theta2 = theta2-360
-
-        max_ratio = self.inferenceData.iq_vels[res_num,iAtten,vindx[0]]/ self.inferenceData.iq_vels[res_num,iAtten,vindx[1]]
-        
-        if showLoop:
-            plt.plot(self.inferenceData.Is[res_num,iAtten,:],self.inferenceData.Qs[res_num,iAtten,:])
-            plt.show()
-        
-
-        # return True
-        # return bool(max_ratio < max_ratio_threshold)
-        # if max_ratio < max_ratio_threshold == True:
-        #     return True
-        # if (max_theta >theta1 > min_theta) * (max_theta > theta2 > min_theta) == True:
-        #     return 'noisy'
-        # else:
-        #     return False
-
-        # return [(max_theta >theta1 > min_theta)*(max_theta > theta2 > min_theta) , max_ratio < max_ratio_threshold]
-        return bool((max_theta >theta1 > min_theta) * 
-                    (max_theta > theta2 > min_theta) * 
-                    (max_ratio < max_ratio_threshold))
-        # if res_num==6:
-        #     print res_num, max_ratio, self.inferenceData.iq_vels[res_num,iAtten,vindx[0]], self.inferenceData.iq_vels[res_num,iAtten,vindx[1]]
-        #     plt.plot(self.inferenceData.Is[res_num,iAtten,:],self.inferenceData.Qs[res_num,iAtten,:])
-        #     plt.show()
- 
 
     
 def next_batch(trainImages, trainLabels, batch_size):
@@ -686,47 +451,3 @@ def next_batch(trainImages, trainLabels, batch_size):
     #print 'next_batch trImshape', np.shape(trainImages)
     return trainImagesBatch, trainLabelsBatch
 
-def loadPkl(filename):
-    '''load the train and test data to train and test mlClass
-
-    pkl file hirerachy is as follows:
-        -The file is split in two, one side for train data and one side for test data -These halfs are further divdided into image data and labels
-        -makeTrainData creates image data of size: xWidth * xWidth * res_nums and the label data of size: res_nums
-        -each time makeTrainData is run a new image cube and label array is created and appended to the old data
-
-    so the final size of the file is (xWidth * xWidth * res_nums * "no of train runs") + (res_nums * "no of train runs") + [the equivalent test data structure]
-
-    A more simple way would be to separate the train and test data after they were read but this did not occur to the 
-    me before most of the code was written
-
-    Input
-    pkl filename to be read.
-
-    Outputs
-    image cube and label array
-    '''
-    file =[]
-    with open(filename, 'rb') as f:
-        while 1:
-            try:
-                file.append(pickle.load(f))
-            except EOFError:
-                break
-    
-    trainImages = file[0][0]
-    trainLabels = file[0][1]
-    testImages = file[1][0]
-    testLabels = file[1][1]
-
-    print np.shape(file)[0]/2 -1
-    if np.shape(file)[0]/2 > 1:
-        for i in range(1, np.shape(file)[0]/2):
-            trainImages = np.append(trainImages, file[2*i][0], axis=0)
-            trainLabels = np.append(trainLabels, file[2*i][1], axis=0)
-            testImages = np.append(testImages, file[2*i+1][0], axis=0)
-            testLabels = np.append(testLabels, file[2*i+1][1], axis=0)
-
-    print np.shape(trainLabels)
-
-    print "loaded dataset from ", filename
-    return trainImages, trainLabels, testImages, testLabels

@@ -11,8 +11,6 @@ from Cython.Build import cythonize
 #pip install -e git+http://github.com/mazinlab/mkidreadout.git@restructure#egg=mkidreadout --src ./mkidtest
 
 
-
-
 def get_virtualenv_path():
     """Used to work out path to install compiled binaries to."""
     if hasattr(sys, 'real_prefix'):
@@ -53,11 +51,13 @@ def compile_and_install_software():
         print(str(e))
         raise e
 
+
 class CustomInstall(install, object):
     """Custom handler for the 'install' command."""
     def run(self):
         compile_and_install_software()
         super(CustomInstall,self).run()
+
 
 class CustomDevelop(develop, object):
     """Custom handler for the 'install' command."""
@@ -66,14 +66,16 @@ class CustomDevelop(develop, object):
         super(CustomDevelop,self).run()
 
 
-ext_module = Extension("Roach2Utils", 
-                       ['./mkidreadout/channelize/Roach2Utils.pyx'],
+ext_module = Extension(name="mkidreadout.channelizer.roach2utils",
+                       sources=['mkidreadout/channelizer/roach2utils.pyx'],
                        include_dirs=[numpy.get_include()],
                        extra_compile_args=['-fopenmp'],
                        extra_link_args=['-fopenmp'])
 
+
 with open("README.md", "r") as fh:
     long_description = fh.read()
+
 
 setuptools.setup(
     name="mkidreadout",
@@ -85,12 +87,12 @@ setuptools.setup(
     long_description_content_type="text/markdown",
     url="https://github.com/MazinLab/MKIDReadout",
     packages=setuptools.find_packages(),
+    package_data={'mkidreadout': ('config/*.yml', 'resources/firmware/*', 'resources/firfilters/*')},
     scripts=['mkidreadout/channelizer/initgui.py',
-             'mkidreadout/channelizer/HighTemplar.py',
-             'mkidreadout/readout/MkidDashboard.py',
-             'mkidreadout/configuration/widesweep/WideAna.py',
-             'mkidreadout/configuration/powersweep/PSFitGUIML.py'],
-    ext_modules = cythonize(ext_module), 
+             'mkidreadout/channelizer/hightemplar.py',
+             'mkidreadout/readout/dashboard.py',
+             'mkidreadout/configuration/powersweep/clickthrough_hell.py'],
+    ext_modules=cythonize(ext_module),
     classifiers=(
         "Programming Language :: Python :: 2.7",
         "License :: OSI Approved :: MIT License",

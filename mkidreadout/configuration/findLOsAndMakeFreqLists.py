@@ -14,11 +14,9 @@ Usage: python findLOsAndMakeFreqFiles.py <setupcfgfile> <templarcfgfile>
 '''
 import os, sys
 import numpy as np
-import matplotlib.pyplot as plt
-import pdb
 import ConfigParser
 from mkidreadout.configuration.createTemplarResList import createTemplarResList
-from mkidreadout.utils.readDict import readDict
+from mkidcore.readdict import ReadDict
 
 def findLOs(freqs, loRange=0.2, nIters=10000, colParamWeight=1, resBW=0.0002, ifHole=0.003):
     '''
@@ -41,15 +39,15 @@ def findLOs(freqs, loRange=0.2, nIters=10000, colParamWeight=1, resBW=0.0002, if
     -------
         lo1, lo2 - low and high frequency LOs (in GHz)
     '''
-    lfRange = np.array([freqs[0]+1, freqs[0]+1+loRange]) #range to search for LF LO; 200 MHz span
-    hfRange = np.array([freqs[-1]-1-loRange, freqs[-1]-1])
+    lfRange = np.array([freqs[0]+1-loRange/2, freqs[0]+1+loRange/2]) #range to search for LF LO; 200 MHz span
+    hfRange = np.array([freqs[-1]-1-loRange/2, freqs[-1]-1+loRange/2])
     
     nCollisionsOpt = len(freqs) #number of sideband collisions
     nFreqsOmittedOpt = len(freqs) #number of frequencies outside LO band
     costOpt = nCollisionsOpt + colParamWeight*nCollisionsOpt
     for i in range(nIters):
         lo1 = np.random.rand(1)[0]*loRange + lfRange[0]
-        hflolb = max(hfRange[0], lo1 + 1) #lower bound of hf sampling range; want LOs to be 1 GHz apart
+        hflolb = max(hfRange[0], lo1 + 2) #lower bound of hf sampling range; want LOs to be 1 GHz apart
         lo2 = np.random.rand(1)[0]*(hfRange[1]-hflolb) + hflolb
 
         #find nFreqsOmitted
@@ -143,7 +141,7 @@ if __name__=='__main__':
     if len(sys.argv)<3:
         print 'Usage: python findLOsAndMakeFreqFiles.py <setupcfgfile> <templarcfgfile>'
     
-    setupDict = readDict()
+    setupDict = ReadDict()
     try: 
         setupDict.readFromFile(sys.argv[1])
         try: mdd = setupDict['MKID_DATA_DIR']

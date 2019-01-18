@@ -1,10 +1,10 @@
 
 # Author:    Alex Walter
 # Date:      April 25, 2016
+# JB 11/9: merged in minFramePeriod_reg from .cfg files
 # Firmware: dark11_*.fpg
 #
 # This is a parameter file for the FpgaControls class for the DARKNESS instrument
-
 
 instrument = 'darkness'
 debugDir = 'log/'
@@ -15,6 +15,9 @@ nFftBins = 2048
 nChannels = 1024
 nChannelsPerStream = 256        #4 streams for Gen 2 readout
 #nStreams = 4                   # nChannels/nChannelsPerStream
+
+# max size of a UDP packet of photons. 1 photon=1 word. 100 is good
+wordsPerFrame = 100
 
 #parameters for dac look-up table (lut)
 dacSampleRate = 2.e9
@@ -87,6 +90,8 @@ gbe64Rst_reg = 'gbe64_rst'
 phaseDumpChanSel_reg = 'phase_dmp_ch_we'
 phaseDumpEn_reg = 'phase_dmp_on'
 photonCapStart_reg = 'start_cap'
+minFramePeriod_reg = 'gbe64_max_frame_period'
+
 
 pixelnames_bram = ['capture0_pix','capture1_pix','capture2_pix','capture3_pix']
 nBitsYCoord = 10

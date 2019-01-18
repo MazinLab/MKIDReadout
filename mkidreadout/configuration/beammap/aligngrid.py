@@ -18,7 +18,7 @@ import scipy.ndimage as sciim
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 import warnings
-from mkidreadout.utils.readDict import readDict
+from mkidcore.readdict import ReadDict
 from mkidreadout.configuration.beammap.flags import beamMapFlags
 from mkidreadout.configuration.beammap.utils import isInCorrectFL, getFLFromID, MEC_FL_WIDTH, DARKNESS_FL_WIDTH, N_FL_MEC, N_FL_DARKNESS
 
@@ -326,7 +326,7 @@ if __name__=='__main__':
     if not os.path.isfile(cfgFn):
         mdd = os.environ['MKID_DATA_DIR']
         cfgFn = os.path.join(mdd, cfgFn)
-    paramDict = readDict()
+    paramDict = ReadDict()
     paramDict.read_from_file(cfgFn)
 
     aligner = BMAligner(paramDict['masterPositionList'], paramDict['nXPix'], paramDict['nYPix'], paramDict['instrument'], paramDict['flip'])

@@ -1,3 +1,4 @@
+#!/bin/env python
 """
 Author: Ben Mazin
 Date: June 20, 2018
@@ -14,10 +15,11 @@ Usage:
 $python clipResAttens.py ps_freq_FL6a.txt ps_freq_FL6b.txt
 """
 
-
 import sys,os
 import numpy as np
 import matplotlib.pyplot as plt
+from glob import glob
+
 
 def clipHist(filename):
     data = np.loadtxt(filename)
@@ -63,12 +65,21 @@ def clipHist(filename):
     outFN = filename.rsplit('.',1)[0]+'_clip.txt'
     np.savetxt(outFN, data, fmt="%6i %10.9e %4i")
 
+
 if __name__=='__main__':
 
     if( len(sys.argv) < 2 ):
         print 'Usage: python clipResAttens.py freqFilename'
-    for fn in sys.argv[1:]:
+
+    if '*' in sys.argv[1]:
+        fns = glob(sys.argv[1])
+    else:
+        fns = sys.argv[1:]
+
+    for fn in fns:
         clipHist(fn)
+
+
 
 
 

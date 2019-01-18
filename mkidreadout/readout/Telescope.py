@@ -7,89 +7,47 @@ This class grabs info from the Palomar telescope
 from socket import *
 import time, math
 import datetime
-from PyQt4 import QtGui
-from PyQt4.QtGui import *
-from PyQt4 import QtCore
 import ephem
+from mkidcore.corelog import getLogger
 
-try:
-    from .getSeeing import getPalomarSeeing  # From old SDR code
-except:
-    print "WARNING: Cant find getPalomarSeeing"
-    def getPalomarSeeing(): return "NAN"
+__all__ = ['Telescope']
 
-class TelescopeWindow(QMainWindow):
-    
-    def __init__(self, telescope, parent=None):
-        """
-        INPUTES:
-            telescope - Telescope object
-        """
-        super(QMainWindow, self).__init__(parent)
-        self.setWindowTitle("Palomar Telescope")
-        self._want_to_close = False
-        self.telescope = telescope
-        self.create_main_frame()
-        updater = QtCore.QTimer(self)
-        updater.setInterval(1003)
-        updater.timeout.connect(self.updateTelescopeInfo)
-        updater.start()
-    
-    def updateTelescopeInfo(self, target='sky'):
-        if not self.isVisible():
-            return
-        tel_dict = self.telescope.get_telescope_position()
-        for key in tel_dict.keys():
-            try:
-                self.label_dict[key].setText(str(tel_dict[key]))
-            except:
-                layout = self.main_frame.layout()
-                label = QLabel(key)
-                label_val = QLabel(str(tel_dict[key]))
-                hbox = QHBoxLayout()
-                hbox.addWidget(label)
-                hbox.addWidget(label_val)
-                layout.addLayout(hbox)
-                self.main_frame.setLayout(layout)
-                self.label_dict[key] = label_val
-    
-    def create_main_frame(self):
-        self.main_frame = QWidget()
-        vbox = QVBoxLayout()
-        
-        def add2layout(vbox, *args):
-            hbox = QHBoxLayout()
-            for arg in args:
-                hbox.addWidget(arg)
-            vbox.addLayout(hbox)
-        
-        label_telescopeStatus = QLabel('Telescope Status')
-        font = label_telescopeStatus.font()
-        font.setPointSize(24)
-        label_telescopeStatus.setFont(font)
-        vbox.addWidget(label_telescopeStatus)
-        
-        tel_dict = self.telescope.get_telescope_position()
-        self.label_dict={}
-        for key in tel_dict.keys():
-            label = QLabel(key)
-            label.setMaximumWidth(150)
-            label_val = QLabel(str(tel_dict[key]))
-            label_val.setMaximumWidth(150)
-            add2layout(vbox,label,label_val)
-            self.label_dict[key] = label_val
-        
-        self.main_frame.setLayout(vbox)
-        self.setCentralWidget(self.main_frame)
-    
-    def closeEvent(self, event):
-        if self._want_to_close:
-            self.close()
-        else:
-            self.hide()
-        
+import os
+import subprocess
 
-class Telescope():
+
+
+def getPalomarSeeing(verbose=False):
+    """
+    get seeing log from http://nera.palomar.caltech.edu/P18_seeing/current.log
+
+    set Verbose = True if you want debug messages
+    read in last line of file and extract seeing value
+    return this value
+    """
+    f="current.log"
+    address = "http://nera.palomar.caltech.edu/P18_seeing/%s"%f
+    if verbose==True:
+        getLogger(__name__).debug("Grabbing file from %s", address)
+    if verbose== True:
+        p = subprocess.Popen("wget %s"%address,shell=True)
+    else:
+        p = subprocess.Popen("wget --quiet %s"%address,shell=True)
+    p.communicate()
+    stdin,stdout = os.popen2("tail -1 %s"%f)
+    stdin.close()
+    line = stdout.readlines(); stdout.close()
+    if verbose==True:
+        print line
+    breakdown = line[0].split('\t')
+    seeing = breakdown[4]
+    if verbose==True:
+        getLogger(__name__).debug("Seeing = {}. Deleting {}".format(seeing, f))
+    os.remove(f)
+    return seeing
+
+
+class Telescope(object):
 
     def __init__(self, ipaddress="198.202.125.194", port = 5004, receivePort=1024):
         self.address = (ipaddress, port)
@@ -117,16 +75,15 @@ class Telescope():
             self.client_socket.settimeout(0.2)
             self.client_socket.connect(self.address)
         except:
-            print "Connection to TCS failed"
-            print "Telescope IP: ",self.address
+            getLogger(__name__).error("Connection to TCS at {} failed.".format(self.address))
             return
         response = None
         try:
             self.client_socket.send(command)
             response = self.client_socket.recv(self.receivePort)
         except:
-            print "Command to TCS failed: "+str(command)
-            print "Received at: ",self.receivePort
+            getLogger(__name__).error('Command "{}" to TCS failed.\n Recieved at {}.'.format(
+                                            command, self.receivePort))
         self.client_socket.close()
         return response
 

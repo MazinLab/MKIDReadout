@@ -1,12 +1,3 @@
-# -*- coding: utf-8 -*-
-
-# Form implementation generated from reading ui file 'PSFit_GUI.ui'
-#
-# Created: Sun Jul 24 13:04:12 2011
-#      by: PyQt4 UI code generator 4.8.4
-#
-# WARNING! All changes made in this file will be lost!
-
 from PyQt4 import QtCore, QtGui
 
 try:
@@ -47,16 +38,10 @@ class Ui_MainWindow(object):
         self.res_num = QtGui.QLabel(self.centralwidget)
         self.res_num.setGeometry(QtCore.QRect(810, 730, 62, 17))
         self.res_num.setObjectName(_fromUtf8("res_num"))
-        self.open_browse = QtGui.QPushButton(self.centralwidget)
-        self.open_browse.setGeometry(QtCore.QRect(20, 700, 114, 32))
-        self.open_browse.setObjectName(_fromUtf8("open_browse"))
-        self.open_filename = QtGui.QLineEdit(self.centralwidget)
+        self.open_filename = QtGui.QLabel(self.centralwidget)
         self.open_filename.setGeometry(QtCore.QRect(20, 740, 261, 22))
         self.open_filename.setObjectName(_fromUtf8("open_filename"))
-        self.save_browse = QtGui.QPushButton(self.centralwidget)
-        self.save_browse.setGeometry(QtCore.QRect(20, 780, 114, 32))
-        self.save_browse.setObjectName(_fromUtf8("save_browse"))
-        self.save_filename = QtGui.QLineEdit(self.centralwidget)
+        self.save_filename = QtGui.QLabel(self.centralwidget)
         self.save_filename.setGeometry(QtCore.QRect(20, 820, 261, 22))
         self.save_filename.setObjectName(_fromUtf8("save_filename"))
         self.label_3 = QtGui.QLabel(self.centralwidget)
@@ -88,11 +73,8 @@ class Ui_MainWindow(object):
         self.savevalues.setText(QtGui.QApplication.translate("MainWindow", "Save Values", None, QtGui.QApplication.UnicodeUTF8))
         self.label_2.setText(QtGui.QApplication.translate("MainWindow", "Res number:", None, QtGui.QApplication.UnicodeUTF8))
         self.res_num.setText(QtGui.QApplication.translate("MainWindow", "TextLabel", None, QtGui.QApplication.UnicodeUTF8))
-        self.open_browse.setText(QtGui.QApplication.translate("MainWindow", "Open", None, QtGui.QApplication.UnicodeUTF8))
-        self.save_browse.setText(QtGui.QApplication.translate("MainWindow", "Save to:", None, QtGui.QApplication.UnicodeUTF8))
         self.label_3.setText(QtGui.QApplication.translate("MainWindow", "Atten:", None, QtGui.QApplication.UnicodeUTF8))
         self.jumptores.setText(QtGui.QApplication.translate("MainWindow", "Jump to Res", None, QtGui.QApplication.UnicodeUTF8))
-
 
 
 class Ui_MainWindow_Small(object):
@@ -101,7 +83,7 @@ class Ui_MainWindow_Small(object):
         MainWindow.resize(1100, 750)
         self.centralwidget = QtGui.QWidget(MainWindow)
         self.centralwidget.setObjectName(_fromUtf8("centralwidget"))
-        self.open_filename = QtGui.QLineEdit(self.centralwidget)
+        self.open_filename = QtGui.QLabel(self.centralwidget)
         self.open_filename.setGeometry(QtCore.QRect(10, 210, 431, 21))
         self.open_filename.setObjectName(_fromUtf8("open_filename"))
         self.save_filename = QtGui.QLineEdit(self.centralwidget)
@@ -122,20 +104,14 @@ class Ui_MainWindow_Small(object):
         self.gridLayout = QtGui.QGridLayout(self.widget)
         self.gridLayout.setMargin(0)
         self.gridLayout.setObjectName(_fromUtf8("gridLayout"))
-        self.open_browse = QtGui.QPushButton(self.widget)
-        self.open_browse.setObjectName(_fromUtf8("open_browse"))
-        self.gridLayout.addWidget(self.open_browse, 0, 0, 1, 1)
         self.jumptonum = QtGui.QSpinBox(self.widget)
-	self.jumptonum.setGeometry(QtCore.QRect(810, 690, 57, 31))
+        self.jumptonum.setGeometry(QtCore.QRect(810, 690, 57, 31))
         self.jumptonum.setMaximum(9999)
         self.jumptonum.setObjectName(_fromUtf8("jumptonum"))
         self.gridLayout.addWidget(self.jumptonum, 1, 1, 1, 1)
         self.frequency = QtGui.QLabel(self.widget)
         self.frequency.setObjectName(_fromUtf8("frequency"))
         self.gridLayout.addWidget(self.frequency, 3, 6, 1, 1)
-        self.save_browse = QtGui.QPushButton(self.widget)
-        self.save_browse.setObjectName(_fromUtf8("save_browse"))
-        self.gridLayout.addWidget(self.save_browse, 0, 1, 1, 1)
         self.atten = QtGui.QSpinBox(self.widget)
         self.atten.setMaximumSize(QtCore.QSize(776, 16777215))
         self.atten.setObjectName(_fromUtf8("atten"))
@@ -171,11 +147,9 @@ class Ui_MainWindow_Small(object):
 
     def retranslateUi(self, MainWindow):
         MainWindow.setWindowTitle(QtGui.QApplication.translate("MainWindow", "MainWindow", None, QtGui.QApplication.UnicodeUTF8))
-        self.open_browse.setText(QtGui.QApplication.translate("MainWindow", "Open", None, QtGui.QApplication.UnicodeUTF8))
         self.jumptonum.setToolTip(QtGui.QApplication.translate("MainWindow", "Resonator Number", None, QtGui.QApplication.UnicodeUTF8))
         self.frequency.setToolTip(QtGui.QApplication.translate("MainWindow", "Frequency (GHz)", None, QtGui.QApplication.UnicodeUTF8))
         self.frequency.setText(QtGui.QApplication.translate("MainWindow", "-1", None, QtGui.QApplication.UnicodeUTF8))
-        self.save_browse.setText(QtGui.QApplication.translate("MainWindow", "Save", None, QtGui.QApplication.UnicodeUTF8))
         self.atten.setToolTip(QtGui.QApplication.translate("MainWindow", "Attenuation", None, QtGui.QApplication.UnicodeUTF8))
         self.jumptores.setText(QtGui.QApplication.translate("MainWindow", "Jump To Res", None, QtGui.QApplication.UnicodeUTF8))
         self.label.setText(QtGui.QApplication.translate("MainWindow", "atten", None, QtGui.QApplication.UnicodeUTF8))
@@ -185,7 +159,6 @@ class Ui_MainWindow_Small(object):
         self.savevalues.setText(QtGui.QApplication.translate("MainWindow", "Save Values", None, QtGui.QApplication.UnicodeUTF8))
         self.actionOpen.setText(QtGui.QApplication.translate("MainWindow", "Open", None, QtGui.QApplication.UnicodeUTF8))
         self.s.setText(QtGui.QApplication.translate("MainWindow", "Save", None, QtGui.QApplication.UnicodeUTF8))
-
 
 
 from mkidreadout.utils.mpl_pyqt4_widget import MPL_Widget

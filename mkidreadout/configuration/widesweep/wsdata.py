@@ -1,9 +1,9 @@
 import numpy as np
-from scipy import signal
+from mkidreadout.configuration import sweepdata
 
 
 class WSFitMLData(object):
-    def __init__(self, filenames, freqStep):
+    def __init__(self, filenames, attenrange=(60,66)):
 
         if isinstance(filenames, str):
             filenameList = [filenames]
@@ -14,18 +14,30 @@ class WSFitMLData(object):
         self.iVals = np.empty(0)
         self.qVals = np.empty(0)
         self.iqVels = np.empty(0)
-        self.freqStep = freqStep
         self.boundaryInds = np.empty(0)
         self.filenameList = np.asarray(filenameList)
 
+        self.effective_atten = []
+
         for fn in self.filenameList:
-            freqs, iVals, qVals = np.loadtxt(fn, unpack=True, skiprows=3)
-            iqVels = np.sqrt(np.diff(iVals)**2+np.diff(qVals)**2)
+            sd = sweepdata.FreqSweep(fn)
+            freqs, iVals, qVals = sd.oldwsformat(*attenrange).T
+            self.effective_atten.append(sd.oldwsformat_effective_atten(*attenrange))
             self.boundaryInds = np.append(self.boundaryInds, len(self.freqs))
             self.freqs = np.append(self.freqs, freqs)
             self.iVals = np.append(self.iVals, iVals)
             self.qVals = np.append(self.qVals, qVals)
-            self.iqVels = np.append(self.iqVels, iqVels)
+
+        self.effective_atten = np.mean(self.effective_atten)
+
+        s = np.argsort(self.freqs)
+
+        self.freqs[s]=self.freqs
+        self.iVals =self.iVals[s]
+        self.qVals =self.qVals[s]
+        self.iqVels = np.sqrt(np.diff(iVals) ** 2 + np.diff(qVals) ** 2)
+
+        self.freqStep = np.diff(self.freqs)[0]
 
         self.boundaryInds = self.boundaryInds[1:]
         self.mags = np.sqrt(self.iVals**2+self.qVals**2)
@@ -46,11 +58,6 @@ class WSFitMLData(object):
             else:
                 self.allPeakLocs = np.append(self.allPeakLocs, peakLocs)
     
-    def filterMags(self, mags, order=4, rs=40, wn=0.005):
-        wnf = wn*self.freqStep/12.5e-6
-        b, a = signal.cheby2(order, rs, wn, btype='high', analog=False)
-        return signal.filtfilt(b, a, mags)
-
     def stitchDigitalData(self):
         deltas = np.diff(self.freqs)
         boundaryInds = np.where(deltas<0)[0]

@@ -20,14 +20,17 @@ dependencies:
   - hdf5=1.10.2
   - ruamel.yaml
   - numba>=0.39.0
+  - psutil
+  - ipdb
+  - cython
+  - flask
+  - requests
 #optional
   - mpmath
   - blas
   - openblas
   - opencv>=3
   - ipp
-  - ipdb
-  - cython
   - mkl_fft
   - mkl_random
   - mkl-include
@@ -48,6 +51,5 @@ dependencies:
     - image-registration==0.2.4
     - pyinterval==1.2.0
     - multiprocessing-logging==0.2.6
-
+    - flask_restful
 prefix: /opt/anaconda3/envs/readout
-
