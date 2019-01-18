@@ -41,7 +41,7 @@ if __name__=="__main__":
         print "No data dir for the date specified: ", path, "does not exist.",useMsg
         sys.exit(1)
     
-    fileList= commands.getoutput('ls ' + path + " | grep ps | grep txt | grep -v clean.txt")
+    fileList= commands.getoutput('ls ' + path + " | grep ps | grep txt | grep -v clean.cfg")
     if len(fileList)==0:
         print "No power sweeps in", path, useMsg
         sys.exit(1)

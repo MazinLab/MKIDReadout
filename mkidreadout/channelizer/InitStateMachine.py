@@ -7,9 +7,9 @@ import sys, time, random
 import numpy as np
 from PyQt4 import QtCore
 from Queue import Queue
-from .Roach2Controls import Roach2Controls
-from .zdokcal import loadDelayCal, findCal
-from .qdr import Qdr as myQdr
+from mkidreadout.channelizer.Roach2Controls import Roach2Controls
+from mkidreadout.channelizer.zdokcal import loadDelayCal, findCal
+from mkidreadout.channelizer.qdr import Qdr as myQdr
 
 class InitStateMachine(QtCore.QObject):        #Extends QObject for use with QThreads
     """
@@ -202,7 +202,10 @@ class InitStateMachine(QtCore.QObject):        #Extends QObject for use with QTh
     def programV6(self):
         fpgPath = self.config.get('Roach '+str(self.num),'fpgPath')
         self.roachController.fpga.upload_to_ram_and_program(fpgPath)
-        print 'Fpga Clock Rate:',self.roachController.fpga.estimate_fpga_clock()
+        fpgaClockRate = self.roachController.fpga.estimate_fpga_clock()
+        print 'Fpga Clock Rate:', fpgaClockRate
+        if fpgaClockRate < 245 or fpgaClockRate > 255:
+            raise Exception('V6 clock rate incorrect. Possible boot issue for ADC/DAC board')
         self.roachController.loadBoardNum(self.num)
         self.roachController.loadCurTimestamp()
         return True
@@ -225,7 +228,7 @@ class InitStateMachine(QtCore.QObject):        #Extends QObject for use with QTh
         return True
 
     def calZdok(self):
-        self.roachController.sendUARTCommand(0x4)
+        self.roachController.sendUARTCommand(0x4, blocking=True)
         print 'switched on ADC ZDOK Cal ramp'
         time.sleep(.1)
 

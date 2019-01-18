@@ -20,7 +20,7 @@ Features to add:
  - keep log of errors and warnings in txt file
     - add to file menu (help) a viewer for log file
 """
-import sys, time, traceback
+import sys, time, traceback, logging, re
 from functools import partial
 import numpy as np
 import ConfigParser
@@ -32,6 +32,29 @@ from PyQt4.QtGui import *
 from mkidreadout.channelizer.RoachStateMachine import RoachStateMachine
 from mkidreadout.channelizer.RoachSettingsWindow import RoachSettingsWindow
 from mkidreadout.channelizer.RoachPlotWindow import RoachPhaseStreamWindow, RoachSweepWindow
+
+
+class TemplarConfig(object):
+    def __init__(self, file=''):
+        self.log=logging.getLogger('hightemplar.config')
+        self.file = file if file else 'hightemplar.cfg'
+        self.log.debug('Loading {}', self.file)
+        self.cp = ConfigParser.ConfigParser()
+        self.cp.read(self.file)
+
+    @property
+    def roaches(self):
+        return [s for s in self.cp.sections() if 'roach' in s.lower()]
+
+    def guessRoachFeedlines(self):
+        roachmap = {}
+        for roach in self.roaches:
+            settings='   '.join([x[1] for x in self.cp.items(roach)])
+            fl = set(map(lambda x: x.replace('_', '').lower(),
+                         re.findall('[fF][lL][0-9]{1,2}_?[ab]', settings, flags=re.IGNORECASE)))
+            roachmap[roach] = list(fl)[0] if len(fl) != 1 else ''
+            self.log.debug('{} may be for feedline(s) {}, adopting "{}"', roach, fl, roachmap[roach])
+        return roachmap
 
 
 class HighTemplar(QMainWindow):
@@ -172,6 +195,8 @@ class HighTemplar(QMainWindow):
             self.sweepWindows[roachArg].initFreqs() # initialize LO freq
         if command == RoachStateMachine.DEFINEDACLUT:
             self.sweepWindows[roachArg].initFreqs() # if modified pixel attenuation then need this to remove 'MODIFIED' tag on plot window
+            self.sweepWindows[roachArg].updateDACAttenSpinBox(commandData[0])
+            self.sweepWindows[roachArg].updateADCAttenSpinBox(commandData[1])
                                                     # Also shows dac quantized freqs
         if command == RoachStateMachine.SWEEP:
             self.sweepWindows[roachArg].plotData(commandData)
@@ -281,8 +306,14 @@ class HighTemplar(QMainWindow):
         
         self.contextMenu.clear()    # remove any actions added during previous right click
         
+        if command == RoachStateMachine.DEFINEDACLUT:
+            self.contextMenu.addAction('Auto ADC Atten',partial(self.onContextAutoADCatten,roachNums))
+            self.contextMenu.addSeparator()
+
         if command == RoachStateMachine.SWEEP:
             self.contextMenu.addAction('Plot Sweep',partial(self.onContextPlotSweepClick,roachNums))
+            self.contextMenu.addSeparator()
+            self.contextMenu.addAction('Auto ADC Atten',partial(self.onContextAutoADCatten,roachNums))
             self.contextMenu.addSeparator()
         
         if command == RoachStateMachine.LOADTHRESHOLD:
@@ -298,6 +329,16 @@ class HighTemplar(QMainWindow):
         self.settingsWindow.setCurrentIndex(index)
         self.settingsWindow.show()
     
+    def onContextAutoADCatten(self, roachNums):
+        for roachNum in roachNums:
+            roachArg = np.where(np.asarray(self.roachNums) == roachNum)[0][0]
+            if self.roachThreads[roachArg].isRunning():
+                print 'Roach '+str(roachNum)+' is busy'
+            else:
+                adcAtten = self.roaches[roachArg].config.getfloat('Roach '+str(roachNum),'adcatten')
+                newAdcAtten=self.roaches[roachArg].roachController.getOptimalADCAtten(adcAtten)
+                self.sweepWindows[roachArg].updateADCAttenSpinBox(newAdcAtten)
+
     def onContextPlotSweepClick(self, roachNums):
         for roachNum in roachNums:
             roachArg = np.where(np.asarray(self.roachNums) == roachNum)[0][0]
@@ -503,7 +544,7 @@ class HighTemplar(QMainWindow):
         QtCore.QCoreApplication.instance().quit
 
 
-def main():
+if __name__ == "__main__":
     app = QApplication(sys.argv)
     args = sys.argv[1:]
     defaultValues=None
@@ -527,8 +568,3 @@ def main():
     form = HighTemplar(roachNums,defaultValues)
     form.show()
     app.exec_()
-
-
-if __name__ == "__main__":
-
-    main()

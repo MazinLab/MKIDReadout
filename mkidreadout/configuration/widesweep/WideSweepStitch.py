@@ -1,12 +1,5 @@
 import numpy as np
-from scipy.interpolate import UnivariateSpline
-from scipy import signal
-import Peaks
-#from interval import interval, inf, imath
-import math
-import os
-import matplotlib.pyplot as plt
-from matplotlib.backends.backend_pdf import PdfPages
+import argparse
 
 
 '''
@@ -26,41 +19,35 @@ Output:
 Stitched together file (user provides file name)
 '''
 
-path = os.environ['MKID_DATA_DIR']
+parser = argparse.ArgumentParser(description='Stitch WS Clickthroughs')
+parser.add_argument('inputFiles', nargs='+', type=str, help='Input files')
+parser.add_argument('-o', '--output', nargs=1, default=['wsStitch.txt'], help='Output file')
+args = parser.parse_args()
 
-file1 = "Varuna_FL3_1-good.txt"
-file2 = "Varuna_FL3_2-good.txt"
-outfile = "Varuna_FL3-good.txt"
-index = 36481 #line number in full ws of freq that is first line in 2nd half, minus 3
-
-
-fullPath1 = os.path.join(path,file1)
-fullPath2 = os.path.join(path,file2)
-outPath = os.path.join(path,outfile)
-
-data1 = np.loadtxt(fullPath1)
+data1 = np.loadtxt(args.inputFiles[0])
 ids1 = data1[:,0]
 indices1 = data1[:,1]
 freqs1 = data1[:,2]
  
-idOffset = len(ids1)
+idOffset = (ids1[-1] + 1)%10000
 
-data2 = np.loadtxt(fullPath2)
+data2 = np.loadtxt(args.inputFiles[1])
 ids2 = data2[:,0]
 indices2 = data2[:,1]
 freqs2 = data2[:,2]
 
+#remove overlapping frequencies
+overlaps = np.where(freqs2<=freqs1[-1])[0]
+ids2 = np.delete(ids2, overlaps)
+indices2 = np.delete(indices2, overlaps)
+freqs2 = np.delete(freqs2, overlaps)
+ids2 -= ids2[0]%10000
+
 ids2+=idOffset
-indices2+=index
 
-gf = open(outPath,'wb')
-for i in range(len(ids1)):
-    line = "%8d %12d %16.7f\n"%(ids1[i],indices1[i],freqs1[i])
-    gf.write(line)
-for j in range(len(ids2)):
-    line = "%8d %12d %16.7f\n"%(ids2[j],indices2[j],freqs2[j])
-    gf.write(line)
+idsAll = np.append(ids1, ids2)
+indicesAll = np.append(indices1, indices2)
+freqsAll = np.append(freqs1, freqs2)
 
-gf.close()
-
+np.savetxt(args.output[0], np.transpose([idsAll, indicesAll, freqsAll]), fmt='%8d %12d %16.7f')
 

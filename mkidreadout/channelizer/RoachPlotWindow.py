@@ -331,11 +331,15 @@ class RoachPhaseStreamWindow(QMainWindow):
         self.spinbox_channel = QSpinBox()       #initializes to 0
         self.spinbox_channel.setRange(0,0)      #set the range after we read the freq file
         self.spinbox_channel.setWrapping(True)
-        self.spinbox_channel.valueChanged.connect(lambda x: self.plotSnap())
-        self.spinbox_channel.valueChanged.connect(lambda x: self.plotPhaseNoise())
-        self.spinbox_channel.valueChanged.connect(lambda x: self.initFreqs())
-        self.spinbox_channel.valueChanged.connect(lambda x: self.initThresh())
-        
+        #self.spinbox_channel.valueChanged.connect(lambda x: self.plotSnap())
+        #self.spinbox_channel.valueChanged.connect(lambda x: self.plotPhaseNoise())
+        #self.spinbox_channel.valueChanged.connect(lambda x: self.initFreqs())
+        #self.spinbox_channel.valueChanged.connect(lambda x: self.initThresh())
+        self.spinbox_channel.editingFinished.connect(self.initFreqs)
+        self.spinbox_channel.editingFinished.connect(self.initThresh)    
+        self.spinbox_channel.editingFinished.connect(self.plotSnap)
+        self.spinbox_channel.editingFinished.connect(self.plotPhaseNoise)    
+
         self.label_resID = QLabel('ResID: ')
         self.label_resID.setMinimumWidth(80)
         self.label_resID.setMaximumWidth(80)
@@ -866,20 +870,32 @@ class RoachSweepWindow(QMainWindow):
         #print self.ax2
         #print event.xdata
     
-    def changeADCAtten(self, adcAtten):
+    def updateDACAttenSpinBox(self, dacAtten):
+        self.spinbox_dacAttenStart.setValue(dacAtten)
+        self.changedSetting('dacatten_start', self.spinbox_dacAttenStart.value())
+        
+    
+    def updateADCAttenSpinBox(self, adcAtten):
+        self.spinbox_adcAtten.setValue(adcAtten)
+        self.changedSetting('adcatten', self.spinbox_adcAtten.value())
+
+    def changeADCAtten(self, ):
         """
         This function executes when change the adc attenuation spinbox
         It tells the ADC attenuator to change
         
         Works similiarly to phaseSnapShot()
         """
-        QtCore.QMetaObject.invokeMethod(self.roach, 'loadADCAtten', Qt.QueuedConnection,
-                                        QtCore.Q_ARG(float, adcAtten))
-        self.adcAttenChanged.emit()
-        self.resetRoach.emit(RoachStateMachine.ROTATE)
-        self.resetRoach.emit(RoachStateMachine.SWEEP)
+        adcAtten=self.spinbox_adcAtten.value()
+        if adcAtten!=self.config.getfloat('Roach '+str(self.roachNum),'adcatten'):
+            self.changedSetting('adcatten', self.spinbox_adcAtten.value())
+            QtCore.QMetaObject.invokeMethod(self.roach, 'loadADCAtten', Qt.QueuedConnection,
+                                            QtCore.Q_ARG(float, adcAtten))
+            self.adcAttenChanged.emit()
+            self.resetRoach.emit(RoachStateMachine.ROTATE)
+            self.resetRoach.emit(RoachStateMachine.SWEEP)
     
-    def changeDACAtten(self, dacAtten):
+    def changeDACAtten(self):
         """
         This function executes when we modify the dac atten start spinbox
         If we're keeping the resonators at a fixed atten, then we need to redefine the LUTs (which sets the DAC atten)
@@ -887,20 +903,23 @@ class RoachSweepWindow(QMainWindow):
         INPUTS:
             dacAtten - the dac attenuation
         """
-        if self.checkbox_resAttenFixed.isChecked():
-            self.resetRoach.emit(RoachStateMachine.DEFINEDACLUT)
-        else:
-            QtCore.QMetaObject.invokeMethod(self.roach, 'loadDACAtten', Qt.QueuedConnection,
-                                            QtCore.Q_ARG(float, dacAtten))
-            self.dacAttenChanged.emit()     # starts the roach thread
-            attens = self.roach.roachController.attenList
-            attens=attens+(dacAtten-self.dacAtten)
-            self.roach.roachController.attenList=attens     # force this to update
-            self.writeNewFreqFile(attens=attens)
-            self.resetRoach.emit(RoachStateMachine.ROTATE)
-            self.resetRoach.emit(RoachStateMachine.SWEEP)
-            self.initFreqs(False)
-        self.dacAtten=dacAtten
+        dacAtten=self.spinbox_dacAttenStart.value()
+        if dacAtten!=self.config.getfloat('Roach '+str(self.roachNum),'dacatten_start'):
+            self.changedSetting('dacatten_start', self.spinbox_dacAttenStart.value())
+            if self.checkbox_resAttenFixed.isChecked():
+                self.resetRoach.emit(RoachStateMachine.DEFINEDACLUT)
+            else:
+                QtCore.QMetaObject.invokeMethod(self.roach, 'loadDACAtten', Qt.QueuedConnection,
+                                                QtCore.Q_ARG(float, dacAtten))
+                self.dacAttenChanged.emit()     # starts the roach thread
+                attens = self.roach.roachController.attenList
+                attens=attens+(dacAtten-self.dacAtten)
+                self.roach.roachController.attenList=attens     # force this to update
+                self.writeNewFreqFile(attens=attens)
+                self.resetRoach.emit(RoachStateMachine.ROTATE)
+                self.resetRoach.emit(RoachStateMachine.SWEEP)
+                self.initFreqs(False)
+            self.dacAtten=dacAtten
     
     def toggleResAttenFixed(self):
         '''
@@ -943,9 +962,11 @@ class RoachSweepWindow(QMainWindow):
         self.spinbox_channel = QSpinBox()       #initializes to 0
         self.spinbox_channel.setRange(0,0)      #set the range after we read the freq file
         self.spinbox_channel.setWrapping(True)
-        #self.spinbox_channel.valueChanged.connect(self.plotData)
-        self.spinbox_channel.valueChanged.connect(lambda x: self.plotData())
-        self.spinbox_channel.valueChanged.connect(lambda x: self.initFreqs(False))
+        #self.spinbox_channel.valueChanged.connect(lambda x: self.plotData())
+        #self.spinbox_channel.valueChanged.connect(lambda x: self.initFreqs(False))
+        self.spinbox_channel.editingFinished.connect(self.plotData)
+        self.spinbox_channel.editingFinished.connect(partial(self.initFreqs,False))
+
         
         self.label_resID = QLabel('ResID: ')
         self.label_resID.setMinimumWidth(110)
@@ -1010,14 +1031,14 @@ class RoachSweepWindow(QMainWindow):
         dacAttenStart = self.config.getfloat('Roach '+str(self.roachNum),'dacatten_start')
         self.dacAtten=dacAttenStart
         label_dacAttenStart = QLabel('DAC atten:')
-        spinbox_dacAttenStart = QDoubleSpinBox()
-        spinbox_dacAttenStart.setValue(dacAttenStart)
-        spinbox_dacAttenStart.setSuffix(' dB')
-        spinbox_dacAttenStart.setRange(0,31.75*2)   # There are 2 DAC attenuators
-        spinbox_dacAttenStart.setToolTip("Rounded to the nearest 1/4 dB")
-        spinbox_dacAttenStart.setSingleStep(1.)
-        spinbox_dacAttenStart.setWrapping(False)
-        spinbox_dacAttenStart.setCorrectionMode(QAbstractSpinBox.CorrectToNearestValue)
+        self.spinbox_dacAttenStart = QDoubleSpinBox()
+        self.spinbox_dacAttenStart.setValue(dacAttenStart)
+        self.spinbox_dacAttenStart.setSuffix(' dB')
+        self.spinbox_dacAttenStart.setRange(0,31.75*2)   # There are 2 DAC attenuators
+        self.spinbox_dacAttenStart.setToolTip("Rounded to the nearest 1/4 dB")
+        self.spinbox_dacAttenStart.setSingleStep(1.)
+        self.spinbox_dacAttenStart.setWrapping(False)
+        self.spinbox_dacAttenStart.setCorrectionMode(QAbstractSpinBox.CorrectToNearestValue)
         
         dacAttenStop = self.config.getfloat('Roach '+str(self.roachNum),'dacatten_stop')
         label_dacAttenStop = QLabel(' to ')
@@ -1030,29 +1051,33 @@ class RoachSweepWindow(QMainWindow):
         spinbox_dacAttenStop.setWrapping(False)
         spinbox_dacAttenStop.setCorrectionMode(QAbstractSpinBox.CorrectToNearestValue)
         
-        spinbox_dacAttenStart.valueChanged.connect(partial(self.changedSetting,'dacatten_start'))
-        spinbox_dacAttenStart.valueChanged.connect(spinbox_dacAttenStop.setValue)                   #Automatically change value of dac atten stop when start value changes
+        #self.spinbox_dacAttenStart.valueChanged.connect(partial(self.changedSetting,'dacatten_start'))
+        self.spinbox_dacAttenStart.valueChanged.connect(spinbox_dacAttenStop.setValue)                   #Automatically change value of dac atten stop when start value changes
         spinbox_dacAttenStop.valueChanged.connect(partial(self.changedSetting,'dacatten_stop'))
-        spinbox_dacAttenStop.valueChanged.connect(lambda x: spinbox_dacAttenStop.setValue(max(spinbox_dacAttenStart.value(),x)))       #Force stop value to be larger than start value
+        spinbox_dacAttenStop.valueChanged.connect(lambda x: spinbox_dacAttenStop.setValue(max(self.spinbox_dacAttenStart.value(),x)))       #Force stop value to be larger than start value
         
-        #spinbox_dacAttenStart.valueChanged.connect(lambda x: self.resetRoach.emit(RoachStateMachine.DEFINEDACLUT))      # reset roach to so that the new dac atten is loaded in next time we sweep
-        spinbox_dacAttenStart.valueChanged.connect(self.changeDACAtten)
+        #self.spinbox_dacAttenStart.valueChanged.connect(lambda x: self.resetRoach.emit(RoachStateMachine.DEFINEDACLUT))      # reset roach to so that the new dac atten is loaded in next time we sweep
+        #self.spinbox_dacAttenStart.valueChanged.connect(self.changeDACAtten)
+        self.spinbox_dacAttenStart.editingFinished.connect(self.changeDACAtten)
         
         
         adcAtten = self.config.getfloat('Roach '+str(self.roachNum),'adcatten')
         label_adcAtten = QLabel('ADC Atten:')
-        spinbox_adcAtten = QDoubleSpinBox()
-        spinbox_adcAtten.setValue(adcAtten)
-        spinbox_adcAtten.setSuffix(' dB')
-        spinbox_adcAtten.setRange(0,63.5)
-        spinbox_adcAtten.setToolTip("Rounded to the nearest 1/4 dB")
-        spinbox_adcAtten.setSingleStep(1.)
-        spinbox_adcAtten.setWrapping(False)
-        spinbox_adcAtten.setCorrectionMode(QAbstractSpinBox.CorrectToNearestValue)
-        spinbox_adcAtten.valueChanged.connect(partial(self.changedSetting,'adcatten'))
-        #spinbox_adcAtten.valueChanged.connect(lambda x: self.resetRoach.emit(RoachStateMachine.SWEEP))       # reset state of roach
-        spinbox_adcAtten.valueChanged.connect(self.changeADCAtten)
+        self.spinbox_adcAtten = QDoubleSpinBox()
+        self.spinbox_adcAtten.setValue(adcAtten)
+        self.spinbox_adcAtten.setSuffix(' dB')
+        self.spinbox_adcAtten.setRange(0,63.5)
+        self.spinbox_adcAtten.setToolTip("Rounded to the nearest 1/4 dB")
+        self.spinbox_adcAtten.setSingleStep(1.)
+        self.spinbox_adcAtten.setWrapping(False)
+        self.spinbox_adcAtten.setCorrectionMode(QAbstractSpinBox.CorrectToNearestValue)
+        #self.spinbox_adcAtten.valueChanged.connect(partial(self.changedSetting,'adcatten'))
+        #self.spinbox_adcAtten.editingFinished.connect(partial(self.changedSetting,'adcatten', self.spinbox_adcAtten.value()))
+        #self.spinbox_adcAtten.valueChanged.connect(lambda x: self.resetRoach.emit(RoachStateMachine.SWEEP))       # reset state of roach
+        #self.spinbox_adcAtten.valueChanged.connect(self.changeADCAtten)
+        self.spinbox_adcAtten.editingFinished.connect(self.changeADCAtten)
         
+
         
         self.checkbox_resAttenFixed = QCheckBox('Keep Res Atten Fixed')
         self.checkbox_resAttenFixed.setChecked(True)
@@ -1146,12 +1171,12 @@ class RoachSweepWindow(QMainWindow):
         
         hbox_atten = QHBoxLayout()
         hbox_atten.addWidget(label_dacAttenStart)
-        hbox_atten.addWidget(spinbox_dacAttenStart)
+        hbox_atten.addWidget(self.spinbox_dacAttenStart)
         hbox_atten.addWidget(label_dacAttenStop)
         hbox_atten.addWidget(spinbox_dacAttenStop)
         hbox_atten.addSpacing(30)
         hbox_atten.addWidget(label_adcAtten)
-        hbox_atten.addWidget(spinbox_adcAtten)
+        hbox_atten.addWidget(self.spinbox_adcAtten)
         hbox_atten.addSpacing(30)
         hbox_atten.addWidget(self.checkbox_resAttenFixed)
         hbox_atten.addStretch()

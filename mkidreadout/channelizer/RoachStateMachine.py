@@ -231,17 +231,25 @@ class RoachStateMachine(QtCore.QObject):        #Extends QObject for use with QT
         self.roachController.connect()
         #self.roachController.initV7MB()
         self.loadDdsShift()
+        self.roachController.loadFullDelayCal()
         
         return True
     
     def loadFreq(self):
         '''
         Loads the resonator freq files (and attenuations, resIDs)
-        divides the resonators into streams
+        gets phaseOffsList and iqRatioList if available
+        distributes the resonators into streams
+        
+        Adds important attributes to roachController object:
+            self.roachController.attenList
+            self.roachController.resIDs
+            self.roachController.phaseOffsList
+            self.roachController.iqRatioList
         '''
-        try:
-            print 'old Freq: ', self.roachController.freqList
-        except: pass
+        #try:
+        #    print 'old Freq: ', self.roachController.freqList
+        #except: pass
         fn = self.config.get('Roach '+str(self.num),'freqfile')
         fn2=fn.rsplit('.',1)[0]+'_NEW.'+ fn.rsplit('.',1)[1]         # Check if ps_freq#_NEW.txt exists
         if os.path.isfile(fn2): 
@@ -250,21 +258,17 @@ class RoachStateMachine(QtCore.QObject):        #Extends QObject for use with QT
         
         freqFile = np.loadtxt(fn)
         
-        if np.shape(freqFile)[1]==3:
-            resIDs = np.atleast_1d(freqFile[:,0])       # If there's only 1 resonator numpy loads it in as a float.
-            freqs = np.atleast_1d(freqFile[:,1])     # We need an array of floats
-            attens = np.atleast_1d(freqFile[:,2])
-            phaseOffsList = np.zeros(len(freqs))
-            iqRatioList = np.ones(len(freqs))
-        
-        else:
-            resIDs = np.atleast_1d(freqFile[:,0])       # If there's only 1 resonator numpy loads it in as a float.
-            freqs = np.atleast_1d(freqFile[:,1])     # We need an array of floats
-            attens = np.atleast_1d(freqFile[:,2])
+        resIDs = np.atleast_1d(freqFile[:,0])       # If there's only 1 resonator numpy loads it in as a float.
+        freqs = np.atleast_1d(freqFile[:,1])     # We need an array of floats
+        attens = np.atleast_1d(freqFile[:,2])
+        phaseOffsList = np.zeros(len(freqs))
+        iqRatioList = np.ones(len(freqs))
+        try:
             phaseOffsList = np.atleast_1d(freqFile[:,3])
             iqRatioList = np.atleast_1d(freqFile[:,4])
+        except IndexError: pass
 
-        assert(len(freqs) == len(np.unique(freqs))), "Frequencies in "+fn+" need to be unique."
+        #assert(len(freqs) == len(np.unique(freqs))), "Frequencies in "+fn+" need to be unique."
         assert(len(resIDs) == len(np.unique(resIDs))), "Resonator IDs in "+fn+" need to be unique."
         argsSorted = np.argsort(freqs)  # sort them by frequency (I don't think this is needed)
         freqs = freqs[argsSorted]
@@ -272,15 +276,16 @@ class RoachStateMachine(QtCore.QObject):        #Extends QObject for use with QT
         attens = attens[argsSorted]
         phaseOffsList = iqRatioList[argsSorted]
         iqRatioList = iqRatioList[argsSorted]
-        for i in range(len(freqs)):
-            print i, resIDs[i], freqs[i], attens[i], phaseOffsList[i], iqRatioList[i]
+        #for i in range(len(freqs)):
+        #    print i, resIDs[i], freqs[i], attens[i], phaseOffsList[i], iqRatioList[i]
         
         self.roachController.generateResonatorChannels(freqs)
-        self.roachController.attenList = attens
+        #self.roachController.attenList = attens
+        self.roachController.setAttenList(attens)
         self.roachController.resIDs = resIDs
         self.roachController.phaseOffsList = phaseOffsList
         self.roachController.iqRatioList = iqRatioList
-        print 'new Freq: ', self.roachController.freqList
+        #print 'new Freq: ', self.roachController.freqList
 
         return True
     
@@ -293,7 +298,7 @@ class RoachStateMachine(QtCore.QObject):        #Extends QObject for use with QT
         writing the QDR takes a long time! :-(
         '''
         loFreq = int(self.config.getfloat('Roach '+str(self.num),'lo_freq'))
-        self.roachController.setLOFreq(loFreq)
+        self.roachController.setLOFreq(loFreq)      # This just sets the attribute. Does not communicate with board
         self.roachController.generateFftChanSelection()
         self.roachController.generateDdsTones()
         self.roachController.loadChanSelection()
@@ -309,26 +314,29 @@ class RoachStateMachine(QtCore.QObject):        #Extends QObject for use with QT
         '''
 
         adcAtten = self.config.getfloat('Roach '+str(self.num),'adcatten')
-        dacAtten = self.config.getfloat('Roach '+str(self.num),'dacatten_start')
-        dacAtten1 = np.floor(dacAtten*2)/4.
-        dacAtten2 = np.ceil(dacAtten*2)/4.
-        adcAtten1 = np.floor(adcAtten*2)/4.
-        adcAtten2 = np.ceil(adcAtten*2)/4.
+        #dacAtten = self.config.getfloat('Roach '+str(self.num),'dacatten_start')
+        #dacAtten1 = np.floor(dacAtten*2)/4.
+        #dacAtten2 = np.ceil(dacAtten*2)/4.
+        #adcAtten1 = np.floor(adcAtten*2)/4.
+        #adcAtten2 = np.ceil(adcAtten*2)/4.
 
-        self.roachController.generateDacComb(globalDacAtten=dacAtten)
+        combDict = self.roachController.generateDacComb()
+        newDacAtten=combDict['dacAtten']
         
         print "Initializing ADC/DAC board communication"
         self.roachController.initializeV7UART()
-        print "Setting Attenuators"
-        self.roachController.changeAtten(1,dacAtten1)
-        self.roachController.changeAtten(2,dacAtten2)
-        self.roachController.changeAtten(3,adcAtten1)
-        self.roachController.changeAtten(4,adcAtten2)
         print "Setting LO Freq"
         self.roachController.loadLOFreq()
         print "Loading DAC LUT"
         self.roachController.loadDacLUT()
-        return True
+        print "Setting DAC Atten"
+        self.roachController.changeAtten(1,np.floor(newDacAtten*2)/4.)
+        self.roachController.changeAtten(2,np.ceil(newDacAtten*2)/4.)
+        print "Auto Setting ADC Atten"
+        newADCAtten = self.roachController.getOptimalADCAtten(adcAtten)
+        
+        #return True
+        return [newDacAtten, newADCAtten]
     
     def sweep(self):
         '''
@@ -339,7 +347,7 @@ class RoachStateMachine(QtCore.QObject):        #Extends QObject for use with QT
         sets the following attributes:
             self.I_data - [nFreqs, nLOsteps] array of I points
             self.Q_data - 
-            self.centers
+            self.centers - [nFreqs, 2] array of I,Q loop centers
         
         NOTE: each I,Q point is actually an average of 1024 points done in firmware
         
@@ -362,6 +370,7 @@ class RoachStateMachine(QtCore.QObject):        #Extends QObject for use with QT
         start_DACAtten = self.config.getfloat('Roach '+str(self.num),'dacatten_start')
         stop_DACAtten = self.config.getfloat('Roach '+str(self.num),'dacatten_stop')
         start_ADCAtten = self.config.getfloat('Roach '+str(self.num),'adcatten')
+        newADCAtten=start_ADCAtten
         
         powerSweepFile = self.config.get('Roach '+str(self.num),'powersweepfile')
         powerSweepFile = powerSweepFile.rsplit('.',1)[0]+'_'+time.strftime("%Y%m%d-%H%M%S",time.localtime())+'.'+powerSweepFile.rsplit('.',1)[1]
@@ -371,14 +380,12 @@ class RoachStateMachine(QtCore.QObject):        #Extends QObject for use with QT
                 dacAtten2 = np.ceil(dacAtten*2)/4.
                 self.roachController.changeAtten(1,dacAtten1)
                 self.roachController.changeAtten(2,dacAtten2)
-                print 'Setting DAC atten: '+str(dacAtten)
+                print 'Changed DAC atten: '+str(dacAtten)
                 # keep total power on the ADC the same
-                newADCAtten=start_ADCAtten - (dacAtten - start_DACAtten)
-                adcAtten1 = max(0.,np.floor(newADCAtten*2)/4.)
-                adcAtten2 = max(0., np.ceil(newADCAtten*2)/4.)
-                self.roachController.changeAtten(3,adcAtten1)
-                self.roachController.changeAtten(4,adcAtten2)
-                print 'Setting ADCatten: '+str(newADCAtten)
+                newADCAtten = self.roachController.getOptimalADCAtten(newADCAtten)
+                print 'Changed ADC atten:',newADCAtten
+
+
             iqData = self.roachController.performIQSweep(LO_start/1.e6, LO_end/1.e6, LO_step/1.e6)
             self.I_data = iqData['I']
             self.Q_data = iqData['Q']
@@ -421,19 +428,19 @@ class RoachStateMachine(QtCore.QObject):        #Extends QObject for use with QT
         iqOnRes = self.roachController.takeAvgIQData(nPoints)
         
         
-        if stop_DACAtten > start_DACAtten:      # reset the dac atten to the start value again if we did a power sweep
+        if stop_DACAtten > start_DACAtten:      # reset the dac/adc atten to the start value again if we did a power sweep
             dacAtten1 = np.floor(start_DACAtten*2)/4.
             dacAtten2 = np.ceil(start_DACAtten*2)/4.
-            
+            self.roachController.changeAtten(1,dacAtten1)
+            self.roachController.changeAtten(2,dacAtten2)
+            print 'Returned DAC atten: '+str(start_DACAtten)
+
             adcAtten1 = np.floor(start_ADCAtten*2)/4.
             adcAtten2 = np.ceil(start_ADCAtten*2)/4.
             self.roachController.changeAtten(3,adcAtten1)
             self.roachController.changeAtten(4,adcAtten2)
-            print 'Setting ADCatten: '+str(start_ADCAtten)
-            self.roachController.changeAtten(1,dacAtten1)
-            self.roachController.changeAtten(2,dacAtten2)
-            print 'Setting DAC atten: '+str(start_DACAtten)
-        
+            print 'Returned ADCatten: '+str(start_ADCAtten)
+
         fList = np.copy(self.roachController.dacQuantizedFreqList)
         fList[np.where(fList>(self.roachController.params['dacSampleRate']/2.))] -= self.roachController.params['dacSampleRate']
         fList+=LO_freq
@@ -442,26 +449,12 @@ class RoachStateMachine(QtCore.QObject):        #Extends QObject for use with QT
                 #'freqList':np.copy(self.roachController.freqList),
                 'freqList':fList,
                 'centers':np.copy(self.centers), 'IonRes':np.copy(iqOnRes['I']),'QonRes':np.copy(iqOnRes['Q'])}
-        
-        #return {'I':self.I_data,'Q':self.Q_data}
-        
-        '''
-        nfreqs = len(self.roachController.freqList)
-        self.I_data = []
-        self.Q_data = []
-        nSteps = int(LO_span/LO_step)
-        for i in range(nfreqs):
-            theta = np.linspace(0.,1,nSteps)*2*np.pi
-            I = np.cos(theta) + (np.random.rand(nSteps)-0.5)/10.
-            Q = np.sin(theta) + (np.random.rand(nSteps)-0.5)/10.
-            self.I_data.append(I)
-            self.Q_data.append(Q)
-        return {'I':self.I_data,'Q':self.Q_data}
-        '''
+
     
     def rotateLoops(self):
         '''
-        Rotate loops so that the on resonance phase=0
+        Rotate loops so that the on resonance phase=0.
+        It uses the loop center data from the last sweep performed.
         
         NOTE: We rotate around I,Q = 0. Not around the center of the loop
               When we translate after, we need to resweep
@@ -711,6 +704,13 @@ class RoachStateMachine(QtCore.QObject):        #Extends QObject for use with QT
         #data=self.roachController.takePhaseStreamData(selChanIndex=ch, duration=duration, hostIP=hostip)
         try:
             data=self.roachController.takePhaseStreamDataOfFreqChannel(freqChan=channel, duration=duration, hostIP=hostip, fabric_port=port)
+            
+        except:
+            traceback.print_exc()
+            self.finished.emit()
+            return
+
+        try:
             longSnapFN = self.config.get('Roach '+str(self.num),'longsnapfile')
             longSnapFN = longSnapFN.rsplit('.',1)[0]+'_resID'+str(int(resID))+'_'+time.strftime("%Y%m%d-%H%M%S",time.localtime())+'.'+longSnapFN.rsplit('.',1)[1]
             np.savez(longSnapFN,data)
@@ -720,10 +720,6 @@ class RoachStateMachine(QtCore.QObject):        #Extends QObject for use with QT
             print 'Making directory: '+path[0]
             os.mkdir(path[0])
             np.savez(longSnapFN,data)
-        except:
-            traceback.print_exc()
-            self.finished.emit()
-            return
         #time.sleep(timelen)
         #data=np.random.uniform(-.1,.1,timelen*10.**6)
         self.timestreamPhase.emit(channel,data)
@@ -758,7 +754,7 @@ class RoachStateMachine(QtCore.QObject):        #Extends QObject for use with QT
         adcAtten2 = np.ceil(adcAtten*2)/4.
         self.roachController.changeAtten(3,adcAtten1)
         self.roachController.changeAtten(4,adcAtten2)
-        print 'r'+str(self.num)+'Changed ADCAtten to '+str(adcAtten1)+'+'+str(adcAtten2)
+        print 'r'+str(self.num)+' Changed ADCAtten to '+str(adcAtten1)+'+'+str(adcAtten2)
         # self.roachController.changeAtten(3, adcAtten)
         # print 'r'+str(self.num)+'Changed ADCAtten to '+str(adcAtten)
         self.finished.emit()
@@ -777,7 +773,7 @@ class RoachStateMachine(QtCore.QObject):        #Extends QObject for use with QT
         dacAtten2 = np.ceil(dacAtten*2)/4.
         self.roachController.changeAtten(1,dacAtten1)
         self.roachController.changeAtten(2,dacAtten2)
-        print 'r'+str(self.num)+'Changed DAC Atten to '+str(dacAtten1)+'+'+str(dacAtten2)
+        print 'r'+str(self.num)+' Changed DAC Atten to '+str(dacAtten1)+'+'+str(dacAtten2)
         self.finished.emit()
     
     @QtCore.pyqtSlot(object)

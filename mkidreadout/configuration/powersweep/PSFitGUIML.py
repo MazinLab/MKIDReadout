@@ -1,5 +1,4 @@
 #-----------------------------------
-# PSFitAuto.py
 #
 # Given IQ sweeps at various powers of resonators, this program chooses the best resonant frequency and power
 # ----------------------------------
@@ -18,7 +17,7 @@
 # Implemented a v2 gui that fits in a small screen.  
 # Run this program with no arguments to get the "classic" look.
 # Run this progam with any variable to get the "new" look.  The values of arguments are ignored.
-
+#!/bin/env python
 import ConfigParser
 from numpy import *
 import numpy
@@ -27,10 +26,34 @@ from PyQt4.QtCore import *
 from mkidreadout.utils.iqsweep import *
 from matplotlib.backends.backend_qt4 import NavigationToolbar2QT as NavigationToolbar
 
+import mkidreadout.configuration.powersweep.gui as gui
+import argparse
+
+
+def quantcut(cut, d):
+    msg = ("Cut resolves {nres} ({pres:.0f}%) resonators, requiring clickthourgh of {nclick}.\n"
+           "{nbad} ({pbad:.0f}% of all res.) bad resonators would have been accepted with power of {bpwr:.1f}+-{bstd:.1f} "
+           "dB\n"
+           "{nok} ({pok:.0f}% of all res.) would have been accepted suboptimally with "
+           "powers {okpwrd:.1f}+-{okstdd:.1f} from optimal.\n"
+           "The accepted good resonators are {adbd:.1f}+-{adbdstd:.1f} dB from their optimal values.")
+    remain = ~cut
+    bad_accept = d.bad & cut
+    ok_accept = cut & ~d.bad & ~d.correct
+    print(msg.format(nres=cut.sum(), pres=cut.sum() * 100. / cut.size, nclick=remain.sum(),
+                     nbad=bad_accept.sum(), pbad=bad_accept.sum() * 100. / cut.size,
+                     bpwr=d.guessed[bad_accept].mean(), bstd=d.guessed[bad_accept].std(),
+                     nok=ok_accept.sum(), pok=ok_accept.sum()*100/cut.size,
+                     okpwrd=d.shift[ok_accept].mean(), okstdd=d.shift[ok_accept].std(),
+                     adbd=d.shift[~d.bad & cut].mean(), adbdstd=d.shift[~d.bad & cut].std()))
+
+
+
+
 class StartQt4(QMainWindow):
-    def __init__(self,parent=None):
+    def __init__(self, cfgfile, feedline, Ui, parent=None):
         QWidget.__init__(self, parent)
-        self.ui = Ui_MainWindow()
+        self.ui = Ui()
         self.ui.setupUi(self)
     
         self.atten = -1
@@ -49,10 +72,8 @@ class StartQt4(QMainWindow):
         self.wsresID_offset=0
         try:
             config = ConfigParser.ConfigParser()
-            config.read('/home/data/MEC/20180620/wsData.cfg')
-            fl = 'FL6a'
-
-
+            config.read(cfgfile)
+            fl = 'FL' + feedline.lower()
             ws_FN = config.get(fl, 'widesweep_FN')
             ws_freqs_all_FN = config.get(fl, 'ws_freqs_all_FN')
             ws_freqs_good_FN = config.get(fl, 'ws_freqs_good_FN')
@@ -67,6 +88,7 @@ class StartQt4(QMainWindow):
             self.widesweep=None
             self.h5resID_offset=0
             self.wsresID_offset=0
+            raise
 
         self.navi_toolbar = NavigationToolbar(self.ui.plot_3.canvas, self)
         self.ui.plot_3.canvas.setFocusPolicy( Qt.ClickFocus )
@@ -89,6 +111,7 @@ class StartQt4(QMainWindow):
         self.Res1.LoadPowers(str(self.openfile), 'r0', self.freq[self.resnum])
         self.ui.res_num.setText(str(self.resnum))
         self.resfreq = self.freq[self.resnum]
+        self.ui.jumptonum.setValue(self.resnum)
 
         try: self.Res1.resID+=self.h5resID_offset    #sometimes the resID in the h5 file is wrong...        
         except: self.Res1.resID = self.resnum+self.h5resID_offset   #or the h5 has no resID column
@@ -248,7 +271,7 @@ class StartQt4(QMainWindow):
         self.ui.frequency.setText(str(self.resfreq))
         self.ui.plot_2.canvas.ax.plot(self.Res1.freq[self.indx],self.res1_iq_vel[self.indx],'bo')
         self.ui.plot_3.canvas.ax.plot(self.Res1.I[self.indx],self.Res1.Q[self.indx],'bo')
-        self.indx=where(self.Res1.freq >= self.resfreq)[0][0]
+        self.indx=min(where(self.Res1.freq >= self.resfreq)[0][0], self.Res1.freq.size-1)
         self.ui.plot_2.canvas.ax.plot(self.Res1.freq[self.indx],self.res1_iq_vel[self.indx],'ro')
         self.ui.plot_2.canvas.draw()
         self.ui.plot_3.canvas.ax.plot(self.Res1.I[self.indx],self.Res1.Q[self.indx],'ro')
@@ -459,13 +482,17 @@ class StartQt4(QMainWindow):
         self.mlResIDs, self.mlFreqs, self.mlAttens = np.loadtxt(str(self.savefile), unpack=True)
         self.loadres()
                 
+                
 if __name__ == "__main__":
-    if len(sys.argv) > 1:
-        from PSFit_GUI_v2 import Ui_MainWindow
-    else:
-        from PSFit_GUI import Ui_MainWindow
+    parser = argparse.ArgumentParser(description='MKID Powersweep GUI')
+    parser.add_argument('cfgfile', type=str, help='The config file', default='./wsData.cfg')
+    parser.add_argument('feedline', type=str, help='Feedline number/band (e.g. 7a)')
+    parser.add_argument('--small', action='store_true', dest='smallui', default=False, help='Use small GUI')
+    args = parser.parse_args()
+
+    Ui = gui.Ui_MainWindow_Small if args.smallui else Ui_MainWindow
 
     app = QApplication(sys.argv)
-    myapp = StartQt4()
+    myapp = StartQt4(args.cfgfile, args.feedline, Ui)
     myapp.show()
     app.exec_()

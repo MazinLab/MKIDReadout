@@ -1,0 +1,53 @@
+name: readout
+channels:
+  - defaults
+  - conda-forge
+  - intel
+dependencies:
+#key parts
+  - mkl>=11.3.3
+  - astropy
+  - ipython>=4.2
+  - matplotlib>=2.2
+  - pyqt=4.11
+  - pyserial=3.4
+  - python=2.7
+  - scikit-image>=0.12.3
+  - scikit-learn>=0.17.1
+  - pytables=3.4.4
+  - tensorflow>=1.8
+  - pip>=17
+  - hdf5=1.10.2
+  - ruamel.yaml
+  - numba>=0.39.0
+#optional
+  - mpmath
+  - blas
+  - openblas
+  - opencv>=3
+  - ipp
+  - ipdb
+  - cython
+  - mkl_fft
+  - mkl_random
+  - mkl-include
+  - boost
+#Fix warnings
+  - tornado
+  - certifi
+  - subprocess32
+  - ply
+  - future
+#pip requirements
+  - pip:
+    #fpga
+    - katcp>=0.6.0
+    - git+http://github.com/MazinLab/casperfpga.git@v0.4.3.1#egg=casperfpga
+    #others
+    - crlibm==1.0.3
+    - image-registration==0.2.4
+    - pyinterval==1.2.0
+    - multiprocessing-logging==0.2.6
+
+prefix: /opt/anaconda3/envs/readout
+

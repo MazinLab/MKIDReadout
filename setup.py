@@ -1,10 +1,16 @@
 from __future__ import print_function
-import setuptools, sys
+import setuptools, sys, numpy
 import os
 from setuptools.command.install import install
 from setuptools.command.develop import develop
 import subprocess
+import platform
+from setuptools.extension import Extension
+from Cython.Build import cythonize
+
 #pip install -e git+http://github.com/mazinlab/mkidreadout.git@restructure#egg=mkidreadout --src ./mkidtest
+
+
 
 
 def get_virtualenv_path():
@@ -23,6 +29,11 @@ def get_virtualenv_path():
 
 def compile_and_install_software():
     """Used the subprocess module to compile/install the C software."""
+    
+    #don't compile if installing on anything that's not linux
+    if platform.system()!='Linux':
+        return
+
     src_path = './mkidreadout/readout/packetmaster/'
 
     # compile the software
@@ -55,9 +66,14 @@ class CustomDevelop(develop, object):
         super(CustomDevelop,self).run()
 
 
+ext_module = Extension("Roach2Utils", 
+                       ['./mkidreadout/channelize/Roach2Utils.pyx'],
+                       include_dirs=[numpy.get_include()],
+                       extra_compile_args=['-fopenmp'],
+                       extra_link_args=['-fopenmp'])
+
 with open("README.md", "r") as fh:
     long_description = fh.read()
-
 
 setuptools.setup(
     name="mkidreadout",
@@ -71,9 +87,12 @@ setuptools.setup(
     packages=setuptools.find_packages(),
     scripts=['mkidreadout/channelizer/initgui.py',
              'mkidreadout/channelizer/HighTemplar.py',
-             'mkidreadout/readout/MkidDashboard.py'],
+             'mkidreadout/readout/MkidDashboard.py',
+             'mkidreadout/configuration/widesweep/WideAna.py',
+             'mkidreadout/configuration/powersweep/PSFitGUIML.py'],
+    ext_modules = cythonize(ext_module), 
     classifiers=(
-        "Programming Language :: Python :: 3",
+        "Programming Language :: Python :: 2.7",
         "License :: OSI Approved :: MIT License",
         "Operating System :: POSIX",
         "Development Status :: 1 - Planning",

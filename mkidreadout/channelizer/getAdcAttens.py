@@ -1,38 +1,12 @@
 import os, sys
 import numpy as np
 import matplotlib.pyplot as plt
-from Roach2Controls import Roach2Controls
+from mkidreadout.channelizer.Roach2Controls import Roach2Controls
+from mkidreadout.channelizer.adcTools import *
 
 #TODO: error check threshold on max to 3.5 RMS at a low RMS value
 
-
-def streamSpectrum(iVals,qVals):
-    #TODO break out into library module
-    sampleRate = 2.e9 # 2GHz
-    MHz = 1.e6
-    adcFullScale = 2.**11
-
-    signal = iVals+1.j*qVals
-    signal = signal / adcFullScale
-
-    nSamples = len(signal)
-    spectrum = np.fft.fft(signal)
-    spectrum = 1.*spectrum / nSamples
-
-    freqsMHz = np.fft.fftfreq(nSamples)*sampleRate/MHz
-
-    freqsMHz = np.fft.fftshift(freqsMHz)
-    spectrum = np.fft.fftshift(spectrum)
-
-    spectrumDb = 20*np.log10(np.abs(spectrum))
-
-    peakFreq = freqsMHz[np.argmax(spectrumDb)]
-    peakFreqPower = spectrumDb[np.argmax(spectrumDb)]
-    times = np.arange(nSamples)/sampleRate * MHz
-    #print 'peak at',peakFreq,'MHz',peakFreqPower,'dB'
-    return {'spectrumDb':spectrumDb,'freqsMHz':freqsMHz,'spectrum':spectrum,'peakFreq':peakFreq,'times':times,'signal':signal,'nSamples':nSamples}
-
-def checkErrorsAndSetAtten(roach, startAtten=40, iqBalRange=[0.7, 1.3], rmsRange=[0.2,0.3], verbose=False):
+def checkErrorsAndSetAtten(roach, startAtten=40, iqBalRange=[0.7, 1.3], rmsRange=[0.15,0.19], verbose=False):
     #TODO Merge with roach2controls
     adcFullScale = 2.**11
     curAtten=startAtten
@@ -77,16 +51,6 @@ def checkErrorsAndSetAtten(roach, startAtten=40, iqBalRange=[0.7, 1.3], rmsRange
 
     return curAtten 
 
-def checkSpectrumForSpikes(specDict):
-    # TODO Merge with roach2controls as helper
-    sortedSpectrum=np.sort(specDict['spectrumDb'])
-    spectrumFlag=0
-    #checks if there are spikes above the forest. If there are less than 5 tones at least 10dB above the forest are cosidered spikes
-    for i in range(-5,-1):
-        if (sortedSpectrum[-1]-sortedSpectrum[i])>10:
-            spectrumFlag=1
-            break
-    return spectrumFlag
     
 
 if __name__=='__main__':
@@ -116,7 +80,7 @@ if __name__=='__main__':
         specDict = streamSpectrum(snapDict['iVals'], snapDict['qVals'])
         specDictList.append(specDict)
         flag = checkSpectrumForSpikes(specDict)
-        if flag!=0:
+        if flag==True:
             print 'Spikes in spectrum for Roach', roach.ip
             if plotSnaps:
                 fig,ax = plt.subplots(1, 1)

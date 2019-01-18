@@ -1,10 +1,7 @@
 import numpy as np
-import scipy.interpolate
-import scipy.signal
-from baselineIIR import IirFilter
 import triggerPhotons as tP
 
-def makeNoiseSpectrum(data, peakIndices=[], window=800, noiseOffsetFromPeak=200, sampleRate=1e6, filt=[],isVerbose=False,baselineSubtract=True):
+def makeNoiseSpectrum(data, peakIndices=(), window=800, noiseOffsetFromPeak=200, sampleRate=1e6, filt=(),isVerbose=False,baselineSubtract=True):
     '''
     makes one sided noise power spectrum in units of V^2/Hz by averaging together Fourier transforms of noise
     traces. The code screens out any potential pulse contamination with the provided peak indices and filter
@@ -44,7 +41,8 @@ def makeNoiseSpectrum(data, peakIndices=[], window=800, noiseOffsetFromPeak=200,
         data = data - np.mean(noiseStream)
     
     #Calculate noise spectra for the defined area before each pulse
-    if len(peakIndices)>1000:
+    if len(peakIndices)>2000:
+        peakIndices = peakIndices[:2000]
         noiseSpectra = np.zeros((len(peakIndices), len(np.fft.rfftfreq(window)) ))
     else:
         noiseSpectra = np.zeros((len(peakIndices), len(np.fft.rfftfreq(window)) ))
@@ -54,19 +52,19 @@ def makeNoiseSpectrum(data, peakIndices=[], window=800, noiseOffsetFromPeak=200,
     for iPeak,peakIndex in enumerate(peakIndices):
         if peakIndex > window+noiseOffsetFromPeak and peakIndex < len(data)+noiseOffsetFromPeak:
             noiseData = data[peakIndex-window-noiseOffsetFromPeak:peakIndex-noiseOffsetFromPeak]
-            noiseSpectra[counter] =4*window/sampleRate*np.abs(np.fft.rfft(data[peakIndex-window-noiseOffsetFromPeak:peakIndex-noiseOffsetFromPeak]))**2 
-            counter+=1
+            noiseSpectra[counter] =4*window/sampleRate*np.abs(np.fft.rfft(data[peakIndex-window-noiseOffsetFromPeak:peakIndex-noiseOffsetFromPeak]))**2
             if len(filt)!=0:
-                filteredData=np.correlate(noiseData,filt,mode='same')
+                filteredData=np.convolve(noiseData,filt,mode='same')
                 peakDict=tP.detectPulses(filteredData, nSigmaThreshold = 2., negDerivLenience = 1, bNegativePulses=True)
                 if len(peakDict['peakIndices'])!=0:
                     rejectInd=np.append(rejectInd,int(counter-1)) 
                 else:
-                    goodInd=np.append(goodInd,int(peakIndex)) 
+                    goodInd=np.append(goodInd,int(peakIndex))
+                    counter += 1
         if counter==500:
             break   
     noiseSpectra=noiseSpectra[0:counter]
-    #Remove indicies with pulses by coorelating with a filt if provided
+    #Remove indicies with pulses by convolving with a filt if provided
     if len(filt)!=0: 
         noiseSpectra = np.delete(noiseSpectra, rejectInd.astype(int), axis=0) 
     noiseFreqs = np.fft.rfftfreq(window,1./sampleRate)
@@ -76,7 +74,7 @@ def makeNoiseSpectrum(data, peakIndices=[], window=800, noiseOffsetFromPeak=200,
         raise ValueError('makeWienerNoiseSpectrum: not enough spectra to average') 
            
     noiseSpectrum = np.median(noiseSpectra,axis=0)
-    #noiseSpectrum[0] = 2.*noiseSpectrum[1] #look into this later 8/15/16
+    noiseSpectrum[0] = noiseSpectrum[1]
     if not np.all(noiseSpectrum>0):
         raise ValueError('makeWienerNoiseSpectrum: not all noise data >0')
     if isVerbose:

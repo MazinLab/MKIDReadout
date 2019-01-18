@@ -6,15 +6,12 @@ import os
 import sys
 import pickle
 import time
-reload(mT)
-reload(mF)
-reload(mNS)
 
 
 def processData(directory, defaultTemplate, isVerbose=False, GUI=False,
-                progress_callback=[], dataset=[], mainDirectory=[], continuing=False,
+                progress_callback=(), dataset=(), mainDirectory=(), continuing=False,
                 filterMethod=mF.wienerFilter):
-    '''
+    """
     Loop through .npz files in the directory and create filter coefficient files for each
     INPUTS:
     directory - path for the folder containing the data
@@ -27,12 +24,13 @@ def processData(directory, defaultTemplate, isVerbose=False, GUI=False,
     continuing - flag for if continuing from a previous calculation, ignored if GUI=False
     filterMethod - filter calculation method. Must have same input structure as functions
                    in makeFilter.py
-    '''
+    """
     # start time
     startTime = time.time()
     # make default Filter (renormalize and flip)
     defaultFilter = -defaultTemplate[0:50] / np.dot(defaultTemplate[0:50],
                                                     defaultTemplate[0:50])
+    defaultFilter = defaultFilter[::-1]
 
     # parse filterMethod name
     filterName = str(filterMethod).split(' ')[1]
@@ -95,8 +93,9 @@ def processData(directory, defaultTemplate, isVerbose=False, GUI=False,
             badNameInd.append(index)
             if not continuingFlag:
                 with open(os.path.join(directory, "log_file.txt"), 'a') as logfile:
-                    logfile.write("Removed '{0}' from file list due to incorrect name "
-                                  "format \r".format(fileName))
+                    message = "Removed '{0}' from file list due to incorrect name " +\
+                              "format" + os.linesep
+                    logfile.write(message.format(fileName))
 
     # remove filenames with incorrect formats
     fileList = [element for i, element in enumerate(fileList) if i not in badNameInd]
@@ -127,8 +126,9 @@ def processData(directory, defaultTemplate, isVerbose=False, GUI=False,
             with open(os.path.join(directory, "log_file.txt"), 'a') as logfile:
                 for ind in sortedIndices[:-1]:
                     logFileFlag = 1
-                    logfile.write("Removed '{0}' from file list due to duplicate channel "
-                                  "number \r".format(fileList[indexList[ind]]))
+                    message = "Removed '{0}' from file list due to duplicate channel " + \
+                              "number " + os.linesep
+                    logfile.write(message.format(fileList[indexList[ind]]))
         # append channel number index with the largest timestamp to the good index list
         goodIndicies.append(indexList[sortedIndices[-1]])
 
@@ -137,11 +137,11 @@ def processData(directory, defaultTemplate, isVerbose=False, GUI=False,
         print("Unexpected files in the current directory. Check the log file to make "
               "sure the program removed the right ones!")
         with open(os.path.join(directory, "log_file.txt"), 'a') as logfile:
-            logfile.write("\r")
+            logfile.write(os.linesep)
 
     # print progress to terminal
     if isVerbose and not GUI:
-        sys.stdout.write("Percent of filters created: 0.0%  \r")
+        sys.stdout.write("Percent of filters created: 0.0%  " + os.linesep)
         sys.stdout.flush()
     if GUI:
         progress_callback.emit((0.0, dataset))
@@ -202,8 +202,9 @@ def processData(directory, defaultTemplate, isVerbose=False, GUI=False,
             rawData = rawData[key[0]]
         except:
             with open(os.path.join(directory, "log_file.txt"), 'a') as logfile:
-                logfile.write("{1}: File '{0}' data failed to load. Using default "
-                              "template and filter \r".format(fileName, index))
+                message = "{1}: File '{0}' data failed to load. Using default " + \
+                    "template and filter " + os.linesep
+                logfile.write(message.format(fileName, index))
             # use default filter and templates
             templateArray = defaultTemplate
             filterArray = defaultFilter
@@ -273,6 +274,7 @@ def processData(directory, defaultTemplate, isVerbose=False, GUI=False,
             # add filter coefficients to array
             if templateFlag:
                 filterArray = -template[:50] / np.dot(template[:50], template[:50])
+                filterArray = filterArray[::-1]
             else:
                 filterArray = defaultFilter
             noiseArray = np.zeros(101)
@@ -286,7 +288,7 @@ def processData(directory, defaultTemplate, isVerbose=False, GUI=False,
             if templateFlag == 0 and filterFlag == 0:
                 message = "{1}: File '{0}' template and filter calculation failed. " + \
                           "Using default template as filter :: Timing info: " + \
-                          "{2}, {3}, {4} \r"
+                          "{2}, {3}, {4}" + os.linesep
                 logfile.write(message.format(fileName, index,
                                              round(finishedLoad - startLoop, 2),
                                              round(finishedTemp - finishedLoad, 2),
@@ -294,7 +296,8 @@ def processData(directory, defaultTemplate, isVerbose=False, GUI=False,
                 typeArray = 0
             elif templateFlag == 1 and filterFlag == 0:
                 message = "{1}: File '{0}' filter calculation failed. Using " + \
-                          "calculated template as filter :: Timing info: {2}, {3}, {4} \r"
+                          "calculated template as filter :: Timing info: {2}, {3}, {4}" +\
+                          os.linesep
                 logfile.write(message.format(fileName, index,
                                              round(finishedLoad - startLoop, 2),
                                              round(finishedTemp - finishedLoad, 2),
@@ -303,7 +306,7 @@ def processData(directory, defaultTemplate, isVerbose=False, GUI=False,
             elif templateFlag == 0 and filterFlag == 1:
                 message = "{1}: File '{0}' template calculation failed. Using " + \
                           "default template with noise as filter :: Timing info: " + \
-                          "{2}, {3}, {4} \r"
+                          "{2}, {3}, {4}" + os.linesep
                 logfile.write(message.format(fileName, index,
                                              round(finishedLoad - startLoop, 2),
                                              round(finishedTemp - finishedLoad, 2),
@@ -311,7 +314,7 @@ def processData(directory, defaultTemplate, isVerbose=False, GUI=False,
                 typeArray = 2
             else:
                 message = "{1}: File '{0}' calculation successful :: Timing info: " + \
-                          "{2}, {3}, {4} \r"
+                          "{2}, {3}, {4}" + os.linesep
                 logfile.write(message.format(fileName, index,
                                              round(finishedLoad - startLoop, 2),
                                              round(finishedTemp - finishedLoad, 2),
@@ -349,7 +352,8 @@ def processData(directory, defaultTemplate, isVerbose=False, GUI=False,
                 else:
                     index0 = index
                 perc = round(float(index0 + 1) / (len(fileList0)) * 100, 1)
-                sys.stdout.write("Percent of filters created: %.1f%%  \r" % (perc))
+                message = "Percent of filters created: %.1f%%  " + os.linesep
+                sys.stdout.write(message % (perc))
                 sys.stdout.flush()
             else:
                 print("Percent of filters created: 100%    ")
@@ -395,18 +399,19 @@ def processData(directory, defaultTemplate, isVerbose=False, GUI=False,
     endTime = time.time()
     # log final results
     with open(os.path.join(directory, "log_file.txt"), 'a') as logfile:
-        logfile.write("\rFile list that was itterated over: \r")
+        logfile.write(os.linesep + "File list that was itterated over: " + os.linesep)
         for fileName in fileList0:
-            logfile.write("{0} \r".format(fileName))
-        logfile.write("\r computation time: {0} minutes".format((endTime - startTime) /
-                                                                60.0))
-        logfile.write("\r{0}% of pixels using optimal filters \r"
+            logfile.write(("{0} " + os.linesep).format(fileName))
+        logfile.write(os.linesep + " computation time: {0} minutes"
+                      .format((endTime - startTime) / 60.0))
+        logfile.write((os.linesep + "{0}% of pixels using optimal filters " + os.linesep)
                       .format(round(countdict[3] / float(len(typeArray)) * 100, 2)))
-        logfile.write("{0}% of pixels using default template with noise as filter \r"
+        logfile.write(("{0}% of pixels using default template with noise as filter " +
+                       os.linesep)
                       .format(round(countdict[2] / float(len(typeArray)) * 100, 2)))
-        logfile.write("{0}% of pixels using calculated template as filter \r"
+        logfile.write(("{0}% of pixels using calculated template as filter " + os.linesep)
                       .format(round(countdict[1] / float(len(typeArray)) * 100, 2)))
-        logfile.write("{0}% of pixels using default template as filter \r"
+        logfile.write(("{0}% of pixels using default template as filter " + os.linesep)
                       .format(round(countdict[0] / float(len(typeArray)) * 100, 2)))
 
     # return some stuff if GUI is running
@@ -415,8 +420,8 @@ def processData(directory, defaultTemplate, isVerbose=False, GUI=False,
 
 
 def recalculate_filters(directory, filterFunction, isVerbose=False, GUI=False,
-                        progress_callback=[], dataset=[], mainDirectory=[]):
-    '''
+                        progress_callback=(), dataset=(), mainDirectory=()):
+    """
     recalculate filters using existing templates and noise data saved by process_data
     function.
     INPUTS:
@@ -429,7 +434,7 @@ def recalculate_filters(directory, filterFunction, isVerbose=False, GUI=False,
     progress_callback - percent complete callback for GUI, ignored if GUI=False
     dataset - index of data folder being run on, ignored if GUI = False
     mainDirectory - directory containing folders, ignored if GUI=False
-    '''
+    """
     # start time
     startTime = time.time()
 
@@ -450,7 +455,7 @@ def recalculate_filters(directory, filterFunction, isVerbose=False, GUI=False,
 
     # print progress to terminal
     if isVerbose and not GUI:
-        sys.stdout.write("Percent of filters created: 0.0%  \r")
+        sys.stdout.write("Percent of filters created: 0.0%  " + os.linesep)
         sys.stdout.flush()
     if GUI:
         progress_callback.emit((0.0, dataset))
@@ -478,8 +483,9 @@ def recalculate_filters(directory, filterFunction, isVerbose=False, GUI=False,
         # print progress to terminal
         if isVerbose and not GUI:
             if index != len(templateArray) - 1:
-                perc = round(float(index + 1) / (len(TemplateArray0)) * 100, 1)
-                sys.stdout.write("Percent of filters created: %.1f%%  \r" % (perc))
+                perc = round(float(index + 1) / (len(templateArray)) * 100, 1)
+                sys.stdout.write(("Percent of filters created: %.1f%%  " + os.linesep)
+                                 % (perc))
                 sys.stdout.flush()
             else:
                 print("Percent of filters created: 100%    ")
@@ -553,6 +559,6 @@ def query_yes_no(question, default="no"):
 
 
 if __name__ == '__main__':
-    defaultTemplate = np.loadtxt('/mnt/data0/nzobrist/mkidreadout/configuration/optimalfilters/template200_15us.txt')
+    defaultTemplate = np.loadtxt('/mnt/data0/nzobrist/Repositories/MKIDReadout/mkidreadout/configuration/optimalfilters/template200_15us.txt')
     processData('/mnt/data0/Darkness/20170403/optimal_filters/112_data/',
-                defaultFilter, isVerbose=True)
+                defaultTemplate, isVerbose=True)

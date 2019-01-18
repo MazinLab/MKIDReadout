@@ -7,34 +7,25 @@ import sys
 def createTemplarResList(fn, LO1, LO2, feedline=1, atten=46):
     """
     INPUTS:
-        fn - filename comtinaing widesweep's list of resonators on a feedline
+        fn - filename containing widesweep's list of resonators on a feedline
         LO1 - lower LO freq     [GHz]
         LO2 - higher LO freq    [GHz]
+        feedline - Feedline number. Used to generate output filename
+        atten - default resenator attenuation. 46 is pretty good on MEC
     """
     resIDs,_,freqs = np.loadtxt(fn,unpack=True)  # this is in GHz
-    print len(freqs)
+    #print len(freqs)
+    totalFreqs = len(freqs)
     
     #freqs=freqs - 0.01
-    
-    freqs = freqs[np.where(freqs > (LO1 - 1.))]
-    freqs = freqs[np.where(freqs < (LO2 + 1.))]
-    resIDs = resIDs[np.where(freqs > (LO1 - 1.))]
-    resIDs = resIDs[np.where(freqs < (LO2 + 1.))]
-
-    print len(freqs)
-    
     LO_avg = (LO1+LO2) / 2.
-    
-    freqs1 = freqs[np.where(freqs<=LO_avg)]     # on first board
-    resIDs1 = resIDs[np.where(freqs<=LO_avg)]     # on first board
-    freqs2 = freqs[np.where(freqs>LO_avg)]      # on second board
-    resIDs2 = resIDs[np.where(freqs>LO_avg)]      # on second board
-    freqs1 = freqs1[np.where(freqs1 < LO1 + 1.)]
-    resIDs1 = resIDs1[np.where(freqs1 < LO1 + 1.)]
-    freqs2 = freqs2[np.where(freqs2 > LO2 - 1.)]
-    resIDs2 = resIDs2[np.where(freqs2 > LO2 - 1.)]
-    print len(freqs1)
-    print len(freqs2)
+    keep1 = np.where((freqs>(LO1-1.)) * (freqs<(LO1+1.)) * (freqs<=LO_avg))
+    keep2 = np.where((freqs>(LO2-1.)) * (freqs<(LO2+1.)) * (freqs>LO_avg))
+    freqs1=freqs[keep1]
+    resIDs1 = resIDs[keep1]
+    freqs2=freqs[keep2]
+    resIDs2=resIDs[keep2]
+
     
     path = os.path.dirname(fn)+'/'
     data = np.transpose([resIDs1,freqs1*10**9,[atten]*len(freqs1)])
@@ -86,12 +77,13 @@ if __name__ == '__main__':
 '''
 
 if __name__=='__main__':
-    fn = "faceless_FL5-freqs-good.txt"
-    dirn = os.environ['MKID_DATA_DIR']
+    fn = "digWS_FL7-freqs-good.txt"
+    #dirn = os.environ['MKID_DATA_DIR']
+    dirn = '/home/data/MEC/20180820/ws_clickthroughs/'
     fn = os.path.join(dirn,fn)
-    LO1 = 5.1613579
-    LO2 = 7.2725754
-    createTemplarResList(fn, LO1, LO2, feedline=5)
+    LO1 = 4.526813447
+    LO2 = 6.445295096
+    createTemplarResList(fn, LO1, LO2, feedline=7)
 
 
 

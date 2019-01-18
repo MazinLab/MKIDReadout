@@ -8,8 +8,16 @@ from multiprocessing import Pool
 from numba import jit
 import ConfigParser
 import scipy.optimize as spo
-from beammapFlags import beamMapFlags
+from mkidreadout.configuration.beammap.flags import beamMapFlags
+import itertools
+from mkidreadout.instruments import MEC_FEEDLINE_INFO, DARKNESS_FEEDLINE_INFO
 
+MEC_FL_WIDTH = MEC_FEEDLINE_INFO['width']
+MEC_FL_LENGTH = MEC_FEEDLINE_INFO['length']
+N_FL_MEC = MEC_FEEDLINE_INFO['num']
+DARKNESS_FL_WIDTH = DARKNESS_FEEDLINE_INFO['width']
+DARKNESS_FL_LENGTH = DARKNESS_FEEDLINE_INFO['length']
+N_FL_DARKNESS = DARKNESS_FEEDLINE_INFO['num']
 
 def getFLCoordRangeDict(FLmap):
     """
@@ -52,6 +60,45 @@ def getFLCoordRangeMaps(FLmap):
         yMaxFLmap[inds] = np.amax(inds[1])
     return xMinFLmap, xMaxFLmap, yMinFLmap, yMaxFLmap
         
+def isInCorrectFL(resIDs, x, y, instrument, slack=0, flip=False):
+    if instrument.lower()=='mec':
+        nFL = N_FL_MEC
+        flWidth = MEC_FL_WIDTH
+        flCoords = x
+    elif instrument.lower()=='darkness':
+        nFL = N_FL_DARKNESS
+        flWidth = DARKNESS_FL_WIDTH
+        flCoords = y
+
+    correctFL = getFLFromID(resIDs)
+    flFromCoordsP = getFLFromCoords(x+slack, y+slack, instrument, flip)
+    flFromCoordsN = getFLFromCoords(x-slack, y-slack, instrument, flip)
+    
+    return (flFromCoordsP == correctFL)|(flFromCoordsN == correctFL)
+
+def getFLFromID(resIDs):
+    correctFL = resIDs/10000 
+    correctFL = correctFL.astype(np.int)
+    return correctFL
+
+def getFLFromCoords(x, y, instrument, flip=False):
+    if instrument.lower()=='mec':
+        nFL = N_FL_MEC
+        flWidth = MEC_FL_WIDTH
+        flCoords = x
+    elif instrument.lower()=='darkness':
+        nFL = N_FL_DARKNESS
+        flWidth = DARKNESS_FL_WIDTH
+        flCoords = y
+
+    flFromCoords = np.floor(flCoords/flWidth)
+
+    if flip:
+        flFromCoords = nFL - flFromCoords
+    else:
+        flFromCoords += 1
+
+    return flFromCoords
 
 def getDesignFreqMap(designFreqFL, FLmap):
     FLs = np.unique(FLmap)
@@ -82,7 +129,7 @@ def addBeammapReadoutFlag(initialBeammapFn, outputBeammapFn, templarCfg):
 def restrictRoughBeammapToFLs(roughBeammapFN, fl):
     data = np.loadtxt(roughBeammapFN)
     data[np.where(np.trunc(data[:,0]/10000).astype(np.int)!=fl),1]=beamMapFlags['noDacTone']
-    outputFN = roughBeammapFN.split('.')[0]+'_FL'+str(int(fl))+'.txt'
+    outputFN = roughBeammapFN.split('.')[0]+'_FL'+str(int(fl))+'.bmap'
     np.savetxt(outputFN, data, fmt='%7d %3d %7f %7f')
 
 def convertBeammapToNewFlagFormat(initialBeammapFn, outputBeammapFn, templarCfg):
@@ -187,7 +234,7 @@ def snapToPeak(data, guess_arg, width=5):
 def gaussian(x, center, scale, width, offset):
     return scale*np.exp(-(x - center)**2/width**2) + offset
 
-def fitPeak(timestream, initialGuess=None, fitWindow=20):
+def fitPeak(timestream, initialGuess=np.nan, fitWindow=20):
     """
     This function fits a gaussian to a timestream with an initial Guess for location
 
@@ -197,29 +244,105 @@ def fitPeak(timestream, initialGuess=None, fitWindow=20):
         fitWindow - only consider data around this window
     OUTPUT:
         fitParams - center, scale, width of fitted gaussian
-    """
-    minT=0
+    """ 
+    providedInitialGuess = initialGuess #initial guess provided by user
 
-    if np.isfinite(initialGuess) and np.isfinite(fitWindow) and initialGuess >=0 and initialGuess<len(timestream):
+    if not(np.isfinite(initialGuess) and initialGuess >=0 and initialGuess<len(timestream)):
+        initialGuess=np.argmax(timestream)
+
+    if fitWindow is not None:
         minT = int(max(0, initialGuess-fitWindow))
         maxT = int(min(len(timestream), initialGuess+fitWindow))
-        timestream=timestream[minT: maxT]
-    if not np.isfinite(initialGuess):
-        initialGuess=np.argmax(timestream)
+    else:
+        minT = 0
+        maxT = len(timestream)
     initialGuess-=minT #need this if we're only fitting to a small window
+    timestream = timestream[minT:maxT]
     
     try:
         width=2.
         offset=np.median(timestream)
         scale = np.amax(timestream) - offset
-        print [initialGuess+minT, scale, width,offset]
+        #print [initialGuess+minT, scale, width,offset]
         fitParams, _ = spo.curve_fit(gaussian, xdata=range(len(timestream)), ydata=timestream, p0=[initialGuess, scale, width,offset], sigma=np.sqrt(timestream))
         if fitParams[0]<0 or fitParams[0]>len(timestream):
             raise RuntimeError('Fit center is outside the available range')
         fitParams[0]+=minT
         return fitParams
     except RuntimeError:
-        return [initialGuess+minT, None, None]
+        return [providedInitialGuess, np.nan, np.nan, np.nan]
+
+
+def check_timestream(timestream, peak_location):
+    """
+    INPUT:
+        timestream -
+        peak_location - estimate of peak location returned by fitPeak
+    OUTPUT:
+        good_peak - True if all checks passed, False if any checks fail
+
+    checks:
+        - check if fitted peak and maximum value are in the same place, for both x and y
+        - check if peak is 5 sigma (or any reasonable threshold) above the mean
+        - check that the peak specified in the input argument is the only 'good' peak... no doubles allowed!
+        - check if peak is > 3*mean
+    """
+    good_peak = True
+    good_peak = np.logical_and(good_peak, np.abs(np.argmax(timestream) - peak_location) < 2)
+    if not good_peak:
+        print('peak_location is not close to actual maximum')
+        return good_peak
+    good_peak = np.logical_and(good_peak,np.amax(timestream) > 3*np.mean(timestream)  )
+    if not good_peak:
+        print('peak is < 3*mean')
+        return good_peak
+
+    # remove baseline from timestream
+    timestream -= np.mean(timestream)
+    sigma = np.std(timestream)
+    good_peak = np.logical_and(good_peak, np.amax(timestream) > 5*sigma)
+    if not good_peak:
+        print('peak is not > 5 sigma')
+        return good_peak
+
+    # check for other peaks. If there are others, then good_peak = False.
+    mask = np.ones(len(timestream), dtype=bool)
+    mask_window_width = 15
+    mask[int(peak_location) - mask_window_width: int(peak_location) + mask_window_width] = False
+    good_peak = np.logical_and(good_peak, (np.logical_and(timestream[mask] < 5*sigma, timestream[mask] < .5*np.amax(timestream))).all())
+
+    if not good_peak:
+        print('there are multiple peaks above 5 sigma or maximum/2')
+
+    return good_peak
+
+
+
+
+def getPeakCoM(timestream, initialGuess=np.nan, fitWindow=15):
+    """
+    This function determines the center of mass moment of the peak around fitWindow
+    """
+
+    if not(np.isfinite(initialGuess) and initialGuess >=0 and initialGuess<len(timestream)):
+        initialGuess=np.argmax(timestream)
+
+    if fitWindow is not None:
+        minT = int(max(0, initialGuess-fitWindow))
+        maxT = int(min(len(timestream), initialGuess+fitWindow))
+    else:
+        minT = 0
+        maxT = len(timestream)
+
+    timestream -= np.median(timestream) #baseline subtract
+    timestream = np.correlate(timestream, np.ones(11), mode='same')
+    timestreamLabels = np.arange(len(timestream))
+
+    timestream = timestream[minT:maxT]
+    #timestream -= np.median(timestream) #baseline subtract
+    timestreamLabels = timestreamLabels[minT:maxT]
+
+    return np.sum(timestreamLabels*timestream)/np.sum(timestream)
 
 def loadImgFiles(fnList, nRows, nCols):
     imageList = []
@@ -411,9 +534,46 @@ def cal_q(a, corrMatrix, weights=None):
         C[i]=C_i
     
     return q/(2.*n**2.), C/(2.*n**2.)
-    
-    
-    
-    
 
 
+def isResonatorOnCorrectFeedline(resID, xcoordinate, ycoordinate, instrument='', flip=False):
+    correctFeedline = np.floor(resID / 10000)
+    flFromCoord = getFLFromCoords(xcoordinate, ycoordinate,instrument,flip)
+    if correctFeedline == flFromCoord:
+        return True
+    else:
+        return False
+
+def getFLFromCoords(x, y, instrument='', flip=False):
+    if instrument.lower() == 'mec':
+        numFL = 10
+        flWidth = 14
+        flCoord = x
+    elif instrument.lower() == 'darkness':
+        numFL = 5
+        flWidth = 25
+        flCoord = y
+
+    flFromCoords = np.floor(flCoord/flWidth)
+    if flip:
+        flFromCoords = numFL - flFromCoords
+    else:
+        flFromCoords = flFromCoords + 1
+    return flFromCoords
+
+
+def placeResonatorOnFeedline(xCoord,yCoord,instrument):
+    if instrument.lower() == 'mec':
+        x = int(xCoord % MEC_FL_WIDTH)
+        y = int(yCoord % MEC_FL_LENGTH)
+    elif instrument.lower() == 'darkness':
+        x = int(xCoord % DARKNESS_FL_LENGTH)
+        y = int(yCoord % DARKNESS_FL_WIDTH)
+
+    return x,y
+
+def generateCoords(coordinate, xSlack, ySlack):
+    xCoords = np.linspace(coordinate[0]-xSlack, coordinate[0]+xSlack, 2*xSlack+1).astype(int)
+    yCoords = np.linspace(coordinate[1]-ySlack, coordinate[1]+ySlack, 2*ySlack+1).astype(int)
+    coordinateList = list(itertools.product(xCoords, yCoords))
+    return np.array(coordinateList)
