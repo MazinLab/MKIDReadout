@@ -199,6 +199,20 @@ class Beammap(object):
         mask[self.yCoords[use].astype(int), self.xCoords[use].astype(int)] = self.flags[use] != 0
         return mask
 
+    @property
+    def residmap(self):
+        map = np.zeros((self.ncols, self.nrows), dtype=self.resIDs.dtype)
+        use = (self.yCoords.astype(int) < self.nrows) & (self.xCoords.astype(int) < self.ncols)
+        map[self.xCoords[use].astype(int), self.yCoords[use].astype(int)] = self.resIDs
+        return map
+
+    @property
+    def flagmap(self):
+        map = np.zeros((self.ncols, self.nrows), dtype=self.flags.dtype)
+        use = (self.yCoords.astype(int) < self.nrows) & (self.xCoords.astype(int) < self.ncols)
+        map[self.xCoords[use].astype(int), self.yCoords[use].astype(int)] = self.flags
+        return map
+
     def __str__(self):
         return 'File: "{}"\nWell Mapped: {}'.format(self.file, self.nrows * self.ncols - (self.flags!=0).sum())
 
