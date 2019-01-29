@@ -71,11 +71,20 @@ class Beammap(object):
 
     @classmethod
     def from_yaml(cls, constructor, node):
-        d = mkidcore.config.extract_from_node(('file', 'nrows', 'ncols', 'default'), node)
+        d = mkidcore.config.extract_from_node(('file', 'nrows', 'ncols', 'default', 'freqfiles'), node)
+
         if 'default' in d:
-            return cls(default=d['default'])
+            bmap = cls(default=d['default'])
         else:
-            return cls(file=d['file'], xydim=(int(d['ncols']), int(d['nrows'])))
+            bmap = cls(file=d['file'], xydim=(int(d['ncols']), int(d['nrows'])))
+
+        if 'freqfiles' in d:
+            try:
+                bmap.loadFrequencies(d['freqfiles'])
+            except Exception:
+                getLogger(__name__).error('Failed to load frequencies into beammap', exc_info=True)
+
+        return bmap
 
     def setData(self, bmData):
         """
@@ -84,16 +93,16 @@ class Beammap(object):
             bmData - Nx4 or Nx5 numpy array in same format as beammap file
         """
         if bmData.shape[1] == 4:
-            self.resIDs = np.array(bmData[:, 0])
-            self.flags = np.array(bmData[:, 1])
+            self.resIDs = np.array(bmData[:, 0], dtype=int)
+            self.flags = np.array(bmData[:, 1], dtype=int)
             self.xCoords = np.array(bmData[:, 2])
             self.yCoords = np.array(bmData[:, 3])
         elif bmData.shape[1] == 5:
-            self.resIDs = np.array(bmData[:, 0])
-            self.flags = np.array(bmData[:, 1])
+            self.resIDs = np.array(bmData[:, 0], dtype=int)
+            self.flags = np.array(bmData[:, 1], dtype=int)
             self.xCoords = np.array(bmData[:, 2])
             self.yCoords = np.array(bmData[:, 3])
-            self.frequencies = np.array(bmData[:, 4])
+            self.frequencies = np.array(bmData[:, 4], dtype=float)
         else:
             raise Exception("This data is not in the proper format")
 
@@ -107,15 +116,15 @@ class Beammap(object):
 
     def loadFrequencies(self, filepath):
         powerSweeps = glob.glob(filepath)
+        if not powerSweeps:
+            raise FileNotFoundError('No powersweeps found matching {}'.format(filepath))
         psData = np.loadtxt(powerSweeps[0])
-        for i in range(len(powerSweeps) - 1):
-            sweep = np.loadtxt(powerSweeps[i + 1])
-            psData = np.concatenate((psData, sweep))
-        # psData has the form [Resonator ID, Frequency (Hz), Attenuation (dB)]
+        for sweep in powerSweeps[1:]:
+            psData = np.concatenate((psData, np.loadtxt(sweep)))
         self.frequencies = np.full(self.resIDs.shape, np.nan)
-        for j in range(len(psData)):
-            idx = np.where(self.resIDs == psData[j][0])[0]
-            self.frequencies[idx] = (psData[j][1] / (10 ** 6))
+        # psData has the form [Resonator ID, Frequency (Hz), Attenuation (dB)]
+        for rID, freq, _ in psData:
+            self.frequencies[self.resIDs == rID] = freq / (10 ** 6)
 
     def save(self, filename, forceIntegerCoords=False):
         """
@@ -212,6 +221,9 @@ class Beammap(object):
         use = (self.yCoords.astype(int) < self.nrows) & (self.xCoords.astype(int) < self.ncols)
         map[self.xCoords[use].astype(int), self.yCoords[use].astype(int)] = self.flags
         return map
+
+    def __repr__(self):
+        return '<file={}, ncols={}, nrows={}>'.format(self.file, self.ncols, self.nrows)
 
     def __str__(self):
         return 'File: "{}"\nWell Mapped: {}'.format(self.file, self.nrows * self.ncols - (self.flags!=0).sum())
