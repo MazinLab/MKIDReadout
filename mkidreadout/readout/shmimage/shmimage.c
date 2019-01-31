@@ -2,6 +2,9 @@
 
 int createMKIDShmImage(MKID_IMAGE_METADATA *imageMetadata, char imageName[80], MKID_IMAGE *outputImage){
     int mdfd, imgfd;
+    MKID_IMAGE_METADATA *mdPtr;
+    double *imgPtr;
+
     mdfd = shm_open(imageName, O_RDWR|O_CREAT, S_IWUSR|S_IRUSR|S_IWGRP|S_IRGRP);
     if(mdfd == -1){
         perror("Error opening shm metadata");
@@ -17,7 +20,7 @@ int createMKIDShmImage(MKID_IMAGE_METADATA *imageMetadata, char imageName[80], M
     }
 
     mdPtr = (MKID_IMAGE_METADATA*)mmap(NULL, sizeof(MKID_IMAGE_METADATA), PROT_READ | PROT_WRITE, MAP_SHARED, mdfd, 0);
-    if(mdPtr == -1){
+    if(mdPtr == MAP_FAILED){
         perror("Error mapping shm metadata");
         return -1;
 
@@ -43,7 +46,7 @@ int createMKIDShmImage(MKID_IMAGE_METADATA *imageMetadata, char imageName[80], M
     }
 
     imgPtr = (double*)mmap(NULL, sizeof(double)*imageSize, PROT_READ | PROT_WRITE, MAP_SHARED, imgfd, 0);
-    if(imgPtr == -1){
+    if(imgPtr == MAP_FAILED){
         perror("Error mapping shm metadata");
         return -1;
 
@@ -51,9 +54,9 @@ int createMKIDShmImage(MKID_IMAGE_METADATA *imageMetadata, char imageName[80], M
     outputImage->image = imgPtr;
 
     // OPEN SEMAPHORES
-    imageStruct->takeImageSem = sem_open(mdPtr->takeImageSemName, O_CREAT, S_IRUSR | S_IWUSR, 0);
-    imageStruct->doneImageSem = sem_open(mdPtr->doneImageSemName, O_CREAT, S_IRUSR | S_IWUSR, 0);
-    if((takeImgSem==SEM_FAILED)||(doneImgSem==SEM_FAILED)) 
+    outputImage->takeImageSem = sem_open(mdPtr->takeImageSemName, O_CREAT, S_IRUSR | S_IWUSR, 0);
+    outputImage->doneImageSem = sem_open(mdPtr->doneImageSemName, O_CREAT, S_IRUSR | S_IWUSR, 0);
+    if((outputImage->takeImageSem==SEM_FAILED)||(outputImage->doneImageSem==SEM_FAILED)) 
         printf("Semaphore creation failed %s\n", strerror(errno));
 
     close(imgfd);
@@ -66,7 +69,10 @@ int createMKIDShmImage(MKID_IMAGE_METADATA *imageMetadata, char imageName[80], M
 
 int openMKIDShmImage(MKID_IMAGE *imageStruct, char imageName[80]){
     // OPEN IMAGE METADATA BUFFER
-    int mdfd, imgfd
+    int mdfd, imgfd;
+    MKID_IMAGE_METADATA *mdPtr;
+    double *imgPtr;
+
     mdfd = shm_open(imageName, O_RDWR, S_IWUSR);
     if(mdfd == -1){
         perror("Error opening shm metadata");
@@ -82,7 +88,7 @@ int openMKIDShmImage(MKID_IMAGE *imageStruct, char imageName[80]){
     }
 
     mdPtr = (MKID_IMAGE_METADATA*)mmap(NULL, sizeof(MKID_IMAGE_METADATA), PROT_READ | PROT_WRITE, MAP_SHARED, mdfd, 0);
-    if(mdPtr == -1){
+    if(mdPtr == MAP_FAILED){
         perror("Error mapping shm metadata");
         return -1;
 
@@ -107,7 +113,7 @@ int openMKIDShmImage(MKID_IMAGE *imageStruct, char imageName[80]){
     }
 
     imgPtr = (double*)mmap(NULL, sizeof(double)*imageSize, PROT_READ | PROT_WRITE, MAP_SHARED, imgfd, 0);
-    if(imgPtr == -1){
+    if(imgPtr == MAP_FAILED){
         perror("Error mapping shm metadata");
         return -1;
 
@@ -118,7 +124,7 @@ int openMKIDShmImage(MKID_IMAGE *imageStruct, char imageName[80]){
     // OPEN SEMAPHORES
     imageStruct->takeImageSem = sem_open(mdPtr->takeImageSemName, O_CREAT, S_IRUSR | S_IWUSR, 0);
     imageStruct->doneImageSem = sem_open(mdPtr->doneImageSemName, O_CREAT, S_IRUSR | S_IWUSR, 0);
-    if((takeImgSem==SEM_FAILED)||(doneImgSem==SEM_FAILED)) 
+    if((imageStruct->takeImageSem==SEM_FAILED)||(imageStruct->doneImageSem==SEM_FAILED)) 
         printf("Semaphore creation failed %s\n", strerror(errno));
 
     close(imgfd);
@@ -130,7 +136,7 @@ int openMKIDShmImage(MKID_IMAGE *imageStruct, char imageName[80]){
 int closeMKIDShmImage(MKID_IMAGE *imageStruct){
     sem_close(imageStruct->takeImageSem);
     sem_close(imageStruct->doneImageSem);
-    munmap(imageStruct->image, sizeof(double)*(imageStruct->md->nXPix)*(imageStruct->md->nYPix)*(imageStruct->md->nWvlBins);
+    munmap(imageStruct->image, sizeof(double)*(imageStruct->md->nXPix)*(imageStruct->md->nYPix)*(imageStruct->md->nWvlBins));
     munmap(imageStruct->md, sizeof(MKID_IMAGE_METADATA));
 
 }

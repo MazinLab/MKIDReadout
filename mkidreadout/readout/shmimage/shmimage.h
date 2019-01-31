@@ -3,9 +3,16 @@
 #include <unistd.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
+#include <inttypes.h>
 #include <fcntl.h>
 #include <semaphore.h>
+#include <string.h>
+#include <errno.h>
 
+// Compile shared object with: gcc -shared -o libmkidshm.so -fPIC shmimage.c -lrt -lpthread
+
+#ifndef SHMIMAGE_H
+#define SHMIMAGE_H
 typedef struct{
     //metadata
     uint32_t nXPix;
@@ -36,3 +43,5 @@ typedef struct{
 
 int openMKIDShmImage(MKID_IMAGE *imageStruct, char imageName[80]);
 int closeMKIDShmImage(MKID_IMAGE *imageStruct);
+int createMKIDShmImage(MKID_IMAGE_METADATA *imageMetadata, char imageName[80], MKID_IMAGE *outputImage);
+#endif
