@@ -70,12 +70,14 @@ struct readoutstream {
 };
 
 struct cfgParams {
-    char ramdiskPath[STRBUF];
+    //char ramdiskPath[STRBUF];
     int nXPix;
     int nYPix;
-    int useNuller;
+    //int useNuller;
     int nRoach;
     int port;
+    int nSharedImages;
+    char **sharedImageNames;
 };
 
 void diep(char *s)
@@ -242,7 +244,7 @@ void ParsePacketSN( uint16_t *image, char *packet, unsigned int l, int nXPix, in
 
 }
 
-void *Nuller(void *prms)
+void *SharedImageWriter(void *prms)
 {
     int64_t br,i,j,ret;
     char data[1024];
@@ -263,35 +265,23 @@ void *Nuller(void *prms)
     struct readoutstream *rptr;
     uint64_t pstart;
 
-    char *takeImgSemName = "/speckNullTakeImg";
-    char *doneImgSemName = "/speckNullDoneImg";
-    sem_t *takeImgSem;
-    sem_t *doneImgSem;
-    char *imgShmName = "/speckNullImgBuff";
-    char *tsShmName = "/speckNullTimestamp";
-    char *intTimeShmName = "/speckNullIntTime";
-    uint16_t *imgBuffPtr;
-    uint64_t *startTsPtr;
-    uint64_t *intTimePtr;
-    uint64_t startTimestamp;
-    uint64_t integrationTime;
     uint64_t curTs;
     uint16_t *boardNums;
     uint16_t curRoachInd;
-    uint32_t doneIntegrating;
-    uint32_t doneIntMask; //each place value corresponds to a roach board
-    int takingImg = 0;
+    uint32_t *doneIntegrating; //Array of bitmasks (one for each image, bits are roaches)
+    uint32_t doneIntMask; //constant - each place value corresponds to a roach board
+    int *takingImg;
     int fd;
-    int semVal;
     struct cfgParams *params;
+    MKID_IMAGE *sharedImages;
 
     ret = MaximizePriority(8);
     printf("Nuller online.\n");
 
     params = (struct cfgParams*)prms; //cast param struct
     doneIntMask = (1<<(params->nRoach))-1;
-    // open shared memory block 3 for photon data
-    rptr = OpenShared("/roachstream3");
+    // open shared memory block 2 for photon data 
+    rptr = OpenShared("/roachstream2");
         
     olddata = (char *) malloc(sizeof(char)*SHAREDBUF);
     
@@ -300,83 +290,18 @@ void *Nuller(void *prms)
     memset(packet, 0, sizeof(packet[0]) * 808 * 2);    // zero out array
     boardNums = calloc(params->nRoach, sizeof(uint16_t));
 
-    //FILE *timeFile = fopen("timetest.txt", "w");
-    
-    //sem_unlink(takeImgSemName);
-    //sem_unlink(doneImgSemName);
-    
-    takeImgSem = sem_open(takeImgSemName, O_CREAT, S_IRUSR|S_IWUSR, 0);
-    doneImgSem = sem_open(doneImgSemName, O_CREAT, S_IRUSR|S_IWUSR, 0);
-    
-    if((takeImgSem==SEM_FAILED)||(doneImgSem==SEM_FAILED))
-        printf("Semaphore creation failed: %s\n", strerror(errno));
-        
-    while(sem_trywait(takeImgSem)==0) //initialize semaphores to 0
-    {
-        sem_getvalue(takeImgSem, &semVal);
-        printf("Init takeImgSem Value: %d\n", semVal);
+    doneIntegrating = calloc(params->nSharedImages, sizeof(uint32_t));
+    takingImage = calloc(params->nSharedImages, sizeof(int));
+    sharedImages = (MKID_IMAGE*)malloc(params->nSharedImages*sizeof(MKID_IMAGE));
 
-    }
-    while(sem_trywait(doneImgSem)==0); 
-    
-    fd = shm_open(imgShmName, O_CREAT | O_RDWR, S_IRUSR | S_IWUSR);
-    if (fd == -1) { 
-        perror("shm_open");  /* something went wrong */
-        exit(1);             
-    }
-    
-    if (ftruncate(fd, sizeof(uint16_t)*params->nXPix*params->nYPix) == -1) { 
-        perror("ftruncate");  /* something went wrong */
-        exit(1);               
-    }
-  
-    imgBuffPtr = mmap(NULL, sizeof(uint16_t)*params->nXPix*params->nYPix, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
-    if (imgBuffPtr == MAP_FAILED) { 
-        perror("mmap");  /* something went wrong */
-        exit(1);            
-    }    
-    
-    close(fd);
-    
-    fd = shm_open(tsShmName, O_CREAT | O_RDWR, S_IRUSR | S_IWUSR);
-    if (fd == -1) { 
-        perror("shm_open");  /* something went wrong */
-        exit(1);             
-    }
-    
-    if (ftruncate(fd, sizeof(uint64_t)) == -1) { 
-        perror("ftruncate");  /* something went wrong */
-        exit(1);               
-    }
-  
-    startTsPtr = mmap(NULL, sizeof(uint64_t), PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
-    if (startTsPtr == MAP_FAILED) { 
-        perror("mmap");  /* something went wrong */
-        exit(1);            
-    }    
-    
-    close(fd);
+    for(i=0; i<params->nSharedImages; i++)
+        openMKIDShmImage(sharedImages+i, params->sharedImageNames[i]);
 
-    fd = shm_open(intTimeShmName, O_CREAT | O_RDWR, S_IRUSR | S_IWUSR);
-    if (fd == -1) { 
-        perror("shm_open");  /* something went wrong */
-        exit(1);             
-    }
+
+
     
-    if (ftruncate(fd, sizeof(uint64_t)) == -1) { 
-        perror("ftruncate");  /* something went wrong */
-        exit(1);               
-    }
-  
-    intTimePtr = mmap(NULL, sizeof(uint64_t), PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
-    if (intTimePtr == MAP_FAILED) { 
-        perror("mmap");  /* something went wrong */
-        exit(1);            
-    }    
     
-    close(fd);
-    
-    printf("Nuller done initializing\n");
+    printf("SharedImageWriter done initializing\n");
 
     int whileLoopIters = 0;
     while (sem_trywait(&quitSem) == -1)
@@ -437,8 +362,6 @@ void *Nuller(void *prms)
              }
              if(takingImg)
                 forLoopIters++;
-             sem_getvalue(takeImgSem, &semVal);
-             //printf("takeImgSemVal %d: \n", semVal);
 
              swp = *((uint64_t *) (&olddata[i*8]));
              swp1 = __bswap_64(swp);
@@ -538,7 +461,7 @@ void *Nuller(void *prms)
     munmap(startTsPtr, sizeof(uint64_t));
     munmap(intTimePtr, sizeof(uint64_t));
     printf("Nuller: Unlinking Shm\n");
-    shm_unlink(imgShmName);
+    shm_unlink(imageShmName);
     shm_unlink(tsShmName);
     shm_unlink(intTimeShmName);
     
@@ -1035,7 +958,7 @@ int main(int argc, char* argv[])
     pthread_attr_t attr;
     void *status;
 
-    int rc,t;
+    int rc,t,i;
     char buf[30];
     char *cfgPath;
     struct readoutstream *rptr1, *rptr2, *rptr3;
@@ -1064,16 +987,24 @@ int main(int argc, char* argv[])
     while (access( cfgPath, F_OK ) == -1) usleep(10000); //sleep 10 ms
 
     cfgfp = fopen(cfgPath,"r");
-    fscanf(cfgfp,"%s\n", params.ramdiskPath);
+    //fscanf(cfgfp,"%s\n", params.ramdiskPath);
     fscanf(cfgfp,"%d %d\n", &(params.nXPix), &(params.nYPix));
     fscanf(cfgfp, "%d\n", &(params.useNuller));
     fscanf(cfgfp, "%d\n", &(params.nRoach));
     fscanf(cfgfp, "%d\n", &(params.port));
+    fscanf(cfgfp, "%d\n", &(params.nSharedImages));
+    params.sharedImageNames = (char**)malloc(params.nSharedImages*sizeof(char*));
+    for(i=0; i<params.nSharedImages; i++)
+    {
+        params.sharedImageNames[i] = (char*)malloc(SHM_NAME_LEN*sizeof(char));
+        fscanf(cfgfp, "%s\n", params.sharedImageNames[i]);
+
+    }
     fclose(cfgfp);
     //remove(cfgPath);
     //printf("%d\n", params.nXPix);
     
-    printf("Ramdisk: %s\n", params.ramdiskPath);
+    //printf("Ramdisk: %s\n", params.ramdiskPath);
     printf("Capture Port: %d\n", params.port);
     // Delete pre-existing control files
     sprintf(startFileName, "%s/%s", params.ramdiskPath, "START");
