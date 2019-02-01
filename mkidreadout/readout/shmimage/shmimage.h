@@ -41,7 +41,7 @@ typedef struct{
 
 } MKID_IMAGE;
 
-int openMKIDShmImage(MKID_IMAGE *imageStruct, char imageName[80]);
+int openMKIDShmImage(MKID_IMAGE *imageStruct, char *imgName);
 int closeMKIDShmImage(MKID_IMAGE *imageStruct);
-int createMKIDShmImage(MKID_IMAGE_METADATA *imageMetadata, char imageName[80], MKID_IMAGE *outputImage);
+int createMKIDShmImage(MKID_IMAGE_METADATA *imageMetadata, char *imgName, MKID_IMAGE *outputImage);
 #endif

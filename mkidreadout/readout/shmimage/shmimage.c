@@ -1,9 +1,12 @@
 #include "shmimage.h"
 
-int createMKIDShmImage(MKID_IMAGE_METADATA *imageMetadata, char imageName[80], MKID_IMAGE *outputImage){
+int createMKIDShmImage(MKID_IMAGE_METADATA *imageMetadata, char *imgName, MKID_IMAGE *outputImage){
     int mdfd, imgfd;
     MKID_IMAGE_METADATA *mdPtr;
     double *imgPtr;
+    char imageName[80];
+
+    snprintf(imageName, 80, "%s", imgName);
 
     mdfd = shm_open(imageName, O_RDWR|O_CREAT, S_IWUSR|S_IRUSR|S_IWGRP|S_IRGRP);
     if(mdfd == -1){
@@ -67,11 +70,14 @@ int createMKIDShmImage(MKID_IMAGE_METADATA *imageMetadata, char imageName[80], M
 }
     
 
-int openMKIDShmImage(MKID_IMAGE *imageStruct, char imageName[80]){
+int openMKIDShmImage(MKID_IMAGE *imageStruct, char *imgName){
     // OPEN IMAGE METADATA BUFFER
     int mdfd, imgfd;
     MKID_IMAGE_METADATA *mdPtr;
     double *imgPtr;
+    char imageName[80];
+
+    snprintf(imageName, 80, "%s", imgName);
 
     mdfd = shm_open(imageName, O_RDWR, S_IWUSR);
     if(mdfd == -1){
