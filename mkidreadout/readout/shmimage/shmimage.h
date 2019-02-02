@@ -17,6 +17,7 @@ typedef struct{
     //metadata
     uint32_t nXPix;
     uint32_t nYPix;
+    uint32_t useWvl; //ignore wavelength information if 0
     uint32_t nWvlBins;
     uint32_t wvlStart;
     uint32_t wvlStop;
