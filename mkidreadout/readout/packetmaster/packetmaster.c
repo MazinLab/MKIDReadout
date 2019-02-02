@@ -32,6 +32,8 @@
 #define SHAREDBUF 536870912
 #define TSOFFS 1514764800
 #define STRBUF 80
+#define ENERGY_BIN_PT 16384 //2^14
+#define H_TIMES_C 1239.842 // units: eV*nm
 #define CFG_DEFAULT_PATH "PacketMaster.cfg"
 //#define SNINTTIME 20
 
@@ -70,10 +72,9 @@ struct readoutstream {
 };
 
 struct cfgParams {
-    //char ramdiskPath[STRBUF];
+    char ramdiskPath[STRBUF];
     int nXPix;
     int nYPix;
-    //int useNuller;
     int nRoach;
     int port;
     int nSharedImages;
@@ -200,45 +201,36 @@ void ParsePacket( uint16_t **image, char *packet, unsigned int l, int nXPix, int
 
 }
 
-void ParsePacketSN( uint16_t *image, char *packet, unsigned int l, int nXPix, int nYPix)
+void ParsePacketShm(MKID_IMAGE *sharedImage, char *packet, unsigned int l)
 {
-    uint64_t i;
-    //struct hdrpacket *hdr;
+    uint64_t i, j;
     struct datapacket *data;
-    //uint64_t starttime;
-    //uint16_t curframe;
-    //char curroach;
     uint64_t swp,swp1;
-
-    // pull out header information from the first packet
-    // swp = *((uint64_t *) (&packet[0]));
-    // swp1 = __bswap_64(swp);
-    // hdr = (struct hdrpacket *) (&swp1);             
-
-    // starttime = hdr->timestamp;
-    // curframe = hdr->frame;
-    // curroach = hdr->roach;
-        
-    // check for missed frames and print an error if we got the wrong frame number
-/*
-    if( frame[curroach] != curframe) {
-        printf("Roach %d: Expected Frame %d, Received Frame %d\n",curroach,frame[curroach],curframe); fflush(stdout);
-        frame[curroach] = (frame[curroach]+1)%4096;
-    }
-    else {
-        frame[curroach] = (frame[curroach]+1)%4096;
-    }
-*/
+    double energy, wvl, wvlBinSpacing;
+    int wvlBinInd;
 
     for(i=1;i<l/8;i++) {
        
-       swp = *((uint64_t *) (&packet[i*8]));
-       swp1 = __bswap_64(swp);
-       data = (struct datapacket *) (&swp1);
-       //image[(data->xcoord)%XPIX][(data->ycoord)%YPIX]++;
-       
-       if( data->xcoord >= nXPix || data->ycoord >= nYPix ) continue;
-       (*(image + (data->ycoord)*nXPix + data->xcoord))++; //Rows are stored sequentially in image array
+        swp = *((uint64_t *) (&packet[i*8]));
+        swp1 = __bswap_64(swp);
+        data = (struct datapacket *) (&swp1);
+        
+        if( data->xcoord >= sharedImage->md->nXPix || data->ycoord >= sharedImage->md->nYPix ) continue;
+
+        if(sharedImage->md->useWvl)
+        {
+            energy = (double)data->wvl/ENERGY_BIN_PT; 
+            wvl = H_TIMES_C/energy;
+            if((wvl < sharedImage->md->wvlStart) || (wvl >= sharedImage->md->wvlStop))
+                continue; //check if wvl is out of range
+            wvlBinSpacing = (double)(sharedImage->md->wvlStop - sharedImage->md->wvlStart)/sharedImage->md->nWvlBins;
+            wvlBinInd = (int)(wvl - sharedImage->md->wvlStart)/wvlBinSpacing;         
+            sharedImage->image[(sharedImage->md->nXPix)*(sharedImage->md->nYPix)*wvlBinInd + (sharedImage->md->nXPix)*(data->ycoord) + data->xcoord]++;
+
+        }
+        
+        else
+            sharedImage->image[(sharedImage->md->nXPix)*(data->ycoord) + data->xcoord]++;
       
     }
 
@@ -246,7 +238,7 @@ void ParsePacketSN( uint16_t *image, char *packet, unsigned int l, int nXPix, in
 
 void *SharedImageWriter(void *prms)
 {
-    int64_t br,i,j,ret;
+    int64_t br,i,j,ret,imgIdx;
     char data[1024];
     char *olddata;
     char packet[808*16];
@@ -270,18 +262,18 @@ void *SharedImageWriter(void *prms)
     uint16_t curRoachInd;
     uint32_t *doneIntegrating; //Array of bitmasks (one for each image, bits are roaches)
     uint32_t doneIntMask; //constant - each place value corresponds to a roach board
-    int *takingImg;
+    int *takingImage;
     int fd;
     struct cfgParams *params;
     MKID_IMAGE *sharedImages;
 
     ret = MaximizePriority(8);
-    printf("Nuller online.\n");
+    printf("SharedImageWriter online.\n");
 
     params = (struct cfgParams*)prms; //cast param struct
     doneIntMask = (1<<(params->nRoach))-1;
-    // open shared memory block 2 for photon data 
-    rptr = OpenShared("/roachstream2");
+    // open shared memory block 3 for photon data 
+    rptr = OpenShared("/roachstream3");
         
     olddata = (char *) malloc(sizeof(char)*SHAREDBUF);
     
@@ -294,24 +286,17 @@ void *SharedImageWriter(void *prms)
     takingImage = calloc(params->nSharedImages, sizeof(int));
     sharedImages = (MKID_IMAGE*)malloc(params->nSharedImages*sizeof(MKID_IMAGE));
 
-    for(i=0; i<params->nSharedImages; i++)
+    for(imgIdx=0; imgIdx<params->nSharedImages; imgIdx++)
         openMKIDShmImage(sharedImages+i, params->sharedImageNames[i]);
 
-
-
-    
-    
     printf("SharedImageWriter done initializing\n");
 
-    int whileLoopIters = 0;
     while (sem_trywait(&quitSem) == -1)
     {
-       if(takingImg)
-          whileLoopIters++;
-       // ead in new data and parse it
+       // read in new data and parse it
        sem_wait(&sem[2]);        
        br = rptr->unread;
-       if( br%8 != 0 ) printf("Misalign in Nuller - %d\n",(int)br); 
+       if( br%8 != 0 ) printf("Misalign in SharedImageWriter - %d\n",(int)br); 
 	   	    
        if( br > 0) {               
           // we may be in the middle of a packet so put together a full packet from old data and new data
@@ -343,25 +328,21 @@ void *SharedImageWriter(void *prms)
        int forLoopIters = 0;
        if( oldbr >= 808 ) {       
           // search the available data for a packet boundary
-          //printf("oldbr %d\n", oldbr); fflush(stdout);
-          //printf("Start Parse\n"); fflush(stdout);
           for( i=1; i<oldbr/8; i++) { 
-             if(sem_trywait(takeImgSem)==0)
-             {
-                printf("Nuller: taking image\n");
-                takingImg = 1;
-                doneIntegrating = 0;   
-                memset(imgBuffPtr, 0, sizeof(*imgBuffPtr) * params->nXPix * params->nYPix);    // zero out array
-                startTimestamp = *startTsPtr;
-                integrationTime = *intTimePtr;
-                if(startTimestamp==0)
-                    startTimestamp = curTs;
-                printf("TSDiff: %d\n", startTimestamp-curTs);
-                printf("startTimestamp: %d\n", startTimestamp);
-              
+              for(imgIdx=0; imgIdx<nSharedImages; imgIdx++)
+              {
+                  if(sem_trywait(sharedImages[imgIdx].takeImageSem)==0)
+                  {
+                      printf("SharedImageWriter: taking image %s\n", sharedImageName[imgIdx]);
+                      takingImage[imgIdx] = 1;
+                      doneIntegrating[imgIdx] = 0;   
+                      // zero out array:
+                      memset(sharedImages[imgIdx].image, 0, sizeof(*(sharedImages[imgIdx].image)) * sharedImages[imgIdx].md->nXPix * sharedImages[imgIdx].md->nYPix);                        if(sharedImages[imgIdx].md->startTime==0)
+                          sharedImages[imgIdx].md->startTime = curTs;
+                   
+                  }
+
              }
-             if(takingImg)
-                forLoopIters++;
 
              swp = *((uint64_t *) (&olddata[i*8]));
              swp1 = __bswap_64(swp);
@@ -369,7 +350,6 @@ void *SharedImageWriter(void *prms)
                                       
              if (hdr->start == 0b11111111) {        // found new packet header!
                 // fill packet and parse
-                // printf("Found Header at %d\n",i*8); fflush(stdout);
                 memmove(packet,&olddata[pstart],i*8 - pstart);
                 curRoachInd = 0;
 
@@ -400,41 +380,43 @@ void *SharedImageWriter(void *prms)
 
                 }
 
-                if(takingImg)
+                for(imgIdx=0; imgIdx<nSharedImages; imgIdx++)
                 {
-                    //printf("curRoachTs: %lld\n", curTs);
-                    if((curTs>startTimestamp)&&(curTs<=(startTimestamp+integrationTime)))
-                        ParsePacketSN(imgBuffPtr,packet,i*8 - pstart,params->nXPix,params->nYPix); 
-                    else if(curTs>(startTimestamp+integrationTime))
-                    {
-                        doneIntegrating |= (1<<curRoachInd);
-                        //printf("Nuller: Roach %d done Integrating\n", boardNums[curRoachInd]);
+                   if(takingImg[imgIdx])
+                   {
+                       //printf("curRoachTs: %lld\n", curTs);
+                       if((curTs>sharedImages[imgIdx].md->startTime)&&(curTs<=(sharedImages[imgIdx].md->startTime+sharedImages[imgIdx].md->integrationTime)))
+                           ParsePacketShm(sharedImages+imgIdx,packet,i*8 - pstart);
+                       else if(curTs>(sharedImages[imgIdx].md->startTime+sharedImages[imgIdx].md->integrationTime))
+                       {
+                           doneIntegrating[imgIdx] |= (1<<curRoachInd);
+                           //printf("SharedImageWriter: Roach %d done Integrating\n", boardNums[curRoachInd]);
 
-                    }
+                       }
 
-                    //printf("Nuller: curTs %lld\n", curTs);
-                    pcount++;
+                       //printf("SharedImageWriter: curTs %lld\n", curTs);
+                       pcount++;
 
-                    if(doneIntegrating==doneIntMask) //check to see if all boards are done integrating
-                    {
-                        takingImg = 0;
-                        clock_gettime(CLOCK_REALTIME, &stopSpec);
-                        //nsElapsed = stopSpec.tv_nsec - startSpec.tv_nsec;
-                        sem_post(doneImgSem);
-                        printf("Nuller: done image at %lld\n", curTs);
-                        printf("Nuller: int time %d\n", curTs-startTimestamp);
-                        //printf("Nuller: real time %d ms\n", (nsElapsed)/1000000);
-                        printf("Nuller: Parse rate = %d pkts/img. Data in buffer = %d\n",pcount,oldbr); fflush(stdout);
-                        //printf("Nuller: forLoopIters %d\n", forLoopIters);
-                        //printf("Nuller: whileLoopIters %d\n", whileLoopIters);
-                        printf("Nuller: oldbr: %d\n", oldbr);
-                        pcount = 0;
-                        forLoopIters = 0;
-                        whileLoopIters = 0;
+                       if(doneIntegrating[imgIdx]==doneIntMask) //check to see if all boards are done integrating
+                       {
+                           takingImg = 0;
+                           clock_gettime(CLOCK_REALTIME, &stopSpec);
+                           //nsElapsed = stopSpec.tv_nsec - startSpec.tv_nsec;
+                           sem_post(sharedImages[imgIdx].doneImageSem);
+                           printf("SharedImageWriter: done image at %lld\n", curTs);
+                           printf("SharedImageWriter: int time %d\n", curTs-sharedImages[imgIdx].md->integrationTime);
+                           //printf("SharedImageWriter: real time %d ms\n", (nsElapsed)/1000000);
+                           printf("SharedImageWriter: Parse rate = %d pkts/img. Data in buffer = %d\n",pcount,oldbr); fflush(stdout);
+                           //printf("SharedImageWriter: forLoopIters %d\n", forLoopIters);
+                           //printf("SharedImageWriter: whileLoopIters %d\n", whileLoopIters);
+                           printf("SharedImageWriter: oldbr: %d\n", oldbr);
+                           pcount = 0;
 
-                    }
-                
-                }
+                       }
+                   
+                   }
+
+               }
 		pstart = i*8;   // move start location for next packet	                      
              }
           }
@@ -448,25 +430,14 @@ void *SharedImageWriter(void *prms)
 
     free(olddata);
     free(boardNums);
-    printf("Nuller: Closing semaphores\n");
-    sem_close(takeImgSem);
-    sem_close(doneImgSem);
-    sem_unlink(takeImgSemName);
-    sem_unlink(doneImgSemName);
-    printf("Nuller: semaphores unlinked\n");
+    for(imgIdx=0; imgIdx<params->nSharedImages; imgIdx++)
+        closeMKIDShmImage(sharedImages+i);
+    free(sharedImages);
+    free(takingImage);
+    free(doneIntegrating);
 
-    
-    printf("Nuller: Umapping Shm\n");
-    munmap(imgBuffPtr, sizeof(uint16_t)*params->nXPix*params->nYPix);
-    munmap(startTsPtr, sizeof(uint64_t));
-    munmap(intTimePtr, sizeof(uint64_t));
-    printf("Nuller: Unlinking Shm\n");
-    shm_unlink(imageShmName);
-    shm_unlink(tsShmName);
-    shm_unlink(intTimeShmName);
-    
     //fclose(timeFile);
-    printf("Nuller: Closing\n");
+    printf("SharedImageWriter: Closing\n");
     return NULL;
 }
 
@@ -756,7 +727,7 @@ void* Writer(void *prms)
           remove(quitFileName);
           sem_post(&quitSem);
           sem_post(&quitSem);
-          if(params->useNuller)
+          if(params->useSharedImageWriter)
             sem_post(&quitSem);
           mode = 3;
           printf("Mode 3\n");
@@ -803,7 +774,7 @@ void* Reader(void *prms)
   // Create shared memory for photon data
   rptr1 = OpenShared("/roachstream1");
   rptr2 = OpenShared("/roachstream2");
-  if(params->useNuller)
+  if(params->useSharedImageWriter)
     rptr3 = OpenShared("/roachstream3");
 
   if ((s=socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP))==-1)
@@ -899,7 +870,7 @@ void* Reader(void *prms)
     }      
     sem_post(&sem[1]);
 
-    if(params->useNuller)
+    if(params->useSharedImageWriter)
     {
         sem_wait(&sem[2]);
         if( rptr3->unread >= (SHAREDBUF - BUFLEN) ) {
@@ -987,9 +958,8 @@ int main(int argc, char* argv[])
     while (access( cfgPath, F_OK ) == -1) usleep(10000); //sleep 10 ms
 
     cfgfp = fopen(cfgPath,"r");
-    //fscanf(cfgfp,"%s\n", params.ramdiskPath);
+    fscanf(cfgfp,"%s\n", params.ramdiskPath);
     fscanf(cfgfp,"%d %d\n", &(params.nXPix), &(params.nYPix));
-    fscanf(cfgfp, "%d\n", &(params.useNuller));
     fscanf(cfgfp, "%d\n", &(params.nRoach));
     fscanf(cfgfp, "%d\n", &(params.port));
     fscanf(cfgfp, "%d\n", &(params.nSharedImages));
@@ -1029,7 +999,7 @@ int main(int argc, char* argv[])
     rptr1 = OpenShared("/roachstream1");
     rptr2 = OpenShared("/roachstream2");
     
-    if(params.useNuller)
+    if(params.nSharedImages>0)
         rptr3 = OpenShared("/roachstream3");
     
     t=0;
@@ -1051,10 +1021,10 @@ int main(int argc, char* argv[])
         exit(-1);
     }
     
-    if(params.useNuller){
-        rc = pthread_create(&threads[3], &attr, Nuller, &params);
+    if(params.nSharedImages>0){
+        rc = pthread_create(&threads[3], &attr, SharedImageWriter, &params);
         if (rc){
-            printf("ERROR creating Nuller(); return code from pthread_create() is %d\n", rc);
+            printf("ERROR creating SharedImageWriter(); return code from pthread_create() is %d\n", rc);
             exit(-1);
         }
     
@@ -1081,7 +1051,7 @@ int main(int argc, char* argv[])
     sem_close(&sem[0]);
     sem_close(&sem[1]);
 
-    if(params.useNuller)
+    if(params.nSharedImages>0)
     {
         sem_wait(&sem[2]);
         shm_unlink("/roachstream3");
