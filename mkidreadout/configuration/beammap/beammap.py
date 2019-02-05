@@ -30,7 +30,7 @@ class Beammap(object):
     """
     yaml_tag = u'!bmap'
 
-    def __init__(self, file=None, xydim=None, default='MEC'):
+    def __init__(self, file=None, xydim=None, default='MEC', freqpath=''):
         """
         Constructor.
 
@@ -48,6 +48,7 @@ class Beammap(object):
         self.xCoords = None
         self.yCoords = None
         self.frequencies = None
+        self.freqpath = freqpath
 
         if file is not None:
             self._load(file)
@@ -71,7 +72,7 @@ class Beammap(object):
 
     @classmethod
     def from_yaml(cls, constructor, node):
-        d = mkidcore.config.extract_from_node(('file', 'nrows', 'ncols', 'default', 'freqfiles'), node)
+        d = mkidcore.config.extract_from_node(constructor,('file', 'nrows', 'ncols', 'default', 'freqfiles'), node)
 
         if 'default' in d:
             bmap = cls(default=d['default'])
@@ -115,6 +116,7 @@ class Beammap(object):
         self.resIDs, self.flags, self.xCoords, self.yCoords = np.loadtxt(filename, unpack=True)
 
     def loadFrequencies(self, filepath):
+        self.freqpath = filepath
         powerSweeps = glob.glob(filepath)
         if not powerSweeps:
             raise FileNotFoundError('No powersweeps found matching {}'.format(filepath))
@@ -223,7 +225,7 @@ class Beammap(object):
         return map
 
     def __repr__(self):
-        return '<file={}, ncols={}, nrows={}>'.format(self.file, self.ncols, self.nrows)
+        return '<file={}, ncols={}, nrows={}, freqpath={}>'.format(self.file, self.ncols, self.nrows, self.freqpath)
 
     def __str__(self):
         return 'File: "{}"\nWell Mapped: {}'.format(self.file, self.nrows * self.ncols - (self.flags!=0).sum())
