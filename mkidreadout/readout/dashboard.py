@@ -660,9 +660,10 @@ class MKIDDashboard(QMainWindow):
         self.takingDark -= 1
         if self.takingDark == 0:
             self.takingDark = -1
-            name = '{}_dark_{}'.format(self.config.dashboard.darkname, int(time.time()))
+            name = mkidreadout.config.tagstr('dark_{time}')
             self.darkField = self.darkFactory.generate(fname=os.path.join(self.config.paths.data, name+'.fits'),
                                                        name=name, badmask=self.beammapFailed, save=True)
+            self.config.dashboard.update('darkname', name)
             getLogger('Dashboard').info('Finished dark:\n {}'.format(summarize(self.darkField).replace('\n', '\n  ')))
             self.checkbox_darkImage.setChecked(True)
             self.spinbox_darkImage.setEnabled(True)
@@ -679,9 +680,10 @@ class MKIDDashboard(QMainWindow):
         self.takingFlat -= 1
         if self.takingFlat == 0:
             self.takingFlat = -1
-            name = '{}_flat_{}'.format(self.config.dashboard.flatname, int(time.time()))
+            name = mkidreadout.config.tagstr('flat_{time}')
             self.flatField = self.flatFactory.generate(fname=os.path.join(self.config.paths.data, name+'.fits'),
                                                        name=name, badmask=self.beammapFailed, save=True)
+            self.config.dashboard.update('flatname', name)
             getLogger('Dashboard').info('Finished flat:\n {}'.format(summarize(self.flatField).replace('\n', '\n  ')))
             self.checkbox_flatImage.setChecked(True)
             self.spinbox_flatImage.setEnabled(True)
@@ -728,9 +730,19 @@ class MKIDDashboard(QMainWindow):
         # Get the (average) photon count image
         if self.checkbox_flatImage.isChecked() and self.flatField is None:
             try:
-                self.flatField = fits.open(self.config.dashboard.flatfile)
+                file = mkidreadout.config.tagstr(self.config.dashboard.flatname)
+                file = file if 'fit' in os.path.splitext(file)[1].lower() else file + '.fits'
+                self.flatField = fits.open(file)
             except IOError:
-                getLogger('Dashboard').warning('Unable to load flat from {}'.format(self.config.dashboard.flatfile))
+                getLogger('Dashboard').warning('Unable to load flat from {}'.format(file))
+
+        if self.checkbox_darkImage.isChecked() and self.darkField is None:
+            try:
+                file = mkidreadout.config.tagstr(self.config.dashboard.darkname)
+                file = file if 'fit' in os.path.splitext(file)[1].lower() else file + '.fits'
+                self.darkField = fits.open(file)
+            except IOError:
+                getLogger('Dashboard').warning('Unable to load dark from {}'.format(file))
 
         #TODO this really could be moved into the ConvertPhotonsToRGB thread
         cf = CalFactory('avg', images=self.imageList[-self.config.dashboard.average:],

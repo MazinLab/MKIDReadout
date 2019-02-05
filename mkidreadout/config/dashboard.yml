@@ -27,9 +27,9 @@ dashboard: !configdict
   min_count_rate: 0
   n_darks: 5 # Num images for dark image
   n_flats: 5
-  flatname: flat
-  darkname: dark
-  fitstime: 60  #
+  flatname: flat.fits
+  darkname: dark.fits
+  fitstime: 60
   spawn_packetmaster: True
 
 # Flipper is also controlled with the laser box arduino
