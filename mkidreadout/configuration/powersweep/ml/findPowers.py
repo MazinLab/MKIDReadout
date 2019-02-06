@@ -38,7 +38,7 @@ def findPowers(goodModelDir, badModelDir, psDataFileName, metadataFn=None,
     elif psDataFileName.split('.')[1] == 'npz':
         inferenceData.updatemetadata()
         inferenceData.metadata.save()
-
+    
 
 def apply_ml_model(inferenceData, wsAtten, resWidth, goodModelDir='', badModelDir=''):
     """
@@ -54,26 +54,7 @@ def apply_ml_model(inferenceData, wsAtten, resWidth, goodModelDir='', badModelDi
 
     getLogger(__name__).debug("Inference attens: {}".format(inferenceData.attens))
 
-
-    goodModelList = glob.glob(os.path.join(goodModelDir, '*.meta'))
-    if len(goodModelList) > 1:
-        raise Exception('Multiple models (.meta files) found in directory: ' + goodModelDir)
-    elif len(goodModelList) == 0:
-        raise Exception('No models (.meta files) found in directory ' + goodModelDir)
-    goodModel = goodModelList[0]
-    getLogger(__name__).info('Loading good model from %s', goodModel)
-    sess = tf.Session()
-    saver = tf.train.import_meta_graph(goodModel)
-    saver.restore(sess, tf.train.latest_checkpoint(os.path.dirname(goodModel)))
-
-    graph = tf.get_default_graph()
-    x_input = graph.get_tensor_by_name('inputImage:0')
-    y_output = graph.get_tensor_by_name('outputLabel:0')
-    keep_prob = graph.get_tensor_by_name('keepProb:0')
-
-    mlDict = {}
-    for param in tf.get_collection('mlDict'):
-        mlDict[param.op.name] = param.eval(session=sess)
+    mlDict, sess, graph, x_input, y_output, keep_prob = mlt.get_ml_model(goodModelDir)
 
     if wsAtten is None:
         wsAtten = mlDict['wsAtten']
@@ -88,26 +69,7 @@ def apply_ml_model(inferenceData, wsAtten, resWidth, goodModelDir='', badModelDi
     inferenceLabels = np.zeros((res_nums, mlDict['nAttens']))
 
     if badModelDir:
-        badModelList = glob.glob(os.path.join(badModelDir, '*.meta'))
-        if len(badModelList) > 1:
-            raise Exception('Multiple models (.meta files) found in directory: ' + badModelDir)
-        elif len(badModelList) == 0:
-            raise Exception('No models (.meta files) found in directory: ' + badModelDir)
-        badModel = badModelList[0]
-        getLogger(__name__).info('Loading good model from %s', badModel)
-        sess_bad = tf.Session()
-        saver_bad = tf.train.import_meta_graph(badModel)
-        saver_bad.restore(sess_bad, tf.train.latest_checkpoint(os.path.dirname(badModel)))
-
-        graph = tf.get_default_graph()
-        x_input_bad = graph.get_tensor_by_name('inputImage:0')
-        y_output_bad = graph.get_tensor_by_name('outputLabel:0')
-        keep_prob_bad = graph.get_tensor_by_name('keepProb:0')
-
-        mlDictBad = {}
-        for param in tf.get_collection('mlDict'):
-            mlDictBad[param.op.name] = param.eval(session=sess_bad)
-
+        mlDictBad, sess_bad, graph_bad, x_input_bad, y_output_bad, keep_prob_bad = mlt.get_ml_model(badModelDir)
         inferenceLabelsBad = np.zeros((res_nums, mlDictBad['nAttens']))
 
     getLogger(__name__).debug('Using trained algorithm on images on each resonator')
@@ -162,6 +124,8 @@ if __name__ == '__main__':
                         help='Width of window (in units nFreqStep) to use for power/freq classification')
     parser.add_argument('-b', '--badscore-model', default='', help='Directory containing bad score model')
     args = parser.parse_args()
+
+    getLogger(__name__, setup=True)
 
     psDataFileName = args.inferenceData
     if not os.path.isfile(psDataFileName):

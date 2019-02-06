@@ -1,4 +1,7 @@
 import numpy as np
+import tensorflow as tf
+import logging
+import os, sys, glob
 from PSFitMLData import *
 from mkidreadout.configuration.powersweep.psmldata import *
 
@@ -14,7 +17,7 @@ def makeResImage(res_num, dataObj, wsAttenInd, xWidth, resWidth,
     showFrames: pops up a window of the frame plotted using matplotlib.plot
     """
     # TODO: remove assumption that res is centered on window at wsAttenInd
-    resSearchWin = 20
+    resSearchWin = 7
 
     assert resWidth <= xWidth, 'res width must be <= xWidth'
 
@@ -204,6 +207,28 @@ def makeResImage(res_num, dataObj, wsAttenInd, xWidth, resWidth,
 
     return singleFrameImage, freqCube, attenList
 
+def get_ml_model(modelDir=''):
+    modelList = glob.glob(os.path.join(modelDir, '*.meta'))
+    if len(modelList) > 1:
+        raise Exception('Multiple models (.meta files) found in directory: ' + modelDir)
+    elif len(modelList) == 0:
+        raise Exception('No models (.meta files) found in directory ' + modelDir)
+    model = modelList[0]
+    getLogger(__name__).info('Loading good model from %s', model)
+    sess = tf.Session()
+    saver = tf.train.import_meta_graph(model)
+    saver.restore(sess, tf.train.latest_checkpoint(os.path.dirname(model)))
+
+    graph = tf.get_default_graph()
+    x_input = graph.get_tensor_by_name('inputImage:0')
+    y_output = graph.get_tensor_by_name('outputLabel:0')
+    keep_prob = graph.get_tensor_by_name('keepProb:0')
+
+    mlDict = {}
+    for param in tf.get_collection('mlDict'):
+        mlDict[param.op.name] = param.eval(session=sess)
+
+    return mlDict, sess, graph, x_input, y_output, keep_prob
 
 def get_peak_idx(res_num, iAtten, dataObj, smooth=False, cutType=None, padInd=None):
     iq_vels = dataObj.iq_vels[res_num, iAtten, :]
