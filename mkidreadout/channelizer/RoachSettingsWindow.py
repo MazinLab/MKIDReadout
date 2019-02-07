@@ -167,7 +167,10 @@ class RoachSettingsTab(QMainWindow):
         add2layout(vbox, self.label_lofreq, self.textbox_lofreq)
 
         firname = self.config.get('r{}.fircoefffile'.format(self.roachNum))
-        firCoeffFile = resource_filename('mkidreadout', os.path.join('resources', 'firfilters', firname))
+        if not os.path.isfile(firname):
+            firCoeffFile = resource_filename('mkidreadout', os.path.join('resources', 'firfilters', firname))
+        else:
+            firCoeffFile = firname
         self.label_firCoeffFile = QLabel('FIR File:')
         self.label_firCoeffFile.setMinimumWidth(110)
         self.textbox_firCoeffFile = QLineEdit(firCoeffFile)

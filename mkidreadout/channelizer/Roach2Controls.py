@@ -1190,7 +1190,6 @@ class Roach2Controls(object):
             expectedHighestVal_sig = scipy.special.erfinv((len(iValues)-0.1)/len(iValues))*np.sqrt(2.)   # 10% of the time there should be a point this many sigmas higher than average
             while max(1.0*np.abs(iValues).max()/sig_i, 1.0*np.abs(qValues).max()/sig_q)>=expectedHighestVal_sig:
                 getLogger(__name__).warning("The freq comb's relative phases may have added up sub-optimally. Calculating with new random phases")
-                warnings.warn("The freq comb's relative phases may have added up sub-optimally. Calculating with new random phases")
                 toneParams['phaseList']=None    # If it was defined before it didn't work. So do random ones this time
                 toneDict = self.generateTones(**toneParams)
                 iValues=np.sum(toneDict['I'],axis=0)
