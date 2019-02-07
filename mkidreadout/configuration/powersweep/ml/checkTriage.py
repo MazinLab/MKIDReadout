@@ -9,6 +9,9 @@ parser.add_argument('-m', '--manualFiles', nargs='+')
 parser.add_argument('-c', '--cut', type=float)
 args = parser.parse_args()
 
+if args.manualFiles is None:
+    args.manualFiles = args.mlFiles
+
 assert len(args.mlFiles)==len(args.manualFiles), 'Must specify clickthrough file for every inference file!'
 nFiles = len(args.mlFiles)
 
@@ -43,7 +46,7 @@ for i in range(nFiles):
     dbMask = dbMask | np.roll(dbMask, 1)
     doubleMask = np.append(doubleMask, dbMask[goodMask])
 
-dbThresh = 2
+dbThresh = 2.5
 cutMask = goodScore >= args.cut
 stdCut = np.std(attenDiff[cutMask])
 clickStd = np.std(attenDiff[~cutMask])
@@ -51,6 +54,10 @@ nBadClassCut = np.sum(np.abs(attenDiff[cutMask])>=dbThresh)
 
 worstResIDs = resID[np.argsort(np.abs(attenDiff))[::-1]]
 attenDiffSorted = attenDiff[np.argsort(np.abs(attenDiff))[::-1]]
+attenDiffCut = attenDiff[cutMask]
+attenDiffCutSorted = attenDiffCut[np.argsort(np.abs(attenDiffCut))[::-1]]
+worstResIDsCut = (resID[cutMask])[np.argsort(np.abs(attenDiffCut))[::-1]]
+
 stdDoubles = np.std(attenDiff[doubleMask])
 stdNotDoubles = np.std(attenDiff[~doubleMask])
 nBadNotDoubles = np.sum(np.abs(attenDiff[~doubleMask])>=dbThresh)
@@ -71,8 +78,11 @@ print 'not double std:', stdNotDoubles
 print nBadNotDoubles, '(', 100.*nBadNotDoubles/np.sum(~doubleMask), '%)', 'cut singles misclassified by', dbThresh, 'dB.'
 print nBadDoubles, '(', 100.*nBadDoubles/np.sum(doubleMask), '%)', 'doubles misclassified by', dbThresh, 'dB.'
 print 'Worst offenders:'
-for i in range(30):
+for i in range(20):
     print worstResIDs[i], attenDiffSorted[i]
+print 'Worst cut offenders:'
+for i in range(30):
+    print worstResIDsCut[i], attenDiffCutSorted[i]
 
 #fig0 = plt.figure()
 #fig1 = plt.figure()

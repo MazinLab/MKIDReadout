@@ -8,6 +8,7 @@ import tools as mlt
 
 from mkidreadout.utils.readDict import readDict
 from mkidreadout.configuration.powersweep.psmldata import MLData
+from mkidcore.corelog import getLogger
 
 class diagnostics():
     def __init__(self, modelDir, psDataFileName, metadataFn=None, wsAtten=None, resWidth=None):
@@ -67,21 +68,21 @@ class diagnostics():
         #    useBadScores = False
 
     def getImage(self, res_num):
-        image, freqCube, attenList = mlt.makeResImage(res_num, self.inferenceData, self.wsAttenInd, self.mlDict['xWidth'],
+        image, freqCube, attenList, iqv, mags = mlt.makeResImage(res_num, self.inferenceData, self.wsAttenInd, self.mlDict['xWidth'],
                                         self.resWidth, self.mlDict['padResWin'], self.mlDict['useIQV'], self.mlDict['useMag'],
                                         self.mlDict['centerLoop'], self.mlDict['nAttens'])
 
-        return image, freqCube, attenList
+        return image, freqCube, attenList, iqv, mags
 
     def getActivations(self, res_num):
-        image, _, _ = self.getImage(res_num)
+        image, _, _, _, _ = self.getImage(res_num)
         inferenceLabels = self.sess.run(self.y_output, feed_dict={self.x_input: [image], self.keep_prob: 1})
         return inferenceLabels[0]
 
 
 
     def plotLoops(self, res_num, start_atten=0, end_atten=-1, grid=True, show=True):
-        image, _, attenList = self.getImage(res_num)
+        image, _, attenList, _, _ = self.getImage(res_num)
 
         if end_atten==-1:
             end_atten = len(self.inferenceData.attens)
@@ -111,7 +112,7 @@ class diagnostics():
             plt.show()
 
     def plotIQ_vels(self, res_num, start_atten=0, end_atten=-1, grid=True, show=True):
-        image, freqCube, attenList = self.getImage(res_num)
+        image, freqCube, attenList, iqv, mags = self.getImage(res_num)
 
         if end_atten==-1:
             end_atten = len(self.inferenceData.attens)
@@ -124,13 +125,13 @@ class diagnostics():
             for y in range(nrows):
                 for x in range(ncols):
                     if a < end_atten:
-                        axes[y, x].plot(freqCube[a], image[a, :,2])
+                        axes[y, x].plot(freqCube[a], iqv[a, :])
                         axes[y,x].set_title(a)
                     a+=1
         else:
             plt.figure()
             for a in range(start_atten, end_atten):
-                plt.plot(freqCube[a], image[a, :,2], label=str(a))
+                plt.plot(freqCube[a], iqv[a, :], label=str(a))
             plt.xlabel('Freq')
             plt.ylabel('vIQ')
             plt.legend()
@@ -138,7 +139,7 @@ class diagnostics():
             plt.show()
 
     def plotS21(self, res_num, start_atten=0, end_atten=-1, grid=True, show=True):
-        image, freqCube, attenList = self.getImage(res_num)
+        image, freqCube, attenList, iqv, mags = self.getImage(res_num)
 
         if end_atten==-1:
             end_atten = len(self.inferenceData.attens)
@@ -152,15 +153,15 @@ class diagnostics():
                 for x in range(ncols):
                     if a < end_atten:
                         #print(a)
-                        axes[y, x].plot(freqCube[a], image[a, :,3])
+                        axes[y, x].plot(freqCube[a], mags[a, :])
                         axes[y,x].set_title(a)
                     a+=1
         else:
             plt.figure()
             for a in range(start_atten, end_atten):
                 #print(a)
-                plt.plot(freqCube[a], image[a, :,3], label=str(a))
-                plt.plot(freqCube[a, freqCube.shape[1]/2], image[a, freqCube.shape[1]/2, 3], '.')
+                plt.plot(freqCube[a], mags[a, :], label=str(a))
+                plt.plot(freqCube[a, freqCube.shape[1]/2], mags[a, freqCube.shape[1]/2], '.')
             plt.xlabel('Freq')
             plt.ylabel('S21')
             plt.legend()
@@ -168,7 +169,7 @@ class diagnostics():
             plt.show()
 
     def plotCenterFreq(self, res_num, start_atten=0, end_atten=-1, show=True):
-        _, freqCube, _ = self.getImage(res_num)        
+        _, freqCube, _, _, _ = self.getImage(res_num)        
         end_atten = len(self.inferenceData.attens) + end_atten
 
         plt.figure()
@@ -212,6 +213,7 @@ if __name__=='__main__':
     parser.add_argument('--res-width', type=int, default=None, 
                         help='Width of window (in units nFreqStep) to use for power/freq classification')
     args = parser.parse_args()
+    getLogger(__name__, setup=True)
 
     # print(args)
 

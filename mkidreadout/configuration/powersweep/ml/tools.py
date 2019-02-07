@@ -171,11 +171,6 @@ def makeResImage(res_num, dataObj, wsAttenInd, xWidth, resWidth,
 
     iqVelImage = iqVelImage/np.sqrt(np.mean(iqVelImage**2)) #changed 20190107, probably a mistake earlier
 
-    if useIQV:
-        singleFrameImage = np.dstack((singleFrameImage, iqVelImage))
-
-    if useMag:
-        singleFrameImage = np.dstack((singleFrameImage, magsdbImage))
 
     if resWidth < xWidth:
         nPadVals = (xWidth - resWidth) / 2.
@@ -184,6 +179,8 @@ def makeResImage(res_num, dataObj, wsAttenInd, xWidth, resWidth,
         for i in range(singleFrameImage.shape[2]):
             singleFrameImageFS[:, :, i] = np.pad(singleFrameImage[:, :, i],
                                                  [(0, 0), (int(np.ceil(nPadVals)), int(np.floor(nPadVals)))], 'edge')
+        iqVelImage = np.pad(iqVelImage, [(0, 0), (int(np.ceil(nPadVals)), int(np.floor(nPadVals)))], 'edge')
+        magsdbImage = np.pad(magsdbImage, [(0, 0), (int(np.ceil(nPadVals)), int(np.floor(nPadVals)))], 'edge')
         freqCubeFS = np.pad(freqCube, [(0, 0), (int(np.ceil(nPadVals)), int(np.floor(nPadVals)))], 'edge')
         singleFrameImage = singleFrameImageFS
         freqCube = freqCubeFS
@@ -194,6 +191,8 @@ def makeResImage(res_num, dataObj, wsAttenInd, xWidth, resWidth,
         for i in range(singleFrameImage.shape[2]):
             singleFrameImageFS[:, :, i] = np.pad(singleFrameImage[:, :, i], [(0, mlDictnAttens - nAttens), (0, 0)],
                                                  'edge')
+        iqVelImage = np.pad(iqVelImage, [(0, mlDictnAttens - nAttens), (0, 0)], 'edge')
+        magsdbImage = np.pad(magsdbImage, [(0, mlDictnAttens - nAttens), (0, 0)], 'edge')
         freqCubeFS = np.pad(freqCube, [(0, mlDictnAttens - nAttens), (0, 0)], 'edge')
         singleFrameImage = singleFrameImageFS
         freqCube = freqCubeFS
@@ -202,10 +201,18 @@ def makeResImage(res_num, dataObj, wsAttenInd, xWidth, resWidth,
     #truncate the highest attens, consider expanding this if necessary
     elif nAttens > nAttensModel:
         singleFrameImage = singleFrameImage[:nAttensModel, :, :]
+        iqVelImage = iqVelImage[:nAttensModel, :]
+        magsdbImage = magsdbImage[:nAttensModel, :]
         freqCube = freqCube[:nAttensModel, :]
         attenList = attenList[:nAttensModel]
 
-    return singleFrameImage, freqCube, attenList
+    if useIQV:
+        singleFrameImage = np.dstack((singleFrameImage, iqVelImage))
+
+    if useMag:
+        singleFrameImage = np.dstack((singleFrameImage, magsdbImage))
+
+    return singleFrameImage, freqCube, attenList, iqVelImage, magsdbImage
 
 def get_ml_model(modelDir=''):
     modelList = glob.glob(os.path.join(modelDir, '*.meta'))

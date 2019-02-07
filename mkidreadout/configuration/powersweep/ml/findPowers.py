@@ -78,7 +78,7 @@ def apply_ml_model(inferenceData, wsAtten, resWidth, goodModelDir='', badModelDi
     for rn in range(res_nums):
         getLogger(__name__).debug("%d of %i" % (rn + 1, res_nums))
 
-        image, freqCube, attenList = mlt.makeResImage(rn, inferenceData, wsAttenInd, mlDict['xWidth'],
+        image, freqCube, attenList, iqVel, magsdb = mlt.makeResImage(rn, inferenceData, wsAttenInd, mlDict['xWidth'],
                                         resWidth, mlDict['padResWin'], mlDict['useIQV'], mlDict['useMag'],
                                         mlDict['centerLoop'], mlDict['nAttens'])
 
@@ -87,10 +87,10 @@ def apply_ml_model(inferenceData, wsAtten, resWidth, goodModelDir='', badModelDi
         iAtt = np.argmax(inferenceLabels[rn, :])
         inferenceData.opt_attens[rn] = attenList[iAtt]
         if FREQ_USE_MAG:
-            inferenceData.opt_freqs[rn] = freqCube[iAtt, np.argmin(image[iAtt, :, 3])]  # TODO: make this more robust
+            inferenceData.opt_freqs[rn] = freqCube[iAtt, np.argmin(magsdb[iAtt,:])]  # TODO: make this more robust
         else:
             inferenceData.opt_freqs[rn] = freqCube[
-                iAtt, np.argmax(np.correlate(image[iAtt, :, 2], np.ones(5), 'same'))]  # TODO: make this more robust
+                iAtt, np.argmax(np.correlate(iqVel[iAtt,:], np.ones(5), 'same'))]  # TODO: make this more robust
 
         assert inferenceData.freqs[rn, 0] <= inferenceData.opt_freqs[rn] <= inferenceData.freqs[
             rn, -1], 'freq out of range, need to debug'
