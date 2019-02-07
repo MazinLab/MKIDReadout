@@ -61,29 +61,30 @@ class mlClassification():
                 raise Exception('Could not open ' + rawTrainFile)
             
             
-            good_res = np.arange(len(rawTrainData.resIDs))
+            goodResMask = np.ones(len(rawTrainData.resIDs), dtype=bool)
 
-            iAttens = np.zeros((len(good_res),self.nClass))
+            iAttens = np.zeros((len(goodResMask),self.nClass))
 
             if self.mlDict['trimAttens']:
-                good_res = np.delete(good_res, np.where(rawTrainData.opt_iAttens < self.mlDict['attenWinBelow'])[0])
+                goodResMask = goodResMask & ~(rawTrainData.opt_iAttens < self.mlDict['attenWinBelow'])
+            if self.mlDict['filterMaxedAttens']:
+                maxAttenInd = np.argmax(rawTrainData.attens)
+                goodResMask = goodResMask & ~(rawTrainData.opt_iAttens==maxAttenInd)
+                print 'Filtered', np.sum(rawTrainData.opt_iAttens==maxAttenInd), 'maxed out attens.'
 
-            # rawTrainData.res_indicies = np.zeros((rawTrainData.res_nums,rawTrainData.nClass))
-            # for c in range(rawTrainData.nClass):
-            #     for i, rn in enumerate(good_res):
-            #         rawTrainData.res_indicies[i,c] = rawTrainData.get_peak_idx(rn,iAttens[i,c])
             
-            rawTrainData.res_nums = len(good_res)
+            rawTrainData.res_nums = np.sum(goodResMask)
+            print 'Using', rawTrainData.res_nums, 'resonators'
             
-            rawTrainData.iq_vels=rawTrainData.iq_vels[good_res]
-            rawTrainData.freqs=rawTrainData.freqs[good_res]
-            rawTrainData.Is = rawTrainData.Is[good_res]
-            rawTrainData.Qs = rawTrainData.Qs[good_res]
-            rawTrainData.resIDs = rawTrainData.resIDs[good_res]
-            #rawTrainData.attens = rawTrainData.attens[good_res]
-            rawTrainData.opt_iAttens = rawTrainData.opt_iAttens[good_res]
+            rawTrainData.iq_vels=rawTrainData.iq_vels[goodResMask]
+            rawTrainData.initfreqs=rawTrainData.initfreqs[goodResMask]
+            rawTrainData.freqs=rawTrainData.freqs[goodResMask]
+            rawTrainData.Is = rawTrainData.Is[goodResMask]
+            rawTrainData.Qs = rawTrainData.Qs[goodResMask]
+            rawTrainData.resIDs = rawTrainData.resIDs[goodResMask]
+            #rawTrainData.attens = rawTrainData.attens[goodResMask]
+            rawTrainData.opt_iAttens = rawTrainData.opt_iAttens[goodResMask]
             wsAttenInd = np.argmin(np.abs(rawTrainData.attens-self.mlDict['wsAtten']))
-            print wsAttenInd
             
             #class_steps = 300
 
@@ -105,7 +106,7 @@ class mlClassification():
                 # for t in range(num_rotations):
                 #     image = self.makeResImage(res_num = rn, iAtten= iAttens[rn,c], angle=angle[t],showFrames=False, 
                 #                                 test_if_noisy=test_if_noisy, xCenter=self.res_indicies[rn,c])
-                image, _, _ = mlt.makeResImage(rn, rawTrainData, wsAttenInd, self.mlDict['xWidth'], 
+                image, _, _, _, _ = mlt.makeResImage(rn, rawTrainData, wsAttenInd, self.mlDict['xWidth'], 
                                         self.mlDict['resWidth'], self.mlDict['padResWin'], self.mlDict['useIQV'], 
                                         self.mlDict['useMag'], self.mlDict['center_loop'], self.mlDict['nAttens']) 
                 if image is not None:
@@ -118,7 +119,7 @@ class mlClassification():
 
 
             for rn in test_ind:#range(int(self.trainFrac*rawTrainData.res_nums), int(self.trainFrac*rawTrainData.res_nums + self.testFrac*rawTrainData.res_nums)):
-                image, _, _ = mlt.makeResImage(rn, rawTrainData, wsAttenInd, self.mlDict['xWidth'], 
+                image, _, _, _, _ = mlt.makeResImage(rn, rawTrainData, wsAttenInd, self.mlDict['xWidth'], 
                                         self.mlDict['resWidth'], self.mlDict['padResWin'], self.mlDict['useIQV'], 
                                         self.mlDict['useMag'], self.mlDict['center_loop'], self.mlDict['nAttens']) 
                 if image is not None:
@@ -127,9 +128,9 @@ class mlClassification():
                     oneHot[rawTrainData.opt_iAttens[rn]] = 1
                     testLabels.append(oneHot)
 
-            with open(self.trainFile, 'ab') as tf:
-                pickle.dump([trainImages, trainLabels], tf)
-                pickle.dump([testImages, testLabels], tf)
+            with open(self.trainFile, 'ab') as trainFile:
+                pickle.dump([trainImages, trainLabels], trainFile)
+                pickle.dump([testImages, testLabels], trainFile)
 
     def initializeAndTrainModel(self, debug=False, saveGraph=False):
         print self.trainFile
@@ -289,7 +290,7 @@ class mlClassification():
 
         init = tf.global_variables_initializer()
 
-        saver = tf.train.Saver()
+        saver = tf.train.Saver(save_relative_paths=True)
         
         correct_prediction = tf.equal(tf.argmax(self.y,1), tf.argmax(y_,1)) #which ones did it get right?
         accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
@@ -306,17 +307,18 @@ class mlClassification():
         self.sess.run(init) # need to do this everytime you want to access a tf variable (for example the true class labels calculation or plotweights)
  
         start_time = time.time()
-        trainReps = self.mlDict['trainReps']
-        batches = self.mlDict['batches']
-        if np.shape(trainLabels)[0]< batches:
-            batches = np.shape(trainLabels)[0]/2
+        nTrainEpochs = self.mlDict['trainEpochs']
+        batchSize = self.mlDict['batchSize']
+        trainReps = nTrainEpochs*trainLabels.shape[0]/batchSize
+        if np.shape(trainLabels)[0]< batchSize:
+            batchSize = np.shape(trainLabels)[0]/2
        
 
         ce_log = []
         acc_log=[]
-        print 'Performing', trainReps, 'training repeats, using batches of', batches
+        print 'Performing', trainReps, 'training repeats, using batches of', batchSize
         for i in range(trainReps):  #perform the training step using random batches of images and according labels
-            batch_xs, batch_ys = next_batch(trainImages, trainLabels, batches) 
+            batch_xs, batch_ys = next_batch(trainImages, trainLabels, batchSize) 
             sys.stdout.write('\rbatch: %i ' % (i))
             sys.stdout.flush()
 
