@@ -535,7 +535,10 @@ class MKIDDashboard(QMainWindow):
 
         # Initialize PacketMaster8
         getLogger('Dashboard').info('Initializing packetmaster...')
-        self.packetmaster = Packetmaster(len(self.config.roaches), ramdisk=self.config.packetmaster.ramdisk,
+        #TODO make this hack of a fix clean. len config.roaches returns the list of all the keys, not the roaches
+        self.packetmaster = Packetmaster(len(filter(lambda s: len(s) == 4 and s[0].lower() == 'r',
+                                                    self.config.roaches)),
+                                         ramdisk=self.config.packetmaster.ramdisk,
                                          nrows=self.config.detector.nrows, ncols=self.config.detector.ncols,
                                          nuller=self.config.packetmaster.nuller,
                                          resume=not self.config.dashboard.spawn_packetmaster,
@@ -1637,6 +1640,10 @@ if __name__ == "__main__":
     parser.add_argument('--gencfg', default=False, dest='genconfig', action='store_true',
                         help='generate configs in CWD')
 
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument('--alla', action='store_true', help='Run with all range A roaches in config')
+    group.add_argument('--allb', action='store_true', help='Run with all range B roaches in config')
+
     args = parser.parse_args()
 
     if args.genconfig:
@@ -1676,6 +1683,15 @@ if __name__ == "__main__":
                level=mkidcore.corelog.DEBUG)
 
     app = QApplication(sys.argv)
+    isroach = lambda s: len(s) == 4 and s[0].lower() == 'r'
+    if args.alla:
+        roaches = [int(c[1:]) for c in config.roaches
+                   if isroach(c) and config.roaches.get(c+'.range').lower()=='a']
+    elif args.allb:
+        roaches = [int(c[1:]) for c in config.roaches
+                   if isroach(c) and config.roaches.get(c + '.range').lower() == 'a']
+    else:
+        roaches = args.roaches
     form = MKIDDashboard(args.roaches, config=config, offline=args.offline)
     form.show()
     app.exec_()
