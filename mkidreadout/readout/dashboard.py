@@ -652,10 +652,9 @@ class MKIDDashboard(QMainWindow):
 
         getLogger('Dashboard').info('Loaded beammap into roaches')
 
-
     def addDarkImage(self, photonImage):
         self.spinbox_darkImage.setEnabled(False)
-        if self.darkField is None or self.takingDark == self.spinbox_darkImage.value():
+        if self.darkFactory is None or self.takingDark == self.spinbox_darkImage.value():
             self.darkFactory = CalFactory('dark', images=(photonImage,))
         else:
             self.darkFactory.add_image(photonImage)
@@ -674,7 +673,7 @@ class MKIDDashboard(QMainWindow):
     def addFlatImage(self, photonImage, minFlat=1, maxFlat=2500):
         self.spinbox_flatImage.setEnabled(False)
 
-        if self.flatField is None or self.takingFlat == self.spinbox_flatImage.value():
+        if self.flatFactory is None or self.takingFlat == self.spinbox_flatImage.value():
             self.flatFactory = CalFactory('flat', images=(photonImage,), min=minFlat, max=maxFlat,
                                           dark=self.darkField, colslice=slice(20, 60))
         else:
@@ -737,7 +736,9 @@ class MKIDDashboard(QMainWindow):
                 file = file if 'fit' in os.path.splitext(file)[1].lower() else file + '.fits'
                 self.flatField = fits.open(file)
             except IOError:
-                getLogger('Dashboard').warning('Unable to load flat from {}'.format(file))
+                self.flatField = None
+                self.checkbox_flatImage.setChecked(False)
+                getLogger('Dashboard').error('Unable to load flat from {}'.format(file))
 
         if self.checkbox_darkImage.isChecked() and self.darkField is None:
             try:
@@ -745,7 +746,9 @@ class MKIDDashboard(QMainWindow):
                 file = file if 'fit' in os.path.splitext(file)[1].lower() else file + '.fits'
                 self.darkField = fits.open(file)
             except IOError:
-                getLogger('Dashboard').warning('Unable to load dark from {}'.format(file))
+                self.darkField = None
+                self.checkbox_darkImage.setChecked(False)
+                getLogger('Dashboard').error('Unable to load dark from {}'.format(file))
 
         #TODO this really could be moved into the ConvertPhotonsToRGB thread
         cf = CalFactory('avg', images=self.imageList[-self.config.dashboard.average:],

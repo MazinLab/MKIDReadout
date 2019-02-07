@@ -1,4 +1,4 @@
-from mkidcore.config import load
+import mkidcore.config
 from pkg_resources import resource_filename
 from shutil import copy2 as copy2
 import os
@@ -9,7 +9,7 @@ DEFAULT_DASHBOARD_CFGFILE = resource_filename('mkidreadout', os.path.join('confi
 DEFAULT_ROACH_CFGFILE = resource_filename('mkidreadout', os.path.join('config', 'roach.yml'))
 DEFAULT_INIT_CFGFILE = DEFAULT_ROACH_CFGFILE
 
-load = load  # ensure import doesn't get optimized out by an IDE
+load = mkidcore.config.load  # ensure import doesn't get optimized out by an IDE
 
 
 default_log_dir = './logs'
@@ -36,3 +36,4 @@ def generate_default_configs(instrument='mec', dir='./', init=False, templar=Fal
         copy2(DEFAULT_BMAP_CFGFILES[instrument],
               os.path.join(dir, tagfile(DEFAULT_BMAP_CFGFILES[instrument], 'generated', droppath=True)))
 
+tagstr = mkidcore.config.tagstr
