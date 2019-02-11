@@ -13,6 +13,8 @@
 
 #ifndef MKIDSHM_H
 #define MKIDSHM_H
+typedef int image_t; //can mess around with changing this w/o many subsitutions
+
 typedef struct{
     //metadata
     uint32_t nXPix;
@@ -35,7 +37,7 @@ typedef struct{
 
     // For nCounts in pixel (x, y) and wavelength bin i:
     //  image[i*nXPix*nYPix + y*nXPix + x]
-    double *image; //pointer to shared memory buffer
+    image_t *image; //pointer to shared memory buffer
 
     sem_t *takeImageSem; //post to start integration
     sem_t *doneImageSem; //post when integration is done

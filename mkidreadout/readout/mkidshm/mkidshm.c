@@ -3,7 +3,7 @@
 int createMKIDShmImage(MKID_IMAGE_METADATA *imageMetadata, char *imgName, MKID_IMAGE *outputImage){
     int mdfd, imgfd;
     MKID_IMAGE_METADATA *mdPtr;
-    double *imgPtr;
+    image_t *imgPtr;
     char imageName[80];
 
     snprintf(imageName, 80, "%s", imgName);
@@ -42,13 +42,13 @@ int createMKIDShmImage(MKID_IMAGE_METADATA *imageMetadata, char *imgName, MKID_I
 
     }
  
-    if(ftruncate(imgfd, sizeof(double)*imageSize)==-1){
+    if(ftruncate(imgfd, sizeof(image_t)*imageSize)==-1){
         perror("Error truncating shm buffer FD");
         return -1;
 
     }
 
-    imgPtr = (double*)mmap(NULL, sizeof(double)*imageSize, PROT_READ | PROT_WRITE, MAP_SHARED, imgfd, 0);
+    imgPtr = (image_t*)mmap(NULL, sizeof(image_t)*imageSize, PROT_READ | PROT_WRITE, MAP_SHARED, imgfd, 0);
     if(imgPtr == MAP_FAILED){
         perror("Error mapping shm buffer");
         return -1;
@@ -74,7 +74,7 @@ int openMKIDShmImage(MKID_IMAGE *imageStruct, char *imgName){
     // OPEN IMAGE METADATA BUFFER
     int mdfd, imgfd;
     MKID_IMAGE_METADATA *mdPtr;
-    double *imgPtr;
+    image_t *imgPtr;
     char imageName[80];
 
     snprintf(imageName, 80, "%s", imgName);
@@ -112,13 +112,13 @@ int openMKIDShmImage(MKID_IMAGE *imageStruct, char *imgName){
 
     }
  
-    if(ftruncate(imgfd, sizeof(double)*imageSize)==-1){
+    if(ftruncate(imgfd, sizeof(image_t)*imageSize)==-1){
         perror("Error truncating shm metadata FD");
         return -1;
 
     }
 
-    imgPtr = (double*)mmap(NULL, sizeof(double)*imageSize, PROT_READ | PROT_WRITE, MAP_SHARED, imgfd, 0);
+    imgPtr = (image_t*)mmap(NULL, sizeof(image_t)*imageSize, PROT_READ | PROT_WRITE, MAP_SHARED, imgfd, 0);
     if(imgPtr == MAP_FAILED){
         perror("Error mapping shm metadata");
         return -1;
@@ -142,7 +142,7 @@ int openMKIDShmImage(MKID_IMAGE *imageStruct, char *imgName){
 int closeMKIDShmImage(MKID_IMAGE *imageStruct){
     sem_close(imageStruct->takeImageSem);
     sem_close(imageStruct->doneImageSem);
-    munmap(imageStruct->image, sizeof(double)*(imageStruct->md->nXPix)*(imageStruct->md->nYPix)*(imageStruct->md->nWvlBins));
+    munmap(imageStruct->image, sizeof(image_t)*(imageStruct->md->nXPix)*(imageStruct->md->nYPix)*(imageStruct->md->nWvlBins));
     munmap(imageStruct->md, sizeof(MKID_IMAGE_METADATA));
     return 0;
 
