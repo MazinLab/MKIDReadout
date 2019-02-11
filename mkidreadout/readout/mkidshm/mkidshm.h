@@ -9,10 +9,10 @@
 #include <string.h>
 #include <errno.h>
 
-// Compile shared object with: gcc -shared -o libmkidshm.so -fPIC shmimage.c -lrt -lpthread
+// Compile shared object with: gcc -shared -o libmkidshm.so -fPIC mkidshm.c -lrt -lpthread
 
-#ifndef SHMIMAGE_H
-#define SHMIMAGE_H
+#ifndef MKIDSHM_H
+#define MKIDSHM_H
 typedef struct{
     //metadata
     uint32_t nXPix;
@@ -45,4 +45,8 @@ typedef struct{
 int openMKIDShmImage(MKID_IMAGE *imageStruct, char *imgName);
 int closeMKIDShmImage(MKID_IMAGE *imageStruct);
 int createMKIDShmImage(MKID_IMAGE_METADATA *imageMetadata, char *imgName, MKID_IMAGE *outputImage);
+int populateImageMD(MKID_IMAGE_METADATA *imageMetadata, char *name, int nXPix, int nYPix, int useWvl, int nWvlBins, int wvlStart, int wvlStop);
+void startIntegration(MKID_IMAGE *image, uint64_t startTime);
+void waitForImage(MKID_IMAGE *image);
+int checkDoneImage(MKID_IMAGE *image);
 #endif

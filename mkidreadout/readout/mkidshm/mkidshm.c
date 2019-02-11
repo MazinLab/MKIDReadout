@@ -1,4 +1,4 @@
-#include "shmimage.h"
+#include "mkidshm.h"
 
 int createMKIDShmImage(MKID_IMAGE_METADATA *imageMetadata, char *imgName, MKID_IMAGE *outputImage){
     int mdfd, imgfd;
@@ -37,20 +37,20 @@ int createMKIDShmImage(MKID_IMAGE_METADATA *imageMetadata, char *imgName, MKID_I
 
     imgfd = shm_open(mdPtr->imageBufferName, O_RDWR|O_CREAT, S_IWUSR|S_IRUSR|S_IWGRP|S_IRGRP);
     if(mdfd == -1){
-        perror("Error opening shm metadata");
+        perror("Error opening shm buffer");
         return -1;
 
     }
  
     if(ftruncate(imgfd, sizeof(double)*imageSize)==-1){
-        perror("Error truncating shm metadata FD");
+        perror("Error truncating shm buffer FD");
         return -1;
 
     }
 
     imgPtr = (double*)mmap(NULL, sizeof(double)*imageSize, PROT_READ | PROT_WRITE, MAP_SHARED, imgfd, 0);
     if(imgPtr == MAP_FAILED){
-        perror("Error mapping shm metadata");
+        perror("Error mapping shm buffer");
         return -1;
 
     }
@@ -144,5 +144,33 @@ int closeMKIDShmImage(MKID_IMAGE *imageStruct){
     sem_close(imageStruct->doneImageSem);
     munmap(imageStruct->image, sizeof(double)*(imageStruct->md->nXPix)*(imageStruct->md->nYPix)*(imageStruct->md->nWvlBins));
     munmap(imageStruct->md, sizeof(MKID_IMAGE_METADATA));
+    return 0;
 
 }
+
+int populateImageMD(MKID_IMAGE_METADATA *imageMetadata, char *name, int nXPix, int nYPix, int useWvl, int nWvlBins, int wvlStart, int wvlStop){
+    imageMetadata->nXPix = nXPix;
+    imageMetadata->nYPix = nYPix;
+    imageMetadata->useWvl = useWvl;
+    imageMetadata->nWvlBins = nWvlBins;
+    imageMetadata->wvlStart = wvlStart;
+    imageMetadata->wvlStop = wvlStop;
+    imageMetadata->startTime = 0;
+    imageMetadata->integrationTime = 0;
+    snprintf(imageMetadata->imageBufferName, 80, "%s.buf", name);
+    snprintf(imageMetadata->takeImageSemName, 80, "%s.takeImg", name);
+    snprintf(imageMetadata->doneImageSemName, 80, "%s.doneImg", name);
+
+}
+
+void startIntegration(MKID_IMAGE *image, uint64_t startTime){
+    sem_post(image->takeImageSem);}
+
+//Blocking
+void waitForImage(MKID_IMAGE *image){
+    sem_wait(image->takeImageSem);}
+
+//Non-blocking
+int checkDoneImage(MKID_IMAGE *image){
+    return sem_trywait(image->doneImageSem);}
+
