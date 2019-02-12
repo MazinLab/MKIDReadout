@@ -1,5 +1,5 @@
 # Cython wrapper for libmkidshm
-# Compile with: cython pymkidshm.c -o pymkidshm
+# Compile with: cython pymkidshm.pyx -o pymkidshm.c
 #               gcc pymkidshm.c -fPIC -shared -I/home/neelay/anaconda2/envs/readout/include/python2.7/ -o pymkidshm.so -lmkidshm -lpthread -lrt
 
 cimport numpy as np
@@ -24,7 +24,7 @@ cdef extern from "mkidshm.h":
 
 
 
-cdef class MKIDShmImage:
+cdef class MKIDShmImage(object):
     cdef MKID_IMAGE image
 
     def __cinit__(self):
