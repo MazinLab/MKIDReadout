@@ -39,7 +39,7 @@ cdef class MKIDShmImage:
         openMKIDShmImage(&(self.image), name.encode('UTF-8'))
 
     def wait(self):
-        return waitForImage(&(self.image))
+        waitForImage(&(self.image))
 
     def checkIfDone(self):
         return checkDoneImage(&(self.image))

@@ -29,7 +29,7 @@ class PacketMasterConfig(object):
 
 class Packetmaster(object):
     # TODO overall log configuration must configure for a 'packetmaster' log
-    def __init__(self, nroaches, nrows=100, ncols=100, nuller=False, ramdisk=None,
+    def __init__(self, nroaches, nrows=100, ncols=100, shmImageList=[], ramdisk=None,
                  binary='', resume=False, captureport=DEFAULT_CAPTURE_PORT, start=True):
         self.ramdisk = ramdisk
         self.nroaches = nroaches
@@ -40,7 +40,7 @@ class Packetmaster(object):
         self.nrows = nrows
         self.ncols = ncols
         self.captureport = captureport
-        self.nuller = nuller
+
         self.log = getLogger(__name__)
         self.plog = getLogger('packetmaster')
 
