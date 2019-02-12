@@ -38,8 +38,40 @@ cdef class MKIDShmImage(object):
     def open(self, name):
         openMKIDShmImage(&(self.image), name.encode('UTF-8'))
 
-    def wait(self):
+    def startIntegration(self, startTime=0, integrationTime=1):
+        """
+        Tells packetmaster to start an integration for this image
+        Parameters
+        ----------
+            startTime: image start time (in seconds UTC?). If 0, start immediately w/
+                timestamp that packetmaster is currently parsing.
+            integrationTime: integration time in seconds(?)
+        """
+        pass
+
+    def receiveImage(self):
+        """
+        Waits for doneImage semaphore to be posted by packetmaster,
+        then grabs the image from buffer
+        """
+        _wait(self)
+        return _readImageBuffer(self)
+
+    def _wait(self):
+        """
+        Blocking. Waits for doneImageSem to be posted by packetmaster
+        """
         waitForImage(&(self.image))
 
-    def checkIfDone(self):
-        return checkDoneImage(&(self.image))
+    def _checkIfDone(self):
+        """
+        Non blocking. Returns True if image is done (doneImageSem is posted),
+        False otherwise. Basically a wrapper for sem_trywait
+        """
+        return (checkDoneImage(&(self.image)) == 0)
+
+
+    def _readImageBuffer(self):
+        pass
+
+    
