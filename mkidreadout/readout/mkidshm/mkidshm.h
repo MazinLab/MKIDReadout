@@ -51,4 +51,6 @@ int populateImageMD(MKID_IMAGE_METADATA *imageMetadata, char *name, int nXPix, i
 void startIntegration(MKID_IMAGE *image, uint64_t startTime);
 void waitForImage(MKID_IMAGE *image);
 int checkDoneImage(MKID_IMAGE *image);
+
+void *openShmFile(char *shmName, size_t size, int create);
 #endif
