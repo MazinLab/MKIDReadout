@@ -44,6 +44,31 @@ typedef struct{
 
 } MKID_IMAGE;
 
+
+typedef struct{
+    // coordinates
+    uint8_t x;
+    uint8_t y;
+
+    uint64_t time; //arrival time (could also shorten and make relative)
+    float wvl; //wavelength
+
+} MKID_PHOTON_EVENT;
+
+typedef struct{
+    uint32_t bufferSize; //Size of circular buffer
+    uint32_t curInd; //index of last write
+    int writing; //1 if currently writing event
+    int nCycles; //increment on each complete cycle of buffer
+
+} MKID_EVENT_BUFFER_METADATA;
+
+typedef struct{
+    MKID_EVENT_BUFFER_METADATA *md;
+    MKID_PHOTON_EVENT *eventBuffer;
+
+} MKID_EVENT_BUFFER;
+
 int openMKIDShmImage(MKID_IMAGE *imageStruct, char *imgName);
 int closeMKIDShmImage(MKID_IMAGE *imageStruct);
 int createMKIDShmImage(MKID_IMAGE_METADATA *imageMetadata, char *imgName, MKID_IMAGE *outputImage);
