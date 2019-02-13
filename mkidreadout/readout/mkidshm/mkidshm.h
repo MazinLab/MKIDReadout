@@ -57,6 +57,7 @@ typedef struct{
 
 typedef struct{
     uint32_t bufferSize; //Size of circular buffer
+    uint32_t startInd; //index of earliest valid photon
     uint32_t curInd; //index of last write
     int writing; //1 if currently writing event
     int nCycles; //increment on each complete cycle of buffer
