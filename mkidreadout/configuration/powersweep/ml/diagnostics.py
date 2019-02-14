@@ -28,6 +28,7 @@ class diagnostics():
         span = range(res_nums)
 
         self.mlDict, self.sess, self.graph, self.x_input, self.y_output, self.keep_prob = mlt.get_ml_model(modelDir)
+        #print [n.name for n in tf.get_default_graph().as_graph_def().node]
 
         self.inferenceData.opt_attens = np.zeros((res_nums))
         self.inferenceData.opt_freqs = np.zeros((res_nums))
@@ -79,6 +80,25 @@ class diagnostics():
         inferenceLabels = self.sess.run(self.y_output, feed_dict={self.x_input: [image], self.keep_prob: 1})
         return inferenceLabels[0]
 
+    def getWeights(self, layer=1):
+        image, _, _, _, _ = self.getImage(0)
+        weightTensor = self.graph.get_tensor_by_name('Layer' + str(layer) + '/W_conv' + str(layer) + ':0')
+        return np.array(self.sess.run(weightTensor, feed_dict={self.x_input: [image], self.keep_prob: 1}))
+
+    
+    def plotLayer1Weights(self):
+        weights = self.getWeights(1)
+        nrows = int(np.floor(np.sqrt(weights.shape[3])))
+        ncols = int(np.ceil(np.sqrt(weights.shape[3])))
+        for inChan in range(weights.shape[2]):
+            inChanWeights = weights[:,:,inChan,:]
+            fig, axes = plt.subplots(nrows=nrows, ncols=ncols)
+            axes[0, 0].set_title(inChan)
+            for outChan in range(weights.shape[3]):
+                y = outChan/ncols
+                x = outChan%ncols
+                axes[y,x].imshow(inChanWeights[:,:,x+y*ncols])
+            
 
 
     def plotLoops(self, res_num, start_atten=0, end_atten=-1, grid=True, show=True):
@@ -226,3 +246,6 @@ if __name__=='__main__':
     # diag.plotIQ_vels(105)
     # diag.plotS21(105)
     diag.plotImageDiagnostics(args.resid, args.atten_range[0], args.atten_range[1])
+    #print np.array(diag.getWeights()).shape
+    #diag.plotLayer1Weights()
+    plt.show()

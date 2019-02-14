@@ -67,6 +67,7 @@ class mlClassification():
 
             if self.mlDict['trimAttens']:
                 goodResMask = goodResMask & ~(rawTrainData.opt_iAttens < self.mlDict['attenWinBelow'])
+                goodResMask = goodResMask & ~(rawTrainData.opt_iAttens > (len(rawTrainData.attens) - self.mlDict['attenWinAbove']))
             if self.mlDict['filterMaxedAttens']:
                 maxAttenInd = np.argmax(rawTrainData.attens)
                 goodResMask = goodResMask & ~(rawTrainData.opt_iAttens==maxAttenInd)
@@ -93,13 +94,8 @@ class mlClassification():
             # num_rotations = 3
             # angle = np.arange(0,2*math.pi,2*math.pi/num_rotations)
             train_ind = np.array(map(int,np.linspace(0,rawTrainData.res_nums-1,rawTrainData.res_nums*self.trainFrac)))
-            print type(train_ind), len(train_ind)
             test_ind=[]
             np.array([test_ind.append(el) for el in range(rawTrainData.res_nums) if el not in train_ind])
-            print type(test_ind), len(test_ind)
-            
-            print train_ind[:10], test_ind[:10]
-
 
             #TODO: fix append if this is too slow
             for rn in train_ind:#range(int(self.trainFrac*rawTrainData.res_nums)):
@@ -114,8 +110,6 @@ class mlClassification():
                     oneHot = np.zeros(self.mlDict['nAttens'])
                     oneHot[rawTrainData.opt_iAttens[rn]] = 1
                     trainLabels.append(oneHot)
-
-            print rawTrainData.res_nums
 
 
             for rn in test_ind:#range(int(self.trainFrac*rawTrainData.res_nums), int(self.trainFrac*rawTrainData.res_nums + self.testFrac*rawTrainData.res_nums)):
@@ -143,14 +137,17 @@ class mlClassification():
         trainLabels = np.asarray(trainLabels)
         testImages = np.asarray(testImages)
         testLabels = np.asarray(testLabels)
+
+        if self.mlDict['overfitTest']:
+            trainImages = trainImages[:30]
+            trainLabels = trainLabels[:30]
+            testLabels = trainLabels
+            testImages = trainImages
+
+        #if self.mlDict['centerDataset']:
+        #    meanTrainImage = np.mean(trainImages, axis=0)
         
-        print np.sum(trainLabels,axis=0), np.sum(testLabels,axis=0)   
-
-        print np.sum(trainLabels,axis=0), np.sum(testLabels,axis=0)
         print 'Number of training images:', np.shape(trainImages), ' Number of test images:', np.shape(testImages)
-
-        print np.shape(trainLabels)
-        print np.sum(trainLabels,axis=0)
 
         nColors = 2
         if self.mlDict['useIQV']:
@@ -165,14 +162,14 @@ class mlClassification():
         attenWin = 1 + self.mlDict['attenWinBelow'] + self.mlDict['attenWinAbove']
         numImg = tf.shape(x_image)[0]
 
-        def weight_variable(shape):
+        def weight_variable(shape, name=None):
             #initial = tf.Variable(tf.zeros(shape))
             initial = tf.truncated_normal(shape, stddev=0.1)
-            return tf.Variable(initial)
+            return tf.Variable(initial, name=name)
 
-        def bias_variable(shape):
+        def bias_variable(shape, name=None):
             initial = tf.constant(0.1, shape=shape)
-            return tf.Variable(initial)
+            return tf.Variable(initial, name=name)
 
         def conv2d(x, W):
             return tf.nn.conv2d(x, W, strides=[1, 1, 1, 1], padding='SAME')
@@ -199,7 +196,7 @@ class mlClassification():
             num_filt1 = self.mlDict['num_filt1']
             n_pool1 = self.mlDict['n_pool1']
             self.num_filt1 = num_filt1
-            W_conv1 = weight_variable([attenWin, self.mlDict['conv_win1'], nColors, num_filt1])
+            W_conv1 = weight_variable([attenWin, self.mlDict['conv_win1'], nColors, num_filt1], name='W_conv1')
             b_conv1 = bias_variable([num_filt1])
             variable_summaries(W_conv1)
             variable_summaries(b_conv1)
@@ -215,7 +212,7 @@ class mlClassification():
             num_filt2 = self.mlDict['num_filt2']
             n_pool2 = self.mlDict['n_pool2']
             self.num_filt2 = num_filt2
-            W_conv2 = weight_variable([1, self.mlDict['conv_win2'], cWidth1, num_filt2])
+            W_conv2 = weight_variable([self.mlDict['conv_win2'][1], self.mlDict['conv_win2'][0], cWidth1, num_filt2], name='W_conv2')
             b_conv2 = bias_variable([num_filt2])
             variable_summaries(W_conv2)
             variable_summaries(b_conv2)
@@ -232,7 +229,7 @@ class mlClassification():
             num_filt3 = self.mlDict['num_filt3']
             n_pool3 = self.mlDict['n_pool3']
             self.num_filt3 = num_filt3
-            W_conv3 = weight_variable([1, self.mlDict['conv_win3'], cWidth2, num_filt3])
+            W_conv3 = weight_variable([self.mlDict['conv_win3'][1], self.mlDict['conv_win3'][0], cWidth2, num_filt3], name='W_conv3')
             b_conv3 = bias_variable([num_filt3])
             variable_summaries(W_conv3)
             variable_summaries(b_conv3)
