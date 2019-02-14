@@ -104,7 +104,7 @@ class mlClassification():
                 #                                 test_if_noisy=test_if_noisy, xCenter=self.res_indicies[rn,c])
                 image, _, _, _, _ = mlt.makeResImage(rn, rawTrainData, wsAttenInd, self.mlDict['xWidth'], 
                                         self.mlDict['resWidth'], self.mlDict['padResWin'], self.mlDict['useIQV'], 
-                                        self.mlDict['useMag'], self.mlDict['center_loop'], self.mlDict['nAttens']) 
+                                        self.mlDict['useMag'], self.mlDict['centerLoop'], self.mlDict['nAttens']) 
                 if image is not None:
                     trainImages.append(image)
                     oneHot = np.zeros(self.mlDict['nAttens'])
@@ -115,7 +115,7 @@ class mlClassification():
             for rn in test_ind:#range(int(self.trainFrac*rawTrainData.res_nums), int(self.trainFrac*rawTrainData.res_nums + self.testFrac*rawTrainData.res_nums)):
                 image, _, _, _, _ = mlt.makeResImage(rn, rawTrainData, wsAttenInd, self.mlDict['xWidth'], 
                                         self.mlDict['resWidth'], self.mlDict['padResWin'], self.mlDict['useIQV'], 
-                                        self.mlDict['useMag'], self.mlDict['center_loop'], self.mlDict['nAttens']) 
+                                        self.mlDict['useMag'], self.mlDict['centerLoop'], self.mlDict['nAttens']) 
                 if image is not None:
                     testImages.append(image)
                     oneHot = np.zeros(self.mlDict['nAttens'])
@@ -212,7 +212,7 @@ class mlClassification():
             num_filt2 = self.mlDict['num_filt2']
             n_pool2 = self.mlDict['n_pool2']
             self.num_filt2 = num_filt2
-            W_conv2 = weight_variable([self.mlDict['conv_win2'][1], self.mlDict['conv_win2'][0], cWidth1, num_filt2], name='W_conv2')
+            W_conv2 = weight_variable([self.mlDict['conv_win2'][0], self.mlDict['conv_win2'][1], cWidth1, num_filt2], name='W_conv2')
             b_conv2 = bias_variable([num_filt2])
             variable_summaries(W_conv2)
             variable_summaries(b_conv2)
@@ -229,7 +229,7 @@ class mlClassification():
             num_filt3 = self.mlDict['num_filt3']
             n_pool3 = self.mlDict['n_pool3']
             self.num_filt3 = num_filt3
-            W_conv3 = weight_variable([self.mlDict['conv_win3'][1], self.mlDict['conv_win3'][0], cWidth2, num_filt3], name='W_conv3')
+            W_conv3 = weight_variable([self.mlDict['conv_win3'][0], self.mlDict['conv_win3'][1], cWidth2, num_filt3], name='W_conv3')
             b_conv3 = bias_variable([num_filt3])
             variable_summaries(W_conv3)
             variable_summaries(b_conv3)

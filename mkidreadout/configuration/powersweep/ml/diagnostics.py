@@ -246,6 +246,5 @@ if __name__=='__main__':
     # diag.plotIQ_vels(105)
     # diag.plotS21(105)
     diag.plotImageDiagnostics(args.resid, args.atten_range[0], args.atten_range[1])
-    #print np.array(diag.getWeights()).shape
     #diag.plotLayer1Weights()
     plt.show()
