@@ -40,7 +40,7 @@ typedef struct{
     image_t *image; //pointer to shared memory buffer
 
     sem_t *takeImageSem; //post to start integration
-    sem_t *doneImageSem; //post when integration is done
+    sem_t **doneImageSemList; //post when integration is done
 
 } MKID_IMAGE;
 
@@ -57,7 +57,6 @@ typedef struct{
 
 typedef struct{
     uint32_t bufferSize; //Size of circular buffer
-    uint32_t startInd; //index of earliest valid photon
     uint32_t endInd; //index of last write
     int writing; //1 if currently writing event
     int nCycles; //increment on each complete cycle of buffer
@@ -77,6 +76,7 @@ int populateImageMD(MKID_IMAGE_METADATA *imageMetadata, char *name, int nXPix, i
 void startIntegration(MKID_IMAGE *image, uint64_t startTime);
 void waitForImage(MKID_IMAGE *image);
 int checkDoneImage(MKID_IMAGE *image);
+void postDoneSems(MKID_IMAGE *image, int semInd);
 
 void *openShmFile(char *shmName, size_t size, int create);
 #endif
