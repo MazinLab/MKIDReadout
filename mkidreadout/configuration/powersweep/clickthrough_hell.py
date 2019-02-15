@@ -469,7 +469,7 @@ if __name__ == "__main__":
         mlArgs = dict(xWidth=mlDict['xWidth'], resWidth=mlDict['resWidth'], pad_res_win=mlDict['padResWin'],
                       useIQV=mlDict['useIQV'], useMag=mlDict['useMag'], mlDictnAttens=mlDict['nAttens'])
         findpowers.apply_ml_model(inferenceData, smd.wsatten, mlDict['nAttens'], mlArgs=mlArgs,
-                                  goodModel=args.model, badModel=args.bmodel, center_loop=mlDict['center_loop'])
+                                  goodModel=args.model, badModel=args.bmodel, center_loop=mlDict['centerLoop'])
         inferenceData.updatemetadata()
         smd.save()
     else:

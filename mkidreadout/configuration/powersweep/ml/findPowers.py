@@ -54,7 +54,9 @@ def apply_ml_model(inferenceData, wsAtten, resWidth, goodModelDir='', badModelDi
 
     getLogger(__name__).debug("Inference attens: {}".format(inferenceData.attens))
 
-    mlDict, sess, graph, x_input, y_output, keep_prob = mlt.get_ml_model(goodModelDir)
+    mlDict, sess, graph, x_input, y_output, keep_prob, is_training = mlt.get_ml_model(goodModelDir)
+    meanImage = tf.get_collection('meanTrainImage')[0].eval(session=sess)
+    print 'mean image shape', meanImage.shape
 
     if wsAtten is None:
         wsAtten = mlDict['wsAtten']
@@ -82,8 +84,9 @@ def apply_ml_model(inferenceData, wsAtten, resWidth, goodModelDir='', badModelDi
                                         resWidth, mlDict['padResWin'], mlDict['useIQV'], mlDict['useMag'],
                                         mlDict['centerLoop'], mlDict['nAttens'])
 
+        image -= meanImage
         inferenceImage = [image]
-        inferenceLabels[rn, :] = sess.run(y_output, feed_dict={x_input: inferenceImage, keep_prob: 1})
+        inferenceLabels[rn, :] = sess.run(y_output, feed_dict={x_input: inferenceImage, keep_prob: 1, is_training: False})
         iAtt = np.argmax(inferenceLabels[rn, :])
         inferenceData.opt_attens[rn] = attenList[iAtt]
         if FREQ_USE_MAG:

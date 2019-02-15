@@ -27,8 +27,9 @@ class diagnostics():
         res_nums = total_res_nums
         span = range(res_nums)
 
-        self.mlDict, self.sess, self.graph, self.x_input, self.y_output, self.keep_prob = mlt.get_ml_model(modelDir)
+        self.mlDict, self.sess, self.graph, self.x_input, self.y_output, self.keep_prob, self.is_training = mlt.get_ml_model(modelDir)
         #print [n.name for n in tf.get_default_graph().as_graph_def().node]
+        self.meanImage = tf.get_collection('meanTrainImage')[0].eval(session=self.sess)
 
         self.inferenceData.opt_attens = np.zeros((res_nums))
         self.inferenceData.opt_freqs = np.zeros((res_nums))
@@ -69,15 +70,26 @@ class diagnostics():
         #    useBadScores = False
 
     def getImage(self, res_num):
-        image, freqCube, attenList, iqv, mags = mlt.makeResImage(res_num, self.inferenceData, self.wsAttenInd, self.mlDict['xWidth'],
-                                        self.resWidth, self.mlDict['padResWin'], self.mlDict['useIQV'], self.mlDict['useMag'],
-                                        self.mlDict['centerLoop'], self.mlDict['nAttens'])
+        if res_num==-1:
+            iqv = None
+            mags = None
+            if self.mlDict['useIQV']:
+                iqv = self.meanImage[:,:,2]
+            if self.mlDict['useMag']:
+                mags = self.meanImage[:,:,3]
+                
+            return self.meanImage, np.tile(np.arange(self.meanImage.shape[1]), (self.meanImage.shape[0],1)), np.arange(self.meanImage.shape[0]), iqv, mags
+        else: 
+            image, freqCube, attenList, iqv, mags = mlt.makeResImage(res_num, self.inferenceData, self.wsAttenInd, self.mlDict['xWidth'],
+                                            self.resWidth, self.mlDict['padResWin'], self.mlDict['useIQV'], self.mlDict['useMag'],
+                                            self.mlDict['centerLoop'], self.mlDict['nAttens'])
+            image -= self.meanImage
 
         return image, freqCube, attenList, iqv, mags
 
     def getActivations(self, res_num):
         image, _, _, _, _ = self.getImage(res_num)
-        inferenceLabels = self.sess.run(self.y_output, feed_dict={self.x_input: [image], self.keep_prob: 1})
+        inferenceLabels = self.sess.run(self.y_output, feed_dict={self.x_input: [image], self.keep_prob: 1, self.is_training: False})
         return inferenceLabels[0]
 
     def getWeights(self, layer=1):
@@ -216,6 +228,11 @@ class diagnostics():
         self.plotCenterFreq(res_num, show=False)
         self.plotActivations(res_num, show=True)
 
+    def plotMeanImage(self):
+        self.plotLoops(-1, grid=False, show=False)
+        self.plotIQ_vels(-1, grid=False, show=False)
+         
+
 if __name__=='__main__':
 
     print(sys.argv)
@@ -225,7 +242,8 @@ if __name__=='__main__':
     parser.add_argument('inferenceData', help='HDF5 file containing powersweep data')
     parser.add_argument('-m', '--metadata', default=None, help='Directory to save output file')
     #parser.add_argument('-o', '--output-dir', nargs=1, default=[None], help='Directory to save output file')
-    parser.add_argument('-s', '--add-scores', action='store_true', help='Adds a score column to the output file')
+    parser.add_argument('--weights', action='store_true', help='Plot Layer 1 filters')
+    parser.add_argument('--mean', action='store_true', help='Plot Layer 1 filters')
     parser.add_argument('-w', '--ws-atten', type=float, default=None, help='Attenuation where peak finding code was run')
     parser.add_argument('-b', '--badscore-model', default=None, help='ML config file for bad score model')
     parser.add_argument('-r', '--resid', type=int, default=60000)
@@ -245,6 +263,11 @@ if __name__=='__main__':
     # diag.plotLoops(105)
     # diag.plotIQ_vels(105)
     # diag.plotS21(105)
-    diag.plotImageDiagnostics(args.resid, args.atten_range[0], args.atten_range[1])
-    #diag.plotLayer1Weights()
-    plt.show()
+    if args.weights:
+        diag.plotLayer1Weights()
+        plt.show()
+    elif args.mean:
+        diag.plotMeanImage()
+        plt.show()
+    else:
+        diag.plotImageDiagnostics(args.resid, args.atten_range[0], args.atten_range[1])

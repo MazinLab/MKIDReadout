@@ -230,12 +230,13 @@ def get_ml_model(modelDir=''):
     x_input = graph.get_tensor_by_name('inputImage:0')
     y_output = graph.get_tensor_by_name('outputLabel:0')
     keep_prob = graph.get_tensor_by_name('keepProb:0')
+    is_training = graph.get_tensor_by_name('isTraining:0')
 
     mlDict = {}
     for param in tf.get_collection('mlDict'):
         mlDict[param.op.name] = param.eval(session=sess)
 
-    return mlDict, sess, graph, x_input, y_output, keep_prob
+    return mlDict, sess, graph, x_input, y_output, keep_prob, is_training
 
 def get_peak_idx(res_num, iAtten, dataObj, smooth=False, cutType=None, padInd=None):
     iq_vels = dataObj.iq_vels[res_num, iAtten, :]

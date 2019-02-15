@@ -144,8 +144,14 @@ class mlClassification():
             testLabels = trainLabels
             testImages = trainImages
 
-        #if self.mlDict['centerDataset']:
-        #    meanTrainImage = np.mean(trainImages, axis=0)
+        if self.mlDict['centerDataset']:
+            self.meanTrainImage = np.mean(trainImages, axis=0)
+            trainImages = trainImages - self.meanTrainImage
+            testImages = testImages - self.meanTrainImage
+            print 'Subtracting mean image:', self.meanTrainImage
+        else:
+            self.meanTrainImage = np.zeros(trainImages[0].shape)
+
         
         print 'Number of training images:', np.shape(trainImages), ' Number of test images:', np.shape(testImages)
 
@@ -191,6 +197,7 @@ class mlClassification():
                 tf.summary.histogram('histogram', var)
         
         self.keep_prob = tf.placeholder(tf.float32, name='keepProb')
+        self.is_training = tf.placeholder(tf.bool, name='isTraining')
 
         with tf.name_scope('Layer1'):
             num_filt1 = self.mlDict['num_filt1']
@@ -200,7 +207,12 @@ class mlClassification():
             b_conv1 = bias_variable([num_filt1])
             variable_summaries(W_conv1)
             variable_summaries(b_conv1)
-            h_conv1 = tf.nn.relu(conv2d(x_image, W_conv1) + b_conv1, name='h_conv1')
+            h_conv1_raw = conv2d(x_image, W_conv1) + b_conv1
+            if self.mlDict['useBatchNorm']:
+                h_conv1_batch = tf.layers.batch_normalization(h_conv1_raw, training=self.is_training)
+                h_conv1 = tf.nn.relu(h_conv1_batch, name='h_conv1')
+            else:
+                h_conv1 = tf.nn.relu(h_conv1_raw, name='h_conv1')
             h_pool1 = max_pool_nx1(h_conv1,n_pool1)
             h_pool1_dropout = tf.nn.dropout(h_pool1, self.keep_prob)
             xWidth1 = int(math.ceil(self.mlDict['xWidth']/float(n_pool1)))
@@ -216,7 +228,12 @@ class mlClassification():
             b_conv2 = bias_variable([num_filt2])
             variable_summaries(W_conv2)
             variable_summaries(b_conv2)
-            h_conv2 = tf.nn.relu(conv2d(h_pool1_dropout, W_conv2) + b_conv2, name='h_conv2')
+            h_conv2_raw = conv2d(h_pool1_dropout, W_conv2) + b_conv2
+            if self.mlDict['useBatchNorm']:
+                h_conv2_batch = tf.layers.batch_normalization(h_conv2_raw, training=self.is_training)
+                h_conv2 = tf.nn.relu(h_conv2_batch, name='h_conv2')
+            else:
+                h_conv2 = tf.nn.relu(h_conv2_raw, name='h_conv2')
             with tf.control_dependencies([tf.assert_equal(tf.shape(h_pool1),(numImg,self.mlDict['nAttens'],xWidth1,cWidth1),message='hpool1 assertion')]):
                 h_pool2 = max_pool_nx1(h_conv2, n_pool2)
                 h_pool2_dropout = tf.nn.dropout(h_pool2, self.keep_prob)
@@ -233,7 +250,12 @@ class mlClassification():
             b_conv3 = bias_variable([num_filt3])
             variable_summaries(W_conv3)
             variable_summaries(b_conv3)
-            h_conv3 = tf.nn.relu(conv2d(h_pool2, W_conv3) + b_conv3, name='h_conv3')
+            h_conv3_raw = conv2d(h_pool2_dropout, W_conv3) + b_conv3
+            if self.mlDict['useBatchNorm']:
+                h_conv3_batch = tf.layers.batch_normalization(h_conv3_raw, training=self.is_training)
+                h_conv3 = tf.nn.relu(h_conv3_batch, name='h_conv3')
+            else:
+                h_conv3 = tf.nn.relu(h_conv3_raw, name='h_conv3')
             with tf.control_dependencies([tf.assert_equal(tf.shape(h_pool2),(numImg,self.mlDict['nAttens'],xWidth2,cWidth2),message='hpool2 assertion')]):
                 h_pool3 = max_pool_nx1(h_conv3, n_pool3)
                 h_pool3_dropout = tf.nn.dropout(h_pool3, self.keep_prob)
@@ -279,11 +301,14 @@ class mlClassification():
         #y_Ind = tf.to_float(tf.argmax(y_, 1))
         
         #squared_loss = tf.reduce_mean(tf.to_float(tf.square(yInd-y_Ind)))
-
-        train_step = tf.train.AdamOptimizer(self.mlDict['learning_rate']).minimize(cross_entropy) # the best result is when the wrongness is minimal
+        update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
+        with tf.control_dependencies(update_ops):
+            train_step = tf.train.AdamOptimizer(self.mlDict['learning_rate']).minimize(cross_entropy) 
         
         for k, v in self.mlDict.items():
             tf.add_to_collection('mlDict', tf.constant(value=v, name=k))
+
+        tf.add_to_collection('meanTrainImage', tf.constant(value=self.meanTrainImage, name='image'))
 
         init = tf.global_variables_initializer()
 
@@ -320,25 +345,25 @@ class mlClassification():
             sys.stdout.flush()
 
             if i % 500 == 0:
-                ce_log.append(self.sess.run(cross_entropy, feed_dict={self.x: batch_xs, y_: batch_ys, self.keep_prob: 1}))
-                summary, acc = self.sess.run([merged, accuracy], feed_dict={self.x: testImages, y_: testLabels, self.keep_prob: 1})
+                ce_log.append(self.sess.run(cross_entropy, feed_dict={self.x: batch_xs, y_: batch_ys, self.keep_prob: 1, self.is_training: False}))
+                summary, acc = self.sess.run([merged, accuracy], feed_dict={self.x: testImages, y_: testLabels, self.keep_prob: 1, self.is_training: False})
                 acc_log.append(acc*100)
                 test_writer.add_summary(summary, i)
                 if saveGraph:
                     graph_writer.add_summary(summary, i)
 
                 print acc*100
-                summary, _ = self.sess.run([merged, train_step], feed_dict={self.x: batch_xs, y_: batch_ys, self.keep_prob: self.mlDict['keep_prob']}) #calculate train_step using feed_dict
+                summary, _ = self.sess.run([merged, train_step], feed_dict={self.x: batch_xs, y_: batch_ys, self.keep_prob: self.mlDict['keep_prob'], self.is_training: True}) #calculate train_step using feed_dict
                 train_writer.add_summary(summary, i)
 
             elif i % 100 == 0:
-                acc = self.sess.run(accuracy, feed_dict={self.x: testImages, y_: testLabels, self.keep_prob: 1})
+                acc = self.sess.run(accuracy, feed_dict={self.x: testImages, y_: testLabels, self.keep_prob: 1, self.is_training: False})
                 print acc*100
                 acc_log.append(acc*100)
-                self.sess.run(train_step, feed_dict={self.x: batch_xs, y_: batch_ys, self.keep_prob: self.mlDict['keep_prob']}) #calculate train_step using feed_dict
+                self.sess.run(train_step, feed_dict={self.x: batch_xs, y_: batch_ys, self.keep_prob: self.mlDict['keep_prob'], self.is_training: True}) #calculate train_step using feed_dict
 
             else:  
-                self.sess.run(train_step, feed_dict={self.x: batch_xs, y_: batch_ys, self.keep_prob: self.mlDict['keep_prob']}) #calculate train_step using feed_dict
+                self.sess.run(train_step, feed_dict={self.x: batch_xs, y_: batch_ys, self.keep_prob: self.mlDict['keep_prob'], self.is_training: True}) #calculate train_step using feed_dict
         
         print "--- %s seconds ---" % (time.time() - start_time)
 
@@ -346,8 +371,8 @@ class mlClassification():
         print 'Saving model in', modelSavePath
         save_path = saver.save(self.sess, modelSavePath)
         saver.export_meta_graph(os.path.join(modelSavePath, self.mlDict['modelName']) + '.meta')
-        ys_true = self.sess.run(tf.argmax(y_,1), feed_dict={self.x: testImages, y_: testLabels, self.keep_prob: 1})
-        y_probs = self.sess.run(self.y, feed_dict={self.x: testImages, y_: testLabels, self.keep_prob: 1})
+        ys_true = self.sess.run(tf.argmax(y_,1), feed_dict={self.x: testImages, y_: testLabels, self.keep_prob: 1, self.is_training: False})
+        y_probs = self.sess.run(self.y, feed_dict={self.x: testImages, y_: testLabels, self.keep_prob: 1, self.is_training: False})
         ys_guess = np.argmax(y_probs, 1)
         right = []
         within1dB = []
@@ -361,12 +386,12 @@ class mlClassification():
 
         print len(right), len(ys_true), float(len(right))/len(ys_true)
 
-        testScore = self.sess.run(accuracy, feed_dict={self.x: testImages, y_: testLabels, self.keep_prob: 1}) * 100
+        testScore = self.sess.run(accuracy, feed_dict={self.x: testImages, y_: testLabels, self.keep_prob: 1, self.is_training: False}) * 100
         print 'Accuracy of model in testing: ', testScore, '%'
         if testScore < 85: print 'Consider making more training images'
         print 'Testing accuracy within 1 dB: ', float(len(within1dB))/len(ys_true)*100, '%' 
 
-        trainScore = self.sess.run(accuracy, feed_dict={self.x: trainImages, y_: trainLabels, self.keep_prob: 1}) * 100
+        trainScore = self.sess.run(accuracy, feed_dict={self.x: trainImages, y_: trainLabels, self.keep_prob: 1, self.is_training: False}) * 100
         print 'Accuracy of model in training: ', trainScore, '%'
         print tf.get_default_graph().get_all_collection_keys()
         
