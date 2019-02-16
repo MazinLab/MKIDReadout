@@ -61,6 +61,7 @@ typedef struct{
     uint32_t endInd; //index of last write
     int writing; //1 if currently writing event
     int nCycles; //increment on each complete cycle of buffer
+    sem_t **newPhotonSemList;
 
 } MKID_EVENT_BUFFER_METADATA;
 
