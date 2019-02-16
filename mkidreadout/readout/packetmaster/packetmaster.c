@@ -49,7 +49,7 @@ static sem_t quitSem; //semaphore for quit condition
 
 //#define LOGPATH "/mnt/data0/logs/"
 
-// compile with gcc packetmaster.c -I../mkidshm -o packetmaster -L../mkidshm -lm -lmkidshm -lrt -lpthread -O3 
+// compile with gcc packetmaster.c -I../mkidshm -O3 -o packetmaster -L../mkidshm -lm -lmkidshm -lrt -lpthread
 
 struct datapacket {
     unsigned int baseline:17;
@@ -399,7 +399,7 @@ void *SharedImageWriter(void *prms)
                            takingImage = 0;
                            clock_gettime(CLOCK_REALTIME, &stopSpec);
                            //nsElapsed = stopSpec.tv_nsec - startSpec.tv_nsec;
-                           sem_post(sharedImages[imgIdx].doneImageSem);
+                           postDoneSems(sharedImages + imgIdx, -1);
                            printf("SharedImageWriter: done image at %lu\n", curTs);
                            printf("SharedImageWriter: int time %lu\n", curTs-sharedImages[imgIdx].md->integrationTime);
                            //printf("SharedImageWriter: real time %d ms\n", (nsElapsed)/1000000);
