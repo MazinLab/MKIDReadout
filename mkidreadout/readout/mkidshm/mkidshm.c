@@ -44,7 +44,9 @@ void *openShmFile(char *shmName, size_t size, int create){
 
 int createMKIDShmImage(MKID_IMAGE_METADATA *imageMetadata, char *imgName, MKID_IMAGE *outputImage){
     MKID_IMAGE_METADATA *mdPtr;
+    char doneSemName[80];
     image_t *imgPtr;
+    int i;
 
     mdPtr = (MKID_IMAGE_METADATA*)openShmFile(imgName, sizeof(MKID_IMAGE_METADATA), 1);
 
@@ -65,9 +67,17 @@ int createMKIDShmImage(MKID_IMAGE_METADATA *imageMetadata, char *imgName, MKID_I
 
     // OPEN SEMAPHORES
     outputImage->takeImageSem = sem_open(mdPtr->takeImageSemName, O_CREAT, S_IRUSR | S_IWUSR, 0);
-    outputImage->doneImageSem = sem_open(mdPtr->doneImageSemName, O_CREAT, S_IRUSR | S_IWUSR, 0);
-    if((outputImage->takeImageSem==SEM_FAILED)||(outputImage->doneImageSem==SEM_FAILED)) 
+    if(outputImage->takeImageSem==SEM_FAILED)
         printf("Semaphore creation failed %s\n", strerror(errno));
+
+    outputImage->doneImageSemList = (sem_t**)malloc(N_DONE_SEMS*sizeof(sem_t*));
+    for(i=0; i<N_DONE_SEMS; i++){ 
+        snprintf(doneSemName, 80, "%s%d", mdPtr->doneImageSemName, i);
+        outputImage->doneImageSemList[i] = sem_open(doneSemName, O_CREAT, S_IRUSR | S_IWUSR, 0);
+        if(outputImage->doneImageSemList[i] == SEM_FAILED)
+            printf("Done img semaphore creation failed %s\n", strerror(errno));
+
+    }
 
     return 0;
     
@@ -78,6 +88,8 @@ int createMKIDShmImage(MKID_IMAGE_METADATA *imageMetadata, char *imgName, MKID_I
 int openMKIDShmImage(MKID_IMAGE *imageStruct, char *imgName){
     MKID_IMAGE_METADATA *mdPtr;
     image_t *imgPtr;
+    char doneSemName[80];
+    int i;
 
     // OPEN METADATA BUFFER
     mdPtr = (MKID_IMAGE_METADATA*)openShmFile(imgName, sizeof(MKID_IMAGE_METADATA), 0);
@@ -96,17 +108,28 @@ int openMKIDShmImage(MKID_IMAGE *imageStruct, char *imgName){
 
     // OPEN SEMAPHORES
     imageStruct->takeImageSem = sem_open(mdPtr->takeImageSemName, O_CREAT, S_IRUSR | S_IWUSR, 0);
-    imageStruct->doneImageSem = sem_open(mdPtr->doneImageSemName, O_CREAT, S_IRUSR | S_IWUSR, 0);
-    if((imageStruct->takeImageSem==SEM_FAILED)||(imageStruct->doneImageSem==SEM_FAILED)) 
-        printf("Semaphore creation failed %s\n", strerror(errno));
+    imageStruct->doneImageSemList = (sem_t**)malloc(N_DONE_SEMS*sizeof(sem_t*));
+    for(i=0; i<N_DONE_SEMS; i++){ 
+        snprintf(doneSemName, 80, "%s%d", mdPtr->doneImageSemName, i);
+        imageStruct->doneImageSemList[i] = sem_open(doneSemName, O_CREAT, S_IRUSR | S_IWUSR, 0);
+        if(imageStruct->doneImageSemList[i] == SEM_FAILED)
+            printf("Done img semaphore creation failed %s\n", strerror(errno));
+
+    }
 
     return 0;
 
 }
 
 int closeMKIDShmImage(MKID_IMAGE *imageStruct){
+    int i;
+
     sem_close(imageStruct->takeImageSem);
-    sem_close(imageStruct->doneImageSem);
+
+    for(i=0; i<N_DONE_SEMS; i++)
+        sem_close(imageStruct->doneImageSemList[i]);
+    free(imageStruct->doneImageSemList);
+
     munmap(imageStruct->image, sizeof(image_t)*(imageStruct->md->nXPix)*(imageStruct->md->nYPix)*(imageStruct->md->nWvlBins));
     munmap(imageStruct->md, sizeof(MKID_IMAGE_METADATA));
     return 0;
@@ -131,11 +154,21 @@ int populateImageMD(MKID_IMAGE_METADATA *imageMetadata, char *name, int nXPix, i
 void startIntegration(MKID_IMAGE *image, uint64_t startTime){
     sem_post(image->takeImageSem);}
 
+void postDoneSems(MKID_IMAGE *image, int semInd){
+    int i;
+    if(semInd==-1)
+        for(i=0; i<N_DONE_SEMS; i++)
+            sem_post(image->doneImageSemList[i]);
+    else
+        sem_post(image->doneImageSemList[semInd]);
+
+}
+
 //Blocking
-void waitForImage(MKID_IMAGE *image){
-    sem_wait(image->takeImageSem);}
+void waitForImage(MKID_IMAGE *image, int semInd){
+    sem_wait(image->doneImageSemList[semInd]);}
 
 //Non-blocking
-int checkDoneImage(MKID_IMAGE *image){
-    return sem_trywait(image->doneImageSem);}
+int checkDoneImage(MKID_IMAGE *image, int semInd){
+    return sem_trywait(image->doneImageSemList[semInd]);}
 

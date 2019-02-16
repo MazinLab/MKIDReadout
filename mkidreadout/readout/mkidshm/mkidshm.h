@@ -13,6 +13,7 @@
 
 #ifndef MKIDSHM_H
 #define MKIDSHM_H
+#define N_DONE_SEMS 10
 typedef int image_t; //can mess around with changing this w/o many subsitutions
 
 typedef struct{
@@ -74,8 +75,8 @@ int closeMKIDShmImage(MKID_IMAGE *imageStruct);
 int createMKIDShmImage(MKID_IMAGE_METADATA *imageMetadata, char *imgName, MKID_IMAGE *outputImage);
 int populateImageMD(MKID_IMAGE_METADATA *imageMetadata, char *name, int nXPix, int nYPix, int useWvl, int nWvlBins, int wvlStart, int wvlStop);
 void startIntegration(MKID_IMAGE *image, uint64_t startTime);
-void waitForImage(MKID_IMAGE *image);
-int checkDoneImage(MKID_IMAGE *image);
+void waitForImage(MKID_IMAGE *image, int semInd);
+int checkDoneImage(MKID_IMAGE *image, int semInd);
 void postDoneSems(MKID_IMAGE *image, int semInd);
 
 void *openShmFile(char *shmName, size_t size, int create);
