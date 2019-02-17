@@ -42,7 +42,7 @@ void *openShmFile(char *shmName, size_t size, int create){
 }
     
 
-int createMKIDShmImage(MKID_IMAGE_METADATA *imageMetadata, char *imgName, MKID_IMAGE *outputImage){
+int MKIDShmImage_create(MKID_IMAGE_METADATA *imageMetadata, char *imgName, MKID_IMAGE *outputImage){
     MKID_IMAGE_METADATA *mdPtr;
     char doneSemName[80];
     image_t *imgPtr;
@@ -85,7 +85,7 @@ int createMKIDShmImage(MKID_IMAGE_METADATA *imageMetadata, char *imgName, MKID_I
 }
     
 
-int openMKIDShmImage(MKID_IMAGE *imageStruct, char *imgName){
+int MKIDShmImage_open(MKID_IMAGE *imageStruct, char *imgName){
     MKID_IMAGE_METADATA *mdPtr;
     image_t *imgPtr;
     char doneSemName[80];
@@ -121,7 +121,7 @@ int openMKIDShmImage(MKID_IMAGE *imageStruct, char *imgName){
 
 }
 
-int closeMKIDShmImage(MKID_IMAGE *imageStruct){
+int MKIDShmImage_close(MKID_IMAGE *imageStruct){
     int i;
 
     sem_close(imageStruct->takeImageSem);
@@ -136,7 +136,7 @@ int closeMKIDShmImage(MKID_IMAGE *imageStruct){
 
 }
 
-int populateImageMD(MKID_IMAGE_METADATA *imageMetadata, char *name, int nXPix, int nYPix, int useWvl, int nWvlBins, int wvlStart, int wvlStop){
+int MKIDShmImage_populateMD(MKID_IMAGE_METADATA *imageMetadata, char *name, int nXPix, int nYPix, int useWvl, int nWvlBins, int wvlStart, int wvlStop){
     imageMetadata->nXPix = nXPix;
     imageMetadata->nYPix = nYPix;
     imageMetadata->useWvl = useWvl;
@@ -151,8 +151,14 @@ int populateImageMD(MKID_IMAGE_METADATA *imageMetadata, char *name, int nXPix, i
 
 }
 
-void startIntegration(MKID_IMAGE *image, uint64_t startTime){
-    sem_post(image->takeImageSem);}
+void MKIDShmImage_startIntegration(MKID_IMAGE *image, uint64_t startTime, uint64_t integrationTime){
+    image->md->startTime = startTime;
+    image->md->integrationTime = integrationTime;
+    
+    sem_post(image->takeImageSem);
+    
+    
+}
 
 void postDoneSems(MKID_IMAGE *image, int semInd){
     int i;
@@ -165,10 +171,10 @@ void postDoneSems(MKID_IMAGE *image, int semInd){
 }
 
 //Blocking
-void waitForImage(MKID_IMAGE *image, int semInd){
+void MKIDShmImage_wait(MKID_IMAGE *image, int semInd){
     sem_wait(image->doneImageSemList[semInd]);}
 
 //Non-blocking
-int checkDoneImage(MKID_IMAGE *image, int semInd){
+int MKIDShmImage_checkIfDone(MKID_IMAGE *image, int semInd){
     return sem_trywait(image->doneImageSemList[semInd]);}
 

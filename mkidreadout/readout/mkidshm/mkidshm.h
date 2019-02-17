@@ -71,14 +71,14 @@ typedef struct{
 
 } MKID_EVENT_BUFFER;
 
-int openMKIDShmImage(MKID_IMAGE *imageStruct, char *imgName);
-int closeMKIDShmImage(MKID_IMAGE *imageStruct);
-int createMKIDShmImage(MKID_IMAGE_METADATA *imageMetadata, char *imgName, MKID_IMAGE *outputImage);
-int populateImageMD(MKID_IMAGE_METADATA *imageMetadata, char *name, int nXPix, int nYPix, int useWvl, int nWvlBins, int wvlStart, int wvlStop);
-void startIntegration(MKID_IMAGE *image, uint64_t startTime);
-void waitForImage(MKID_IMAGE *image, int semInd);
-int checkDoneImage(MKID_IMAGE *image, int semInd);
-void postDoneSems(MKID_IMAGE *image, int semInd);
+int MKIDShmImage_open(MKID_IMAGE *imageStruct, char *imgName);
+int MKIDShmImage_close(MKID_IMAGE *imageStruct);
+int MKIDShmImage_create(MKID_IMAGE_METADATA *imageMetadata, char *imgName, MKID_IMAGE *outputImage);
+int MKIDShmImage_populateMD(MKID_IMAGE_METADATA *imageMetadata, char *name, int nXPix, int nYPix, int useWvl, int nWvlBins, int wvlStart, int wvlStop);
+void MKIDShmImage_startIntegration(MKID_IMAGE *image, uint64_t startTime, uint64_t integrationTime);
+void MKIDShmImage_wait(MKID_IMAGE *image, int semInd);
+int MKIDShmImage_checkIfDone(MKID_IMAGE *image, int semInd);
+void MKIDShmImage_postDoneSem(MKID_IMAGE *image, int semInd);
 
 void *openShmFile(char *shmName, size_t size, int create);
 #endif
