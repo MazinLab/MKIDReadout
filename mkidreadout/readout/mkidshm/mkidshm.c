@@ -7,7 +7,7 @@ void *openShmFile(char *shmName, size_t size, int create){
     int flag;
 
     if(create==1)
-        flag = O_RDWR|O_CREAT;
+        flag = O_RDWR|O_CREAT|O_EXCL;
     else
         flag = O_RDWR;
 

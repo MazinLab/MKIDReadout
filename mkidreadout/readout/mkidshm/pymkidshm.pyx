@@ -10,11 +10,20 @@ cdef extern from "<stdint.h>":
     ctypedef unsigned long long uint64_t
 
 cdef extern from "mkidshm.h":
-    ctypedef struct MKID_IMAGE_METADATA:
-        pass
-    ctypedef struct MKID_IMAGE:
-        pass
     ctypedef int image_t
+
+    #PARTIAL DEFINITION, only exposing necessary attributes
+    ctypedef struct MKID_IMAGE_METADATA:
+        uint32_t nXPix
+        uint32_t nYPix
+        uint32_t useWvl
+        uint32_t nWvlBins
+        uint32_t wvlStart
+        uint32_t wvlStop
+
+    ctypedef struct MKID_IMAGE:
+        MKID_IMAGE_METADATA *md
+
     cdef int MKIDShmImage_open(MKID_IMAGE *imageStruct, char *imgName)
     cdef int MKIDShmImage_close(MKID_IMAGE *imageStruct)
     cdef int MKIDShmImage_create(MKID_IMAGE_METADATA *imageMetadata, char *imgName, MKID_IMAGE *outputImage)
@@ -31,21 +40,23 @@ cdef class MKIDShmImage(object):
 
     def __init__(self, name, doneSemInd=0, **kwargs):
         self.doneSemInd = doneSemInd
-        if os.path.isfile(os.path.join('/dev/shm', name)):
+        if not name[0]=='/':
+            name = '/'+name
+        if os.path.isfile(os.path.join('/dev/shm', name[1:])):
             self.open(name)
             paramsMatch = True
             if kwargs.get('nXPix') is not None:
-                paramsMatch &= (kwargs.get('nXPix') == self.image.nXPix)
+                paramsMatch &= (kwargs.get('nXPix') == self.image.md.nXPix)
             if kwargs.get('nYPix') is not None:
-                paramsMatch &= (kwargs.get('nYPix') == self.image.nYPix)
+                paramsMatch &= (kwargs.get('nYPix') == self.image.md.nYPix)
             if kwargs.get('useWvl') is not None:
-                paramsMatch &= (int(kwargs.get('useWvl')) == self.image.useWvl)
+                paramsMatch &= (int(kwargs.get('useWvl')) == self.image.md.useWvl)
             if kwargs.get('nWvlBins') is not None:
-                paramsMatch &= (kwargs.get('nWvlBins') == self.image.nWvlBins)
+                paramsMatch &= (kwargs.get('nWvlBins') == self.image.md.nWvlBins)
             if kwargs.get('wvlStart') is not None:
-                paramsMatch &= (kwargs.get('wvlStart') == self.image.wvlStart)
+                paramsMatch &= (kwargs.get('wvlStart') == self.image.md.wvlStart)
             if kwargs.get('wvlStop') is not None:
-                paramsMatch &= (kwargs.get('wvlStop') == self.image.wvlStop)
+                paramsMatch &= (kwargs.get('wvlStop') == self.image.md.wvlStop)
             if not paramsMatch:
                 raise Exception('Image already exists, and provided parameters do not match.')
 
