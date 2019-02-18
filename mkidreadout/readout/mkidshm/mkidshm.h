@@ -79,6 +79,7 @@ void MKIDShmImage_startIntegration(MKID_IMAGE *image, uint64_t startTime, uint64
 void MKIDShmImage_wait(MKID_IMAGE *image, int semInd);
 int MKIDShmImage_checkIfDone(MKID_IMAGE *image, int semInd);
 void MKIDShmImage_postDoneSem(MKID_IMAGE *image, int semInd);
+void MKIDShmImage_copy(MKID_IMAGE *image, image_t *ouputBuffer);
 
 void *openShmFile(char *shmName, size_t size, int create);
 #endif

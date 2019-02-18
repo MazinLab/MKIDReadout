@@ -178,3 +178,6 @@ void MKIDShmImage_wait(MKID_IMAGE *image, int semInd){
 int MKIDShmImage_checkIfDone(MKID_IMAGE *image, int semInd){
     return sem_trywait(image->doneImageSemList[semInd]);}
 
+void MKIDShmImage_copy(MKID_IMAGE *image, image_t *outputBuffer){
+    memcpy(outputBuffer, image->image, image->md->nXPix * image->md->nYPix * image->md->nWvlBins);}
+

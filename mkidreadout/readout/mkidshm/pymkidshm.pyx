@@ -2,6 +2,7 @@
 # Compile with: cython pymkidshm.pyx -o pymkidshm.c
 #               gcc pymkidshm.c -fPIC -shared -I/home/neelay/anaconda2/envs/readout/include/python2.7/ -o pymkidshm.so -lmkidshm -lpthread -lrt
 
+import numpy as np
 cimport numpy as np
 import os
 
@@ -21,6 +22,7 @@ cdef extern from "mkidshm.h":
         uint32_t wvlStart
         uint32_t wvlStop
 
+    #PARTIAL DEFINITION, only exposing necessary attributes
     ctypedef struct MKID_IMAGE:
         MKID_IMAGE_METADATA *md
 
@@ -31,6 +33,7 @@ cdef extern from "mkidshm.h":
     cdef int MKIDShmImage_startIntegration(MKID_IMAGE *image, uint64_t startTime, uint64_t integrationTime)
     cdef int MKIDShmImage_wait(MKID_IMAGE *image, int semInd)
     cdef int MKIDShmImage_checkIfDone(MKID_IMAGE *image, int semInd)
+    cdef void MKIDShmImage_copy(MKID_IMAGE *image, image_t *outputBuffer);
 
 
 
@@ -102,6 +105,9 @@ cdef class MKIDShmImage(object):
 
 
     def _readImageBuffer(self):
-        pass
+        imageSize = self.image.md.nXPix * self.image.md.nYPix * self.image.md.nWvlBins
+        imageBuffer = np.empty(imageSize, dtype=np.intc)
+        MKIDShmImage_copy(&(self.image), <image_t*>np.PyArray_DATA(imageBuffer))
+        return imageBuffer
 
     
