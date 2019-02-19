@@ -538,7 +538,7 @@ class RoachStateMachine(QtCore.QObject):  # Extends QObject for use with QThread
         """
         Loads FIR coefficients from file into firmware
         """
-        firname = self.config.roaches.get('r{}.fircoefffile'.format(self.num)).format(roach=self.num)
+        firname = str(self.config.roaches.get('r{}.fircoefffile'.format(self.num))).format(roach=self.num)
         if not os.path.isfile(firname):
             file = resource_filename('mkidreadout', os.path.join('resources', 'firfilters', firname))
         else:

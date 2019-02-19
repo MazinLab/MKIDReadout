@@ -30,8 +30,9 @@ class PacketMasterConfig(object):
 class Packetmaster(object):
     # TODO overall log configuration must configure for a 'packetmaster' log
     def __init__(self, nroaches, nrows=100, ncols=100, shmImageList=[], ramdisk=None,
-                 binary='', resume=False, captureport=DEFAULT_CAPTURE_PORT, start=True):
+                 binary='', resume=False, nuller=False, captureport=DEFAULT_CAPTURE_PORT, start=True):
         self.ramdisk = ramdisk
+        self.nuller = nuller
         self.nroaches = nroaches
         if os.path.isfile(binary):
             self.binary_path = binary

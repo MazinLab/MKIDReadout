@@ -160,7 +160,7 @@ void MKIDShmImage_startIntegration(MKID_IMAGE *image, uint64_t startTime, uint64
     
 }
 
-void postDoneSems(MKID_IMAGE *image, int semInd){
+void MKIDShmImage_postDoneSem(MKID_IMAGE *image, int semInd){
     int i;
     if(semInd==-1)
         for(i=0; i<N_DONE_SEMS; i++)
@@ -179,5 +179,5 @@ int MKIDShmImage_checkIfDone(MKID_IMAGE *image, int semInd){
     return sem_trywait(image->doneImageSemList[semInd]);}
 
 void MKIDShmImage_copy(MKID_IMAGE *image, image_t *outputBuffer){
-    memcpy(outputBuffer, image->image, image->md->nXPix * image->md->nYPix * image->md->nWvlBins);}
+    memcpy(outputBuffer, image->image, sizeof(image_t) * image->md->nXPix * image->md->nYPix * image->md->nWvlBins);}
 

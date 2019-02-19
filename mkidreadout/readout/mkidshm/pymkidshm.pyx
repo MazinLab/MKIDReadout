@@ -110,4 +110,23 @@ cdef class MKIDShmImage(object):
         MKIDShmImage_copy(&(self.image), <image_t*>np.PyArray_DATA(imageBuffer))
         return imageBuffer
 
+    @property
+    def dims(self):
+        return [self.image.md.nXPix, self.image.md.nYPix]
+
+    @property
+    def nWvlBins(self):
+        return self.image.md.nWvlBins
+
+    @property
+    def useWvl(self):
+        return self.image.md.useWvl
+
+    @property
+    def wvlStart(self):
+        return self.image.md.wvlStart
+
+    @property
+    def wvlStop(self):
+        return self.image.md.wvlStop
     

@@ -284,8 +284,12 @@ void *SharedImageWriter(void *prms)
     takingImage = calloc(params->nSharedImages, sizeof(int));
     sharedImages = (MKID_IMAGE*)malloc(params->nSharedImages*sizeof(MKID_IMAGE));
 
-    for(imgIdx=0; imgIdx<params->nSharedImages; imgIdx++)
-        openMKIDShmImage(sharedImages+i, params->sharedImageNames[i]);
+    for(imgIdx=0; imgIdx<params->nSharedImages; imgIdx++){
+        MKIDShmImage_open(sharedImages+imgIdx, params->sharedImageNames[imgIdx]);
+        memset(sharedImages[imgIdx].image, 0, sizeof(*(sharedImages[imgIdx].image)) * sharedImages[imgIdx].md->nXPix * sharedImages[imgIdx].md->nYPix); 
+        printf("zeroing block w/ size %d\n" ,sizeof(*(sharedImages[imgIdx].image)) * sharedImages[imgIdx].md->nXPix * sharedImages[imgIdx].md->nYPix);
+
+    }
 
     printf("SharedImageWriter done initializing\n");
 
@@ -328,23 +332,26 @@ void *SharedImageWriter(void *prms)
           for( i=1; (uint64_t)i<oldbr/8; i++) { 
               for(imgIdx=0; imgIdx<params->nSharedImages; imgIdx++)
               {
+                  //printf("looping through image %d\n", imgIdx); fflush(stdout);
+                  //printf("Shared Image %d: %d\n", sharedImages[imgIdx]);
                   if(sem_trywait(sharedImages[imgIdx].takeImageSem)==0)
                   {
                       printf("SharedImageWriter: taking image %s\n", params->sharedImageNames[imgIdx]);
                       takingImage[imgIdx] = 1;
                       doneIntegrating[imgIdx] = 0;   
                       // zero out array:
-                      memset(sharedImages[imgIdx].image, 0, sizeof(*(sharedImages[imgIdx].image)) * sharedImages[imgIdx].md->nXPix * sharedImages[imgIdx].md->nYPix);                        if(sharedImages[imgIdx].md->startTime==0)
+                      memset(sharedImages[imgIdx].image, 0, sizeof(*(sharedImages[imgIdx].image)) * sharedImages[imgIdx].md->nXPix * sharedImages[imgIdx].md->nYPix); 
+                      if(sharedImages[imgIdx].md->startTime==0)
                           sharedImages[imgIdx].md->startTime = curTs;
                    
                   }
 
              }
-
+             
              swp = *((uint64_t *) (&olddata[i*8]));
              swp1 = __bswap_64(swp);
              hdr = (struct hdrpacket *) (&swp1);             
-                                      
+
              if (hdr->start == 0b11111111) {        // found new packet header!
                 // fill packet and parse
                 memmove(packet,&olddata[pstart],i*8 - pstart);
@@ -376,7 +383,7 @@ void *SharedImageWriter(void *prms)
                     }
 
                 }
-
+                
                 for(imgIdx=0; imgIdx<params->nSharedImages; imgIdx++)
                 {
                    if(takingImage[imgIdx])
@@ -396,10 +403,10 @@ void *SharedImageWriter(void *prms)
 
                        if(doneIntegrating[imgIdx]==doneIntMask) //check to see if all boards are done integrating
                        {
-                           takingImage = 0;
+                           takingImage[imgIdx] = 0;
                            clock_gettime(CLOCK_REALTIME, &stopSpec);
                            //nsElapsed = stopSpec.tv_nsec - startSpec.tv_nsec;
-                           postDoneSems(sharedImages + imgIdx, -1);
+                           MKIDShmImage_postDoneSem(sharedImages + imgIdx, -1);
                            printf("SharedImageWriter: done image at %lu\n", curTs);
                            printf("SharedImageWriter: int time %lu\n", curTs-sharedImages[imgIdx].md->integrationTime);
                            //printf("SharedImageWriter: real time %d ms\n", (nsElapsed)/1000000);
@@ -419,16 +426,17 @@ void *SharedImageWriter(void *prms)
           }
 
 	  // if there is data remaining save it for next run through
-          //printf("Copying excess %d, %d\n",oldbr,pstart); fflush(stdout);
           memmove(olddata,&olddata[pstart],oldbr-pstart);
           oldbr = oldbr-pstart;          
+
        }                           
     }
 
+    printf("SharedImageWriter: Freeing stuff\n");
     free(olddata);
     free(boardNums);
     for(imgIdx=0; imgIdx<params->nSharedImages; imgIdx++)
-        closeMKIDShmImage(sharedImages+i);
+        MKIDShmImage_close(sharedImages+i);
     free(sharedImages);
     free(takingImage);
     free(doneIntegrating);
@@ -967,6 +975,7 @@ int main(int argc, char* argv[])
     {
         params.sharedImageNames[i] = (char*)malloc(SHM_NAME_LEN*sizeof(char));
         fscanf(cfgfp, "%s\n", params.sharedImageNames[i]);
+        printf("imagename: %s\n", params.sharedImageNames[i]);
 
     }
     fclose(cfgfp);
