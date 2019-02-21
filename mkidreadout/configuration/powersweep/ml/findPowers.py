@@ -87,7 +87,7 @@ def apply_ml_model(inferenceData, wsAtten, resWidth, goodModelDir='', badModelDi
         image -= meanImage
         inferenceImage = [image]
         inferenceLabels[rn, :] = sess.run(y_output, feed_dict={x_input: inferenceImage, keep_prob: 1, is_training: False})
-        iAtt = np.argmax(inferenceLabels[rn, :])
+        iAtt = np.argmax(inferenceLabels[rn, :-3])
         inferenceData.opt_attens[rn] = attenList[iAtt]
         if FREQ_USE_MAG:
             inferenceData.opt_freqs[rn] = freqCube[iAtt, np.argmin(magsdb[iAtt,:])]  # TODO: make this more robust
