@@ -7,7 +7,7 @@ from mkidreadout.configuration.powersweep.psmldata import *
 
 
 def makeResImage(res_num, dataObj, wsAttenInd, xWidth, resWidth, 
-            pad_res_win, useIQV, useMag, centerLoop, nAttensModel):
+            pad_res_win, useIQV, useMag, centerLoop, nAttensModel, collisionRange=100.e3):
     """Creates a table with 2 rows, I and Q for makeTrainData(mag_data=True)
 
     inputs
@@ -30,6 +30,25 @@ def makeResImage(res_num, dataObj, wsAttenInd, xWidth, resWidth,
     Is = dataObj.Is[res_num, :, :-1]  # -1 to make size the same as iq vels
     Qs = dataObj.Qs[res_num, :, :-1]
     freqs = dataObj.freqs[res_num][:-1]
+
+    # Assumes initfreqs is sorted
+    if collisionRange>0:
+        goodMask = np.ones(nFreqPoints, dtype=bool)
+        if res_num > 0:
+            goodMask &= (freqs - dataObj.initfreqs[res_num-1]) >= collisionRange
+        if res_num < dataObj.freqs.shape[0]-1:
+            goodMask &= (dataObj.initfreqs[res_num+1] - freqs) >= collisionRange
+
+        iq_vels = iq_vels[:, goodMask]
+        Is = Is[:, goodMask]
+        Qs = Qs[:, goodMask]
+        freqs = freqs[goodMask]
+
+        nFreqPoints = np.sum(goodMask)
+        if resWidth > nFreqPoints:
+            resWidth = nFreqPoints
+        
+
     freqCube = np.zeros((nAttens, resWidth))
     magsdb = Is ** 2 + Qs ** 2
 
@@ -150,6 +169,7 @@ def makeResImage(res_num, dataObj, wsAttenInd, xWidth, resWidth,
         singleFrameImage[:, :, 1] = Qs
         iqVelImage = iq_vels
         magsdbImage = magsdb
+        freqCube = np.tile(freqs, (nAttens, 1))
 
     res_mag = np.sqrt(np.amax(singleFrameImage[:, :, 0] ** 2 + singleFrameImage[:, :, 1] ** 2,
                               axis=1))  # changed by NF 20180423 (originally amax)
