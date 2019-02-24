@@ -350,6 +350,8 @@ def setfilter(fnum, home=False, host='localhost:50000', killserver=False, timeou
 
 if __name__ == '__main__':
 
+    _setFilter(5)
+
     parser = argparse.ArgumentParser(description='HSFW Server')
     parser.add_argument('--port', type=int, default=HSFW_PORT, help="Port on which to listen")
     args = parser.parse_args()
@@ -370,5 +372,5 @@ if __name__ == '__main__':
                                 fmt='%(asctime)s %(levelname)s %(message)s')
     start_server(args.port)
 
-    _setFilter(5)
+    
 
