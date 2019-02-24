@@ -1160,11 +1160,11 @@ class MKIDDashboard(QMainWindow):
                 QtCore.QTimer.singleShot(500 * 1000, flipperoff)
         self.logstate()
 
-    def setFilter(self, filter=None):
+    def setFilter(self, filter_index=None):
         error=False
-        if filter is None or filter<0:
+        if filter_index is None or filter_index<0:
             result = mkidreadout.hardware.hsfw.getfilter(self.config.filter.ip)
-            if 'error' in str(result).lower():
+            if str(result).lower().startswith('error'):
                 error=True
             else:
                 self.filter=int(result)
@@ -1174,15 +1174,16 @@ class MKIDDashboard(QMainWindow):
                 self.combobox_filter.addItems(filternames)
                 self.combobox_filter.setCurrentIndex(self.filter - 1)
         else:
-            if self.combobox_filter.itemText(filter) is 'Connect': 
+            if str(self.combobox_filter.itemText(filter_index)).startswith('Connect'): 
                 return self.setFilter(-1)
-            elif self.combobox_filter.itemText(filter) is 'Error': return
+            elif str(self.combobox_filter.itemText(filter_index)).startswith('Error'): 
+                return
             else:
-                result = mkidreadout.hardware.hsfw.setfilter(int(filter), home=False,host=self.config.filter.ip)
-                if 'error' in str(result).lower():
+                result = mkidreadout.hardware.hsfw.setfilter(filter_index+1, home=False,host=self.config.filter.ip)
+                if str(result).lower().startswith('error'):
                     error=True
                 else:
-                    self.filter = int(filter)+1
+                    self.filter = int(result)
         if error:
             self.filter='UNKNOWN'
             self.combobox_filter.clear()
