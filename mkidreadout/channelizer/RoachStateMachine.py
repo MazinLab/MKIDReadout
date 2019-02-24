@@ -483,6 +483,7 @@ class RoachStateMachine(QtCore.QObject):  # Extends QObject for use with QThread
         """
         sweepDict = self.sweep()
         # self.centers = sweepDict['centers'] # Actually, it already sets these in sweep()
+        getLogger(__name__).info("Finished sweep, now loading centers")
         self.roachController.loadIQcenters(self.centers)
         return sweepDict
 
@@ -560,22 +561,16 @@ class RoachStateMachine(QtCore.QObject):  # Extends QObject for use with QThread
         threshSig = self.config.roaches.get('r{}.numsigs_thresh'.format(self.num))
         nSnap = self.config.roaches.get('r{}.numsnaps_thresh'.format(self.num))
         thresh = []
-        modnum=int(nfreqs*nSnap/10)
+        modnum=5
         for i in range(nfreqs):
             data = []
+            if not i%modnum:
+                getLogger(__name__).info("Collecting phase on channel {}/{}".format(i,nfreqs-1))
             for k in range(nSnap):
-                if not (nfreqs*k+k) % modnum:
-                    getLogger(__name__).info("Collecting phase on channel {}/{} snap {}/{}".format(i,nfreqs,k+1, nSnap))
-                # sys.stdout.write("\rCollecting Phase on Ch: "+str(i)+" Snap "+str(k+1)+'/'+str(nSnap))
-                # sys.stdout.flush()
                 data.append(self.getPhaseFromSnap(i))
             thresh.append(-1 * np.std(data) * threshSig)
-        # self.roachController.loadThresholds(thresh)
-        # sys.stdout.write("\n")
+        getLogger(__name__).info("Loading Thresholds")
         for i in range(nfreqs):
-            # ch, stream = np.where(self.roachController.freqChannels == self.roachController.freqList[i])
-            # ch = ch+stream*self.roachController.params['nChannelsPerStream']
-            # self.roachController.setThresh(thresh[i],ch)
             self.roachController.setThreshByFreqChannel(thresh[i], i)
 
         # self.roachController.thresholds=thresh
