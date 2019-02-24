@@ -136,10 +136,11 @@ def connection_handler(conn):
                 fnum = int(data)
                 #result = HSFWERRORS[_setfilter(abs(fnum), home=fnum < 0)]
                 result = _setfilter(abs(fnum), home=fnum < 0)
-                conn.sendall(result.encode('utf-8'))
+                conn.sendall(str(result).encode('utf-8'))
             except ValueError as e:
                 conn.sendall('Error: bad command:  {}'.format(e).encode('utf-8'))
         except Exception as e:
+            trace=traceback.format_exc()
             try:
                 enum = e.errno
             except AttributeError:
@@ -147,7 +148,7 @@ def connection_handler(conn):
             if enum == errno.WSAECONNABORTED:
                 getLogger(__name__).info('Connection Closed')
             else:
-                msg = 'Error: Server Connection Loop Exception {}: \n'.format(e) + traceback.format_exc()
+                msg = 'Error: Server Connection Loop Exception. {}: \n'.format(e) + trace
                 getLogger(__name__).error(msg)
                 conn.sendall(msg.encode('utf-8'))
             if enum in (errno.EBADF, errno.ECONNRESET, errno.WSAECONNABORTED):
@@ -192,8 +193,8 @@ def _setfilter(num, home=False):
     try:
         fwheels = Dispatch("OptecHID_FilterWheelAPI.FilterWheels")
         wheel = fwheels.FilterWheelList[0]
-        if num not in range(wheel.NumberOfFilters):
-            return 'Error: Invalid filter numer {} of {} filters'.format(num, wheel.NumberOfFilters)
+        if num not in range(1,wheel.NumberOfFilters+1):
+            return 'Error: Invalid filter number {} of {} filters'.format(num, wheel.NumberOfFilters)
         getLogger(__name__).debug('Filter Wheel FW: {}'.format(wheel.FirmwareVersion))
         if home:
             getLogger(__name__).info('Homing...')
@@ -377,6 +378,8 @@ if __name__ == '__main__':
         fwheels = Dispatch("OptecHID_FilterWheelAPI.FilterWheels")
         wheel = fwheels.FilterWheelList[0]
         wheel.CurrentPosition=wheel.NumberOfFilters
+        del wheel
+        del fwheels
     except: pass
     start_server(args.port)
 
