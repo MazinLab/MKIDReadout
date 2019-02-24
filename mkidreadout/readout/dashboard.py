@@ -569,6 +569,9 @@ class MKIDDashboard(QMainWindow):
         self.contextMenu = QMenu(self)  # pops up on right click
         self.create_menu()  # file menu
 
+        #Connect to Filter wheel
+        self.setFilter(-1)
+
         # Connect to ROACHES and initialize network port in firmware
         getLogger('Dashboard').info('Connecting roaches and loading beammap...')
         if not self.offline:
@@ -1166,13 +1169,14 @@ class MKIDDashboard(QMainWindow):
             else:
                 self.filter=int(result)
                 filternames = mkidreadout.hardware.hsfw.getfilternames(self.config.filter.ip)
+                filternames = filternames.split(', ')
                 self.combobox_filter.clear()
                 self.combobox_filter.addItems(filternames)
                 self.combobox_filter.setCurrentIndex(self.filter - 1)
         else:
             if self.combobox_filter.itemText(filter) is 'Connect': 
                 return self.setFilter(-1)
-            elif: self.combobox_filter.itemText(filter) is 'Error': return
+            elif self.combobox_filter.itemText(filter) is 'Error': return
             else:
                 result = mkidreadout.hardware.hsfw.setfilter(int(filter), home=False,host=self.config.filter.ip)
                 if 'error' in str(result).lower():
@@ -1284,7 +1288,6 @@ class MKIDDashboard(QMainWindow):
         label_filter = QLabel("Filter:")
         self.combobox_filter = combobox_filter = QComboBox()
         combobox_filter.setToolTip("Select a filter!")
-        self.setFilter(-1)
         combobox_filter.activated[int].connect(self.setFilter)
 
         # log file

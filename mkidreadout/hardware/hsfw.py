@@ -218,7 +218,8 @@ def _getfilternames():
     try:
         fwheels = Dispatch("OptecHID_FilterWheelAPI.FilterWheels")
         wheel = fwheels.FilterWheelList[0]
-        return wheel.GetFilterNames(wheel.WheelID)
+        names = wheel.GetFilterNames(wheel.WheelID)
+        return ', '.join(names)
         #return wheel.ErrorState
     except pywintypes.com_error:
         return 'Error: Unable to communicate. Check filter wheel is connected. (comerror)'
