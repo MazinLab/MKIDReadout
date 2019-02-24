@@ -138,7 +138,7 @@ def connection_handler(conn):
                 result = _setfilter(abs(fnum), home=fnum < 0)
                 conn.sendall(result.encode('utf-8'))
             except ValueError as e:
-                conn.sendall('bad command:  {}'.format(e).encode('utf-8'))
+                conn.sendall('Error: bad command:  {}'.format(e).encode('utf-8'))
         except Exception as e:
             try:
                 enum = e.errno
@@ -147,7 +147,7 @@ def connection_handler(conn):
             if enum == errno.WSAECONNABORTED:
                 getLogger(__name__).info('Connection Closed')
             else:
-                msg = 'Server Connection Loop Exception {}: \n'.format(e) + traceback.format_exc()
+                msg = 'Error: Server Connection Loop Exception {}: \n'.format(e) + traceback.format_exc()
                 getLogger(__name__).error(msg)
                 conn.sendall(msg.encode('utf-8'))
             if enum in (errno.EBADF, errno.ECONNRESET, errno.WSAECONNABORTED):
@@ -201,15 +201,18 @@ def _setfilter(num, home=False):
             getLogger(__name__).info('Homing complete.')
         getLogger(__name__).info('Setting postion to {}'.format(num))
         wheel.CurrentPosition = num
-        #return HSFWERRORS[wheel.ErrorState]
-        return num
+        if wheel.ErrorState==0:
+            return num
+        else:
+            return "Error: "+HSFWERRORS[wheel.ErrorState]
+        #return num
     except pywintypes.com_error:
         return 'Error: Unable to communicate. Check filter wheel is connected. (comerror)'
         getLogger(__name__).error('Windows COM error. Filter probably disconnected', exc_info=True)
     except Exception:
         error = traceback.format_exc()
         getLogger(__name__).error('Caught error', exc_info=True)
-        return error
+        return 'Error: '+error
 
 def _getfilternames():
     from win32com.client import Dispatch
@@ -227,7 +230,7 @@ def _getfilternames():
     except Exception:
         error = traceback.format_exc()
         getLogger(__name__).error('Caught error', exc_info=True)
-        return error
+        return 'Error: '+error
 
 def _getfilter():
     from win32com.client import Dispatch
@@ -244,7 +247,7 @@ def _getfilter():
     except Exception:
         error = traceback.format_exc()
         getLogger(__name__).error('Caught error', exc_info=True)
-        return error
+        return 'Error: '+error
 
 
 def getfilternames(host='localhost:50000', timeout=TIMEOUT):
@@ -258,7 +261,7 @@ def getfilternames(host='localhost:50000', timeout=TIMEOUT):
         conn.close()
         if data.lower().startswith('error'):
             getLogger(__name__).error(data)
-            return data
+            #return data
         return data
     except AttributeError:
         msg = 'Cannot connect to filter server'
@@ -325,7 +328,7 @@ def setfilter(fnum, home=False, host='localhost:50000', killserver=False, timeou
 
     host, port = host.split(':')
 
-
+    data=""
     try:
         conn = connect(host, port, timeout=timeout)
         conn.sendall('{}\n'.format(-fnum if home else fnum).encode('utf-8'))
@@ -335,7 +338,7 @@ def setfilter(fnum, home=False, host='localhost:50000', killserver=False, timeou
     except AttributeError:
         msg = 'Cannot connect to filter server'
         getLogger(__name__).error(msg)
-        return False
+        return "Error: "+msg
     except Exception as e:
         msg = 'Cannot send command to filter server "Filter: {}"'
         getLogger(__name__).error(msg.format(fnum), exc_info=True)
@@ -343,14 +346,13 @@ def setfilter(fnum, home=False, host='localhost:50000', killserver=False, timeou
             conn.close()
         except Exception:
             getLogger(__name__).error('error:', exc_info=True)
-        return False
+        return "Error: "+msg
 
-    return True
+    return data
 
 
 if __name__ == '__main__':
 
-    _setFilter(5)
 
     parser = argparse.ArgumentParser(description='HSFW Server')
     parser.add_argument('--port', type=int, default=HSFW_PORT, help="Port on which to listen")
@@ -370,6 +372,12 @@ if __name__ == '__main__':
                                 fmt='%(asctime)s %(levelname)s %(message)s')
     mkidcore.corelog.create_log('mkidreadout', console=True, mpsafe=True, propagate=False,
                                 fmt='%(asctime)s %(levelname)s %(message)s')
+
+    try:
+        fwheels = Dispatch("OptecHID_FilterWheelAPI.FilterWheels")
+        wheel = fwheels.FilterWheelList[0]
+        wheel.CurrentPosition=wheel.NumberOfFilters
+    except: pass
     start_server(args.port)
 
     
