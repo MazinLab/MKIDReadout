@@ -56,7 +56,7 @@ HSFWERRORS = {0: 'No error has occurred. (cleared state)',
 # err.value
 
 HSFW_PORT = 50000
-NFILTERS=NUM_FILTERS=5
+#NFILTERS=NUM_FILTERS=5
 TIMEOUT=2
 global_KILL_SERVER = False
 
@@ -128,11 +128,14 @@ def connection_handler(conn):
                 conn.sendall('{}'.format(_getfilter()).encode('utf-8'))
                 continue
 
+            if 'names' in data:
+                conn.sendall('{}'.format(_getfilternames()).encode('utf-8'))
+                continue
+
             try:
                 fnum = int(data)
-                if abs(fnum) not in (1,2,3,4,5,6):
-                    raise ValueError('Filter must be 1-6!')
-                result = HSFWERRORS[_setfilter(abs(fnum), home=fnum < 0)]
+                #result = HSFWERRORS[_setfilter(abs(fnum), home=fnum < 0)]
+                result = _setfilter(abs(fnum), home=fnum < 0)
                 conn.sendall(result.encode('utf-8'))
             except ValueError as e:
                 conn.sendall('bad command:  {}'.format(e).encode('utf-8'))
@@ -186,11 +189,11 @@ def _setfilter(num, home=False):
     from win32com.client import Dispatch
     import pythoncom, pywintypes
     pythoncom.CoInitialize()
-    if num not in (1,2,3,4,5,6):
-        return
     try:
         fwheels = Dispatch("OptecHID_FilterWheelAPI.FilterWheels")
         wheel = fwheels.FilterWheelList[0]
+        if num not in range(wheel.NumberOfFilters):
+            return 'Error: Invalid filter numer {} of {} filters'.format(num, wheel.NumberOfFilters)
         getLogger(__name__).debug('Filter Wheel FW: {}'.format(wheel.FirmwareVersion))
         if home:
             getLogger(__name__).info('Homing...')
@@ -198,7 +201,8 @@ def _setfilter(num, home=False):
             getLogger(__name__).info('Homing complete.')
         getLogger(__name__).info('Setting postion to {}'.format(num))
         wheel.CurrentPosition = num
-        return wheel.ErrorState
+        #return HSFWERRORS[wheel.ErrorState]
+        return num
     except pywintypes.com_error:
         return 'Error: Unable to communicate. Check filter wheel is connected. (comerror)'
         getLogger(__name__).error('Windows COM error. Filter probably disconnected', exc_info=True)
@@ -207,6 +211,22 @@ def _setfilter(num, home=False):
         getLogger(__name__).error('Caught error', exc_info=True)
         return error
 
+def _getfilternames():
+    from win32com.client import Dispatch
+    import pythoncom, pywintypes
+    pythoncom.CoInitialize()
+    try:
+        fwheels = Dispatch("OptecHID_FilterWheelAPI.FilterWheels")
+        wheel = fwheels.FilterWheelList[0]
+        return wheel.GetFilterNames(wheel.WheelID)
+        #return wheel.ErrorState
+    except pywintypes.com_error:
+        return 'Error: Unable to communicate. Check filter wheel is connected. (comerror)'
+        getLogger(__name__).error('Windows COM error. Filter probably disconnected', exc_info=True)
+    except Exception:
+        error = traceback.format_exc()
+        getLogger(__name__).error('Caught error', exc_info=True)
+        return error
 
 def _getfilter():
     from win32com.client import Dispatch
@@ -225,6 +245,32 @@ def _getfilter():
         getLogger(__name__).error('Caught error', exc_info=True)
         return error
 
+
+def getfilternames(host='localhost:50000', timeout=TIMEOUT):
+    host, port = host.split(':')
+    getLogger(__name__).debug('Attempting to get filter from {} w/ t/o {}'.format(host, timeout))
+    conn = connect(host, port, timeout=timeout)
+    try:
+        conn.sendall('names\n'.encode('utf-8'))
+        data = conn.recv(2048).decode('utf-8').strip()
+        getLogger(__name__).info("Response: {}".format(data))
+        conn.close()
+        if data.lower().startswith('error'):
+            getLogger(__name__).error(data)
+            return data
+        return data
+    except AttributeError:
+        msg = 'Cannot connect to filter server'
+        getLogger(__name__).error(msg)
+        return 'Error: ' +msg
+    except Exception as e:
+        msg = 'Cannot get status of filter server'
+        getLogger(__name__).error(msg, exc_info=True)
+        try:
+            conn.close()
+        except Exception as e:
+            getLogger(__name__).error('error:', exc_info=True)
+        return 'Error: '+str(e)
 
 def getfilter(host='localhost:50000', timeout=TIMEOUT):
     host, port = host.split(':')
@@ -269,12 +315,12 @@ def setfilter(fnum, home=False, host='localhost:50000', killserver=False, timeou
             return False
 
 
-    try:
-        fnum = int(fnum)
-        if not 1 <= fnum <= NUM_FILTERS:
-            raise TypeError
-    except TypeError:
-        raise ValueError('Not a number between 1-{}'.format(NUM_FILTERS))
+    #try:
+    #    fnum = int(fnum)
+    #    if not 1 <= fnum <= NUM_FILTERS:
+    #        raise TypeError
+    #except TypeError:
+    #    raise ValueError('Not a number between 1-{}'.format(NUM_FILTERS))
 
     host, port = host.split(':')
 
@@ -322,3 +368,6 @@ if __name__ == '__main__':
     mkidcore.corelog.create_log('mkidreadout', console=True, mpsafe=True, propagate=False,
                                 fmt='%(asctime)s %(levelname)s %(message)s')
     start_server(args.port)
+
+    _setFilter(5)
+

@@ -109,7 +109,7 @@ class ImageSearcher(QtCore.QObject):  # Extends QObject for use with QThreads
 
             flist.sort()
             for f in flist:
-                latestTime = float(f.split('.')[0]) + .1
+                latestTime = float(f.split('.')[0])
                 file = os.path.join(self.path, f)
                 try:
                     image = loadimg(file, self.nCols, self.nRows, returntype='hdu')
@@ -183,8 +183,10 @@ class ConvertPhotonsToRGB(QtCore.QObject):
         maxVal = np.amax(self.image)
         minVal = np.amin(self.image)
         maxVal = np.amax([minVal + 1, maxVal])
-
-        image2 = 255. / (np.log10(1 + maxVal - minVal)) * np.log10(1 + self.image - minVal)
+        
+        a=10.
+        image2 = 255.*np.log10(a*(self.image-minVal) / (maxVal - minVal) + 1.)/np.log10(a+1.)
+        #image2 = 255. / (np.log10(1 + maxVal - minVal)) * np.log10(1 + self.image - minVal)
         return image2
 
     def linStretch(self):
@@ -1155,17 +1157,35 @@ class MKIDDashboard(QMainWindow):
                 QtCore.QTimer.singleShot(500 * 1000, flipperoff)
         self.logstate()
 
-    def setFilter(self, filter):
-        self.combobox_filter.removeItem(mkidreadout.hardware.hsfw.NFILTERS)
-        result = mkidreadout.hardware.hsfw.setfilter(int(filter), home=False,
-                                                     host=self.config.filter.ip)
-        if not result:
-            self.combobox_filter.insertItem(mkidreadout.hardware.hsfw.NFILTERS, 'ERROR')
-            self.combobox_filter.model().item(mkidreadout.hardware.hsfw.NFILTERS).setEnabled(False)
-            self.combobox_filter.setCurrentIndex(mkidreadout.hardware.hsfw.NFILTERS)
-            self.filter = 'UNKNOWN'
+    def setFilter(self, filter=None):
+        error=False
+        if filter is None or filter<0:
+            result = mkidreadout.hardware.hsfw.getfilter(self.config.filter.ip)
+            if 'error' in str(result).lower():
+                error=True
+            else:
+                self.filter=int(result)
+                filternames = mkidreadout.hardware.hsfw.getfilternames(self.config.filter.ip)
+                self.combobox_filter.clear()
+                self.combobox_filter.addItems(filternames)
+                self.combobox_filter.setCurrentIndex(self.filter - 1)
         else:
-            self.filter = int(filter)  # TODO this is not guaranteed, move might still be in progress
+            if self.combobox_filter.itemText(filter) is 'Connect': 
+                return self.setFilter(-1)
+            elif: self.combobox_filter.itemText(filter) is 'Error': return
+            else:
+                result = mkidreadout.hardware.hsfw.setfilter(int(filter), home=False,host=self.config.filter.ip)
+                if 'error' in str(result).lower():
+                    error=True
+                else:
+                    self.filter = int(filter)+1
+        if error:
+            self.filter='UNKNOWN'
+            self.combobox_filter.clear()
+            self.combobox_filter.addItems(['Connect', 'Error'])
+            self.combobox_filter.setCurrentIndex(1)
+
+
         self.logstate()
 
     def laserCalClicked(self, _, laserCalStyle = "simultaneous"):
@@ -1261,19 +1281,11 @@ class MKIDDashboard(QMainWindow):
         self.button_dither.clicked.connect(lambda: self.dither_dialog.show())
 
         # Filter
-        self.combobox_filter = combobox_filter = QComboBox()
-        self.combobox_filter.setMaxVisibleItems(mkidreadout.hardware.hsfw.NFILTERS + 1)
         label_filter = QLabel("Filter:")
-        combobox_filter.addItems(map(str, range(1, mkidreadout.hardware.hsfw.NFILTERS + 1)))
-        self.filter = result = mkidreadout.hardware.hsfw.getfilter(self.config.filter.ip)
-        if 'error' in str(result).lower():
-            self.combobox_filter.insertItem(mkidreadout.hardware.hsfw.NFILTERS, 'ERROR')
-            self.combobox_filter.model().item(mkidreadout.hardware.hsfw.NFILTERS).setEnabled(False)
-            self.combobox_filter.setCurrentIndex(mkidreadout.hardware.hsfw.NFILTERS)
-        else:
-            combobox_filter.setCurrentIndex(int(result) - 1)
-        combobox_filter.setToolTip("Select a filter")
-        combobox_filter.activated[str].connect(self.setFilter)
+        self.combobox_filter = combobox_filter = QComboBox()
+        combobox_filter.setToolTip("Select a filter!")
+        self.setFilter(-1)
+        combobox_filter.activated[int].connect(self.setFilter)
 
         # log file
         label_target = QLabel("Target: ")
