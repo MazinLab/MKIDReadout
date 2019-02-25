@@ -561,6 +561,21 @@ class MKIDDashboard(QMainWindow):
                                              self.config.telescope.receive_port)
         self.telescopeWindow = TelescopeWindow(self.telescopeController)
 
+        #Dither window
+        self.dither_dialog = DitherWindow(self.config.dither.url)
+        def logdither(status):
+            if status.offline or status.haserrors:
+                msg = 'Dither completed with errors: "{}", Conex Status="{}"'.format(
+                    status.state, status.conexstatus)
+                getLogger('Dashboard').error(msg)
+            else:
+                dither_result = 'Dither Path: {}\n'.format(str(status.last_dither).replace('\n', '\n   '))
+                getLogger('Dashboard').info(dither_result)
+                getLogger('dither').info(dither_result)
+        self.dither_dialog.complete.connect(logdither)
+        self.dither_dialog.statusupdate.connect(self.logstate)
+        self.dither_dialog.hide()
+
         # Setup GUI
         getLogger('Dashboard').info('Setting up GUI...')
         self.setWindowTitle(self.config.instrument + ' Dashboard')
@@ -713,7 +728,7 @@ class MKIDDashboard(QMainWindow):
             photonImage.header['exptime'] = self.config.packetmaster.int_time
             self.imageList.append(photonImage)
             self.fitsList.append(photonImage)
-            self.imageList = self.imageList[-self.config.dashboard.average:]  #trust the garbage collector
+            self.imageList = self.imageList[-self.config.dashboard.num_images_to_save:]  #trust the garbage collector
 
             if self.takingDark > 0:
                 self.addDarkImage(photonImage)
@@ -1268,22 +1283,8 @@ class MKIDDashboard(QMainWindow):
             self.button_obs.clicked.connect(self.startObs)
 
         # dithering
-        self.dither_dialog = DitherWindow(self.config.dither.url)
-
-        def logdither(status):
-            if status.offline or status.haserrors:
-                msg = 'Dither completed with errors: "{}", Conex Status="{}"'.format(
-                    status.state, status.conexstatus)
-                getLogger('Dashboard').error(msg)
-            else:
-                dither_result = 'Dither Path: {}\n'.format(str(status.last_dither).replace('\n', '\n   '))
-                getLogger('Dashboard').info(dither_result)
-                getLogger('dither').info(dither_result)
-        self.dither_dialog.complete.connect(logdither)
-        self.dither_dialog.statusupdate.connect(self.logstate)
-        self.dither_dialog.hide()
-        self.button_dither = QPushButton("Dithers")
-        self.button_dither.clicked.connect(lambda: self.dither_dialog.show())
+        button_dither = QPushButton("Dithers")
+        button_dither.clicked.connect(lambda: self.dither_dialog.show())
 
         # Filter
         label_filter = QLabel("Filter:")
@@ -1466,7 +1467,7 @@ class MKIDDashboard(QMainWindow):
         vbox.addWidget(self.textbox_log)
 
         hbox_filter = QHBoxLayout()
-        hbox_filter.addWidget(self.button_dither)
+        hbox_filter.addWidget(button_dither)
         hbox_filter.addStretch()
         hbox_filter.addWidget(label_filter)
         hbox_filter.addWidget(combobox_filter)
@@ -1638,9 +1639,12 @@ class MKIDDashboard(QMainWindow):
             window.close()
         for window in self.histogramWindows:
             window.close()
+        
         self.turnOffPhotonCapture()  # stop sending photon packets
         self.telescopeWindow._want_to_close = True
         self.telescopeWindow.close()
+        self.dither_dialog._want_to_close=True
+        self.dither_dialog.close()
 
         self.hide()
         time.sleep(1)
