@@ -707,8 +707,7 @@ class MKIDDashboard(QMainWindow):
         self.spinbox_flatImage.setEnabled(False)
 
         if self.flatFactory is None or self.takingFlat == self.spinbox_flatImage.value():
-            self.flatFactory = CalFactory('flat', images=(photonImage,), min=minFlat, max=maxFlat,
-                                          dark=self.darkField, colslice=slice(20, 60))
+            self.flatFactory = CalFactory('flat', images=(photonImage,), dark=self.darkField)
         else:
             self.flatFactory.add_image(photonImage)
 
