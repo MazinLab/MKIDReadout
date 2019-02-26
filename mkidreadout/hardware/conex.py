@@ -391,9 +391,17 @@ class ConexStatus(object):
         self.conexstatus = conexstatus
         self.last_dither = dither
         self.limits = limits
+        self.pos_tolerance = 0.002
 
     def __eq__(self, o):
         return (self.state == o.state and self.pos == o.pos and self.conexstatus == o.conexstatus and
+                self.limits == o.limits and self.last_dither == o.last_dither)
+    def __ne__(self,o):
+        return not self.__eq__(o)
+
+    def nearlyEqual(self,o):
+        posNear = (np.abs(self.pos[0] - o.pos[0]) <= self.pos_tolerance) and (np.abs(self.pos[1] - o.pos[1]) <= self.pos_tolerance)
+        return (self.state == o.state and posNear and self.conexstatus == o.conexstatus and
                 self.limits == o.limits and self.last_dither == o.last_dither)
 
     @property
@@ -759,7 +767,7 @@ def move(x, y, address='http://localhost:50001', timeout=TIMEOUT):
 
 def status(address='http://localhost:50001', timeout=TIMEOUT):
     try:
-        getLogger(__name__).debug('Request status from {} w/ t/o {}'.format(address, timeout))
+        #getLogger(__name__).debug('Request status from {} w/ t/o {}'.format(address, timeout))
         r = requests.get(address + '/conex', timeout=timeout)
         j = r.json()
         ret = ConexStatus(state=j['state'], pos=(j['xpos'],j['ypos']), conexstatus=j['conexstatus'],
@@ -767,6 +775,7 @@ def status(address='http://localhost:50001', timeout=TIMEOUT):
                                             j['last_dither']['end'], j['last_dither']['path']))
     except requests.ConnectionError:
         ret = ConexStatus(state='error: unable to connect')
+        getLogger(__name__).error('Got "{}" from request ({})'.format(r.text, r.status_code), exc_info=True)
     except ValueError:
         ret = ConexStatus(state='error: malformed content "{}"'.format(r.text))
         getLogger(__name__).error('Got "{}" from request ({})'.format(r.text, r.status_code), exc_info=True)
