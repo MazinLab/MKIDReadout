@@ -339,6 +339,8 @@ class DitherWindow(QMainWindow):
         self.movepoll = movepolltime
         self.polltime = self.idlepoll = idlepolltime
         self.statuslock = threading.RLock()
+        self.status = mkidreadout.hardware.conex.status(self.address)
+        self.preDitherPos=None
 
         QMainWindow.__init__(self, parent=parent)
         self._want_to_close = False
@@ -396,6 +398,8 @@ class DitherWindow(QMainWindow):
         hbox.addWidget(label)
         self.textbox_pos = QLineEdit('0.0, 0.0')
         self.textbox_pos.setValidator(doubletuple_validator)
+        try: self.textbox_pos.setText('{}, {}'.format(self.status.pos[0], self.status.pos[1]))
+        except: pass
         hbox.addWidget(self.textbox_pos)
         self.button_goto = QPushButton('Go')
         self.button_goto.clicked.connect(self.do_goto)
@@ -409,7 +413,7 @@ class DitherWindow(QMainWindow):
         self.button_halt.clicked.connect(self.do_halt)
         vbox.addWidget(self.button_halt)
 
-        self.status = mkidreadout.hardware.conex.status(self.address)
+        
         self.status_label.setText(str(self.status))
         self.statusupdate.connect(lambda: self.status_label.setText(str(self.status)))
 
@@ -425,8 +429,9 @@ class DitherWindow(QMainWindow):
                     with self.statuslock:
                         ostat = self.status
                         self.status = nstat = mkidreadout.hardware.conex.status(self.address)
-                        if ostat != nstat:
-                            getLogger('Dashboard').debug('Conex status: {} -> {}'.format(ostat, nstat))
+                        #if ostat != nstat:
+                        if not ostat.nearlyEqual(nstat):
+                            getLogger('Dashboard').debug('Conex status: {} -> {}. Conex Pos: {} -> {}'.format(ostat.state, nstat.state, ostat.pos, nstat.pos))
                             self.statusupdate.emit()
                         if not nstat.running:
                             self.polltime = self.idlepoll
@@ -448,6 +453,7 @@ class DitherWindow(QMainWindow):
         dt = int(self.textbox_dwell.text())
         getLogger('Dashboard').info('Starting dither')
         with self.statuslock:
+            self.preDitherPos = mkidreadout.hardware.conex.status(self.address).pos
             self.status = status = mkidreadout.hardware.conex.dither(start=start, end=end, n=ns, t=dt, address=self.address)
             getLogger('Dashboard').info('Sent dither cmd. Status {}'.format(status))
             self.statusupdate.emit()
@@ -467,8 +473,13 @@ class DitherWindow(QMainWindow):
         if status.haserrors:
             getLogger('Dashboard').error('Stop dither error: {}'.format(status))
 
-    def do_goto(self):
-        x, y = map(float, self.textbox_pos.text().split(','))
+    def do_goto(self, pos=None):
+        try:
+            x=pos[0]
+            y=pos[1]
+            self.textbox_pos.setText('{}, {}'.format(x,y))
+        except:
+            x, y = map(float, self.textbox_pos.text().split(','))
         getLogger('Dashboard').info('Starting move to {:.2f}, {:.2f}'.format(x,y))
         with self.statuslock:
             self.status = status = mkidreadout.hardware.conex.move(x, y, address=self.address)
@@ -572,6 +583,8 @@ class MKIDDashboard(QMainWindow):
                 dither_result = 'Dither Path: {}\n'.format(str(status.last_dither).replace('\n', '\n   '))
                 getLogger('Dashboard').info(dither_result)
                 getLogger('dither').info(dither_result)
+            self.dither_dialog.do_goto(pos=self.dither_dialog.preDitherPos)
+            self.dither_dialog.preDitherPos=None
         self.dither_dialog.complete.connect(logdither)
         self.dither_dialog.statusupdate.connect(self.logstate)
         self.dither_dialog.hide()
@@ -775,7 +788,7 @@ class MKIDDashboard(QMainWindow):
                         dark=self.darkField if self.checkbox_darkImage.isChecked() else None,
                         flat=self.flatField if self.checkbox_flatImage.isChecked() else None)
 
-        image = cf.generate(name='Last3frames', bias=0)
+        image = cf.generate(name='Frames', bias=0)
         image.data[self.beammapFailed] = np.nan
 
         # Set up worker object and thread
@@ -1647,9 +1660,9 @@ class MKIDDashboard(QMainWindow):
         self.dither_dialog.close()
 
         self.hide()
-        time.sleep(1)
         self.packetmaster.quit() #TODO consider adding a forced kill
-
+        time.sleep(1)
+        
         QtCore.QCoreApplication.instance().quit()
 
 
@@ -1698,7 +1711,7 @@ if __name__ == "__main__":
     create_log('mkidcore',
                console=True, mpsafe=True, propagate=False,
                fmt='%(asctime)s mkidcore.x.%(funcName)s: %(levelname)s %(message)s',
-               level=mkidcore.corelog.DEBUG)
+               level=mkidcore.corelog.INFO)
     create_log('packetmaster',
                logfile=os.path.join(config.paths.logs, 'packetmaster_{}.log'.format(timestamp)),
                console=True, mpsafe=True, propagate=False,
