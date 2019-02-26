@@ -453,8 +453,9 @@ class RoachStateMachine(QtCore.QObject):  # Extends QObject for use with QThread
         # channels, streams = self.roachController.freqChannelToStreamChannel()
         channels, streams = self.roachController.getStreamChannelFromFreqChannel()
         for i in range(len(channels)):
-            getLogger(__name__).info("ch{} str{}".format(channels[i], streams[i]))
-            getLogger(__name__).info("phaseList shape: {}".format(phaseList.shape))
+            if not i%5:
+                getLogger(__name__).info("ch{} str{}".format(channels[i], streams[i]))
+                #getLogger(__name__).info("phaseList shape: {}".format(phaseList.shape))
             phaseList[channels[i], streams[i]] = phaseList[channels[i], streams[i]] + rotation_phases[i]
 
         # for i in range(len(self.roachController.freqList)):
@@ -541,10 +542,10 @@ class RoachStateMachine(QtCore.QObject):  # Extends QObject for use with QThread
         """
         firname = self.config.roaches.get('r{}.fircoefffile'.format(self.num)).format(roach=self.num)
         if not os.path.isfile(firname):
-            file = resource_filename('mkidreadout', os.path.join('resources', 'firfilters', firname))
+            filenm = resource_filename('mkidreadout', os.path.join('resources', 'firfilters', firname))
         else:
-            file = firname
-        self.roachController.loadFIRCoeffs(file)
+            filenm = firname
+        self.roachController.loadFIRCoeffs(filenm)
         return True
 
     def loadThreshold(self):
