@@ -1,6 +1,6 @@
 #include "mkidshm.h"
 
-void *openShmFile(char *shmName, size_t size, int create){
+void *openShmFile(const char *shmName, size_t size, int create){
     char name[80];
     int fd;
     void *shmPtr;
@@ -42,7 +42,7 @@ void *openShmFile(char *shmName, size_t size, int create){
 }
     
 
-int MKIDShmImage_create(MKID_IMAGE_METADATA *imageMetadata, char *imgName, MKID_IMAGE *outputImage){
+int MKIDShmImage_create(MKID_IMAGE_METADATA *imageMetadata, const char *imgName, MKID_IMAGE *outputImage){
     MKID_IMAGE_METADATA *mdPtr;
     char doneSemName[80];
     image_t *imgPtr;
@@ -85,7 +85,7 @@ int MKIDShmImage_create(MKID_IMAGE_METADATA *imageMetadata, char *imgName, MKID_
 }
     
 
-int MKIDShmImage_open(MKID_IMAGE *imageStruct, char *imgName){
+int MKIDShmImage_open(MKID_IMAGE *imageStruct, const char *imgName){
     MKID_IMAGE_METADATA *mdPtr;
     image_t *imgPtr;
     char doneSemName[80];
@@ -136,7 +136,7 @@ int MKIDShmImage_close(MKID_IMAGE *imageStruct){
 
 }
 
-int MKIDShmImage_populateMD(MKID_IMAGE_METADATA *imageMetadata, char *name, int nXPix, int nYPix, int useWvl, int nWvlBins, int wvlStart, int wvlStop){
+int MKIDShmImage_populateMD(MKID_IMAGE_METADATA *imageMetadata, const char *name, int nXPix, int nYPix, int useWvl, int nWvlBins, int wvlStart, int wvlStop){
     imageMetadata->nXPix = nXPix;
     imageMetadata->nYPix = nYPix;
     imageMetadata->useWvl = useWvl;
@@ -158,6 +158,12 @@ void MKIDShmImage_startIntegration(MKID_IMAGE *image, uint64_t startTime, uint64
     sem_post(image->takeImageSem);
     
     
+}
+
+void MKIDShmImage_setWvlRange(MKID_IMAGE *image, int wvlStart, int wvlStop){
+    image->md->wvlStart = wvlStart;
+    image->md->wvlStop = wvlStop;
+
 }
 
 void MKIDShmImage_postDoneSem(MKID_IMAGE *image, int semInd){

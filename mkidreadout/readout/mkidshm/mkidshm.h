@@ -13,6 +13,12 @@
 
 #ifndef MKIDSHM_H
 #define MKIDSHM_H
+
+#ifdef __cplusplus
+extern "C" {
+
+#endif
+
 #define N_DONE_SEMS 10
 typedef int image_t; //can mess around with changing this w/o many subsitutions
 
@@ -71,15 +77,22 @@ typedef struct{
 
 } MKID_EVENT_BUFFER;
 
-int MKIDShmImage_open(MKID_IMAGE *imageStruct, char *imgName);
+int MKIDShmImage_open(MKID_IMAGE *imageStruct, const char *imgName);
 int MKIDShmImage_close(MKID_IMAGE *imageStruct);
-int MKIDShmImage_create(MKID_IMAGE_METADATA *imageMetadata, char *imgName, MKID_IMAGE *outputImage);
-int MKIDShmImage_populateMD(MKID_IMAGE_METADATA *imageMetadata, char *name, int nXPix, int nYPix, int useWvl, int nWvlBins, int wvlStart, int wvlStop);
+int MKIDShmImage_create(MKID_IMAGE_METADATA *imageMetadata, const char *imgName, MKID_IMAGE *outputImage);
+int MKIDShmImage_populateMD(MKID_IMAGE_METADATA *imageMetadata, const char *name, int nXPix, int nYPix, int useWvl, int nWvlBins, int wvlStart, int wvlStop);
 void MKIDShmImage_startIntegration(MKID_IMAGE *image, uint64_t startTime, uint64_t integrationTime);
 void MKIDShmImage_wait(MKID_IMAGE *image, int semInd);
 int MKIDShmImage_checkIfDone(MKID_IMAGE *image, int semInd);
 void MKIDShmImage_postDoneSem(MKID_IMAGE *image, int semInd);
 void MKIDShmImage_copy(MKID_IMAGE *image, image_t *ouputBuffer);
+void MKIDShmImage_setWvlRange(MKID_IMAGE *image, int wvlStart, int wvlStop);
 
-void *openShmFile(char *shmName, size_t size, int create);
+void *openShmFile(const char *shmName, size_t size, int create);
+
+#ifdef __cplusplus
+}
+
+#endif
+
 #endif
