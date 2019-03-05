@@ -97,6 +97,13 @@ pixelnames_bram = ['capture0_pix','capture1_pix','capture2_pix','capture3_pix']
 nBitsYCoord = 10
 nBitsXCoord = 10
 
+wvllut_bram = ['capture0_energy_cal_lut_energy_coeffs', 'capture1_energy_cal_lut_energy_coeffs',
+                'capture2_energy_cal_lut_energy_coeffs', 'capture3_energy_cal_lut_energy_coeffs']
+nBitsWvlCoeff = 21
+binPtWvlCoeff = 14
+useWvlLut_reg = ['capture0_use_energy_cal', 'capture1_use_energy_cal', 
+                 'capture2_use_energy_cal', 'capture3_use_energy_cal']
+
 boardNum_reg = 'board_num'
 timestamp_reg = 'timekeeper_base_ts'
 
