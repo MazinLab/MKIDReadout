@@ -96,7 +96,7 @@ from mkidreadout.channelizer.adcTools import streamSpectrum, checkSpectrumForSpi
 from mkidcore.corelog import getLogger
 import mkidcore.corelog
 from mkidreadout.configuration import sweepdata
-#from mkidpipeline.calibration.wavecal import Solution
+from mkidpipeline.calibration.wavecal import Solution
 #from mkidreadout.channelizer.Roach2Utils import cy_generateTones
 
 
@@ -1704,7 +1704,7 @@ class Roach2Controls(object):
 
         self.generateResonatorChannels(freqs)
         allStreamChannels, allStreams = self.getStreamChannelFromFreqChannel()
-        bitmask = 2**21-1 #1 at each bit that is part of coeffs #TODO: add to params
+        bitmask = 2**self.params['nBitsWvlCoeff']-1 #1 at each bit that is part of coeffs #TODO: add to params
 
         for stream in np.unique(allStreams):
             streamWvlCoeffBits = []
@@ -1717,7 +1717,7 @@ class Roach2Controls(object):
                 else:
                     coeffs = solCoeffs[indx]
 
-                coeffs = (coeffs*2**14).astype(np.int64) #convert to integer for loading in firmware #TODO: add to params
+                coeffs = (coeffs*2**self.params['binPtWvlCoeff']).astype(np.int64) #convert to integer for loading in firmware #TODO: add to params
                 
                 #convert to proper twos-complement signed values
                 negInds = coeffs<0
