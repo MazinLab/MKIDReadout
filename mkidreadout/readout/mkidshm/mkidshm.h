@@ -21,6 +21,7 @@ extern "C" {
 
 #define N_DONE_SEMS 10
 typedef int image_t; //can mess around with changing this w/o many subsitutions
+typedef float coeff_t;
 
 typedef struct{
     //metadata
@@ -58,7 +59,7 @@ typedef struct{
     uint8_t y;
 
     uint64_t time; //arrival time (could also shorten and make relative)
-    float wvl; //wavelength
+    coeff_t wvl; //wavelength
 
 } MKID_PHOTON_EVENT;
 
@@ -77,6 +78,25 @@ typedef struct{
 
 } MKID_EVENT_BUFFER;
 
+typedef struct{
+    char wavecalSolutionFile[80];
+    char bufferName[80];
+    uint32_t nXPix;
+    uint32_t nYPix;
+
+} MKID_WAVECAL_METADATA;
+
+typedef struct{
+    MKID_WAVECAL_METADATA *md;
+    
+    // Each pixel has 3 coefficients, with address given by 
+    // &a = 3*(nXPix*y + x); &b = &a + 1; &c = &a + 2
+    coeff_t *data; 
+
+} MKID_WAVECAL;
+
+    
+
 int MKIDShmImage_open(MKID_IMAGE *imageStruct, const char *imgName);
 int MKIDShmImage_close(MKID_IMAGE *imageStruct);
 int MKIDShmImage_create(MKID_IMAGE_METADATA *imageMetadata, const char *imgName, MKID_IMAGE *outputImage);
@@ -87,6 +107,11 @@ int MKIDShmImage_checkIfDone(MKID_IMAGE *image, int semInd);
 void MKIDShmImage_postDoneSem(MKID_IMAGE *image, int semInd);
 void MKIDShmImage_copy(MKID_IMAGE *image, image_t *ouputBuffer);
 void MKIDShmImage_setWvlRange(MKID_IMAGE *image, int wvlStart, int wvlStop);
+
+int MKIDShmWavecal_open(MKID_WAVECAL *wavecal, const char *name);
+int MKIDShmWavecal_close(MKID_WAVECAL *wavecal);
+int MKIDShmWavecal_create(MKID_WAVECAL_METADATA *wavecalMetadata, const char *name, MKID_WAVECAL *outputWavecal);
+coeff_t MKIDShmWavecal_getEnergy(MKID_WAVECAL *wavecal, int x, int y, float phase);
 
 void *openShmFile(const char *shmName, size_t size, int create);
 
