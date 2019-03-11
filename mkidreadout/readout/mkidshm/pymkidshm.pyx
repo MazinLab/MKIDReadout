@@ -10,6 +10,10 @@ cdef extern from "<stdint.h>":
     ctypedef unsigned int uint32_t
     ctypedef unsigned long long uint64_t
 
+cdef extern from "<semaphore.h>":
+    ctypedef union sem_t:
+        pass
+
 cdef extern from "mkidshm.h":
     ctypedef int image_t
     ctypedef float coeff_t

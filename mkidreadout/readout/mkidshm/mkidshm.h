@@ -83,6 +83,7 @@ typedef struct{
     char bufferName[80];
     uint32_t nXPix;
     uint32_t nYPix;
+    int writing;
 
 } MKID_WAVECAL_METADATA;
 

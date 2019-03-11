@@ -35,83 +35,103 @@
 #define STRBUF 80
 #define SHM_NAME_LEN 80
 #define ENERGY_BIN_PT 16384 //2^14
+#define PHASE_BIN_PT 32768 //2^14
 #define H_TIMES_C 1239.842 // units: eV*nm
 #define READER_THREAD 0
 #define BIN_WRITER_THREAD 1
 #define SHM_IMAGE_WRITER_THREAD 2
 #define CIRC_BUFF_WRITER_THREAD 3
 
-struct datapacket {
+#define handle_error_en(en, msg) \
+        do { errno = en; perror(msg); exit(EXIT_FAILURE); } while (0)
+
+typedef float wvlcoeff_t;
+
+typedef struct {
     unsigned int baseline:17;
-    unsigned int wvl:18;
+    unsigned int phase:18;
     unsigned int timestamp:9;
     unsigned int ycoord:10;
     unsigned int xcoord:10;
-}__attribute__((packed));;
+}__attribute__((packed)) PHOTON_WORD;;
 
-struct hdrpacket {
+typedef struct {
     unsigned long timestamp:36;
     unsigned int frame:12;
     unsigned int roach:8;
     unsigned int start:8;
-}__attribute__((packed));;
+}__attribute__((packed)) STREAM_HEADER;;
 
 typedef struct {
     uint64_t unread;
     char data[SHAREDBUF];
-}readoutstream_t;
+} READOUT_STREAM;
+
+typedef struct{
+    char solutionFile[80];
+    int writing;
+    uint32_t nXPix;
+    uint32_t nYPix;
+    // Each pixel has 3 coefficients, with address given by 
+    // &a = 3*(nXPix*y + x); &b = &a + 1; &c = &a + 2
+    wvlcoeff_t *data;
+
+} WAVECAL_BUFFER;
 
 typedef struct{
     int port;
     int nRoachStreams;
-    readoutstream_t **roachStreamList;
-    sem_t **imageSems;
+    READOUT_STREAM **roachStreamList;
+    char streamSemBaseName[80]; //append 0, 1, 2, etc for each name
 
-    sem_t *quitSem;
-
-    int cpu; //if cpu=-1 then don't maximize priority
-
-} ReaderParams;
-
-typedef struct{
-    readoutstream_t *roachStream;
-    char *ramdisk;
-
-    sem_t *quitSem;
+    char quitSemName[80];
 
     int cpu; //if cpu=-1 then don't maximize priority
 
-} BinWriterParams;
+} READER_PARAMS;
 
 typedef struct{
-    readoutstream_t *roachStream;
+    READOUT_STREAM *roachStream;
+    char ramdiskPath[80];
+
+    char quitSemName[80];
+    char streamSemName[80];
+
+    int cpu; //if cpu=-1 then don't maximize priority
+
+} BIN_WRITER_PARAMS;
+
+typedef struct{
+    READOUT_STREAM *roachStream;
     int nRoach;
     int nSharedImages;
     char **sharedImageNames;
-    char *wvlShmName; //if NULL don't use wavecal
+    WAVECAL_BUFFER *wavecal; //if NULL don't use wavecal
 
-    sem_t *quitSem;
+    char quitSemName[80];
+    char streamSemName[80];
 
     int cpu; //if cpu=-1 then don't maximize priority
     
-} ShmImageWriterParams;
+} SHM_IMAGE_WRITER_PARAMS;
 
 typedef struct{
-    readoutstream_t *roachStream;
-    char *bufferName;
-    char *wvlShmName; //if NULL don't use wavecal
+    READOUT_STREAM *roachStream;
+    char bufferName[80];
+    WAVECAL_BUFFER *wavecal; //if NULL don't use wavecal
 
-    sem_t *quitSem;
+    char quitSemName[80];
+    char streamSemName[80];
 
     int cpu; //if cpu=-1 then don't maximize priority
 
-} CircBuffWriterParams;
+} CIRC_BUFF_WRITER_PARAMS;
 
 typedef struct{
     pthread_attr_t attr;
     pthread_t thread;
 
-} ThreadParams;
+} THREAD_PARAMS;
 
 int maximizePriority(int cpu);
 
@@ -120,8 +140,12 @@ void *binWriter(void *prms);
 void *reader(void *prms);
 void *circBuffWriter(void *prms);
 
-int startReaderThread(ReaderParams *rparams, ThreadParams *tparams);
-int startBinWriterThread(BinWriterParams *rparams, ThreadParams *tparams);
-int startShmImageWriterThread(ShmImageWriterParams *rparams, ThreadParams *tparams);
-void quitAllThreads(sem_t *quitSem, int nThreads);
+void addPacketToImage(MKID_IMAGE *sharedImage, char *photonWord, 
+        unsigned int l, WAVECAL_BUFFER *wavecal);
 
+int startReaderThread(READER_PARAMS *rparams, THREAD_PARAMS *tparams);
+int startBinWriterThread(BIN_WRITER_PARAMS *rparams, THREAD_PARAMS *tparams);
+int startShmImageWriterThread(SHM_IMAGE_WRITER_PARAMS *rparams, THREAD_PARAMS *tparams);
+void quitAllThreads(const char *quitSemName, int nThreads);
+float getWavelength(PHOTON_WORD *photon, WAVECAL_BUFFER *wavecal);
+void diep(char *s);
