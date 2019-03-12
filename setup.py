@@ -77,13 +77,13 @@ pymkidshm_ext = Extension(name="mkidreadout.readout.mkidshm.pymkidshm",
                         sources=['mkidreadout/readout/mkidshm/pymkidshm.pyx'],
                         include_dirs=[numpy.get_include()],
                         extra_compile_args=['-shared', '-fPIC'],
-                        extra_link_args=['-lmkidshm', '-lrt', '-lpthread'])
+                        extra_link_args=['-L.', '-lmkidshm', '-lrt', '-lpthread'])
 
-packetmaster_ext = Extension(name="mkidreadout.readout.packetmaster.packetmaster",
-                        sources=['mkidreadout/readout/packetmaster/packetmaster.pyx'],
-                        include_dirs=[numpy.get_include()],
+packetmaster_ext = Extension(name="mkidreadout.readout.packetmaster",
+                        sources=['mkidreadout/readout/packetmaster.pyx'],
+                        include_dirs=[numpy.get_include(), 'mkidreadout/readout/packetmaster'],
                         extra_compile_args=['-shared', '-fPIC'],
-                        extra_link_args=['-lpacketmaster', '-lmkidshm', '-lrt', '-lpthread'])
+                        extra_link_args=['-L./mkidreadout/readout/packetmaster', '-lpacketmaster', '-lmkidshm', '-lrt', '-lpthread'])
 
 with open("README.md", "r") as fh:
     long_description = fh.read()
