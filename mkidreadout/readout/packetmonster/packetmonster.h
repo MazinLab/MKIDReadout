@@ -81,7 +81,7 @@ typedef struct{
 typedef struct{
     int port;
     int nRoachStreams;
-    READOUT_STREAM **roachStreamList;
+    READOUT_STREAM *roachStreamList;
     char streamSemBaseName[STRBUF]; //append 0, 1, 2, etc for each name
 
     char quitSemName[STRBUF];

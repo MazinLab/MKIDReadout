@@ -299,7 +299,7 @@ void* reader(void *prms){
     unsigned char buf[BUFLEN];
     ssize_t nBytesReceived = 0;
     ssize_t nTotalBytes = 0;
-    READOUT_STREAM **rptrs;
+    READOUT_STREAM *rptrs;
     READER_PARAMS *params;
     sem_t *quitSem;
     sem_t **streamSems;
@@ -399,14 +399,14 @@ void* reader(void *prms){
         // write the socket data to shared memory
         for(i=0; i<params->nRoachStreams; i++){
             sem_wait(streamSems[i]);
-            if(rptrs[i]->unread >= (SHAREDBUF - BUFLEN)) {
+            if(rptrs[i].unread >= (SHAREDBUF - BUFLEN)) {
                 perror("Data overflow in reader.\n");
 
             }
 
             else{
-                memmove(&(rptrs[i]->data[rptrs[i]->unread]), buf, nBytesReceived);
-                rptrs[i]->unread += nBytesReceived;
+                memmove(&(rptrs[i].data[rptrs[i].unread]), buf, nBytesReceived);
+                rptrs[i].unread += nBytesReceived;
             }
             sem_post(streamSems[i]);
 
