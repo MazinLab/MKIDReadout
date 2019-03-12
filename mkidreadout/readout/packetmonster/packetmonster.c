@@ -616,6 +616,17 @@ float getWavelength(PHOTON_WORD *photon, WAVECAL_BUFFER *wavecal){
 
 }
 
+void quitAllThreads(const char *quitSemName, int nThreads){
+    int i;
+    sem_t *quitSem;
+    char name[80];
+    snprintf(name, 80, "%s", quitSemName);
+    quitSem = sem_open(name, 0);
+    for(i=0; i<nThreads; i++)
+        sem_post(quitSem);
+
+}
+
 void diep(char *s){
     printf("errono: %d",errno);
     perror(s);

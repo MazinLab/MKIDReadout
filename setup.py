@@ -66,12 +66,17 @@ class CustomDevelop(develop, object):
         super(CustomDevelop,self).run()
 
 
-ext_module = Extension(name="mkidreadout.channelizer.roach2utils",
+roach2utils_ext = Extension(name="mkidreadout.channelizer.roach2utils",
                        sources=['mkidreadout/channelizer/roach2utils.pyx'],
                        include_dirs=[numpy.get_include()],
                        extra_compile_args=['-fopenmp'],
                        extra_link_args=['-fopenmp'])
 
+pymkidshm_ext = Extension(name="mkidreadout.readout.mkidshm.pymkidshm",
+                        sources=['mkidreadout/readout/mkidshm/pymkidshm.pyx'],
+                        include_dirs=[numpy.get_include()],
+                        extra_compile_args=['-shared', 'fPIC'],
+                        extra_link_args=['-lmkidshm', '-lrt', '-lptrhead'])
 
 with open("README.md", "r") as fh:
     long_description = fh.read()
@@ -92,7 +97,7 @@ setuptools.setup(
              'mkidreadout/channelizer/hightemplar.py',
              'mkidreadout/readout/dashboard.py',
              'mkidreadout/configuration/powersweep/clickthrough_hell.py'],
-    ext_modules=cythonize(ext_module),
+    ext_modules=cythonize([roach2utils_ext, pymkidshm_ext]), 
     classifiers=(
         "Programming Language :: Python :: 2.7",
         "License :: OSI Approved :: MIT License",
