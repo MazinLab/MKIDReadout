@@ -1,98 +1,6 @@
-#define _GNU_SOURCE
+#include "packetmaster.h"
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <errno.h>
-#include <unistd.h>
-#include <sys/types.h>
-#include <sys/wait.h>
-#include <string.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <netdb.h>
-#include <stdint.h>
-#include <sys/time.h>
-#include <signal.h>
-#include <time.h>
-#include <errno.h>
-#include <pthread.h>
-#include <semaphore.h>
-#include <signal.h>
-#include <fcntl.h>
-#include <sys/stat.h>
-#include <inttypes.h>
-#include <math.h>
-#include <byteswap.h>
-#include <sys/mman.h>
-#include <sched.h>
-#include "mkidshm.h"
-
-#define _POSIX_C_SOURCE 200809L
-#define BUFLEN 1500
-#define DEFAULT_PORT 50000
-#define SHAREDBUF 536870912
-#define TSOFFS 1514764800
-#define STRBUF 80
-#define SHM_NAME_LEN 80
-#define ENERGY_BIN_PT 16384 //2^14
-#define H_TIMES_C 1239.842 // units: eV*nm
-#define CFG_DEFAULT_PATH "PacketMaster.cfg"
-//#define SNINTTIME 20
-
-
-#define handle_error_en(en, msg) \
-        do { errno = en; perror(msg); exit(EXIT_FAILURE); } while (0)
-
-// global semaphores for locking shared memory.  sem0 = rptr1, sem1 = rptr2 
-static sem_t sem[3];
-static sem_t quitSem; //semaphore for quit condition
-
-//#define LOGPATH "/mnt/data0/logs/"
-
-// compile with gcc packetmaster.c -I../mkidshm -O3 -o packetmaster -L../mkidshm -lm -lmkidshm -lrt -lpthread
-
-struct datapacket {
-    unsigned int baseline:17;
-    unsigned int wvl:18;
-    unsigned int timestamp:9;
-    unsigned int ycoord:10;
-    unsigned int xcoord:10;
-}__attribute__((packed));;
-
-struct hdrpacket {
-    unsigned long timestamp:36;
-    unsigned int frame:12;
-    unsigned int roach:8;
-    unsigned int start:8;
-}__attribute__((packed));;
-
-struct readoutstream {
-    uint64_t unread;
-    char data[SHAREDBUF];
-    int useNuller;
-    int nRoach;
-};
-
-struct cfgParams {
-    char ramdiskPath[STRBUF];
-    int nXPix;
-    int nYPix;
-    int nRoach;
-    int port;
-    int nSharedImages;
-    char **sharedImageNames;
-};
-
-void diep(char *s)
-{
-  printf("errono: %d",errno);
-  perror(s);
-  exit(1);
-}
-
-// maximize thread priority and set to desired CPU
-int MaximizePriority(int cpu)
-{
+int MaximizePriority(int cpu){
     int ret,s;        
     struct sched_param params;  // struct sched_param is used to store the scheduling priority
     
@@ -129,116 +37,46 @@ int MaximizePriority(int cpu)
     return(ret);
 }
 
-// open a shared memory space named buf
-struct readoutstream *OpenShared(char buf[40])
-{
-    int fd;    
-    struct readoutstream *rptr;
-    
-    // Create shared memory for photon data
-    fd = shm_open(buf, O_CREAT | O_RDWR, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP);
-    if (fd == -1) { 
-        perror("shm_open");  /* something went wrong */
-        exit(1);             
-    }
-    
-    if (ftruncate(fd, sizeof(struct readoutstream)) == -1) { 
-        perror("ftruncate");  /* something went wrong */
-        exit(1);               
-    }
-  
-    rptr = mmap(NULL, sizeof(struct readoutstream), PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
-    if (rptr == MAP_FAILED) { 
-        perror("mmap");  /* something went wrong */
-        exit(1);            
-    }
-    
-    close(fd);
-    return(rptr);    
-}
+int startReaderThread(READER_PARAMS *rparams, THREAD_PARAMS *tparams){
+    int rc; 
+    pthread_attr_init(&(tparams->attr));
+    rc = pthread_create(&(tparams->thread), &(tparams->attr), reader, rparams);
+    if (rc){
+        printf("ERROR creating reader(); return code from pthread_create() is %d\n", rc);
+        //exit(-1);
+    } 
 
-void ParsePacket( uint16_t **image, char *packet, unsigned int l, int nXPix, int nYPix)
-{
-    uint64_t i;
-    //struct hdrpacket *hdr;
-    struct datapacket *data;
-    //uint64_t starttime;
-    //uint16_t curframe;
-    //char curroach;
-    uint64_t swp,swp1;
-
-    // pull out header information from the first packet
-//    swp = *((uint64_t *) (&packet[0]));
-//    swp1 = __bswap_64(swp);
-//    hdr = (struct hdrpacket *) (&swp1);             
-
-//    starttime = hdr->timestamp;
-//    curframe = hdr->frame;
-//    curroach = hdr->roach;
-        
-    // check for missed frames and print an error if we got the wrong frame number
-/*
-    if( frame[curroach] != curframe) {
-        printf("Roach %d: Expected Frame %d, Received Frame %d\n",curroach,frame[curroach],curframe); fflush(stdout);
-        frame[curroach] = (frame[curroach]+1)%4096;
-    }
-    else {
-        frame[curroach] = (frame[curroach]+1)%4096;
-    }
-*/
-
-    for(i=1;i<l/8;i++) {
-       
-       swp = *((uint64_t *) (&packet[i*8]));
-       swp1 = __bswap_64(swp);
-       data = (struct datapacket *) (&swp1);
-       //image[(data->xcoord)%XPIX][(data->ycoord)%YPIX]++;
-       //printf("x, y: %d, %d\n", data->xcoord, data->ycoord);
-       //printf("image at x, y: %d, %d\n", image[0][0]);
-       
-       if( data->xcoord >= nXPix || data->ycoord >= nYPix ) continue;
-       image[data->xcoord][data->ycoord]++;
-      
-    }
+    return rc;
 
 }
 
-void ParsePacketShm(MKID_IMAGE *sharedImage, char *packet, unsigned int l)
-{
-    uint64_t i;
-    struct datapacket *data;
-    uint64_t swp,swp1;
-    double energy, wvl, wvlBinSpacing;
-    int wvlBinInd;
+int startBinWriterThread(BIN_WRITER_PARAMS *rparams, THREAD_PARAMS *tparams){
+    int rc; 
+    pthread_attr_init(&(tparams->attr));
+    rc = pthread_create(&(tparams->thread), &(tparams->attr), binWriter, rparams);
+    if (rc){
+        printf("ERROR creating binWriter(); return code from pthread_create() is %d\n", rc);
+        //exit(-1);
+    } 
 
-    for(i=1;i<l/8;i++) {
-       
-        swp = *((uint64_t *) (&packet[i*8]));
-        swp1 = __bswap_64(swp);
-        data = (struct datapacket *) (&swp1);
-        
-        if( data->xcoord >= sharedImage->md->nXPix || data->ycoord >= sharedImage->md->nYPix ) continue;
-
-        if(sharedImage->md->useWvl)
-        {
-            energy = (double)data->wvl/ENERGY_BIN_PT; 
-            wvl = H_TIMES_C/energy;
-            if((wvl < sharedImage->md->wvlStart) || (wvl >= sharedImage->md->wvlStop))
-                continue; //check if wvl is out of range
-            wvlBinSpacing = (double)(sharedImage->md->wvlStop - sharedImage->md->wvlStart)/sharedImage->md->nWvlBins;
-            wvlBinInd = (int)(wvl - sharedImage->md->wvlStart)/wvlBinSpacing;         
-            sharedImage->image[(sharedImage->md->nXPix)*(sharedImage->md->nYPix)*wvlBinInd + (sharedImage->md->nXPix)*(data->ycoord) + data->xcoord]++;
-
-        }
-        
-        else
-            sharedImage->image[(sharedImage->md->nXPix)*(data->ycoord) + data->xcoord]++;
-      
-    }
+    return rc;
 
 }
 
-void *SharedImageWriter(void *prms)
+int startShmImageWriterThread(SHM_IMAGE_WRITER_PARAMS *rparams, THREAD_PARAMS *tparams){
+    int rc; 
+    pthread_attr_init(&(tparams->attr));
+    rc = pthread_create(&(tparams->thread), &(tparams->attr), shmImageWriter, rparams);
+    if (rc){
+        printf("ERROR creating shmImageWriter(); return code from pthread_create() is %d\n", rc);
+        //exit(-1);
+    } 
+
+    return rc;
+
+}
+
+void *shmImageWriter(void *prms)
 {
     int64_t br,i,j,ret,imgIdx;
     char data[1024];
@@ -251,9 +89,9 @@ void *SharedImageWriter(void *prms)
     uint64_t nsElapsed;
     uint64_t oldbr = 0;     // number of bytes of unparsed data sitting in olddata
     uint64_t pcount = 0;
-    struct hdrpacket *hdr;
+    STREAM_HEADER *hdr;
     uint64_t swp,swp1;
-    struct readoutstream *rptr;
+    READOUT_STREAM *rptr;
     uint64_t pstart;
 
     uint64_t curTs;
@@ -262,16 +100,22 @@ void *SharedImageWriter(void *prms)
     uint32_t *doneIntegrating; //Array of bitmasks (one for each image, bits are roaches)
     uint32_t doneIntMask; //constant - each place value corresponds to a roach board
     int *takingImage;
-    struct cfgParams *params;
+    SHM_IMAGE_WRITER_PARAMS *params;
     MKID_IMAGE *sharedImages;
+    sem_t *quitSem;
+    sem_t *streamSem;
 
-    ret = MaximizePriority(8);
+    params = (SHM_IMAGE_WRITER_PARAMS*)prms; //cast param struct
+
+    if(params->cpu != -1)
+        ret = MaximizePriority(params->cpu);
     printf("SharedImageWriter online.\n");
 
-    params = (struct cfgParams*)prms; //cast param struct
     doneIntMask = (1<<(params->nRoach))-1;
-    // open shared memory block 3 for photon data 
-    rptr = OpenShared("/roachstream3");
+    rptr = params->roachStream;
+
+    quitSem = sem_open(params->quitSemName, O_CREAT, S_IRUSR | S_IWUSR, 0);
+    streamSem = sem_open(params->streamSemName, O_CREAT, S_IRUSR | S_IWUSR, 0);
         
     olddata = (char *) malloc(sizeof(char)*SHAREDBUF);
     
@@ -287,16 +131,16 @@ void *SharedImageWriter(void *prms)
     for(imgIdx=0; imgIdx<params->nSharedImages; imgIdx++){
         MKIDShmImage_open(sharedImages+imgIdx, params->sharedImageNames[imgIdx]);
         memset(sharedImages[imgIdx].image, 0, sizeof(*(sharedImages[imgIdx].image)) * sharedImages[imgIdx].md->nXPix * sharedImages[imgIdx].md->nYPix); 
-        printf("zeroing block w/ size %d\n" ,sizeof(*(sharedImages[imgIdx].image)) * sharedImages[imgIdx].md->nXPix * sharedImages[imgIdx].md->nYPix);
+        printf("zeroing block w/ size %lu\n" ,sizeof(*(sharedImages[imgIdx].image)) * sharedImages[imgIdx].md->nXPix * sharedImages[imgIdx].md->nYPix);
 
     }
 
     printf("SharedImageWriter done initializing\n");
 
-    while (sem_trywait(&quitSem) == -1)
+    while (sem_trywait(quitSem) == -1)
     {
        // read in new data and parse it
-       sem_wait(&sem[2]);        
+       sem_wait(streamSem);        
        br = rptr->unread;
        if( br%8 != 0 ) printf("Misalign in SharedImageWriter - %d\n",(int)br); 
 	   	    
@@ -322,7 +166,7 @@ void *SharedImageWriter(void *prms)
              rptr->unread = 0;     
           }
        }
-       sem_post(&sem[2]);  
+       sem_post(streamSem);  
 
 
        // if there is data waiting, process it
@@ -350,7 +194,7 @@ void *SharedImageWriter(void *prms)
              
              swp = *((uint64_t *) (&olddata[i*8]));
              swp1 = __bswap_64(swp);
-             hdr = (struct hdrpacket *) (&swp1);             
+             hdr = (STREAM_HEADER *) (&swp1);             
 
              if (hdr->start == 0b11111111) {        // found new packet header!
                 // fill packet and parse
@@ -390,7 +234,7 @@ void *SharedImageWriter(void *prms)
                    {
                        //printf("curRoachTs: %lld\n", curTs);
                        if((curTs>sharedImages[imgIdx].md->startTime)&&(curTs<=(sharedImages[imgIdx].md->startTime+sharedImages[imgIdx].md->integrationTime)))
-                           ParsePacketShm(sharedImages+imgIdx,packet,i*8 - pstart);
+                           addPacketToImage(sharedImages+imgIdx,packet,i*8 - pstart, params->wavecal);
                        else if(curTs>(sharedImages[imgIdx].md->startTime+sharedImages[imgIdx].md->integrationTime))
                        {
                            doneIntegrating[imgIdx] |= (1<<curRoachInd);
@@ -440,187 +284,155 @@ void *SharedImageWriter(void *prms)
     free(sharedImages);
     free(takingImage);
     free(doneIntegrating);
+    sem_close(streamSem);
+    sem_close(quitSem);
 
     //fclose(timeFile);
     printf("SharedImageWriter: Closing\n");
     return NULL;
 }
 
-void* Cuber(void *prms)
-{
-    int64_t br,i,ret;
-    char data[1024];
-    char *olddata;
-    char packet[808*16];
-    char outfile[160];
-    time_t s,olds;  // Seconds
-    struct timespec spec;
-    uint16_t **image;
-    FILE *wp;
-    uint64_t oldbr = 0;     // number of bytes of unparsed data sitting in olddata
-    uint64_t pcount = 0;
-    struct hdrpacket *hdr;
-    uint64_t swp,swp1;
-    struct readoutstream *rptr;
-    uint64_t pstart;
-    struct timeval tv;
-    unsigned long long sysTs;
-    uint64_t roachTs;
-    struct cfgParams *params;
-    uint32_t tsOffs; //UTC timestamp for year start time
-    struct tm *startTime;
-    struct tm *yearStartTime;
-    int year;
+void* reader(void *prms){
+    //set up a socket connection
+    struct sockaddr_in si_me, si_other;
+    int s, ret, i;
+    unsigned char buf[BUFLEN];
+    ssize_t nBytesReceived = 0;
+    ssize_t nTotalBytes = 0;
+    READOUT_STREAM *rptrs;
+    READER_PARAMS *params;
+    sem_t *quitSem;
+    sem_t **streamSems;
+    char streamSemName[80];
 
-    params = (struct cfgParams*)prms; //cast param struct
-
-    ret = MaximizePriority(6);
-    printf("Fear the wrath of CUBER!\n");
+    params = (READER_PARAMS*) prms;
     
-    // open shared memory block 2 for photon data
-    rptr = OpenShared("/roachstream2");    
-    olddata = (char *) malloc(sizeof(char)*SHAREDBUF);
+    if(params->cpu != -1)
+        ret = MaximizePriority(params->cpu);
 
-    //initialize image
-    printf("nXPix %d\n", params->nXPix);
-    printf("nYPix %d\n", params->nYPix);
-    image = (uint16_t**)malloc(params->nXPix * sizeof(uint16_t*));
-    for(i=0; i<params->nXPix; i++)
+    printf("READER: Connecting to Socket!\n"); fflush(stdout);
+
+    rptrs = params->roachStreamList; //pointer to list of stream buffers, assume this is allocated
+
+    //open semaphores
+    quitSem = sem_open(params->quitSemName, O_CREAT, S_IRUSR | S_IWUSR, 0);
+    streamSems = (sem_t**) malloc(params->nRoachStreams * sizeof(sem_t*));
+    for(i=0; i<params->nRoachStreams; i++){
+        snprintf(streamSemName, 80, "%s%d", params->streamSemBaseName, i);
+        streamSems[i] = sem_open(streamSemName, O_CREAT, S_IRUSR | S_IWUSR, 0);
+    
+    }
+        
+
+    if ((s=socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP))==-1)
+        diep("socket");
+    printf("READER: socket created\n");
+    fflush(stdout);
+
+    memset((char *) &si_me, 0, sizeof(si_me));
+    si_me.sin_family = AF_INET;
+    si_me.sin_port = htons(params->port);
+    si_me.sin_addr.s_addr = htonl(INADDR_ANY);
+    if (bind(s, (const struct sockaddr *)(&si_me), sizeof(si_me))==-1)
+        diep("bind");
+    printf("READER: socket bind\n");
+    fflush(stdout);
+
+    //Set receive buffer size, the default is too small.  
+    //If the system will not allow this size buffer, you will need
+    //to use sysctl to change the max buffer size
+    int retval = 0;
+    int bufferSize = 33554432;
+    retval = setsockopt(s, SOL_SOCKET, SO_RCVBUF, &bufferSize, sizeof(bufferSize));
+    if (retval == -1)
+        diep("set receive buffer size");
+
+    //Set recv to timeout after 3 secs
+    const struct timeval sock_timeout={.tv_sec=3, .tv_usec=0};
+    retval = setsockopt(s, SOL_SOCKET, SO_RCVTIMEO, (char*)&sock_timeout, sizeof(sock_timeout));
+    if (retval == -1)
+        diep("set receive buffer size");
+
+    uint64_t nFrames = 0;
+    
+    // clean out socket before we start
+    //printf("READER: clearing buffer.\n"); fflush(stdout);
+    //while ( recv(s, buf, BUFLEN, 0) > 0 );
+    //printf("READER: buffer clear!\n"); fflush(stdout);
+
+    while(sem_trywait(quitSem)==-1) //(access( "/home/ramdisk/QUIT", F_OK ) == -1)
     {
-        image[i] = (uint16_t*)malloc(params->nYPix * sizeof(uint16_t));
-        memset(image[i], 0, sizeof(uint16_t)*params->nYPix);
+        /*
+        if (nFrames % 100 == 0)
+        {
+            printf("Frame %d\n",nFrames);  fflush(stdout);
+        }
+        */
+        nBytesReceived = recv(s, buf, BUFLEN, 0);
+        //printf("read from socket %d %d!\n",nFrames, nBytesReceived); fflush(stdout);
+        if (nBytesReceived == -1)
+        {
+            if (errno == EAGAIN || errno == EWOULDBLOCK)
+            {// recv timed out, clear the error and check again
+                errno = 0;
+                continue;
+            }
+            else
+                diep("recvfrom()");
+        }
+        
+        if (nBytesReceived == 0 ) continue;
+        
+        nTotalBytes += nBytesReceived;
+        //printf("Received packet from %s:%d\nData: %s\n\n", 
+        //inet_ntoa(si_other.sin_addr), ntohs(si_other.sin_port), buf);
+        //printf("Received %d bytes. Data: ",nBytesReceived);
+
+        if( nBytesReceived % 8 != 0 ) {
+            printf("Misalign in reader %ld\n",nBytesReceived); fflush(stdout);
+        }
+
+        ++nFrames; 
+
+        //printf("read from socket %d %d!\n",nFrames, nBytesReceived);
+        
+        // write the socket data to shared memory
+        for(i=0; i<params->nRoachStreams; i++){
+            sem_wait(streamSems[i]);
+            if(rptrs[i].unread >= (SHAREDBUF - BUFLEN)) {
+                perror("Data overflow in reader.\n");
+
+            }
+
+            else{
+                memmove(&(rptrs[i].data[rptrs[i].unread]), buf, nBytesReceived);
+                rptrs[i].unread += nBytesReceived;
+            }
+            sem_post(streamSems[i]);
+
+        }
 
     }
 
-    //memset(image, 0, sizeof(image[0][0]) * params->nXPix * params->nYPix);    // zero out array
-    memset(olddata, 0, sizeof(olddata[0])*2048);    // zero out array
-    memset(data, 0, sizeof(data[0]) * 1024);    // zero out array
-    memset(packet, 0, sizeof(packet[0]) * 808 * 2);    // zero out array
+    //fclose(dump_file);
+    printf("received %ld frames, %ld bytes\n",nFrames,nTotalBytes);
+    close(s);
 
-    clock_gettime(CLOCK_REALTIME, &spec);   
-    olds  = spec.tv_sec;
+    for(i=0; i<params->nRoachStreams; i++)
+        sem_close(streamSems[i]);
 
-    //startTime = gmtime(&olds);
-    //year = startTime->tm_year;
-    //yearStartTime = calloc(1, sizeof(struct tm));
-    //yearStartTime->tm_year = year;
-    //yearStartTime->tm_mday = 1;
-    //tsOffs = timegm(yearStartTime);
-    
-    //FILE *timeFile = fopen("timetestPk6.txt", "w");
+    sem_close(quitSem);
 
-    while(sem_trywait(&quitSem)==-1) //(access( "/home/ramdisk/QUIT", F_OK ) == -1)
-    {
-       // if it is a new second, zero the image array and start over
-       clock_gettime(CLOCK_REALTIME, &spec);   
-       s  = spec.tv_sec;
-       if( s > olds ) {                 
-          // we are in a new second, so write out image array and then zero out the array
-          sprintf(outfile,"%s/%ld.img", params->ramdiskPath, olds);
-          wp = fopen(outfile,"wb");
-          //fwrite(image, sizeof(image[0][0]), params->nXPix * params->nYPix, wp);
-          for(i=0; i<params->nXPix; i++)
-          {
-            fwrite(image[i], sizeof(uint16_t), params->nYPix, wp); //write to file
-            memset(image[i], 0, sizeof(uint16_t)*params->nYPix); //zero out array
-          
-          }
-          fclose(wp);
-          wp = NULL;
+    printf("Reader closing\n");
 
-          olds = s;
-          //memset(image, 0, sizeof(image[0][0]) * params->nXPix * params->nYPix);    // zero out array
-          printf("CUBER: Parse rate = %lu pkts/sec. Data in buffer = %lu\n",pcount,oldbr); fflush(stdout);
-          pcount=0;
-       }
-       
-       // not a new second, so read in new data and parse it
-       sem_wait(&sem[1]);        
-       br = rptr->unread;
-       if( br%8 != 0 ) printf("Misalign in Cuber - %ld\n",br); 
-	   	    
-       if( br > 0) {               
-          // we may be in the middle of a packet so put together a full packet from old data and new data
-          // and only parse when the packet is complete
-
-          // append current data to existing data if old data is present
-          // NOTE !!!  olddata must start with a packet header
-          if( oldbr > 0 ) {
-             memmove(&olddata[oldbr],rptr->data,br);
-             oldbr+=br;
-             rptr->unread = 0;
-             if (oldbr > SHAREDBUF-2000) {
-                printf("oldbr = %lu!  Dumping data!\n",oldbr); fflush(stdout);
-                br = 0;
-                oldbr=0;          
-             }
-          } 
-          else {
-             memmove(olddata,rptr->data,br);
-             oldbr=br;          
-             rptr->unread = 0;     
-          }
-       }
-       sem_post(&sem[1]);  
-
-       // sanity check that the first packet in oldbr is a header packet
-       /*
-       if(oldbr > 0) {
-           swp = *((uint64_t *) (&olddata[0]));
-           swp1 = __bswap_64(swp);
-           hdr = (struct hdrpacket *) (&swp1);
-           if (hdr->start != 0b11111111) {
-               printf("Oldbr (%d) start packet not a header! roach=%d frame=%d ts=%ld\n",oldbr,hdr->roach,hdr->frame,hdr->timestamp);  fflush(stdout);
-           } 
-       } */          
-
-       // if there is data waiting, process it
-       pstart = 0;
-       if( oldbr >= 808 ) {       
-          // search the available data for a packet boundary
-          //printf("Start Parse\n"); fflush(stdout);
-          for( i=1; i<oldbr/8; i++) {
-             
-             swp = *((uint64_t *) (&olddata[i*8]));
-             swp1 = __bswap_64(swp);
-             hdr = (struct hdrpacket *) (&swp1);             
-                                      
-             if (hdr->start == 0b11111111) {        // found new packet header!
-                // fill packet and parse
-                // printf("Found Header at %d\n",i*8); fflush(stdout);
-                roachTs = (uint64_t)hdr->timestamp;
-                gettimeofday(&tv, NULL);
-                sysTs = (unsigned long long)(tv.tv_sec)*1000 + (unsigned long long)(tv.tv_usec)/1000 - (unsigned long long)TSOFFS*1000;
-                sysTs = sysTs*2;
-                //fprintf(timeFile, "%llu %llu\n", roachTs, sysTs);
-
-                memmove(packet,&olddata[pstart],i*8 - pstart);
-                pcount++;                
-                ParsePacket(image,packet,i*8 - pstart, params->nXPix, params->nYPix); 
-		        pstart = i*8;   // move start location for next packet	                      
-             }
-          }
-
-	  // if there is data remaining save it for next run through
-          //printf("Copying excess %d, %d\n",oldbr,pstart); fflush(stdout);
-          memmove(olddata,&olddata[pstart],oldbr-pstart);
-          oldbr = oldbr-pstart;          
-       }                           
-    }
-
-    printf("CUBER: Closing\n");
-    free(olddata);
-    for(i=0; i<params->nXPix; i++)
-        free(image[i]);
-    free(image);
-    free(yearStartTime);
     return NULL;
+
 }
 
-void* Writer(void *prms)
+void* binWriter(void *prms)
 {
     //long            ms; // Milliseconds
-    time_t          s,olds;  // Seconds
+    time_t s,olds;  // Seconds
     struct timespec spec;
     long outcount;
     int ret, mode=0;
@@ -628,23 +440,28 @@ void* Writer(void *prms)
     //char data[1024];
     char path[80];
     char fname[120];
-    struct readoutstream *rptr;
-    char startFileName[STRBUF], stopFileName[STRBUF], quitFileName[STRBUF];
-    struct cfgParams *params;
+    READOUT_STREAM *rptr;
+    char startFileName[STRBUF], stopFileName[STRBUF];
+    BIN_WRITER_PARAMS *params;
+    sem_t *quitSem;
+    sem_t *streamSem;
 
-    params = (struct cfgParams*)prms; //cast param struct
-    ret = MaximizePriority(4);
+    params = (BIN_WRITER_PARAMS*)prms; //cast param struct
+    if(params->cpu!=-1)
+        ret = MaximizePriority(params->cpu);
 
     wp = NULL;
 
     printf("Rev up the RAID array, WRITER is active!\n");
 
+    quitSem = sem_open(params->quitSemName, O_CREAT, S_IRUSR | S_IWUSR, 0);
+    streamSem = sem_open(params->streamSemName, O_CREAT, S_IRUSR | S_IWUSR, 0);
+
     sprintf(startFileName, "%s/%s", params->ramdiskPath, "START");
     sprintf(stopFileName, "%s/%s", params->ramdiskPath, "STOP");
-    sprintf(quitFileName, "%s/%s", params->ramdiskPath, "QUIT");
 
     // open shared memory block 1 for photon data
-    rptr = OpenShared("/roachstream1");
+    rptr = params->roachStream;
     
     //  Write looks for a file on /home/ramdisk named "START" which contains the write path.  
     //  If this file is present, enter writing mode
@@ -656,13 +473,12 @@ void* Writer(void *prms)
     // mode = 2 :  continous writing mode, watch for "STOP" or "QUIT" files
     // mode = 3 :  QUIT file detected, exit
 
-    while (mode != 3) {
-
+    while (sem_trywait(quitSem) == -1){
        // keep the shared mem clean!       
        if( mode == 0 ) {
-          sem_wait(&sem[0]);
+          sem_wait(streamSem);
 	      rptr->unread = 0;
-	      sem_post(&sem[0]);
+	      sem_post(streamSem);
        }
 
        if( mode == 0 && access(startFileName, F_OK ) != -1 ) {
@@ -715,33 +531,24 @@ void* Writer(void *prms)
              }
 
 	         // write all data in shared memory to disk
-	         sem_wait(&sem[0]);
+	         sem_wait(streamSem);
 	         if( rptr->unread > 0 ) {
 	            fwrite( rptr->data, 1, rptr->unread, wp);    // could probably speed this up by copying data to new array and doing the fwrite after setting busy to 0
 	            outcount += rptr->unread; 
 	            rptr->unread = 0;
 	         }
-	         sem_post(&sem[0]);
+	         sem_post(streamSem);
           }
        }
 
-       // check for quit flag and then bug out if received! 
-       if( access(quitFileName, F_OK ) != -1 ) {
-          if(wp!=NULL)
-	        fclose(wp);
-          remove(startFileName);
-          remove(stopFileName);
-          remove(quitFileName);
-          sem_post(&quitSem);
-          sem_post(&quitSem);
-          if(params->nSharedImages>0)
-            sem_post(&quitSem);
-          mode = 3;
-          printf("Mode 3\n");
-       }
-
-
     }
+
+    if(wp!=NULL)
+	  fclose(wp);
+    sem_close(quitSem);
+    sem_close(streamSem);
+    remove(startFileName);
+    remove(stopFileName);
 
 /*
     clock_gettime(CLOCK_REALTIME, &spec);
@@ -760,314 +567,68 @@ void* Writer(void *prms)
     return NULL;
 }
 
-
-void* Reader(void *prms)
+void addPacketToImage(MKID_IMAGE *sharedImage, char *photonWord, 
+        unsigned int l, WAVECAL_BUFFER *wavecal)
 {
-  //set up a socket connection
-  struct sockaddr_in si_me, si_other;
-  int s,ret;
-  unsigned char buf[BUFLEN];
-  ssize_t nBytesReceived = 0;
-  ssize_t nTotalBytes = 0;
-  struct readoutstream *rptr1, *rptr2, *rptr3;
-  struct cfgParams *params;
+    uint64_t i;
+    PHOTON_WORD *data;
+    uint64_t swp,swp1;
+    float wvl, wvlBinSpacing;
+    int wvlBinInd;
 
-  params = (struct cfgParams*)prms; //cast param struct
-  
-  ret = MaximizePriority(2);
+    for(i=1;i<l/8;i++) {
+       
+        swp = *((uint64_t *) (&photonWord[i*8]));
+        swp1 = __bswap_64(swp);
+        data = (PHOTON_WORD *) (&swp1);
+        
+        if( data->xcoord >= sharedImage->md->nXPix || data->ycoord >= sharedImage->md->nYPix ) 
+            continue;
 
-  printf("READER: Connecting to Socket!\n"); fflush(stdout);
+        if((sharedImage->md->useWvl)){
+            if(wavecal == NULL){
+                perror("ERROR: No wavecal buffer specified!");
+                continue;
 
-  // Create shared memory for photon data
-  rptr1 = OpenShared("/roachstream1");
-  rptr2 = OpenShared("/roachstream2");
-  if(params->nSharedImages>0)
-    rptr3 = OpenShared("/roachstream3");
+            }
+            wvl = getWavelength(data, wavecal);
+            if((wvl < sharedImage->md->wvlStart) || (wvl >= sharedImage->md->wvlStop))
+                continue; //check if wvl is out of range
+            wvlBinSpacing = (double)(sharedImage->md->wvlStop - sharedImage->md->wvlStart)/sharedImage->md->nWvlBins;
+            wvlBinInd = (int)(wvl - sharedImage->md->wvlStart)/wvlBinSpacing;         
+            sharedImage->image[(sharedImage->md->nXPix)*(sharedImage->md->nYPix)*wvlBinInd + (sharedImage->md->nXPix)*(data->ycoord) + data->xcoord]++;
 
-  if ((s=socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP))==-1)
-    diep("socket");
-  printf("READER: socket created\n");
-  fflush(stdout);
-
-  memset((char *) &si_me, 0, sizeof(si_me));
-  si_me.sin_family = AF_INET;
-  si_me.sin_port = htons(params->port);
-  si_me.sin_addr.s_addr = htonl(INADDR_ANY);
-  if (bind(s, (const struct sockaddr *)(&si_me), sizeof(si_me))==-1)
-      diep("bind");
-  printf("READER: socket bind\n");
-  fflush(stdout);
-
-  //Set receive buffer size, the default is too small.  
-  //If the system will not allow this size buffer, you will need
-  //to use sysctl to change the max buffer size
-  int retval = 0;
-  int bufferSize = 33554432;
-  retval = setsockopt(s, SOL_SOCKET, SO_RCVBUF, &bufferSize, sizeof(bufferSize));
-  if (retval == -1)
-    diep("set receive buffer size");
-
-  //Set recv to timeout after 3 secs
-  const struct timeval sock_timeout={.tv_sec=3, .tv_usec=0};
-  retval = setsockopt(s, SOL_SOCKET, SO_RCVTIMEO, (char*)&sock_timeout, sizeof(sock_timeout));
-  if (retval == -1)
-    diep("set receive buffer size");
-
-  uint64_t nFrames = 0;
-  
-  // clean out socket before we start
-  //printf("READER: clearing buffer.\n"); fflush(stdout);
-  //while ( recv(s, buf, BUFLEN, 0) > 0 );
-  //printf("READER: buffer clear!\n"); fflush(stdout);
-
-  while(sem_trywait(&quitSem)==-1) //(access( "/home/ramdisk/QUIT", F_OK ) == -1)
-  {
-    /*
-    if (nFrames % 100 == 0)
-    {
-        printf("Frame %d\n",nFrames);  fflush(stdout);
-    }
-    */
-    nBytesReceived = recv(s, buf, BUFLEN, 0);
-    //printf("read from socket %d %d!\n",nFrames, nBytesReceived); fflush(stdout);
-    if (nBytesReceived == -1)
-    {
-      if (errno == EAGAIN || errno == EWOULDBLOCK)
-      {// recv timed out, clear the error and check again
-        errno = 0;
-        continue;
-      }
-      else
-        diep("recvfrom()");
-    }
-    
-    if (nBytesReceived == 0 ) continue;
-    
-    nTotalBytes += nBytesReceived;
-    //printf("Received packet from %s:%d\nData: %s\n\n", 
-    //inet_ntoa(si_other.sin_addr), ntohs(si_other.sin_port), buf);
-    //printf("Received %d bytes. Data: ",nBytesReceived);
-
-    if( nBytesReceived % 8 != 0 ) {
-       printf("Misalign in reader %ld\n",nBytesReceived); fflush(stdout);
-    }
-
-    ++nFrames; 
-
-    //printf("read from socket %d %d!\n",nFrames, nBytesReceived);
-    
-    // write the socket data to shared memory
-    sem_wait(&sem[0]);       
-    if( rptr1->unread >= (SHAREDBUF - BUFLEN) ) {
-       perror("Data overflow 1 in Reader.\n");   
-    } 
-    else {
-       memmove( &(rptr1->data[rptr1->unread]),buf,nBytesReceived);
-       rptr1->unread += nBytesReceived;
-    }      
-    sem_post(&sem[0]);
-    
-    sem_wait(&sem[1]);
-    if( rptr2->unread >= (SHAREDBUF - BUFLEN) ) {
-       perror("Data overflow 2 in Reader.\n");   
-    } 
-    else {
-       memmove( &(rptr2->data[rptr2->unread]),buf,nBytesReceived);
-       rptr2->unread += nBytesReceived;
-    }      
-    sem_post(&sem[1]);
-
-    if(params->nSharedImages>0)
-    {
-        sem_wait(&sem[2]);
-        if( rptr3->unread >= (SHAREDBUF - BUFLEN) ) {
-           perror("Data overflow 2 in Reader.\n");   
-        } 
-        else {
-           memmove( &(rptr3->data[rptr3->unread]),buf,nBytesReceived);
-           rptr3->unread += nBytesReceived;
-        }      
-        sem_post(&sem[2]);
-    }
-  }
-
-  //fclose(dump_file);
-  printf("received %ld frames, %ld bytes\n",nFrames,nTotalBytes);
-  close(s);
-
-  printf("Reader closing\n");
-
-  return NULL;
-
-}
-
-// copied from http://material.karlov.mff.cuni.cz/people/hajek/Magon/lojza/merak.c
-double timespec_subtract (struct timespec *x, struct timespec *y) {
-  /* Perform the carry for the later subtraction by updating Y. */
-  if (x->tv_nsec < y->tv_nsec)
-    {
-      int nsec = (y->tv_nsec - x->tv_nsec) / 1000000000 + 1;
-      y->tv_nsec -= 1000000000 * nsec;
-      y->tv_sec += nsec;
-    }
-
-  if (1000000000 < x->tv_nsec - y->tv_nsec)
-    {
-      int nsec = (y->tv_nsec - x->tv_nsec) / 1000000000;
-      y->tv_nsec += 1000000000 * nsec;
-      y->tv_sec -= nsec;
-    }
-
-  /* Compute the time remaining to wait.
-     `tv_nsec' is certainly positive. */
-//  *diff=1.*(double)(x->tv_sec - y->tv_sec) + 1e-9*(double)(x->tv_nsec - y->tv_nsec);
-  //diff->tv_sec = x->tv_sec - y->tv_sec;
-  //diff->tv_nsec = x->tv_nsec - y->tv_nsec;
-
-  /* Return 1 if result is positive. */
- // return y->tv_sec < x->tv_sec;
-  return 1.*(double)(x->tv_sec - y->tv_sec) + 1e-9*(double)(x->tv_nsec - y->tv_nsec);
-}
-
-int main(int argc, char* argv[])
-{
-    
-    pthread_t threads[4];
-    pthread_attr_t attr;
-    void *status;
-
-    int rc,t,i;
-    char buf[30];
-    char *cfgPath;
-    struct readoutstream *rptr1, *rptr2, *rptr3;
-    
-    FILE *cfgfp;
-    struct cfgParams params;
-    char startFileName[STRBUF], stopFileName[STRBUF], quitFileName[STRBUF];
-    
-    // Wait for existing config file
-    printf("Waiting for Dashboard\n");
-    
-    if(argc==1)
-        cfgPath = CFG_DEFAULT_PATH;
-    else if(argc==2)
-        cfgPath = argv[1];
-    else
-    {
-        printf("Usage: ./packetmaster [<cfgfile>]\n");
-        exit(1);
-
-    }
-
-    printf("Using cfgpath: %s\n", cfgPath);
-
-
-    while (access( cfgPath, F_OK ) == -1) usleep(10000); //sleep 10 ms
-
-    cfgfp = fopen(cfgPath,"r");
-    fscanf(cfgfp,"%s\n", params.ramdiskPath);
-    fscanf(cfgfp,"%d %d\n", &(params.nXPix), &(params.nYPix));
-    fscanf(cfgfp, "%d\n", &(params.nRoach));
-    fscanf(cfgfp, "%d\n", &(params.port));
-    fscanf(cfgfp, "%d\n", &(params.nSharedImages));
-    params.sharedImageNames = (char**)malloc(params.nSharedImages*sizeof(char*));
-    for(i=0; i<params.nSharedImages; i++)
-    {
-        params.sharedImageNames[i] = (char*)malloc(SHM_NAME_LEN*sizeof(char));
-        fscanf(cfgfp, "%s\n", params.sharedImageNames[i]);
-        printf("imagename: %s\n", params.sharedImageNames[i]);
-
-    }
-    fclose(cfgfp);
-    //remove(cfgPath);
-    //printf("%d\n", params.nXPix);
-    
-    //printf("Ramdisk: %s\n", params.ramdiskPath);
-    printf("Capture Port: %d\n", params.port);
-    // Delete pre-existing control files
-    sprintf(startFileName, "%s/%s", params.ramdiskPath, "START");
-    sprintf(stopFileName, "%s/%s", params.ramdiskPath, "STOP");
-    sprintf(quitFileName, "%s/%s", params.ramdiskPath, "QUIT");
-    remove(startFileName);
-    remove(stopFileName);
-    remove(quitFileName);
-    
-    // Initialize and set thread detached attribute
-    pthread_attr_init(&attr);
-    pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_JOINABLE);
-
-    // Set up semaphores
-    sem_init(&sem[0], 0, 1);
-    sem_init(&sem[1], 0, 1);
-    if(params.nSharedImages>0)
-        sem_init(&sem[2], 0, 1);
-    sem_init(&quitSem, 0, 0);
-
-    // Create shared memory for photon data
-    rptr1 = OpenShared("/roachstream1");
-    rptr2 = OpenShared("/roachstream2");
-    
-    if(params.nSharedImages>0)
-        rptr3 = OpenShared("/roachstream3");
-    
-    t=0;
-    rc = pthread_create(&threads[0], &attr, Reader, &params);
-    if (rc){
-        printf("ERROR creating Reader(); return code from pthread_create() is %d\n", rc);
-        exit(-1);
-    }
-    
-    rc = pthread_create(&threads[1], &attr, Writer, &params);
-    if (rc){
-        printf("ERROR creating Writer(); return code from pthread_create() is %d\n", rc);
-        exit(-1);
-    }
-    
-    rc = pthread_create(&threads[2], &attr, Cuber, &params);
-    if (rc){
-        printf("ERROR creating Cuber(); return code from pthread_create() is %d\n", rc);
-        exit(-1);
-    }
-    
-    if(params.nSharedImages>0){
-        rc = pthread_create(&threads[3], &attr, SharedImageWriter, &params);
-        if (rc){
-            printf("ERROR creating SharedImageWriter(); return code from pthread_create() is %d\n", rc);
-            exit(-1);
         }
-    
-    }
-    
-    pthread_attr_destroy(&attr);
-    rc = pthread_join(threads[1], &status); // wait until we detect quit condition in Writer()
-    if (rc) {
-        printf("ERROR; return code from pthread_join() is %d\n", rc);
-        exit(-1);
-    }
-                       
-    // close shared memory
-    printf("Closing shared memory...\n");
-    sem_wait(&sem[0]);  // stop messing with memory 
-    sem_wait(&sem[1]);      
-    
-    //printf("Killing Cuber and Reader\n");
-    //pthread_cancel(threads[0]);  // kill Reader
-    //pthread_cancel(threads[2]);  // kill Cuber
-    
-    shm_unlink("/roachstream1");   
-    shm_unlink("/roachstream2");   
-    sem_close(&sem[0]);
-    sem_close(&sem[1]);
-
-    if(params.nSharedImages>0)
-    {
-        sem_wait(&sem[2]);
-        shm_unlink("/roachstream3");
-        sem_close(&sem[2]);
-
+        
+        else
+            sharedImage->image[(sharedImage->md->nXPix)*(data->ycoord) + data->xcoord]++;
+      
     }
 
-    sem_close(&quitSem);
-    
-    pthread_exit(NULL);  // close up shop
+}
+
+float getWavelength(PHOTON_WORD *photon, WAVECAL_BUFFER *wavecal){
+    float phase = (float)photon->phase/PHASE_BIN_PT;
+    int bufferInd = 3*(wavecal->nXPix * photon->ycoord + photon->xcoord);
+    float energy = phase*phase*wavecal->data[bufferInd] + phase*wavecal->data[bufferInd+1]
+        + wavecal->data[bufferInd+2];
+    return H_TIMES_C/energy;
+
+}
+
+void quitAllThreads(const char *quitSemName, int nThreads){
+    int i;
+    sem_t *quitSem;
+    char name[80];
+    snprintf(name, 80, "%s", quitSemName);
+    quitSem = sem_open(name, 0);
+    for(i=0; i<nThreads; i++)
+        sem_post(quitSem);
+
+}
+
+void diep(char *s){
+    printf("errono: %d",errno);
+    perror(s);
+    exit(1);
 }

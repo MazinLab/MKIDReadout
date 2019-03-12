@@ -1,5 +1,5 @@
 cimport numpy as np
-from pymkidshm import MKIDShmImage
+from mkidreadout.readout.mkidshm.pymkidshm import MKIDShmImage
 
 from libc.stdlib cimport malloc, free
 from libc.string cimport memset, strcpy
@@ -18,7 +18,7 @@ cdef extern from "<stdint.h>":
     ctypedef unsigned int uint32_t
     ctypedef unsigned long long uint64_t
 
-cdef extern from "packetmonster.h":
+cdef extern from "packetmaster.h":
     cdef int STRBUF
     cdef int SHAREDBUF
     ctypedef float wvlcoeff_t
@@ -84,13 +84,19 @@ cdef extern from "packetmonster.h":
     cdef int startShmImageWriterThread(SHM_IMAGE_WRITER_PARAMS *rparams, THREAD_PARAMS *tparams);
     cdef void quitAllThreads(const char *quitSemName, int nThreads);
 
-cdef class PacketMonster(object): 
-    cdef BIN_WRITER_PARAMS writerParams;
-    cdef SHM_IMAGE_WRITER_PARAMS imageParams;
-    cdef READER_PARAMS readerParams;
-    cdef WAVECAL_BUFFER wavecal;
-    cdef READOUT_STREAM *streams;
-    cdef THREAD_PARAMS *threads;
+cdef class PacketMaster(object): 
+    cdef BIN_WRITER_PARAMS writerParams
+    cdef SHM_IMAGE_WRITER_PARAMS imageParams
+    cdef READER_PARAMS readerParams
+    cdef WAVECAL_BUFFER wavecal
+    cdef READOUT_STREAM *streams
+    cdef THREAD_PARAMS *threads
+    cdef int nRows
+    cdef int nCols
+    cdef int nStreams
+    cdef int nThreads
+    cdef int nSharedImages
+    cdef object sharedImages
     
     def __init__(self, nRoaches, nRows, nCols, port, useWriter, ramdiskPath=None, wvlSol=None, 
                 beammap=None, sharedImageCfg=None, maximizePriority=False):

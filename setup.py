@@ -32,18 +32,19 @@ def compile_and_install_software():
     if platform.system()!='Linux':
         return
 
-    src_path = './mkidreadout/readout/packetmaster/'
+    src_paths = ['./mkidreadout/readout/mkidshm',
+                './mkidreadout/readout/packetmaster/']
 
     # compile the software
-    cmds = ["gcc -Wall -Wextra -o packetmaster packetmaster.c -I. -lm -lrt -lpthread -O3"]
+    cmds = ["gcc -shared -o libmkidshm.so -fPIC mkidshm.c -lrt -lpthread",
+            "gcc -shared -o libpacketmaster.so -fPIC packetmaster.c -lmkidshm -lrt -lpthread"]
 #            'gcc -o Bin2PNG Bin2PNG.c -I. -lm -lrt -lpng',
 #            'gcc -o BinToImg BinToImg.c -I. -lm -lrt',
 #            'gcc -o BinCheck BinCheck.c -I. -lm -lrt']
     venv = get_virtualenv_path()
 
     try:
-
-        for cmd in cmds:
+        for cmd, src_path in zip(cmds, src_paths):
             if venv:
                 cmd += ' --prefix=' + os.path.abspath(venv)
             subprocess.check_call(cmd, cwd=src_path, shell=True)
@@ -75,8 +76,14 @@ roach2utils_ext = Extension(name="mkidreadout.channelizer.roach2utils",
 pymkidshm_ext = Extension(name="mkidreadout.readout.mkidshm.pymkidshm",
                         sources=['mkidreadout/readout/mkidshm/pymkidshm.pyx'],
                         include_dirs=[numpy.get_include()],
-                        extra_compile_args=['-shared', 'fPIC'],
-                        extra_link_args=['-lmkidshm', '-lrt', '-lptrhead'])
+                        extra_compile_args=['-shared', '-fPIC'],
+                        extra_link_args=['-lmkidshm', '-lrt', '-lpthread'])
+
+packetmaster_ext = Extension(name="mkidreadout.readout.packetmaster.packetmaster",
+                        sources=['mkidreadout/readout/packetmaster/packetmaster.pyx'],
+                        include_dirs=[numpy.get_include()],
+                        extra_compile_args=['-shared', '-fPIC'],
+                        extra_link_args=['-lpacketmaster', '-lmkidshm', '-lrt', '-lpthread'])
 
 with open("README.md", "r") as fh:
     long_description = fh.read()
@@ -97,7 +104,7 @@ setuptools.setup(
              'mkidreadout/channelizer/hightemplar.py',
              'mkidreadout/readout/dashboard.py',
              'mkidreadout/configuration/powersweep/clickthrough_hell.py'],
-    ext_modules=cythonize([roach2utils_ext, pymkidshm_ext]), 
+    ext_modules=cythonize([roach2utils_ext, pymkidshm_ext, packetmaster_ext]), 
     classifiers=(
         "Programming Language :: Python :: 2.7",
         "License :: OSI Approved :: MIT License",

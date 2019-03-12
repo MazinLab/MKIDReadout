@@ -48,12 +48,6 @@ cdef extern from "mkidshm.h":
     cdef int MKIDShmImage_checkIfDone(MKID_IMAGE *image, int semInd)
     cdef void MKIDShmImage_copy(MKID_IMAGE *image, image_t *outputBuffer);
 
-    cdef int MKIDShmWavecal_open(MKID_WAVECAL *wavecal, const char *name);
-    cdef int MKIDShmWavecal_close(MKID_WAVECAL *wavecal);
-    cdef int MKIDShmWavecal_create(MKID_WAVECAL_METADATA *wavecalMetadata, const char *name, MKID_WAVECAL *outputWavecal);
-    cdef coeff_t MKIDShmWavecal_getEnergy(MKID_WAVECAL *wavecal, int x, int y, float phase);
-
-
 
 cdef class MKIDShmImage(object):
     cdef MKID_IMAGE image
@@ -148,37 +142,5 @@ cdef class MKIDShmImage(object):
     def wvlStop(self):
         return self.image.md.wvlStop
     
-cdef class RealtimeWavecal(object):
-
-    cdef MKID_WAVECAL wavecalshm;
-    
-    def __init__(self, name, sol=None, beammap=None):
-        self.sol = sol
-        self.beammap = beammap
-        self.name = name
-        if not name[0]=='/':
-            name = '/'+name
-        if os.path.isfile(os.path.join('/dev/shm', name[1:])):
-            if sol is not None:
-                raise Exception('Solution buffer already exists!')
-            else:
-                MKIDShmWavecal_open(&(self.wavecalshm), name.encode('UTF-8'))
-        else:
-            if beammap is None:
-                raise Exception('Must provide beammap to create solution buffer!')
-            self.create()
-            self.applySol(sol, beammap)
-
-    def create(self):
-        cdef MKID_WAVECAL_METADATA md
-        md.nXPix = self.beammap.ncols
-        md.nYPix = self.beammap.nrows
-        MKIDShmWavecal_create(&md, self.name.encode('UTF-8'), &(self.wavecalshm))
-        
-        
-
-    def applySol(self, sol, beammap):
-        self.sol = sol
-        self.beammap = beammap
         
 
