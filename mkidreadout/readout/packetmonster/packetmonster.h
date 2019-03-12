@@ -68,7 +68,7 @@ typedef struct {
 } READOUT_STREAM;
 
 typedef struct{
-    char solutionFile[80];
+    char solutionFile[STRBUF];
     int writing;
     uint32_t nXPix;
     uint32_t nYPix;
@@ -82,9 +82,9 @@ typedef struct{
     int port;
     int nRoachStreams;
     READOUT_STREAM **roachStreamList;
-    char streamSemBaseName[80]; //append 0, 1, 2, etc for each name
+    char streamSemBaseName[STRBUF]; //append 0, 1, 2, etc for each name
 
-    char quitSemName[80];
+    char quitSemName[STRBUF];
 
     int cpu; //if cpu=-1 then don't maximize priority
 
@@ -92,10 +92,10 @@ typedef struct{
 
 typedef struct{
     READOUT_STREAM *roachStream;
-    char ramdiskPath[80];
+    char ramdiskPath[STRBUF];
 
-    char quitSemName[80];
-    char streamSemName[80];
+    char quitSemName[STRBUF];
+    char streamSemName[STRBUF];
 
     int cpu; //if cpu=-1 then don't maximize priority
 
@@ -108,8 +108,8 @@ typedef struct{
     char **sharedImageNames;
     WAVECAL_BUFFER *wavecal; //if NULL don't use wavecal
 
-    char quitSemName[80];
-    char streamSemName[80];
+    char quitSemName[STRBUF];
+    char streamSemName[STRBUF];
 
     int cpu; //if cpu=-1 then don't maximize priority
     
@@ -117,11 +117,11 @@ typedef struct{
 
 typedef struct{
     READOUT_STREAM *roachStream;
-    char bufferName[80];
+    char bufferName[STRBUF];
     WAVECAL_BUFFER *wavecal; //if NULL don't use wavecal
 
-    char quitSemName[80];
-    char streamSemName[80];
+    char quitSemName[STRBUF];
+    char streamSemName[STRBUF];
 
     int cpu; //if cpu=-1 then don't maximize priority
 
