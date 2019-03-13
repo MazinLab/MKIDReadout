@@ -37,7 +37,7 @@ def compile_and_install_software():
 
     # compile the software
     cmds = ["gcc -shared -o libmkidshm.so -fPIC mkidshm.c -lrt -lpthread",
-            "gcc -shared -o libpacketmaster.so -fPIC packetmaster.c -lmkidshm -lrt -lpthread"]
+            "gcc -shared -o libpacketmaster.so -fPIC -I../mkidshm/ packetmaster.c -L../mkidshm/ -lmkidshm -lrt -lpthread"]
 #            'gcc -o Bin2PNG Bin2PNG.c -I. -lm -lrt -lpng',
 #            'gcc -o BinToImg BinToImg.c -I. -lm -lrt',
 #            'gcc -o BinCheck BinCheck.c -I. -lm -lrt']
