@@ -96,7 +96,6 @@ from mkidreadout.channelizer.adcTools import streamSpectrum, checkSpectrumForSpi
 from mkidcore.corelog import getLogger
 import mkidcore.corelog
 from mkidreadout.configuration import sweepdata
-from mkidpipeline.calibration.wavecal import Solution
 #from mkidreadout.channelizer.Roach2Utils import cy_generateTones
 
 

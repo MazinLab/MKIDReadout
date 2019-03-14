@@ -281,7 +281,7 @@ void *shmImageWriter(void *prms)
     free(olddata);
     free(boardNums);
     for(imgIdx=0; imgIdx<params->nSharedImages; imgIdx++)
-        MKIDShmImage_close(sharedImages+i);
+        MKIDShmImage_close(sharedImages+imgIdx);
     free(sharedImages);
     free(takingImage);
     free(doneIntegrating);

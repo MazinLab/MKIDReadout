@@ -132,16 +132,21 @@ cdef class PacketMaster(object):
             self.imageParams.wavecal = &(self.wavecal)
             self.imageParams.sharedImageNames = <char**>malloc(self.nSharedImages*sizeof(char*))
             for i,image in enumerate(sharedImageCfg):
-                nWvlBins = image.nWvlBins if image.has_key('nWvlBins') else 1
-                useWvl = image.useWvl if image.has_key('useWvl') else False
-                wvlStart = image.wvlStart if image.has_key('wvlStart') else False
-                wvlStop = image.wvlStop if image.has_key('wvlStop') else False
+                nWvlBins = sharedImageCfg[image].nWvlBins if sharedImageCfg[image].has_key('nWvlBins') else 1
+                useWvl = sharedImageCfg[image].useWvl if sharedImageCfg[image].has_key('useWvl') else False
+                wvlStart = sharedImageCfg[image].wvlStart if sharedImageCfg[image].has_key('wvlStart') else False
+                wvlStop = sharedImageCfg[image].wvlStop if sharedImageCfg[image].has_key('wvlStop') else False
 
-                self.sharedImages.append(MKIDShmImage(name=image.name, 
+                self.sharedImages.append(MKIDShmImage(name=image, 
                                  nYPix=nRows, nXPix=nCols, useWvl=useWvl,
                                  nWvlBins=nWvlBins, wvlStart=wvlStart,
                                  wvlStop=wvlStop))
-                strcpy(self.imageParams.sharedImageNames[i], image.name.encode('UTF-8'))
+                #MKIDShmImage(name=image, 
+                #                 nYPix=nRows, nXPix=nCols, useWvl=useWvl,
+                #                 nWvlBins=nWvlBins, wvlStart=wvlStart,
+                #                 wvlStop=wvlStop)
+                self.imageParams.sharedImageNames[i] = <char*>malloc(STRBUF*sizeof(char*))
+                strcpy(self.imageParams.sharedImageNames[i], image.encode('UTF-8'))
                 
         else:
             self.nSharedImages = 0 
