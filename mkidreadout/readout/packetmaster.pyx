@@ -106,13 +106,13 @@ cdef class PacketMaster(object):
 
         #DEAL W/ CPU PRIORITY
         if maximizePriority:
-            self.readerParams.cpu = -1
-            self.writerParams.cpu = -1
-            self.imageParams.cpu = -1
-        else:
             self.readerParams.cpu = READER_CPU
             self.writerParams.cpu = BIN_WRITER_CPU
             self.imageParams.cpu = SHM_IMAGE_WRITER_CPU
+        else:
+            self.readerParams.cpu = -1
+            self.writerParams.cpu = -1
+            self.imageParams.cpu = -1
 
         #INITIALIZE WAVECAL
         self.wavecal.data = <wvlcoeff_t*>malloc(sizeof(wvlcoeff_t)*nRows*nCols)
