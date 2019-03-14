@@ -42,7 +42,7 @@ from mkidreadout.channelizer.Roach2Controls import Roach2Controls
 from mkidreadout.utils.utils import interpolateImage
 from mkidreadout.configuration.beammap.beammap import Beammap
 import mkidreadout.configuration.sweepdata as sweepdata
-#from mkidreadout.readout.packetmaster import Packetmaster
+from mkidreadout.readout.packetmaster import Packetmaster
 import mkidreadout.hardware.conex
 import mkidreadout.hardware.hsfw
 
@@ -535,15 +535,15 @@ class MKIDDashboard(QMainWindow):
 
         # Initialize PacketMaster8
         getLogger('Dashboard').info('Initializing packetmaster...')
-        #self.packetmaster = Packetmaster(len(self.config.roaches), ramdisk=self.config.packetmaster.ramdisk,
-        #                                 nrows=self.config.detector.nrows, ncols=self.config.detector.ncols,
-        #                                 nuller=self.config.packetmaster.nuller,
-        #                                 resume=not self.config.dashboard.spawn_packetmaster,
-        #                                 captureport=self.config.packetmaster.captureport,
-        #                                 start=self.config.dashboard.spawn_packetmaster and not self.offline)
+        self.packetmaster = Packetmaster(len(self.config.roaches), ramdisk=self.config.packetmaster.ramdisk,
+                                         nrows=self.config.detector.nrows, ncols=self.config.detector.ncols,
+                                         nuller=self.config.packetmaster.nuller,
+                                         resume=not self.config.dashboard.spawn_packetmaster,
+                                         captureport=self.config.packetmaster.captureport,
+                                         start=self.config.dashboard.spawn_packetmaster and not self.offline)
 
-        #if not self.packetmaster.is_running:
-        #    getLogger('Dashboard').info('Packetmaster not started. Start manually...')
+        if not self.packetmaster.is_running:
+            getLogger('Dashboard').info('Packetmaster not started. Start manually...')
 
         # Laser Controller
         getLogger('Dashboard').info('Setting up laser control...')
@@ -576,7 +576,7 @@ class MKIDDashboard(QMainWindow):
                 if not roach.connect() and not roach.issetup:
                     raise RuntimeError('Roach r{} has not been setup.'.format(roachNum))
                 roach.loadCurTimestamp()
-                roach.setPhotonCapturePort(self.config.packetmaster.captureport)
+                roach.setPhotonCapturePort(self.packetmaster.captureport)
                 self.roachList.append(roach)
             self.turnOnPhotonCapture()
         self.loadBeammap()
@@ -1080,7 +1080,7 @@ class MKIDDashboard(QMainWindow):
             self.turnOnPhotonCapture()  # NB this does NOT also need to be in stop obs, roaches still send
             if self.takingDark < 0 and self.takingFlat < 0:
                 self.sciFactory = CalFactory('sum', dark=self.darkField, flat=self.flatField)
-            #self.packetmaster.startobs(self.config.paths.data)
+            self.packetmaster.startobs(self.config.paths.data)
             self.button_obs.setText('Stop Observing')
             self.button_obs.clicked.connect(self.stopObs)
             self.button_obs.setEnabled(True)
@@ -1610,7 +1610,7 @@ class MKIDDashboard(QMainWindow):
 
         self.hide()
         time.sleep(1)
-        #self.packetmaster.quit() #TODO consider adding a forced kill
+        self.packetmaster.quit() #TODO consider adding a forced kill
 
         QtCore.QCoreApplication.instance().quit()
 
