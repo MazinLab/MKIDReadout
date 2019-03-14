@@ -213,5 +213,11 @@ cdef class PacketMaster(object):
 
     def __dealloc__(self):
         free(self.streams)
+        for i in range(self.nSharedImages):
+            free(self.imageParams.sharedImageNames[i])
+        free(self.imageParams.sharedImageNames)
+        free(self.threads)
+        free(self.wavecal.data)
+        
 
 
