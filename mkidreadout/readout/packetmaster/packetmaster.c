@@ -116,6 +116,7 @@ void *shmImageWriter(void *prms)
 
     quitSem = sem_open(params->quitSemName, O_CREAT, S_IRUSR | S_IWUSR, 0);
     streamSem = sem_open(params->streamSemName, O_CREAT, S_IRUSR | S_IWUSR, 0);
+    sem_post(streamSem);
         
     olddata = (char *) malloc(sizeof(char)*SHAREDBUF);
     
@@ -335,7 +336,7 @@ void* reader(void *prms){
     si_me.sin_addr.s_addr = htonl(INADDR_ANY);
     if (bind(s, (const struct sockaddr *)(&si_me), sizeof(si_me))==-1)
         diep("bind");
-    printf("READER: socket bind\n");
+    printf("READER: socket bind to port %d\n", params->port);
     fflush(stdout);
 
     //Set receive buffer size, the default is too small.  
@@ -385,7 +386,7 @@ void* reader(void *prms){
         
         nTotalBytes += nBytesReceived;
         //printf("Received packet from %s:%d\nData: %s\n\n", 
-        //inet_ntoa(si_other.sin_addr), ntohs(si_other.sin_port), buf);
+        //        inet_ntoa(si_other.sin_addr), ntohs(si_other.sin_port), buf);
         //printf("Received %d bytes. Data: ",nBytesReceived);
 
         if( nBytesReceived % 8 != 0 ) {
@@ -456,9 +457,11 @@ void* binWriter(void *prms)
 
     quitSem = sem_open(params->quitSemName, O_CREAT, S_IRUSR | S_IWUSR, 0);
     streamSem = sem_open(params->streamSemName, O_CREAT, S_IRUSR | S_IWUSR, 0);
+    sem_post(streamSem);
 
     sprintf(startFileName, "%s/%s", params->ramdiskPath, "START");
     sprintf(stopFileName, "%s/%s", params->ramdiskPath, "STOP");
+    printf("Ramdisk path: %s\n", params->ramdiskPath);
 
     // open shared memory block 1 for photon data
     rptr = params->roachStream;
@@ -563,7 +566,7 @@ void* binWriter(void *prms)
        printf("%ld\n",dat);	
     }
 */
-    printf("WRITER: Closing\n");
+    printf("WRITER: Closing\n"); fflush(stdout);
     return NULL;
 }
 
