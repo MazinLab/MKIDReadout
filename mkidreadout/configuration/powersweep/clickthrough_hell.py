@@ -8,9 +8,7 @@ from PyQt4.QtCore import *
 from mkidreadout.utils.iqsweep import *
 from matplotlib.backends.backend_qt4 import NavigationToolbar2QT as NavigationToolbar
 from mkidreadout.configuration.powersweep.autopeak import Finder
-import mkidreadout.instruments as instruments
-
-from pkg_resources import resource_filename
+import mkidcore.instruments as instruments
 
 import mkidreadout.configuration.powersweep.gui as gui
 import mkidreadout.configuration.sweepdata as sweepdata

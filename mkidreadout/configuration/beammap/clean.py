@@ -23,7 +23,7 @@ from mkidreadout.utils.arrayPopup import plotArray
 from mkidreadout.utils.readDict import readDict
 from mkidreadout.configuration.beammap.flags import beamMapFlags
 from mkidreadout.configuration.beammap.utils import isInCorrectFL, getFLFromID, getFLFromCoords, isResonatorOnCorrectFeedline, generateCoords
-from mkidreadout.configuration.beammap.beammap import Beammap
+from mkidcore.objects import Beammap
 from mkidreadout.configuration.beammap import shift
 
 MEC_FL_WIDTH = 14

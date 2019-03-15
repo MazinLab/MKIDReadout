@@ -1,9 +1,6 @@
 import numpy as np
-import re
-import os
 import matplotlib.pyplot as plt
 from mkidcore.corelog import getLogger
-import mkidreadout.instruments as instruments
 
 # flags
 ISGOOD = 0b1
