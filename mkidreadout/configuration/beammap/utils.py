@@ -60,7 +60,7 @@ def getFLCoordRangeMaps(FLmap):
     return xMinFLmap, xMaxFLmap, yMinFLmap, yMaxFLmap
 
 
-def isInCorrectFL(resIDs, x, y, instrument, slack=0, flip=False):
+def isInCorrectFL(resIDs, x, y, instrument='', slack=0, flip=False):
     correctFL = getFLFromID(resIDs)
     flFromCoordsP = getFLFromCoords(x + slack, y + slack, instrument, flip)
     flFromCoordsN = getFLFromCoords(x - slack, y - slack, instrument, flip)
@@ -73,7 +73,7 @@ def getFLFromID(resIDs):
     return correctFL
 
 
-def getFLFromCoords(x, y, instrument, flip=False):
+def getFLFromCoords(x, y, instrument='', flip=False):
     if instrument.lower() == 'mec':
         nFL = N_FL_MEC
         flWidth = MEC_FL_WIDTH
@@ -82,6 +82,8 @@ def getFLFromCoords(x, y, instrument, flip=False):
         nFL = N_FL_DARKNESS
         flWidth = DARKNESS_FL_WIDTH
         flCoords = y
+    else:
+        raise RuntimeError('No instrument has been specified')
 
     flFromCoords = np.floor(flCoords / flWidth)
 
@@ -94,7 +96,6 @@ def getFLFromCoords(x, y, instrument, flip=False):
 
 
 def getDesignFreqMap(designFreqFL, FLmap):
-    FLs = np.unique(FLmap)
     designFreqMap = np.empty(FLmap.shape)
     for FL in FLmap:
         designFreqMap[np.where(FLmap == FL)] = designFreqFL
@@ -527,31 +528,15 @@ def isResonatorOnCorrectFeedline(resID, xcoordinate, ycoordinate, instrument='',
         return False
 
 
-def getFLFromCoords(x, y, instrument='', flip=False):
-    if instrument.lower() == 'mec':
-        numFL = 10
-        flWidth = 14
-        flCoord = x
-    elif instrument.lower() == 'darkness':
-        numFL = 5
-        flWidth = 25
-        flCoord = y
-
-    flFromCoords = np.floor(flCoord / flWidth)
-    if flip:
-        flFromCoords = numFL - flFromCoords
-    else:
-        flFromCoords = flFromCoords + 1
-    return flFromCoords
-
-
-def placeResonatorOnFeedline(xCoord, yCoord, instrument):
+def placeResonatorOnFeedline(xCoord, yCoord, instrument=''):
     if instrument.lower() == 'mec':
         x = int(xCoord % MEC_FL_WIDTH)
         y = int(yCoord % MEC_FL_LENGTH)
     elif instrument.lower() == 'darkness':
         x = int(xCoord % DARKNESS_FL_LENGTH)
         y = int(yCoord % DARKNESS_FL_WIDTH)
+    else:
+        raise RuntimeError('No instrument has been specified')
 
     return x, y
 

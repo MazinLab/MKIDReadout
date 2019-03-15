@@ -410,13 +410,3 @@ class Feedline(object):
         v = self.removeNaNsfromArray(self.nearestNeighborFreqLocation[:, 0])
         plt.quiver(x, y, u, v, angles='xy', scale_units='xy', scale=1)
         plt.show()
-
-
-# if __name__ == '__main__':
-# USED FOR TESTING ON A LOCAL MACHINE
-#
-#     designFlPath = '/mnt/data0/nswimmer/Repositories/mapcheckertesting/mec_feedline.txt'
-#     rawBM = Beammap()
-#     rawBM.load('/mnt/data0/nswimmer/Repositories/mapcheckertesting/beammapTestData/newtest/RawMapV1.txt')
-#     rawBM.loadFrequencies(r'/mnt/data0/nswimmer/Repositories/mapcheckertesting/beammapTestData/newtest/ps*.txt')
-#     shifter = BeammapShifter(designFlPath, rawBM, "mec")
