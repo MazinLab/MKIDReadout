@@ -2,7 +2,7 @@ import mkidcore.config
 from pkg_resources import resource_filename
 from shutil import copy2 as copy2
 import os
-from mkidreadout.configuration.beammap.beammap import DEFAULT_BMAP_CFGFILES
+from mkidcore.config import DEFAULT_BMAP_CFGFILES
 
 DEFAULT_TEMPLAR_CFGFILE = resource_filename('mkidreadout', os.path.join('config', 'hightemplar.yml'))
 DEFAULT_DASHBOARD_CFGFILE = resource_filename('mkidreadout', os.path.join('config', 'dashboard.yml'))
