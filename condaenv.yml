@@ -25,6 +25,8 @@ dependencies:
   - cython
   - flask
   - requests
+  - lmfit
+  - funcsig
 #optional
   - mpmath
   - blas
