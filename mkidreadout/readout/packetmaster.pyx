@@ -254,16 +254,16 @@ cdef class Packetmaster(object):
         a = np.zeros((self.nRows, self.nCols))
         b = np.zeros((self.nRows, self.nCols))
         c = np.zeros((self.nRows, self.nCols))
-        resIDMap = beammap.residmap
+        resIDMap = beammap.residmap.T
 
-        for r in range(self.nRows):
-            for c in range(self.nCols):
-                resID = resIDMap[r,c]
+        for i in range(self.nRows):
+            for j in range(self.nCols):
+                resID = resIDMap[i,j]
                 if np.any(resID==calResIDs):
                     curCoeffs = calCoeffs[resID==calResIDs]
-                    a[r,c] = curCoeffs[0]
-                    b[r,c] = curCoeffs[1]
-                    c[r,c] = curCoeffs[2]
+                    a[i,j] = curCoeffs[0]
+                    b[i,j] = curCoeffs[1]
+                    c[i,j] = curCoeffs[2]
 
         a = a.flatten()
         b = b.flatten()
