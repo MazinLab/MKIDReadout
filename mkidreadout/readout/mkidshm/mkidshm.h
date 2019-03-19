@@ -25,8 +25,8 @@ typedef float coeff_t;
 
 typedef struct{
     //metadata
-    uint32_t nXPix;
-    uint32_t nYPix;
+    uint32_t nCols;
+    uint32_t nRows;
     uint32_t useWvl; //ignore wavelength information if 0
     uint32_t nWvlBins;
     uint32_t wvlStart;
@@ -44,7 +44,7 @@ typedef struct{
     MKID_IMAGE_METADATA *md; //pointer to shared memory buffer
 
     // For nCounts in pixel (x, y) and wavelength bin i:
-    //  image[i*nXPix*nYPix + y*nXPix + x]
+    //  image[i*nCols*nRows + y*nCols + x]
     image_t *image; //pointer to shared memory buffer
 
     sem_t *takeImageSem; //post to start integration
@@ -81,8 +81,8 @@ typedef struct{
 typedef struct{
     char wavecalSolutionFile[80];
     char bufferName[80];
-    uint32_t nXPix;
-    uint32_t nYPix;
+    uint32_t nCols;
+    uint32_t nRows;
     int writing;
 
 } MKID_WAVECAL_METADATA;
@@ -91,7 +91,7 @@ typedef struct{
     MKID_WAVECAL_METADATA *md;
     
     // Each pixel has 3 coefficients, with address given by 
-    // &a = 3*(nXPix*y + x); &b = &a + 1; &c = &a + 2
+    // &a = 3*(nCols*y + x); &b = &a + 1; &c = &a + 2
     coeff_t *data; 
 
 } MKID_WAVECAL;
@@ -101,7 +101,7 @@ typedef struct{
 int MKIDShmImage_open(MKID_IMAGE *imageStruct, const char *imgName);
 int MKIDShmImage_close(MKID_IMAGE *imageStruct);
 int MKIDShmImage_create(MKID_IMAGE_METADATA *imageMetadata, const char *imgName, MKID_IMAGE *outputImage);
-int MKIDShmImage_populateMD(MKID_IMAGE_METADATA *imageMetadata, const char *name, int nXPix, int nYPix, int useWvl, int nWvlBins, int wvlStart, int wvlStop);
+int MKIDShmImage_populateMD(MKID_IMAGE_METADATA *imageMetadata, const char *name, int nCols, int nRows, int useWvl, int nWvlBins, int wvlStart, int wvlStop);
 void MKIDShmImage_startIntegration(MKID_IMAGE *image, uint64_t startTime, uint64_t integrationTime);
 void MKIDShmImage_wait(MKID_IMAGE *image, int semInd);
 int MKIDShmImage_checkIfDone(MKID_IMAGE *image, int semInd);

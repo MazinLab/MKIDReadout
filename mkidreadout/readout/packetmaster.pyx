@@ -1,13 +1,17 @@
+import numpy as np
 cimport numpy as np
 from mkidreadout.readout.mkidshm.pymkidshm import MKIDShmImage
+import mkidpipeline.calibration.wavecal as wvl
 
 from libc.stdlib cimport malloc, free
-from libc.string cimport memset, strcpy
+from libc.string cimport memset, memcpy, strcpy
 
 READER_CPU = 1
 BIN_WRITER_CPU = 2
 SHM_IMAGE_WRITER_CPU = 3
 CIRC_BUFF_WRITER_CPU = 4
+
+N_WVL_COEFFS = 3
 
 #WARNING: DO NOT USE IF THERE MAY BE MULTIPLE INSTANCES OF PACKETMASTER;
 #         THESE ARE SYSTEM WIDE SEMAPHORES
@@ -66,10 +70,10 @@ cdef extern from "packetmaster.h":
     ctypedef struct WAVECAL_BUFFER:
         char solutionFile[80];
         int writing;
-        uint32_t nXPix;
-        uint32_t nYPix;
+        uint32_t nCols;
+        uint32_t nRows;
         # Each pixel has 3 coefficients, with address given by 
-        # &a = 3*(nXPix*y + x); &b = &a + 1; &c = &a + 2
+        # &a = 3*(nCols*y + x); &b = &a + 1; &c = &a + 2
         wvlcoeff_t *data;
 
     ctypedef struct READOUT_STREAM:
@@ -84,7 +88,11 @@ cdef extern from "packetmaster.h":
     cdef int startShmImageWriterThread(SHM_IMAGE_WRITER_PARAMS *rparams, THREAD_PARAMS *tparams);
     cdef void quitAllThreads(const char *quitSemName, int nThreads);
 
-cdef class PacketMaster(object): 
+cdef class Packetmaster(object): 
+    """
+    Receives and parses photon events for the MKID readout. This class is a python frontend for 
+    the code in packetmaster/packetmaster.c. 
+    """
     cdef BIN_WRITER_PARAMS writerParams
     cdef SHM_IMAGE_WRITER_PARAMS imageParams
     cdef READER_PARAMS readerParams
@@ -100,6 +108,35 @@ cdef class PacketMaster(object):
     
     def __init__(self, nRoaches, nRows, nCols, port, useWriter, ramdiskPath=None, wvlSol=None, 
                 beammap=None, sharedImageCfg=None, maximizePriority=False):
+        """
+        Starts the reader (packet receiving) thread along with the appropriate number of parsing 
+        threads according to the specified configuration.
+
+        Parameters
+        ----------
+            nRoaches: int
+                Number of ROACH2 boards currently set up to read out the array and stream photons.
+            nRows: int
+                Number of rows on MKID array
+            nCols: int
+                Number of columns on MKID array
+            port: int
+                Port to use for receiving photon stream
+            useWriter: bool
+                If true, starts the writer thread for writing .bin files to disk
+            ramdiskPath: string
+                Path to "ramdisk", where writer looks for START and STOP files from dashboard. Required
+                if useWriter is True, otherwise not used.
+            wvlSol: Wavecal Solution object. 
+                Used to fill buffer containing wavecal solution LUT.
+            beammap: Beammap object.
+                Required if wvlSol is set, otherwise not used.
+            sharedImageCfg: yaml config object.
+                Configuration object specifying shared memory objects for acquiring realtime images.
+                Typical usage would pass a configdict specified in dashboard.yml. Creates/opens 
+                MKIDShmImage objects for each image.
+                
+        """
         #MISC param initialization
         self.nRows = nRows
         self.nCols = nCols
@@ -115,8 +152,8 @@ cdef class PacketMaster(object):
             self.imageParams.cpu = -1
 
         #INITIALIZE WAVECAL
-        self.wavecal.data = <wvlcoeff_t*>malloc(sizeof(wvlcoeff_t)*nRows*nCols)
-        memset(self.wavecal.data, 0, sizeof(wvlcoeff_t)*nRows*nCols)
+        self.wavecal.data = <wvlcoeff_t*>malloc(N_WVL_COEFFS*sizeof(wvlcoeff_t)*nRows*nCols)
+        memset(self.wavecal.data, 0, N_WVL_COEFFS*sizeof(wvlcoeff_t)*nRows*nCols)
         if wvlSol is not None:
             if beammap is None:
                 raise Exception('Must provide a beammap to use a wavecal')
@@ -138,13 +175,9 @@ cdef class PacketMaster(object):
                 wvlStop = sharedImageCfg[image].wvlStop if sharedImageCfg[image].has_key('wvlStop') else False
 
                 self.sharedImages.append(MKIDShmImage(name=image, 
-                                 nYPix=nRows, nXPix=nCols, useWvl=useWvl,
+                                 nRows=nRows, nCols=nCols, useWvl=useWvl,
                                  nWvlBins=nWvlBins, wvlStart=wvlStart,
                                  wvlStop=wvlStop))
-                #MKIDShmImage(name=image, 
-                #                 nYPix=nRows, nXPix=nCols, useWvl=useWvl,
-                #                 nWvlBins=nWvlBins, wvlStart=wvlStart,
-                #                 wvlStop=wvlStop)
                 self.imageParams.sharedImageNames[i] = <char*>malloc(STRBUF*sizeof(char*))
                 strcpy(self.imageParams.sharedImageNames[i], image.encode('UTF-8'))
                 
@@ -203,12 +236,53 @@ cdef class PacketMaster(object):
         
  
     def applyWvlSol(self, wvlSol, beammap):
+        """
+        Fills packetmaster's wavecal buffer with solution specified in wvlSol.
+        (Should be!) safe to use while packetmaster threads are running, though
+        data will be invalid while writing.
+
+        Parameters
+        ----------
+            wvlSol: Wavecal Solution object
+            beamap: beammap object
+        """
+        self.wavecal.nCols = self.nCols
+        self.wavecal.nRows = self.nRows
+        strcpy(self.wavecal.solutionFile, wvlSol._file_path.encode('UTF-8'))
+
+        calResIDs, calCoeffs = wvlSol.find_calibrations()
+        a = np.zeros((self.nRows, self.nCols))
+        b = np.zeros((self.nRows, self.nCols))
+        c = np.zeros((self.nRows, self.nCols))
+        resIDMap = beammap.residmap
+
+        for r in range(self.nRows):
+            for c in range(self.nCols):
+                resID = resIDMap[r,c]
+                if np.any(resID==calResIDs):
+                    curCoeffs = calCoeffs[resID==calResIDs]
+                    a[r,c] = curCoeffs[0]
+                    b[r,c] = curCoeffs[1]
+                    c[r,c] = curCoeffs[2]
+
+        a = a.flatten()
+        b = b.flatten()
+        c = c.flatten()
+
+        coeffArray = np.zeros(N_WVL_COEFFS*self.nRows*self.nCols)
+        coeffArray[0::3] = a
+        coeffArray[1::3] = b
+        coeffArray[2::3] = c
+        coeffArray = coeffArray.astype(np.single) #convert to float (ASSUMES wvlcoeff_t is float!)
+
         self.wavecal.writing = 1
-        self.wavecal.nXPix = self.nCols
-        self.wavecal.nYPix = self.nRows
-        strcpy(wvlSol.solutionFile, wvlSol._file_path.encode('UTF-8'))
+        memcpy(self.wavecal.data, <wvlcoeff_t*>np.PyArray_DATA(coeffArray), N_WVL_COEFFS*self.nRows*self.nCols*sizeof(wvlcoeff_t))
+        self.wavecal.writing = 0
 
     def quit(self):
+        """
+        Exit all threads
+        """
         quitAllThreads(QUIT_SEM_NAME.encode('UTF-8'), self.nThreads)
 
     def __dealloc__(self):

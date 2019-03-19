@@ -131,8 +131,8 @@ void *shmImageWriter(void *prms)
 
     for(imgIdx=0; imgIdx<params->nSharedImages; imgIdx++){
         MKIDShmImage_open(sharedImages+imgIdx, params->sharedImageNames[imgIdx]);
-        memset(sharedImages[imgIdx].image, 0, sizeof(*(sharedImages[imgIdx].image)) * sharedImages[imgIdx].md->nXPix * sharedImages[imgIdx].md->nYPix); 
-        printf("zeroing block w/ size %lu\n" ,sizeof(*(sharedImages[imgIdx].image)) * sharedImages[imgIdx].md->nXPix * sharedImages[imgIdx].md->nYPix);
+        memset(sharedImages[imgIdx].image, 0, sizeof(*(sharedImages[imgIdx].image)) * sharedImages[imgIdx].md->nCols * sharedImages[imgIdx].md->nRows); 
+        printf("zeroing block w/ size %lu\n" ,sizeof(*(sharedImages[imgIdx].image)) * sharedImages[imgIdx].md->nCols * sharedImages[imgIdx].md->nRows);
 
     }
 
@@ -185,7 +185,7 @@ void *shmImageWriter(void *prms)
                       takingImage[imgIdx] = 1;
                       doneIntegrating[imgIdx] = 0;   
                       // zero out array:
-                      memset(sharedImages[imgIdx].image, 0, sizeof(*(sharedImages[imgIdx].image)) * sharedImages[imgIdx].md->nXPix * sharedImages[imgIdx].md->nYPix); 
+                      memset(sharedImages[imgIdx].image, 0, sizeof(*(sharedImages[imgIdx].image)) * sharedImages[imgIdx].md->nCols * sharedImages[imgIdx].md->nRows); 
                       if(sharedImages[imgIdx].md->startTime==0)
                           sharedImages[imgIdx].md->startTime = curTs;
                    
@@ -585,7 +585,7 @@ void addPacketToImage(MKID_IMAGE *sharedImage, char *photonWord,
         swp1 = __bswap_64(swp);
         data = (PHOTON_WORD *) (&swp1);
         
-        if( data->xcoord >= sharedImage->md->nXPix || data->ycoord >= sharedImage->md->nYPix ) 
+        if( data->xcoord >= sharedImage->md->nCols || data->ycoord >= sharedImage->md->nRows ) 
             continue;
 
         if((sharedImage->md->useWvl)){
@@ -599,12 +599,12 @@ void addPacketToImage(MKID_IMAGE *sharedImage, char *photonWord,
                 continue; //check if wvl is out of range
             wvlBinSpacing = (double)(sharedImage->md->wvlStop - sharedImage->md->wvlStart)/sharedImage->md->nWvlBins;
             wvlBinInd = (int)(wvl - sharedImage->md->wvlStart)/wvlBinSpacing;         
-            sharedImage->image[(sharedImage->md->nXPix)*(sharedImage->md->nYPix)*wvlBinInd + (sharedImage->md->nXPix)*(data->ycoord) + data->xcoord]++;
+            sharedImage->image[(sharedImage->md->nCols)*(sharedImage->md->nRows)*wvlBinInd + (sharedImage->md->nCols)*(data->ycoord) + data->xcoord]++;
 
         }
         
         else
-            sharedImage->image[(sharedImage->md->nXPix)*(data->ycoord) + data->xcoord]++;
+            sharedImage->image[(sharedImage->md->nCols)*(data->ycoord) + data->xcoord]++;
       
     }
 
@@ -612,7 +612,7 @@ void addPacketToImage(MKID_IMAGE *sharedImage, char *photonWord,
 
 float getWavelength(PHOTON_WORD *photon, WAVECAL_BUFFER *wavecal){
     float phase = (float)photon->phase/PHASE_BIN_PT;
-    int bufferInd = 3*(wavecal->nXPix * photon->ycoord + photon->xcoord);
+    int bufferInd = 3*(wavecal->nCols * photon->ycoord + photon->xcoord);
     float energy = phase*phase*wavecal->data[bufferInd] + phase*wavecal->data[bufferInd+1]
         + wavecal->data[bufferInd+2];
     return H_TIMES_C/energy;

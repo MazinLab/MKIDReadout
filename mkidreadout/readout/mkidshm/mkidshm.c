@@ -57,7 +57,7 @@ int MKIDShmImage_create(MKID_IMAGE_METADATA *imageMetadata, const char *imgName,
     outputImage->md = mdPtr;
 
     // CREATE IMAGE DATA BUFFER
-    int imageSize = (mdPtr->nXPix)*(mdPtr->nYPix)*(mdPtr->nWvlBins);
+    int imageSize = (mdPtr->nCols)*(mdPtr->nRows)*(mdPtr->nWvlBins);
 
     imgPtr = (image_t*)openShmFile(mdPtr->imageBufferName, sizeof(image_t)*imageSize, 1);
     if(imgPtr==NULL)
@@ -99,7 +99,7 @@ int MKIDShmImage_open(MKID_IMAGE *imageStruct, const char *imgName){
     imageStruct->md = mdPtr;
 
     // OPEN IMAGE BUFFER 
-    int imageSize = (mdPtr->nXPix)*(mdPtr->nYPix)*(mdPtr->nWvlBins);
+    int imageSize = (mdPtr->nCols)*(mdPtr->nRows)*(mdPtr->nWvlBins);
     imgPtr = (image_t*)openShmFile(imageStruct->md->imageBufferName, imageSize*sizeof(image_t), 0);
     if(imgPtr == NULL)
         return -1;
@@ -130,15 +130,15 @@ int MKIDShmImage_close(MKID_IMAGE *imageStruct){
         sem_close(imageStruct->doneImageSemList[i]);
     free(imageStruct->doneImageSemList);
 
-    munmap(imageStruct->image, sizeof(image_t)*(imageStruct->md->nXPix)*(imageStruct->md->nYPix)*(imageStruct->md->nWvlBins));
+    munmap(imageStruct->image, sizeof(image_t)*(imageStruct->md->nCols)*(imageStruct->md->nRows)*(imageStruct->md->nWvlBins));
     munmap(imageStruct->md, sizeof(MKID_IMAGE_METADATA));
     return 0;
 
 }
 
-int MKIDShmImage_populateMD(MKID_IMAGE_METADATA *imageMetadata, const char *name, int nXPix, int nYPix, int useWvl, int nWvlBins, int wvlStart, int wvlStop){
-    imageMetadata->nXPix = nXPix;
-    imageMetadata->nYPix = nYPix;
+int MKIDShmImage_populateMD(MKID_IMAGE_METADATA *imageMetadata, const char *name, int nCols, int nRows, int useWvl, int nWvlBins, int wvlStart, int wvlStop){
+    imageMetadata->nCols = nCols;
+    imageMetadata->nRows = nRows;
     imageMetadata->useWvl = useWvl;
     imageMetadata->nWvlBins = nWvlBins;
     imageMetadata->wvlStart = wvlStart;
@@ -148,6 +148,7 @@ int MKIDShmImage_populateMD(MKID_IMAGE_METADATA *imageMetadata, const char *name
     snprintf(imageMetadata->imageBufferName, 80, "%s.buf", name);
     snprintf(imageMetadata->takeImageSemName, 80, "%s.takeImg", name);
     snprintf(imageMetadata->doneImageSemName, 80, "%s.doneImg", name);
+    return 0;
 
 }
 
@@ -185,7 +186,7 @@ int MKIDShmImage_checkIfDone(MKID_IMAGE *image, int semInd){
     return sem_trywait(image->doneImageSemList[semInd]);}
 
 void MKIDShmImage_copy(MKID_IMAGE *image, image_t *outputBuffer){
-    memcpy(outputBuffer, image->image, sizeof(image_t) * image->md->nXPix * image->md->nYPix * image->md->nWvlBins);}
+    memcpy(outputBuffer, image->image, sizeof(image_t) * image->md->nCols * image->md->nRows * image->md->nWvlBins);}
 
 int MKIDShmWavecal_create(MKID_WAVECAL_METADATA *wavecalMetadata, const char *name, MKID_WAVECAL *outputWavecal){
     MKID_WAVECAL_METADATA *mdPtr;
@@ -200,7 +201,7 @@ int MKIDShmWavecal_create(MKID_WAVECAL_METADATA *wavecalMetadata, const char *na
     outputWavecal->md = mdPtr;
 
     // CREATE IMAGE DATA BUFFER
-    int bufferSize = (mdPtr->nXPix)*(mdPtr->nYPix)*3;
+    int bufferSize = (mdPtr->nCols)*(mdPtr->nRows)*3;
 
     dataPtr = (coeff_t*)openShmFile(mdPtr->bufferName, sizeof(coeff_t)*bufferSize, 1);
     if(dataPtr==NULL)
@@ -212,7 +213,7 @@ int MKIDShmWavecal_create(MKID_WAVECAL_METADATA *wavecalMetadata, const char *na
 }
 
 int MKIDShmWavecal_close(MKID_WAVECAL *wavecal){    
-    munmap(wavecal->data, sizeof(coeff_t)*(wavecal->md->nXPix)*(wavecal->md->nYPix)*3);
+    munmap(wavecal->data, sizeof(coeff_t)*(wavecal->md->nCols)*(wavecal->md->nRows)*3);
     munmap(wavecal->md, sizeof(MKID_WAVECAL_METADATA));
     return 0;
 

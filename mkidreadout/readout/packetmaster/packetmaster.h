@@ -70,10 +70,10 @@ typedef struct {
 typedef struct{
     char solutionFile[STRBUF];
     int writing;
-    uint32_t nXPix;
-    uint32_t nYPix;
+    uint32_t nCols;
+    uint32_t nRows;
     // Each pixel has 3 coefficients, with address given by 
-    // &a = 3*(nXPix*y + x); &b = &a + 1; &c = &a + 2
+    // &a = 3*(nCols*y + x); &b = &a + 1; &c = &a + 2
     wvlcoeff_t *data;
 
 } WAVECAL_BUFFER;

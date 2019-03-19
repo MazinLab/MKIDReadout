@@ -20,8 +20,8 @@ cdef extern from "mkidshm.h":
 
     #PARTIAL DEFINITION, only exposing necessary attributes
     ctypedef struct MKID_IMAGE_METADATA:
-        uint32_t nXPix
-        uint32_t nYPix
+        uint32_t nCols
+        uint32_t nRows
         uint32_t useWvl
         uint32_t nWvlBins
         uint32_t wvlStart
@@ -32,8 +32,8 @@ cdef extern from "mkidshm.h":
         MKID_IMAGE_METADATA *md
 
     ctypedef struct MKID_WAVECAL_METADATA:
-        uint32_t nXPix
-        uint32_t nYPix
+        uint32_t nCols
+        uint32_t nRows
 
     ctypedef struct MKID_WAVECAL:
         MKID_WAVECAL_METADATA *md
@@ -42,7 +42,7 @@ cdef extern from "mkidshm.h":
     cdef int MKIDShmImage_open(MKID_IMAGE *imageStruct, char *imgName)
     cdef int MKIDShmImage_close(MKID_IMAGE *imageStruct)
     cdef int MKIDShmImage_create(MKID_IMAGE_METADATA *imageMetadata, char *imgName, MKID_IMAGE *outputImage)
-    cdef int MKIDShmImage_populateMD(MKID_IMAGE_METADATA *imageMetadata, char *name, int nXPix, int nYPix, int useWvl, int nWvlBins, int wvlStart, int wvlStop)
+    cdef int MKIDShmImage_populateMD(MKID_IMAGE_METADATA *imageMetadata, char *name, int nCols, int nRows, int useWvl, int nWvlBins, int wvlStart, int wvlStop)
     cdef int MKIDShmImage_startIntegration(MKID_IMAGE *image, uint64_t startTime, uint64_t integrationTime)
     cdef int MKIDShmImage_wait(MKID_IMAGE *image, int semInd)
     cdef int MKIDShmImage_checkIfDone(MKID_IMAGE *image, int semInd)
@@ -50,20 +50,44 @@ cdef extern from "mkidshm.h":
 
 
 cdef class MKIDShmImage(object):
+    """
+    Python interface to MKID shared memory image defined in mkidshm.h (MKID_IMAGE struct)
+    """
     cdef MKID_IMAGE image
     cdef int doneSemInd
 
     def __init__(self, name, doneSemInd=0, **kwargs):
+        """
+        Opens or creates a MKID_IMAGE shared memory buffer specified by name (should be located 
+        in /dev/shm/name). 
+        
+        Parameters
+        ----------
+            name: string
+                Name of shared memory buffer. If buffer exists, opens it, else create.
+            doneSemInd: int
+                Index of semaphore to wait on when receiving an image. Should be 0
+                unless multiple processes are using the same image.
+            kwargs:
+                nRows: int (default: 100)
+                nCols: int (default: 100)
+                useWvl: bool (default: False)
+                nWvlBins: bool (default: 1)
+                wvlStart: float (default: 0)
+                wvlStop: float (default: 0)
+
+        """
+
         self.doneSemInd = doneSemInd
         if not name[0]=='/':
             name = '/'+name
         if os.path.isfile(os.path.join('/dev/shm', name[1:])):
-            self.open(name)
+            self._open(name)
             paramsMatch = True
-            if kwargs.get('nXPix') is not None:
-                paramsMatch &= (kwargs.get('nXPix') == self.image.md.nXPix)
-            if kwargs.get('nYPix') is not None:
-                paramsMatch &= (kwargs.get('nYPix') == self.image.md.nYPix)
+            if kwargs.get('nCols') is not None:
+                paramsMatch &= (kwargs.get('nCols') == self.image.md.nCols)
+            if kwargs.get('nRows') is not None:
+                paramsMatch &= (kwargs.get('nRows') == self.image.md.nRows)
             if kwargs.get('useWvl') is not None:
                 paramsMatch &= (int(kwargs.get('useWvl')) == self.image.md.useWvl)
             if kwargs.get('nWvlBins') is not None:
@@ -76,27 +100,29 @@ cdef class MKIDShmImage(object):
                 raise Exception('Image already exists, and provided parameters do not match.')
 
         else:
-            self.create(name, kwargs.get('nXPix', 100), kwargs.get('nYPix', 100), kwargs.get('useWvl', False), 
+            self._create(name, kwargs.get('nCols', 100), kwargs.get('nRows', 100), kwargs.get('useWvl', False), 
                         kwargs.get('nWvlBins', 1), kwargs.get('wvlStart', 0), kwargs.get('wvlStop', 0))
             
          
     
-    def create(self, name, nXPix, nYPix, useWvl, nWvlBins, wvlStart, wvlStop):
+    def _create(self, name, nCols, nRows, useWvl, nWvlBins, wvlStart, wvlStop):
         cdef MKID_IMAGE_METADATA imagemd
-        MKIDShmImage_populateMD(&imagemd, name.encode('UTF-8'), nXPix, nYPix, int(useWvl), nWvlBins, wvlStart, wvlStop)
+        MKIDShmImage_populateMD(&imagemd, name.encode('UTF-8'), nCols, nRows, int(useWvl), nWvlBins, wvlStart, wvlStop)
         MKIDShmImage_create(&imagemd, name.encode('UTF-8'), &(self.image));
 
-    def open(self, name):
+    def _open(self, name):
         MKIDShmImage_open(&(self.image), name.encode('UTF-8'))
 
-    def startIntegration(self, startTime=0, integrationTime=1):
+    def startIntegration(self, startTime=0, integrationTime=2000):
         """
         Tells packetmaster to start an integration for this image
         Parameters
         ----------
-            startTime: image start time (in seconds UTC?). If 0, start immediately w/
-                timestamp that packetmaster is currently parsing.
-            integrationTime: integration time in seconds(?)
+            startTime: int
+                image start time (in half-milliseconds since 00:00 Jan 1 UTC of current year). 
+                If 0, start immediately w/ timestamp that packetmaster is currently parsing.
+            integrationTime: int
+                integration time in half miliseconds
         """
         MKIDShmImage_startIntegration(&(self.image), startTime, integrationTime)
 
@@ -117,14 +143,14 @@ cdef class MKIDShmImage(object):
 
 
     def _readImageBuffer(self):
-        imageSize = self.image.md.nXPix * self.image.md.nYPix * self.image.md.nWvlBins
+        imageSize = self.image.md.nCols * self.image.md.nRows * self.image.md.nWvlBins
         imageBuffer = np.empty(imageSize, dtype=np.intc)
         MKIDShmImage_copy(&(self.image), <image_t*>np.PyArray_DATA(imageBuffer))
         return imageBuffer
 
     @property
     def dims(self):
-        return [self.image.md.nXPix, self.image.md.nYPix]
+        return [self.image.md.nCols, self.image.md.nRows]
 
     @property
     def nWvlBins(self):
