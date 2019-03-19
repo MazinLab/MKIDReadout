@@ -113,17 +113,19 @@ cdef class MKIDShmImage(object):
     def _open(self, name):
         MKIDShmImage_open(&(self.image), name.encode('UTF-8'))
 
-    def startIntegration(self, startTime=0, integrationTime=2000):
+    def startIntegration(self, startTime=0, integrationTime=1):
         """
         Tells packetmaster to start an integration for this image
         Parameters
         ----------
-            startTime: int
-                image start time (in half-milliseconds since 00:00 Jan 1 UTC of current year). 
+            startTime: double
+                image start time (in seconds since 00:00 Jan 1 UTC of current year). 
                 If 0, start immediately w/ timestamp that packetmaster is currently parsing.
-            integrationTime: int
-                integration time in half miliseconds
+            integrationTime: double
+                integration time in seconds
         """
+        startTime = int(startTime*2000)
+        integrationTime = int(integrationTime*2000) #convert to half-ms
         MKIDShmImage_startIntegration(&(self.image), startTime, integrationTime)
 
     def receiveImage(self):
