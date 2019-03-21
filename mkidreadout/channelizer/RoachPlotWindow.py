@@ -1074,7 +1074,7 @@ class RoachSweepWindow(QMainWindow):
         self.label_modifyFlag.hide()
 
         label_shiftAllFreqs = QLabel('[Hz]')
-        self.textbox_shiftAllFreqs = QLineEdit('1.0e4.')
+        self.textbox_shiftAllFreqs = QLineEdit('150.0e3')
         self.textbox_shiftAllFreqs.setMaximumWidth(90)
         self.textbox_shiftAllFreqs.setMinimumWidth(90)
         button_shiftAllFreqs = QPushButton('Shift All Freqs')
