@@ -377,7 +377,7 @@ if __name__ == '__main__':
     try:
         fwheels = Dispatch("OptecHID_FilterWheelAPI.FilterWheels")
         wheel = fwheels.FilterWheelList[0]
-        wheel.CurrentPosition=wheel.NumberOfFilters
+        wheel.CurrentPosition=wheel.NumberOfFilters     # set the wheel closed on start
         del wheel
         del fwheels
     except: pass

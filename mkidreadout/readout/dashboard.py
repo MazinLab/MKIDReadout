@@ -17,42 +17,35 @@ This is a GUI class for real time control of the MEC and DARKNESS instruments.
     ImageSearcher - searches for new images on ramdisk
     ConvertPhotonsToRGB - converts a 2D list of photon counts to a QImage
  """
-from __future__ import print_function
+
 import argparse, sys, os, time, json
-from functools import partial
 import numpy as np
+#from __future__ import print_function
+from functools import partial
+from astropy.io import fits
+from datetime import datetime
+
 from PyQt4 import QtCore
 from PyQt4.QtCore import Qt
 from PyQt4.QtGui import *
-from datetime import datetime
-import threading
 
-from astropy.io import fits
-
+from mkidreadout.readout.guiwindows import PixelTimestreamWindow, PixelHistogramWindow, TelescopeWindow, DitherWindow
+from mkidreadout.readout.lasercontrol import LaserControl
+from mkidreadout.readout.packetmaster import Packetmaster
+from mkidreadout.channelizer.Roach2Controls import Roach2Controls
+import mkidreadout.hardware.hsfw
+from mkidreadout.utils.utils import interpolateImage
+import mkidreadout.configuration.sweepdata as sweepdata
 import mkidreadout.config
+from mkidreadout.readout.Telescope import *
 
 import mkidcore.corelog
 from mkidcore.corelog import getLogger, create_log
+from mkidcore.objects import Beammap
 from mkidcore.fits import CalFactory, summarize, loadimg, combineHDU
 
-from mkidreadout.readout.guiwindows import PixelTimestreamWindow, PixelHistogramWindow
-from mkidreadout.readout.lasercontrol import LaserControl
-from mkidreadout.readout.Telescope import *
-from mkidreadout.channelizer.Roach2Controls import Roach2Controls
-from mkidreadout.utils.utils import interpolateImage
-from mkidcore.objects import Beammap
-import mkidreadout.configuration.sweepdata as sweepdata
-from mkidreadout.readout.packetmaster import Packetmaster
-import mkidreadout.hardware.conex
-import mkidreadout.hardware.hsfw
 
 
-def add_actions(target, actions):
-    for action in actions:
-        if action is None:
-            target.addSeparator()
-        else:
-            target.addAction(action)
 
 
 class ImageSearcher(QtCore.QObject):  # Extends QObject for use with QThreads
@@ -244,259 +237,6 @@ class ConvertPhotonsToRGB(QtCore.QObject):
         self.convertedImage.emit(q_im)
 
 
-class TelescopeWindow(QMainWindow):
-    def __init__(self, telescope, parent=None):
-        """
-        INPUTES:
-            telescope - Telescope object
-        """
-        super(QMainWindow, self).__init__(parent)
-        self.setWindowTitle(telescope.observatory)
-        self._want_to_close = False
-        self.telescope = telescope
-        self.create_main_frame()
-        updater = QtCore.QTimer(self)
-        updater.setInterval(1003)
-        updater.timeout.connect(self.updateTelescopeInfo)
-        updater.start()
-
-    def updateTelescopeInfo(self, target='sky'):
-        if not self.isVisible():
-            return
-        tel_dict = self.telescope.get_telescope_position()
-        for key in tel_dict.keys():
-            try:
-                self.label_dict[key].setText(str(tel_dict[key]))
-            except:
-                layout = self.main_frame.layout()
-                label = QLabel(key)
-                label_val = QLabel(str(tel_dict[key]))
-                hbox = QHBoxLayout()
-                hbox.addWidget(label)
-                hbox.addWidget(label_val)
-                layout.addLayout(hbox)
-                self.main_frame.setLayout(layout)
-                self.label_dict[key] = label_val
-
-    def create_main_frame(self):
-        self.main_frame = QWidget()
-        vbox = QVBoxLayout()
-
-        def add2layout(vbox, *args):
-            hbox = QHBoxLayout()
-            for arg in args:
-                hbox.addWidget(arg)
-            vbox.addLayout(hbox)
-
-        label_telescopeStatus = QLabel('Telescope Status')
-        font = label_telescopeStatus.font()
-        font.setPointSize(24)
-        label_telescopeStatus.setFont(font)
-        vbox.addWidget(label_telescopeStatus)
-
-        tel_dict = self.telescope.get_telescope_position()
-        self.label_dict = {}
-        for key in tel_dict.keys():
-            label = QLabel(key)
-            label.setMaximumWidth(150)
-            label_val = QLabel(str(tel_dict[key]))
-            label_val.setMaximumWidth(150)
-            add2layout(vbox, label, label_val)
-            self.label_dict[key] = label_val
-
-        self.main_frame.setLayout(vbox)
-        self.setCentralWidget(self.main_frame)
-
-    def closeEvent(self, event):
-        if self._want_to_close:
-            self.close()
-        else:
-            self.hide()
-
-
-class ValidDoubleTuple(QValidator):
-    def __init__(self, parent=None):
-        QValidator.__init__(self, parent=parent)
-        # super(ValidDoubleTuple, self).__init__(self, parent=parent)
-
-    def validate(self, s, pos):
-        try:
-            assert len(map(float, s.split(','))) == 2
-        except (AssertionError, ValueError):
-            return QValidator.Invalid, pos
-        return QValidator.Acceptable, pos
-
-
-class DitherWindow(QMainWindow):
-    complete = QtCore.pyqtSignal(object)
-    statusupdate = QtCore.pyqtSignal()
-
-    def __init__(self, conexaddress, idlepolltime=2, movepolltime=0.1, parent=None):
-        """
-        Window for gathing dither info
-        """
-        self.address = conexaddress
-        self.movepoll = movepolltime
-        self.polltime = self.idlepoll = idlepolltime
-        self.statuslock = threading.RLock()
-        self.status = mkidreadout.hardware.conex.status(self.address)
-        self.preDitherPos=None
-
-        QMainWindow.__init__(self, parent=parent)
-        self._want_to_close = False
-
-        self.setWindowTitle('Dither')
-
-        vbox = QVBoxLayout()
-
-        label_telescopeStatus = QLabel('Dither Control')
-        font = label_telescopeStatus.font()
-        font.setPointSize(18)
-        label_telescopeStatus.setFont(font)
-        vbox.addWidget(label_telescopeStatus)
-
-        doubletuple_validator = ValidDoubleTuple()
-
-        hbox = QHBoxLayout()
-        label = QLabel('Start Position (x,y):')
-        hbox.addWidget(label)
-        self.textbox_start = QLineEdit('0.0, 0.0')
-        self.textbox_start.setValidator(doubletuple_validator)
-        hbox.addWidget(self.textbox_start)
-        vbox.addLayout(hbox)
-
-        hbox = QHBoxLayout()
-        label = QLabel('End Position (x,y):')
-        hbox.addWidget(label)
-        self.textbox_end = QLineEdit('0.0, 0.0')
-        self.textbox_end.setValidator(doubletuple_validator)
-        hbox.addWidget(self.textbox_end)
-        vbox.addLayout(hbox)
-
-        hbox = QHBoxLayout()
-        label = QLabel('N Steps:')
-        hbox.addWidget(label)
-        self.textbox_nsteps = QLineEdit('5')
-        self.textbox_nsteps.setValidator(QIntValidator(bottom=1))
-        hbox.addWidget(self.textbox_nsteps)
-        vbox.addLayout(hbox)
-
-        hbox = QHBoxLayout()
-        label = QLabel('Dwell Time (s):')
-        hbox.addWidget(label)
-        self.textbox_dwell = QLineEdit('30')
-        self.textbox_dwell.setValidator(QIntValidator(bottom=0))
-        hbox.addWidget(self.textbox_dwell)
-        vbox.addLayout(hbox)
-
-        self.button_dither = QPushButton('Dither')
-        self.button_dither.clicked.connect(self.do_dither)
-        vbox.addWidget(self.button_dither)
-
-        hbox = QHBoxLayout()
-        label = QLabel('Position (x,y):')
-        hbox.addWidget(label)
-        self.textbox_pos = QLineEdit('0.0, 0.0')
-        self.textbox_pos.setValidator(doubletuple_validator)
-        try: self.textbox_pos.setText('{}, {}'.format(self.status.pos[0], self.status.pos[1]))
-        except: pass
-        hbox.addWidget(self.textbox_pos)
-        self.button_goto = QPushButton('Go')
-        self.button_goto.clicked.connect(self.do_goto)
-        hbox.addWidget(self.button_goto)
-        vbox.addLayout(hbox)
-
-        self.status_label = QLabel('Status')
-        vbox.addWidget(self.status_label)
-
-        self.button_halt = QPushButton('STOP')
-        self.button_halt.clicked.connect(self.do_halt)
-        vbox.addWidget(self.button_halt)
-
-        
-        self.status_label.setText(str(self.status))
-        self.statusupdate.connect(lambda: self.status_label.setText(str(self.status)))
-
-        main_frame = QWidget()
-        main_frame.setLayout(vbox)
-        self.setCentralWidget(main_frame)
-        
-        self.dithering = False
-
-        def updateloop():
-            try:
-                while not self._want_to_close:
-                    with self.statuslock:
-                        ostat = self.status
-                        self.status = nstat = mkidreadout.hardware.conex.status(self.address)
-                        #if ostat != nstat:
-                        if not ostat.nearlyEqual(nstat):
-                            getLogger('Dashboard').debug('Conex status: {} -> {}. Conex Pos: {} -> {}'.format(ostat.state, nstat.state, ostat.pos, nstat.pos))
-                            self.statusupdate.emit()
-                        if not nstat.running:
-                            self.polltime = self.idlepoll
-                            if self.dithering:
-                                self.dithering = False
-                                self.complete.emit(nstat)
-                    time.sleep(self.polltime)
-            except AttributeError:
-                pass
-
-        thread = threading.Thread(target=updateloop, name='Dither update')
-        thread.daemon = True
-        thread.start()
-
-    def do_dither(self):
-        start = map(float, self.textbox_start.text().split(','))
-        end = map(float, self.textbox_end.text().split(','))
-        ns = int(self.textbox_nsteps.text())
-        dt = int(self.textbox_dwell.text())
-        getLogger('Dashboard').info('Starting dither')
-        with self.statuslock:
-            self.preDitherPos = mkidreadout.hardware.conex.status(self.address).pos
-            self.status = status = mkidreadout.hardware.conex.dither(start=start, end=end, n=ns, t=dt, address=self.address)
-            getLogger('Dashboard').info('Sent dither cmd. Status {}'.format(status))
-            self.statusupdate.emit()
-            self.polltime = self.movepoll
-            if status.haserrors:
-                getLogger('Dashboard').error('Error starting dither: {}'.format(status))
-            else:
-                self.dithering=True
-
-    def do_halt(self):
-        getLogger('Dashboard').info('Dither halted by user.')
-        with self.statuslock:
-            self.status = status = mkidreadout.hardware.conex.stop(address=self.address)
-            getLogger('Dashboard').info('Sent stop cmd. Status {}'.format(status))
-            self.statusupdate.emit()
-            self.polltime = self.movepoll
-        if status.haserrors:
-            getLogger('Dashboard').error('Stop dither error: {}'.format(status))
-
-    def do_goto(self, pos=None):
-        try:
-            x=pos[0]
-            y=pos[1]
-            self.textbox_pos.setText('{}, {}'.format(x,y))
-        except:
-            x, y = map(float, self.textbox_pos.text().split(','))
-        getLogger('Dashboard').info('Starting move to {:.2f}, {:.2f}'.format(x,y))
-        with self.statuslock:
-            self.status = status = mkidreadout.hardware.conex.move(x, y, address=self.address)
-            getLogger('Dashboard').info('Sent move cmd. Status {}'.format(status))
-            self.statusupdate.emit()
-            self.polltime = self.movepoll
-        if status.haserrors:
-            getLogger('Dashboard').error('Start move error: {}'.format(status))
-
-    def closeEvent(self, event):
-        if self._want_to_close:
-            event.accept()
-            self.close()
-        else:
-            event.ignore()
-            self.hide()
-
 
 class MKIDDashboard(QMainWindow):
     """
@@ -573,18 +313,26 @@ class MKIDDashboard(QMainWindow):
         self.telescopeWindow = TelescopeWindow(self.telescopeController)
 
         #Dither window
-        self.dither_dialog = DitherWindow(self.config.dither.url)
-        def logdither(status):
-            if status.offline or status.haserrors:
-                msg = 'Dither completed with errors: "{}", Conex Status="{}"'.format(
-                    status.state, status.conexstatus)
-                getLogger('Dashboard').error(msg)
-            else:
-                dither_result = 'Dither Path: {}\n'.format(str(status.last_dither).replace('\n', '\n   '))
-                getLogger('Dashboard').info(dither_result)
-                getLogger('dither').info(dither_result)
-            self.dither_dialog.do_goto(pos=self.dither_dialog.preDitherPos)
-            self.dither_dialog.preDitherPos=None
+        self.dither_dialog = DitherWindow(self.config.dither.url, parent=self)
+        def logdither(d):
+            state = d['status']['state'][1]
+            if state == 'Stopped':
+                getLogger('Dashboard').error("Dither aborted early by user STOP. Conex Status="+str(d['status']['conexstatus']))
+            elif state.startswith('Error'):
+                getLogger('Dashboard').error("Dither aborted from error. Conex State="+state+" Conex Status="+str(d['status']['conexstatus']))
+            dither_dict = d['dither']
+            msg="Dither Path: ({}, {}) --> ({}, {}), {} steps {} seconds".format(
+                    dither_dict['startx'], dither_dict['starty'], 
+                    dither_dict['endx'], dither_dict['endy'],
+                    dither_dict['n'], dither_dict['t'])
+            if 'subStep' in dither_dict.keys() and dither_dict['subStep']>0 and \
+               'subT' in dither_dict.keys() and dither_dict['subT']>0:
+                msg = msg+" +/-{} for {} seconds".format(dither_dict['subStep'], dither_dict['subT'])
+            msg = msg+"\n\tstarts={}\n\tends={}\n\tpath={}\n".format(dither_dict['startTimes'],
+                    dither_dict['endTimes'], zip(dither_dict['xlocs'], dither_dict['ylocs']))
+            getLogger('dither').info(msg)
+            getLogger('Dashboard').info(msg)
+
         self.dither_dialog.complete.connect(logdither)
         self.dither_dialog.statusupdate.connect(self.logstate)
         self.dither_dialog.hide()
@@ -1251,8 +999,8 @@ class MKIDDashboard(QMainWindow):
         targ, cmt = str(self.textbox_target.text()), str(self.textbox_log.toPlainText())
         # state = InstrumentState(target=targ, comment=cmt, flipper=None, laser)
         # targetname, telescope params, filter, dither x y ts state, roach info if first log
-        return dict(target=targ, ditherx=str(self.dither_dialog.status.xpos),
-                    dithery=str(self.dither_dialog.status.ypos),
+        return dict(target=targ, ditherx=str(self.dither_dialog.status['pos'][0]),
+                    dithery=str(self.dither_dialog.status['pos'][1]),
                     flipper='image', filter=self.filter, ra='00:00:00.00', dec='00:00:00.00',
                     utc=datetime.utcnow().strftime("%Y%m%d%H%M%S"), roaches='roach.yml', comment=cmt)
 
@@ -1642,6 +1390,8 @@ class MKIDDashboard(QMainWindow):
         """
         if self.observing:
             self.stopObs()
+        self.turnOffPhotonCapture()  # stop sending photon packets
+        self.packetmaster.quit() #TODO consider adding a forced kill
 
         self.workers[0].search = False  # stop searching for new images
         del self.grPixMap  # Get segfault if we don't delete this. Something about signals in the queue trying to access deleted objects...
@@ -1651,18 +1401,22 @@ class MKIDDashboard(QMainWindow):
             window.close()
         for window in self.histogramWindows:
             window.close()
-        
-        self.turnOffPhotonCapture()  # stop sending photon packets
         self.telescopeWindow._want_to_close = True
         self.telescopeWindow.close()
         self.dither_dialog._want_to_close=True
         self.dither_dialog.close()
 
         self.hide()
-        self.packetmaster.quit() #TODO consider adding a forced kill
-        time.sleep(1)
-        
+        time.sleep(0.2) #wait a bit so everything finishes exiting nicely
         QtCore.QCoreApplication.instance().quit()
+
+
+def add_actions(target, actions):
+    for action in actions:
+        if action is None:
+            target.addSeparator()
+        else:
+            target.addAction(action)
 
 
 if __name__ == "__main__":
@@ -1730,3 +1484,6 @@ if __name__ == "__main__":
     form = MKIDDashboard(args.roaches, config=config, offline=args.offline)
     form.show()
     app.exec_()
+
+
+
