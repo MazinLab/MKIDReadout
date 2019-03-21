@@ -639,6 +639,8 @@ if __name__=='__main__':
                 level=mkidcore.corelog.DEBUG)
 
     app = Flask(__name__, static_url_path="")
+    flasklog = getLogger('werkzeug')
+    flasklog.setLevel(mkidcore.corelog.ERROR)
     api = Api(app)
     api.add_resource(ConexAPI, '/conex', endpoint='conex')
 

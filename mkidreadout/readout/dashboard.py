@@ -1000,9 +1000,9 @@ class MKIDDashboard(QMainWindow):
         # state = InstrumentState(target=targ, comment=cmt, flipper=None, laser)
         # targetname, telescope params, filter, dither x y ts state, roach info if first log
         return dict(target=targ, ditherx=str(self.dither_dialog.status['pos'][0]),
-                    dithery=str(self.dither_dialog.status['pos'][1]),
-                    flipper='image', filter=self.filter, ra='00:00:00.00', dec='00:00:00.00',
-                    utc=datetime.utcnow().strftime("%Y%m%d%H%M%S"), roaches='roach.yml', comment=cmt)
+                    dithery=str(self.dither_dialog.status['pos'][1]), 
+                    flipper='image', filter=self.filter, ra='00:00:00.00', dec='00:00:00.00',utc=time.time(),
+                    utc_readable=datetime.utcnow().strftime("%Y%m%d%H%M%S"), roaches='roach.yml', comment=cmt)
 
     def logstate(self):
         getLogger('ObsLog').info(json.dumps(self.state()))

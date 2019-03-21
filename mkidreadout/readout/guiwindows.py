@@ -158,6 +158,14 @@ class DitherWindow(QMainWindow):
         self.textbox_dwell.setValidator(QDoubleValidator(bottom=0))
         add2layout(label_dwell, self.textbox_dwell)
 
+        label_sub = QLabel('Sub Dither:  jog:')
+        self.textbox_sub = QLineEdit('0')
+        self.textbox_sub.setValidator(QDoubleValidator(bottom=0))
+        label_subT = QLabel('dwell (s):')
+        self.textbox_subT = QLineEdit('0')
+        self.textbox_subT.setValidator(QDoubleValidator(bottom=0))
+        add2layout(label_sub, self.textbox_sub,label_subT, self.textbox_subT)
+
         button_dither = QPushButton('Dither')
         button_dither.clicked.connect(self.do_dither)
         add2layout(button_dither)
@@ -165,7 +173,7 @@ class DitherWindow(QMainWindow):
         label_pos = QLabel('Position (x,y):')
         self.textbox_pos = QLineEdit('0.0, 0.0')
         self.textbox_pos.setValidator(doubletuple_validator)
-        try: self.textbox_pos.setText('{}, {}'.format(self.status.pos[0], self.status.pos[1]))
+        try: self.textbox_pos.setText('{}, {}'.format(self.status['pos'][0], self.status['pos'][1]))
         except: pass
         button_goto = QPushButton('Go')
         button_goto.clicked.connect(self.do_goto)
@@ -189,6 +197,8 @@ class DitherWindow(QMainWindow):
         end = map(float, self.textbox_end.text().split(','))
         ns = int(self.textbox_nsteps.text())
         dt = float(self.textbox_dwell.text())
+        jog = float(self.textbox_sub.text())
+        subT = float(self.textbox_subT.text())
         getLogger('Dashboard').info('Starting dither')
 
         dither_dict = {'startx': start[0],
@@ -197,8 +207,8 @@ class DitherWindow(QMainWindow):
                        'endy': end[1],
                        'n':ns,
                        't':dt,
-                       'subStep':0.05,
-                       'subT':1.}
+                       'subStep':jog,
+                       'subT':subT}
         started=conex.dither(dither_dict, address=self.address)
         if started:
             self.thread_pool = self.thread_pool[[t.is_alive() for t in self.thread_pool]]
@@ -211,18 +221,22 @@ class DitherWindow(QMainWindow):
         d= conex.queryDither(address=self.address)
         with self._rlock:
             self.status = d['status']
+        self.statusupdate.emit()
         pos_tolerance = 0.003
         while not d['completed']:
             time.sleep(0.0001)
-            d= conex.queryDither(address=self.address)
-            
-            oldPos = self.status['pos']
-            newPos = d['status']['pos']
-            posNear = (np.abs(newPos[0] - oldPos[0]) <= pos_tolerance) and (np.abs(newPos[1] - oldPos[1]) <=pos_tolerance)
-            with self._rlock:
-                self.status = d['status']
-            if not posNear: #If the position changed
-                self.statusupdate.emit()
+            try:
+                d= conex.queryDither(address=self.address)
+                
+                oldPos = self.status['pos']
+                newPos = d['status']['pos']
+                posNear = (np.abs(newPos[0] - oldPos[0]) <= pos_tolerance) and (np.abs(newPos[1] - oldPos[1]) <=pos_tolerance)
+                with self._rlock:
+                    self.status = d['status']
+                if not posNear: #If the position changed
+                    self.statusupdate.emit()
+            except:
+                d={'completed':False}
         self.complete.emit(d)
         getLogger('Dashboard').info('Finished dither')
 
@@ -256,8 +270,11 @@ class DitherWindow(QMainWindow):
         pos_tolerance = 0.003
         while not d['completed']:
             time.sleep(0.0001)
-            d= conex.queryMove(address=self.address)
-            self.status = d['status']
+            try:
+                d= conex.queryMove(address=self.address)
+                self.status = d['status']
+            except:
+                d={'completed':False}
         self.statusupdate.emit()
         getLogger('Dashboard').info('Finished conex GOTO')
 
