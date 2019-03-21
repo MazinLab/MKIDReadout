@@ -13,12 +13,12 @@ import threading
 import sys
 import ConfigParser
 from mkidreadout.channelizer.InitStateMachine import InitStateMachine
+import mkidreadout.config
 import numpy as np
 
 
-def worker(rNum, cfgFN='initgui.cfg'):
-    config = ConfigParser.ConfigParser()
-    config.read(cfgFN)
+def worker(rNum, cfgFN=mkidreadout.config.DEFAULT_INIT_CFGFILE):
+    config = mkidreadout.config.load(cfgFN)
     roach=InitStateMachine(rNum,config)
     print "r"+str(rNum)+ " Connecting"
     roach.connect()
@@ -30,7 +30,7 @@ def worker(rNum, cfgFN='initgui.cfg'):
     del roach
     del config
 
-def reinitADCDAC(roachNums, cfgFN='initgui.cfg'):
+def reinitADCDAC(roachNums, cfgFN=mkidreadout.config.DEFAULT_INIT_CFGFILE):
     threads = []
     for rNum in roachNums:
         t=threading.Thread(target=worker, args=(rNum,cfgFN,))
