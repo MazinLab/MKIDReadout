@@ -2,11 +2,8 @@
 Author: Alex Walter
 Date: Aug 29, 2018
 
-This code is for dithering the Newport Conex-AG-M100D stage in the MEC fore-optics
+This code is for controlling/dithering the Newport Conex-AG-M100D stage in the MEC fore-optics
 
-
-
-Just testing conex for my own understanding
 """
 from __future__ import print_function
 import serial

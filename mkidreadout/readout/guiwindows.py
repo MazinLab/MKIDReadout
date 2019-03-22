@@ -11,7 +11,7 @@ import numpy as np
 from PyQt4 import QtCore
 from PyQt4.QtGui import *
 from matplotlib.figure import Figure
-import mkidreadout.hardware.conex2 as conex
+import mkidreadout.hardware.conex as conex
 from mkidcore.corelog import getLogger, create_log
 
 from matplotlib.backends.backend_qt4agg import FigureCanvasQTAgg as FigureCanvas
