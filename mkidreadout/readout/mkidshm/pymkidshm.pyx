@@ -134,7 +134,7 @@ cdef class MKIDShmImage(object):
         then grabs the image from buffer
         """
         MKIDShmImage_wait(&(self.image), self.doneSemInd)
-        return self._readImageBuffer()
+        return self._readImageBuffer().reshape(self.dims[0], self.dims[1])
 
     def _checkIfDone(self):
         """
@@ -152,7 +152,7 @@ cdef class MKIDShmImage(object):
 
     @property
     def dims(self):
-        return [self.image.md.nCols, self.image.md.nRows]
+        return [self.image.md.nRows, self.image.md.nCols]
 
     @property
     def nWvlBins(self):
