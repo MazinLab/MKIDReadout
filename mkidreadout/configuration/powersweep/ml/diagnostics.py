@@ -11,30 +11,31 @@ from mkidreadout.configuration.powersweep.psmldata import MLData
 from mkidcore.corelog import getLogger
 
 class diagnostics():
-    def __init__(self, modelDir, psDataFileName, metadataFn=None, wsAtten=None, resWidth=None):
-        if psDataFileName.split('.')[1] == 'h5':
-            self.inferenceData = PSFitMLData(h5File=psDataFileName, useAllAttens=False, useResID=True)
-        elif psDataFileName.split('.')[1] == 'npz':
-            assert os.path.isfile(metadataFn), 'Must resonator metadata file'
-            self.inferenceData = MLData(psDataFileName, metadataFn)
-        else:
-            raise Exception(psDataFileName + ' is not a valid format')
+    def __init__(self, modelDir, psDataFileName=None, metadataFn=None, wsAtten=None, resWidth=None):
+        if psDataFileName is not None:
+            if psDataFileName.split('.')[1] == 'h5':
+                self.inferenceData = PSFitMLData(h5File=psDataFileName, useAllAttens=False, useResID=True)
+            elif psDataFileName.split('.')[1] == 'npz':
+                assert os.path.isfile(metadataFn), 'Must resonator metadata file'
+                self.inferenceData = MLData(psDataFileName, metadataFn)
+            else:
+                raise Exception(psDataFileName + ' is not a valid format')
 
         # if mlDict['scaleXWidth']!= 1:
         #     mlDict['xWidth']=mlDict['xWidth']*mlDict['scaleXWidth'] #reset ready for get_PS_data
 
-        total_res_nums = np.shape(self.inferenceData.freqs)[0]
-        res_nums = total_res_nums
-        span = range(res_nums)
+            total_res_nums = np.shape(self.inferenceData.freqs)[0]
+            res_nums = total_res_nums
+            span = range(res_nums)
+            self.inferenceData.opt_attens = np.zeros((res_nums))
+            self.inferenceData.opt_freqs = np.zeros((res_nums))
+            self.inferenceData.scores = np.zeros((res_nums))
+            inferenceLabels = np.zeros((res_nums, self.mlDict['nAttens']))
 
         self.mlDict, self.sess, self.graph, self.x_input, self.y_output, self.keep_prob, self.is_training = mlt.get_ml_model(modelDir)
         #print [n.name for n in tf.get_default_graph().as_graph_def().node]
         self.meanImage = tf.get_collection('meanTrainImage')[0].eval(session=self.sess)
 
-        self.inferenceData.opt_attens = np.zeros((res_nums))
-        self.inferenceData.opt_freqs = np.zeros((res_nums))
-        self.inferenceData.scores = np.zeros((res_nums))
-        inferenceLabels = np.zeros((res_nums, self.mlDict['nAttens']))
 
         if wsAtten is None:
             wsAtten = self.mlDict['wsAtten']
@@ -43,8 +44,8 @@ class diagnostics():
         else:
             self.wsAtten = wsAtten
 
-        self.wsAttenInd = np.argmin(np.abs(self.inferenceData.attens - wsAtten))
-        print self.wsAttenInd
+        if psDataFileName is not None:
+            self.wsAttenInd = np.argmin(np.abs(self.inferenceData.attens - wsAtten))
 
         if resWidth is None:
             self.resWidth = self.mlDict['resWidth']
@@ -93,9 +94,10 @@ class diagnostics():
         return inferenceLabels[0]
 
     def getWeights(self, layer=1):
-        image, _, _, _, _ = self.getImage(0)
+        #image, _, _, _, _ = self.getImage(0)
         weightTensor = self.graph.get_tensor_by_name('Layer' + str(layer) + '/W_conv' + str(layer) + ':0')
-        return np.array(self.sess.run(weightTensor, feed_dict={self.x_input: [image], self.keep_prob: 1}))
+        #return np.array(self.sess.run(weightTensor, feed_dict={self.x_input: [image], self.keep_prob: 1}))
+        return np.array(self.sess.run(weightTensor))
 
     
     def plotLayer1Weights(self):
@@ -239,7 +241,7 @@ if __name__=='__main__':
 
     parser = argparse.ArgumentParser(description='Tool for diagnosing the ML images')
     parser.add_argument('model', help='Directory containing ML model')
-    parser.add_argument('inferenceData', help='HDF5 file containing powersweep data')
+    parser.add_argument('-d', '--inferenceData', default=None, help='HDF5 file containing powersweep data')
     parser.add_argument('-m', '--metadata', default=None, help='Directory to save output file')
     #parser.add_argument('-o', '--output-dir', nargs=1, default=[None], help='Directory to save output file')
     parser.add_argument('--weights', action='store_true', help='Plot Layer 1 filters')
@@ -256,8 +258,6 @@ if __name__=='__main__':
     # print(args)
 
     psDataFileName=args.inferenceData
-    if not os.path.isfile(psDataFileName):
-        psDataFileName = os.path.join(os.environ['MKID_DATA_DIR'], psDataFileName)
 
     diag = diagnostics(args.model, psDataFileName, args.metadata, args.ws_atten, args.res_width)
     # diag.plotLoops(105)
