@@ -179,6 +179,8 @@ def makeResImage(res_num, dataObj, wsAttenInd, xWidth, resWidth,
     #iqVelImage = np.transpose(np.transpose(iqVelImage) / np.sqrt(np.amax(iqVelImage ** 2, axis=1))) 
         #replaced with edit after 'if center_loop' on 20190107
     magsdbImage = np.transpose(np.transpose(magsdbImage) / np.sqrt(np.mean(magsdbImage ** 2, axis=1)))
+    #iqVelImage = iqVelImage/np.sqrt(np.mean(iqVelImage**2)) #changed 20190107, probably a mistake earlier
+        #20190324 - move this before scaling
 
     if centerLoop:
         singleFrameImage[:, :, 0] = np.transpose(
@@ -190,7 +192,6 @@ def makeResImage(res_num, dataObj, wsAttenInd, xWidth, resWidth,
         magsdbImage = np.transpose(np.transpose(magsdbImage) - np.mean(magsdbImage, 1))  # added by NF 20180423
 
     iqVelImage = iqVelImage/np.sqrt(np.mean(iqVelImage**2)) #changed 20190107, probably a mistake earlier
-
 
     if resWidth < xWidth:
         nPadVals = (xWidth - resWidth) / 2.

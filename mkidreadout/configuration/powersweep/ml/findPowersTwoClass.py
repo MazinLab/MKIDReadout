@@ -89,7 +89,7 @@ def apply_ml_model(inferenceData, wsAtten, resWidth, goodModelDir='', badModelDi
             inferenceImage = image[i-mlDict['attenWinBelow']: i+mlDict['attenWinAbove']+1]
             inferenceLabels[rn, i-mlDict['attenWinBelow'], :] = sess.run(y_output, feed_dict={x_input: [inferenceImage], keep_prob: 1, is_training: False})
         iAtt = np.argmax(np.correlate(inferenceLabels[rn, :, 0], np.ones(5), 'same')) + mlDict['attenWinBelow']
-        if np.all(np.correlate(inferenceLabels[rn, :, 0], np.ones(3), 'same') < 0.35):
+        if np.all(np.correlate(inferenceLabels[rn, :, 0], np.ones(3), 'same') < 0.25):
             inferenceData.opt_attens[rn] = attenList[-1]
             getLogger(__name__).debug("res %d flagged bad" %(inferenceData.resIDs[rn]))
         else:

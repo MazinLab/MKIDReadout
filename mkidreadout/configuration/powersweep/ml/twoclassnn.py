@@ -122,7 +122,15 @@ class mlClassification():
                     badAttenMask = np.ones(self.mlDict['nAttens'])
                     badAttenMask[:self.mlDict['attenWinBelow']] = 0
                     badAttenMask[-self.mlDict['attenWinAbove']-1:] = 0
-                    badAttenMask[rawTrainData.opt_iAttens[rn]-self.mlDict['attenWinBelow']:rawTrainData.opt_iAttens[rn]+self.mlDict['attenWinAbove']+1] = 0
+                    endInd = min(self.mlDict['nAttens'], rawTrainData.opt_iAttens[rn] + self.mlDict['badAttenRangeAbove'])
+                    startInd = max(0, rawTrainData.opt_iAttens[rn] - self.mlDict['badAttenRangeBelow'])
+                    if self.mlDict['equalizeTrainingSat'] and startInd > self.mlDict['attenWinBelow'] and endInd < self.mlDict['nAttens'] - self.mlDict['attenWinAbove'] - 1:
+                        sat = np.random.choice(np.array([True, False]))
+                        if sat:
+                            endInd = self.mlDict['nAttens']
+                        else:
+                            startInd = 0
+                    badAttenMask[startInd:endInd] = 0
                     badAttenInds = np.where(badAttenMask)[0]
                     badAttenInd = np.random.choice(badAttenInds)
                     imageBad = image[badAttenInd-self.mlDict['attenWinBelow']:badAttenInd+self.mlDict['attenWinAbove']+1]
@@ -142,7 +150,15 @@ class mlClassification():
                     badAttenMask = np.ones(self.mlDict['nAttens'])
                     badAttenMask[:self.mlDict['attenWinBelow']] = 0
                     badAttenMask[-self.mlDict['attenWinAbove']-1:] = 0
-                    badAttenMask[rawTrainData.opt_iAttens[rn]-self.mlDict['attenWinBelow']:rawTrainData.opt_iAttens[rn]+self.mlDict['attenWinAbove']+1] = 0
+                    endInd = min(self.mlDict['nAttens'], rawTrainData.opt_iAttens[rn] + self.mlDict['badAttenRangeAbove'])
+                    startInd = max(0, rawTrainData.opt_iAttens[rn] - self.mlDict['badAttenRangeBelow'])
+                    if self.mlDict['equalizeTrainingSat'] and startInd > self.mlDict['attenWinBelow'] and endInd < self.mlDict['nAttens'] - self.mlDict['attenWinAbove'] - 1:
+                        sat = np.random.choice(np.array([True, False]))
+                        if sat:
+                            endInd = self.mlDict['nAttens']
+                        else:
+                            startInd = 0
+                    badAttenMask[startInd:endInd] = 0
                     badAttenInds = np.where(badAttenMask)[0]
                     badAttenInd = np.random.choice(badAttenInds)
                     imageBad = image[badAttenInd-self.mlDict['attenWinBelow']:badAttenInd+self.mlDict['attenWinAbove']+1]
@@ -213,8 +229,8 @@ class mlClassification():
         def max_pool_nx1(x,n):
             return tf.nn.max_pool(x, ksize=[1, 1, n, 1], strides=[1, 1, n, 1], padding='SAME')
 
-        def max_pool_nxn(x,n):
-            return tf.nn.max_pool(x, ksize=[1, n, n, 1], strides=[1, n, n, 1], padding='SAME')
+        def max_pool_nxm(x,n,m):
+            return tf.nn.max_pool(x, ksize=[1, n, m, 1], strides=[1, n, m, 1], padding='SAME')
 
         def variable_summaries(var):
             with tf.name_scope('summaries'):
@@ -243,10 +259,10 @@ class mlClassification():
                 h_conv1 = tf.nn.relu(h_conv1_batch, name='h_conv1')
             else:
                 h_conv1 = tf.nn.relu(h_conv1_raw, name='h_conv1')
-            h_pool1 = max_pool_nxn(h_conv1,n_pool1)
+            h_pool1 = max_pool_nxm(h_conv1,n_pool1[0],n_pool1[1])
             h_pool1_dropout = tf.nn.dropout(h_pool1, self.keep_prob)
-            xWidth1 = int(math.ceil(self.mlDict['xWidth']/float(n_pool1)))
-            aWidth1 = int(math.ceil(attenWin/float(n_pool1)))
+            xWidth1 = int(math.ceil(self.mlDict['xWidth']/float(n_pool1[1])))
+            aWidth1 = int(math.ceil(attenWin/float(n_pool1[0])))
             cWidth1 = num_filt1
             tf.summary.histogram('h_conv1', h_conv1)
             tf.summary.histogram('h_pool1', h_pool1)
@@ -266,12 +282,11 @@ class mlClassification():
             else:
                 h_conv2 = tf.nn.relu(h_conv2_raw, name='h_conv2')
             with tf.control_dependencies([tf.assert_equal(tf.shape(h_pool1),(numImg,aWidth1,xWidth1,cWidth1),message='hpool1 assertion')]):
-                h_pool2 = max_pool_nx1(h_conv2, n_pool2)
+                h_pool2 = max_pool_nxm(h_conv2, n_pool2[0], n_pool2[1])
                 h_pool2_dropout = tf.nn.dropout(h_pool2, self.keep_prob)
-                xWidth2 = int(math.ceil(xWidth1/float(n_pool2)))
+                xWidth2 = int(math.ceil(xWidth1/float(n_pool2[1])))
                 cWidth2 = num_filt2
-                #aWidth2 = int(math.ceil(aWidth1/float(n_pool2)))
-                aWidth2 = aWidth1
+                aWidth2 = int(math.ceil(aWidth1/float(n_pool2[0])))
             tf.summary.histogram('h_conv2', h_conv2)
             tf.summary.histogram('h_pool2', h_pool2)
 
@@ -290,9 +305,10 @@ class mlClassification():
             else:
                 h_conv3 = tf.nn.relu(h_conv3_raw, name='h_conv3')
             with tf.control_dependencies([tf.assert_equal(tf.shape(h_pool2),(numImg,aWidth2,xWidth2,cWidth2),message='hpool2 assertion')]):
-                h_pool3 = max_pool_nx1(h_conv3, n_pool3)
+                h_pool3 = max_pool_nxm(h_conv3, n_pool3[0], n_pool3[1])
                 h_pool3_dropout = tf.nn.dropout(h_pool3, self.keep_prob)
-                xWidth3 = int(math.ceil(xWidth2/float(n_pool3)))
+                xWidth3 = int(math.ceil(xWidth2/float(n_pool3[1])))
+                aWidth3 = int(math.ceil(aWidth2/float(n_pool3[0])))
                 cWidth3 = num_filt3
             tf.summary.histogram('h_conv3', h_conv3)
             tf.summary.histogram('h_pool3', h_pool3)
@@ -310,13 +326,13 @@ class mlClassification():
         #     cWidth4 = num_filt4
         
         with tf.name_scope('FinalLayer'):
-            h_pool3_flat = tf.reshape(h_pool3_dropout,[-1,aWidth2*cWidth3*xWidth3])        
-            W_final = weight_variable([aWidth2*cWidth3*xWidth3, self.nClass])
+            h_pool3_flat = tf.reshape(h_pool3_dropout,[-1,aWidth3*cWidth3*xWidth3])        
+            W_final = weight_variable([aWidth3*cWidth3*xWidth3, self.nClass])
             b_final = bias_variable([2])     
             variable_summaries(W_final)
             variable_summaries(b_final)
             
-            with tf.control_dependencies([tf.assert_equal(tf.shape(h_pool3),(numImg,aWidth2,xWidth3,cWidth3))]):
+            with tf.control_dependencies([tf.assert_equal(tf.shape(h_pool3),(numImg,aWidth3,xWidth3,cWidth3))]):
                 h_conv_final = tf.matmul(h_pool3_flat, W_final) + b_final 
                 tf.summary.histogram('h_conv_final', h_conv_final)
         
