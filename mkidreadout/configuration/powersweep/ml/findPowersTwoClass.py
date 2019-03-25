@@ -88,8 +88,12 @@ def apply_ml_model(inferenceData, wsAtten, resWidth, goodModelDir='', badModelDi
         for i in range(mlDict['attenWinBelow'], mlDict['nAttens'] - mlDict['attenWinAbove']):
             inferenceImage = image[i-mlDict['attenWinBelow']: i+mlDict['attenWinAbove']+1]
             inferenceLabels[rn, i-mlDict['attenWinBelow'], :] = sess.run(y_output, feed_dict={x_input: [inferenceImage], keep_prob: 1, is_training: False})
-        iAtt = np.argmax(inferenceLabels[rn, :, 0]) + mlDict['attenWinBelow']
-        inferenceData.opt_attens[rn] = attenList[iAtt]
+        iAtt = np.argmax(np.correlate(inferenceLabels[rn, :, 0], np.ones(5), 'same')) + mlDict['attenWinBelow']
+        if np.all(np.correlate(inferenceLabels[rn, :, 0], np.ones(3), 'same') < 0.35):
+            inferenceData.opt_attens[rn] = attenList[-1]
+            getLogger(__name__).debug("res %d flagged bad" %(inferenceData.resIDs[rn]))
+        else:
+            inferenceData.opt_attens[rn] = attenList[iAtt]
         if FREQ_USE_MAG:
             inferenceData.opt_freqs[rn] = freqCube[iAtt, np.argmin(magsdb[iAtt,:])]  # TODO: make this more robust
         else:

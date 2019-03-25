@@ -213,6 +213,9 @@ class mlClassification():
         def max_pool_nx1(x,n):
             return tf.nn.max_pool(x, ksize=[1, 1, n, 1], strides=[1, 1, n, 1], padding='SAME')
 
+        def max_pool_nxn(x,n):
+            return tf.nn.max_pool(x, ksize=[1, n, n, 1], strides=[1, n, n, 1], padding='SAME')
+
         def variable_summaries(var):
             with tf.name_scope('summaries'):
                 mean = tf.reduce_mean(var)
@@ -240,9 +243,10 @@ class mlClassification():
                 h_conv1 = tf.nn.relu(h_conv1_batch, name='h_conv1')
             else:
                 h_conv1 = tf.nn.relu(h_conv1_raw, name='h_conv1')
-            h_pool1 = max_pool_nx1(h_conv1,n_pool1)
+            h_pool1 = max_pool_nxn(h_conv1,n_pool1)
             h_pool1_dropout = tf.nn.dropout(h_pool1, self.keep_prob)
             xWidth1 = int(math.ceil(self.mlDict['xWidth']/float(n_pool1)))
+            aWidth1 = int(math.ceil(attenWin/float(n_pool1)))
             cWidth1 = num_filt1
             tf.summary.histogram('h_conv1', h_conv1)
             tf.summary.histogram('h_pool1', h_pool1)
@@ -261,11 +265,13 @@ class mlClassification():
                 h_conv2 = tf.nn.relu(h_conv2_batch, name='h_conv2')
             else:
                 h_conv2 = tf.nn.relu(h_conv2_raw, name='h_conv2')
-            with tf.control_dependencies([tf.assert_equal(tf.shape(h_pool1),(numImg,attenWin,xWidth1,cWidth1),message='hpool1 assertion')]):
+            with tf.control_dependencies([tf.assert_equal(tf.shape(h_pool1),(numImg,aWidth1,xWidth1,cWidth1),message='hpool1 assertion')]):
                 h_pool2 = max_pool_nx1(h_conv2, n_pool2)
                 h_pool2_dropout = tf.nn.dropout(h_pool2, self.keep_prob)
                 xWidth2 = int(math.ceil(xWidth1/float(n_pool2)))
                 cWidth2 = num_filt2
+                #aWidth2 = int(math.ceil(aWidth1/float(n_pool2)))
+                aWidth2 = aWidth1
             tf.summary.histogram('h_conv2', h_conv2)
             tf.summary.histogram('h_pool2', h_pool2)
 
@@ -283,7 +289,7 @@ class mlClassification():
                 h_conv3 = tf.nn.relu(h_conv3_batch, name='h_conv3')
             else:
                 h_conv3 = tf.nn.relu(h_conv3_raw, name='h_conv3')
-            with tf.control_dependencies([tf.assert_equal(tf.shape(h_pool2),(numImg,attenWin,xWidth2,cWidth2),message='hpool2 assertion')]):
+            with tf.control_dependencies([tf.assert_equal(tf.shape(h_pool2),(numImg,aWidth2,xWidth2,cWidth2),message='hpool2 assertion')]):
                 h_pool3 = max_pool_nx1(h_conv3, n_pool3)
                 h_pool3_dropout = tf.nn.dropout(h_pool3, self.keep_prob)
                 xWidth3 = int(math.ceil(xWidth2/float(n_pool3)))
@@ -304,13 +310,13 @@ class mlClassification():
         #     cWidth4 = num_filt4
         
         with tf.name_scope('FinalLayer'):
-            h_pool3_flat = tf.reshape(h_pool3_dropout,[-1,attenWin*cWidth3*xWidth3])        
-            W_final = weight_variable([attenWin*cWidth3*xWidth3, self.nClass])
+            h_pool3_flat = tf.reshape(h_pool3_dropout,[-1,aWidth2*cWidth3*xWidth3])        
+            W_final = weight_variable([aWidth2*cWidth3*xWidth3, self.nClass])
             b_final = bias_variable([2])     
             variable_summaries(W_final)
             variable_summaries(b_final)
             
-            with tf.control_dependencies([tf.assert_equal(tf.shape(h_pool3),(numImg,attenWin,xWidth3,cWidth3))]):
+            with tf.control_dependencies([tf.assert_equal(tf.shape(h_pool3),(numImg,aWidth2,xWidth3,cWidth3))]):
                 h_conv_final = tf.matmul(h_pool3_flat, W_final) + b_final 
                 tf.summary.histogram('h_conv_final', h_conv_final)
         

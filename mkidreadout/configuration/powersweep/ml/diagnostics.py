@@ -30,9 +30,9 @@ class diagnostics():
             self.inferenceData.opt_attens = np.zeros((res_nums))
             self.inferenceData.opt_freqs = np.zeros((res_nums))
             self.inferenceData.scores = np.zeros((res_nums))
-            inferenceLabels = np.zeros((res_nums, self.mlDict['nAttens']))
 
         self.mlDict, self.sess, self.graph, self.x_input, self.y_output, self.keep_prob, self.is_training = mlt.get_ml_model(modelDir)
+        inferenceLabels = np.zeros((res_nums, self.mlDict['nAttens']))
         #print [n.name for n in tf.get_default_graph().as_graph_def().node]
         self.meanImage = tf.get_collection('meanTrainImage')[0].eval(session=self.sess)
 
@@ -94,10 +94,9 @@ class diagnostics():
         return inferenceLabels[0]
 
     def getWeights(self, layer=1):
-        #image, _, _, _, _ = self.getImage(0)
+        image, _, _, _, _ = self.getImage(0)
         weightTensor = self.graph.get_tensor_by_name('Layer' + str(layer) + '/W_conv' + str(layer) + ':0')
-        #return np.array(self.sess.run(weightTensor, feed_dict={self.x_input: [image], self.keep_prob: 1}))
-        return np.array(self.sess.run(weightTensor))
+        return np.array(self.sess.run(weightTensor, feed_dict={self.x_input: [image], self.keep_prob: 1, self.is_training: False}))
 
     
     def plotLayer1Weights(self):
@@ -258,6 +257,7 @@ if __name__=='__main__':
     # print(args)
 
     psDataFileName=args.inferenceData
+    print psDataFileName
 
     diag = diagnostics(args.model, psDataFileName, args.metadata, args.ws_atten, args.res_width)
     # diag.plotLoops(105)
