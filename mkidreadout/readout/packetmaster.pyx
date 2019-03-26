@@ -105,9 +105,10 @@ cdef class Packetmaster(object):
     cdef int nThreads
     cdef int nSharedImages
     cdef object sharedImages
-    
-    def __init__(self, nRoaches, nRows, nCols, port, useWriter, ramdiskPath=None, wvlSol=None, 
-                beammap=None, sharedImageCfg=None, maximizePriority=False):
+
+    #TODO useWriter->savebinfiles, ramdiskPath->ramdisk ?use '' as default?
+    def __init__(self, nRoaches, nRows, nCols, port, useWriter=True, ramdiskPath=None, wvlSol=None,
+                 beammap=None, sharedImageCfg=None, maximizePriority=False):
         """
         Starts the reader (packet receiving) thread along with the appropriate number of parsing 
         threads according to the specified configuration.
@@ -135,7 +136,8 @@ cdef class Packetmaster(object):
                 Configuration object specifying shared memory objects for acquiring realtime images.
                 Typical usage would pass a configdict specified in dashboard.yml. Creates/opens 
                 MKIDShmImage objects for each image.
-                
+                Object must have keys corresponding to the names of the images, and the values much have attributes
+                nWvlBins, useWvl, wvlStart, wvlStop.
         """
         #MISC param initialization
         self.nRows = nRows
@@ -246,6 +248,7 @@ cdef class Packetmaster(object):
             wvlSol: Wavecal Solution object
             beamap: beammap object
         """
+        wvlSol = wvl.load_solution(wvlSol, singleton_ok=True) #make sure the solution isn't just a file name
         self.wavecal.nCols = self.nCols
         self.wavecal.nRows = self.nRows
         strcpy(self.wavecal.solutionFile, wvlSol._file_path.encode('UTF-8'))

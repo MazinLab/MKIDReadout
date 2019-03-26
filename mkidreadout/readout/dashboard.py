@@ -57,36 +57,35 @@ def add_actions(target, actions):
 
 class ImageSearcher(QtCore.QObject):  # Extends QObject for use with QThreads
     """
-    This class looks for binary '.img' files spit out by the PacketMaster c program on the ramdisk
+    This class fetches images from PacketMaster for the live view and fits files
     
-    When it finds an image, it grabs the data, parses it into an array, and emits an imageFound signal
+    When it finds an image, it grabs the data, parses it into an array, and emits an imageComplete signal
     Optionally, it deletes the data on the ramdisk so it doesn't fill up
     
     SIGNALS
-        imageFound - emits when an image is found
+        imageComplete - emits when an image is found
         finished - emits when self.search is set to False
     """
-    imageFound = QtCore.pyqtSignal(object)
+    imageComplete = QtCore.pyqtSignal(object)
     finished = QtCore.pyqtSignal()
 
-    def __init__(self, path, nCols, nRows, parent=None):
+    def __init__(self, sharedim, inttime=0.1, parent=None):
         """
         INPUTS:
-            path - path to the ramdisk where PacketMaster places the image files
-            nCols - Number of columns in image (for DARKNESS its 80)
-            nRows - for DARKNESS its 125
+            sharedim - MKIDShmImage
+            inttime - the integration time interval
             parent - Leave as None so that we can add to new thread
         """
         super(QtCore.QObject, self).__init__(parent)
-        self.path = path
-        self.nCols = nCols
-        self.nRows = nRows
+        self.sharedim = sharedim
+        self.inttime = inttime
+        self.header = {}
         self.search = True
 
-    def checkDir(self, removeOldFiles=False):
+    def run(self):
         """
         Infinite loop that keeps checking directory for an image file
-        When it finds an image, it parses it and emits imageFound signal
+        When it finds an image, it parses it and emits imageComplete signal
         It only returns files that have timestamps > than the last file's timestamp
         
         Loop will continue until you set self.search to False. Then it will emit finished signal
@@ -94,32 +93,24 @@ class ImageSearcher(QtCore.QObject):  # Extends QObject for use with QThreads
         INPUTS:
             removeOldFiles - remove .img and .png files after we read them
         """
+        #TODO search ->run
+        #TODO whole class into something else
         self.search = True
-        latestTime = time.time() - .5
         while self.search:
-            flist = []
-            for f in os.listdir(self.path):
-                if f.endswith(".img"):
-                    if float(f.split('.')[0]) > latestTime:
-                        flist.append(f)
-                    elif removeOldFiles:
-                        os.remove(os.path.join(self.path,f))
-                elif removeOldFiles and f.endswith(".png"):
-                    os.remove(os.path.join(self.path,f))
-
-            flist.sort()
-            for f in flist:
-                latestTime = float(f.split('.')[0]) + .1
-                file = os.path.join(self.path, f)
-                try:
-                    image = loadimg(file, self.nCols, self.nRows, returntype='hdu')
-                    self.imageFound.emit(image)
-                    # time.sleep(.01)  # Give image time to process before sending next one (not really needed)
-                except Exception:
-                    getLogger('Dashboard').error('Problem on file %s', os.path.join(self.path,f),
-                                                 exc_info=True)
-                if removeOldFiles:
-                    os.remove(file)
+            try:
+                utc = datetime.utcfromtimestamp(time.time()).strftime('%Y-%m-%d %H:%M:%S')
+                self.sharedim.startIntegration(integrationTime=self.inttime)
+                data = self.sharedim.receiveImage()
+                ret = fits.ImageHDU(data=data)
+                ret.header['utcstart'] = utc
+                ret.header['exptime'] = self.inttime
+                ret.header['wavecal'] = self.sharedim.wavecalID
+                #TODO add rest of wavelength info
+                for k, v in self.header.items():
+                    ret.header[k] = v
+                self.imageComplete.emit(ret)
+            except Exception:
+                getLogger('Dashboard').error('Problem', exc_info=True)
         self.finished.emit()
 
 
@@ -535,15 +526,12 @@ class MKIDDashboard(QMainWindow):
 
         # Initialize PacketMaster8
         getLogger('Dashboard').info('Initializing packetmaster...')
-        self.packetmaster = Packetmaster(len(self.config.roaches), ramdisk=self.config.packetmaster.ramdisk,
-                                         nrows=self.config.detector.nrows, ncols=self.config.detector.ncols,
-                                         nuller=self.config.packetmaster.nuller,
-                                         resume=not self.config.dashboard.spawn_packetmaster,
-                                         captureport=self.config.packetmaster.captureport,
-                                         start=self.config.dashboard.spawn_packetmaster and not self.offline)
-
-        if not self.packetmaster.is_running:
-            getLogger('Dashboard').info('Packetmaster not started. Start manually...')
+        self.packetmaster = Packetmaster(len(self.config.roaches), self.config.detector.nrows,
+                                         self.config.detector.ncols, self.config.packetmaster.captureport,
+                                         ramdiskPath=self.config.packetmaster.ramdisk,
+                                         useWriter=self.config.dashboard.spawn_packetmaster and not self.offline,
+                                         sharedImageCfg={'dashboard': self.cfg.dashboard})
+        self.liveimage = self.packetmaster.sharedImages['dashboard']
 
         # Laser Controller
         getLogger('Dashboard').info('Setting up laser control...')
@@ -581,21 +569,26 @@ class MKIDDashboard(QMainWindow):
             self.turnOnPhotonCapture()
         self.loadBeammap()
 
+        self.packetmaster.applyWvlSol(self.dashboard.wavecal, self.beammap)
+
         # Setup search for image files from cuber
         getLogger('Dashboard').info('Setting up image searcher...')
-        darkImageSearcher = ImageSearcher(self.config.packetmaster.ramdisk,
-                                          self.config.detector.ncols,
-                                          self.config.detector.nrows, parent=None)
-        self.workers.append(darkImageSearcher)
-        thread = QtCore.QThread(parent=self)
-        self.threadPool.append(thread)
-        thread.setObjectName("DARKimageSearch")
-        darkImageSearcher.moveToThread(thread)
+        darkImageSearcher = ImageSearcher(self.liveimage, self.cfg.dashboard.inttime, parent=None)
+        thread = self.startworker(darkImageSearcher, 'DARKimageSearch')
         thread.started.connect(darkImageSearcher.checkDir)
-        darkImageSearcher.imageFound.connect(self.convertImage)
+        darkImageSearcher.imageComplete.connect(self.convertImage)
         darkImageSearcher.finished.connect(thread.quit)
+
         if not self.offline:
             QtCore.QTimer.singleShot(10, thread.start)  # start the thread after a second
+
+    def startworker(self, obj, name):
+        self.workers.append(obj)
+        thread = QtCore.QThread(parent=self)
+        self.threadPool.append(thread)
+        thread.setObjectName(name)
+        obj.moveToThread(thread)
+        return thread
 
     def turnOffPhotonCapture(self):
         """
@@ -701,7 +694,6 @@ class MKIDDashboard(QMainWindow):
         """
         # If there's new data, append it
         if photonImage is not None:
-            photonImage.header['exptime'] = self.config.packetmaster.int_time
             self.imageList.append(photonImage)
             self.fitsList.append(photonImage)
             self.imageList = self.imageList[-self.config.dashboard.average:]  #trust the garbage collector
@@ -747,13 +739,9 @@ class MKIDDashboard(QMainWindow):
                                         self.combobox_stretch.currentText(),
                                         self.checkbox_interpolate.isChecked(),
                                         not self.checkbox_smooth.isChecked()) # if we're smoothing don't make pixels red
-        self.workers.append(converter)  # Need local reference or else signal is lost!
 
-        thread = QtCore.QThread(parent=self)
-        thread_num = len(self.threadPool)
-        thread.setObjectName("convertImage_" + str(thread_num))
-        self.threadPool.append(thread)  # Need to have local reference to thread or else it will get lost!
-        converter.moveToThread(thread)
+        thread = self.startworker(converter, "convertImage_{}".format(len(self.threadPool)))
+
         thread.started.connect(converter.stretchImage)
         converter.convertedImage.connect(lambda x: thread.quit())
         converter.convertedImage.connect(self.updateImage)

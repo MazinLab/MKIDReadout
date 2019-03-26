@@ -1,22 +1,15 @@
 !configdict
+#TODO make beammap into a beammap object and get rid of the dector crud
 paths: !configdict
   beammap: ./darkness.bmap
   logs: ./logs/
   data: ./data/
 
 packetmaster: !configdict
-  ramdisk: /mnt/ramdisk # ramdisk directory to look for .img file made by packetmaster3's cuber routine
+  ramdisk: /mnt/ramdisk # ramdisk directory aster3's cuber routine
   ip: 10.0.0.51
   captureport: 50000
   use_writer: True
-
-sharedimages: !configdict
-  dashboardimage: !configdict
-    useWvl: True
-    nWvlBins: 5
-    wvlStart: 700
-    wvlStop: 1500
-
 
 instrument : DARKNESS
 
@@ -37,6 +30,12 @@ dashboard: !configdict
   flatname: flat
   darkname: dark
   fitstime: 60  #
+  wavecal: 2018-12-23 051888891e1e27c48f09da56342a914aed89.npz
+  useWvl: True
+  nWvlBins: 5
+  wvlStart: 700
+  wvlStop: 1500
+  inttime: 0.1
   spawn_packetmaster: True
 
 # Flipper is also controlled with the laser box arduino

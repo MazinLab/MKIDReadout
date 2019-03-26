@@ -151,6 +151,10 @@ cdef class MKIDShmImage(object):
         return imageBuffer
 
     @property
+    def wavecalID(self)
+        return '' if self.useWvl else ''
+
+    @property
     def dims(self):
         return [self.image.md.nRows, self.image.md.nCols]
 
