@@ -82,7 +82,7 @@ def apply_ml_model(inferenceData, wsAtten, resWidth, goodModelDir='', badModelDi
 
         image, freqCube, attenList, iqVel, magsdb = mlt.makeResImage(rn, inferenceData, wsAttenInd, mlDict['xWidth'],
                                         resWidth, mlDict['padResWin'], mlDict['useIQV'], mlDict['useMag'],
-                                        mlDict['centerLoop'], mlDict['nAttens'])
+                                        mlDict['centerLoop'], mlDict['nAttens'], mlDict['useVectIQV'])
 
         #image -= meanImage
         for i in range(mlDict['attenWinBelow'], mlDict['nAttens'] - mlDict['attenWinAbove']):

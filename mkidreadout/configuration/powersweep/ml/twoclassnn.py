@@ -94,6 +94,8 @@ class mlClassification():
                 nColors += 1
             if self.mlDict['useMag']:
                 nColors += 1
+            if self.mlDict['useVectIQV']:
+                nColors += 2
 
 
             trainImages = np.empty((0, self.mlDict['attenWinBelow']+self.mlDict['attenWinAbove']+1, self.mlDict['xWidth'], nColors))
@@ -113,7 +115,7 @@ class mlClassification():
                 #                                 test_if_noisy=test_if_noisy, xCenter=self.res_indicies[rn,c])
                 image, _, _, _, _ = mlt.makeResImage(rn, rawTrainData, wsAttenInd, self.mlDict['xWidth'], 
                                         self.mlDict['resWidth'], self.mlDict['padResWin'], self.mlDict['useIQV'], 
-                                        self.mlDict['useMag'], self.mlDict['centerLoop'], self.mlDict['nAttens']) 
+                                        self.mlDict['useMag'], self.mlDict['centerLoop'], self.mlDict['nAttens'], self.mlDict['useVectIQV']) 
                 if image is not None:
                     imageGood = image[rawTrainData.opt_iAttens[rn]-self.mlDict['attenWinBelow']:rawTrainData.opt_iAttens[rn]+self.mlDict['attenWinAbove']+1]
                     trainImages = np.append(trainImages, np.expand_dims(imageGood, axis=0), axis=0)
@@ -141,7 +143,7 @@ class mlClassification():
             for rn in test_ind:
                 image, _, _, _, _ = mlt.makeResImage(rn, rawTrainData, wsAttenInd, self.mlDict['xWidth'], 
                                         self.mlDict['resWidth'], self.mlDict['padResWin'], self.mlDict['useIQV'], 
-                                        self.mlDict['useMag'], self.mlDict['centerLoop'], self.mlDict['nAttens']) 
+                                        self.mlDict['useMag'], self.mlDict['centerLoop'], self.mlDict['nAttens'], self.mlDict['useVectIQV']) 
                 if image is not None:
                     imageGood = image[rawTrainData.opt_iAttens[rn]-self.mlDict['attenWinBelow']:rawTrainData.opt_iAttens[rn]+self.mlDict['attenWinAbove']+1]
                     testImages = np.append(testImages, np.expand_dims(imageGood, axis=0), axis=0)
@@ -203,6 +205,8 @@ class mlClassification():
             nColors += 1
         if self.mlDict['useMag']:
             nColors += 1
+        if self.mlDict['useVectIQV']:
+            nColors += 2
 
         
         attenWin = 1 + self.mlDict['attenWinBelow'] + self.mlDict['attenWinAbove']

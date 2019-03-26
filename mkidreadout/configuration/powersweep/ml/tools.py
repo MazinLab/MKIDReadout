@@ -7,7 +7,7 @@ from mkidreadout.configuration.powersweep.psmldata import *
 
 
 def makeResImage(res_num, dataObj, wsAttenInd, xWidth, resWidth, 
-            pad_res_win, useIQV, useMag, centerLoop, nAttensModel, collisionRange=100.e3):
+            pad_res_win, useIQV, useMag, centerLoop, nAttensModel, useVectIQV=False, collisionRange=100.e3):
     """Creates a table with 2 rows, I and Q for makeTrainData(mag_data=True)
 
     inputs
@@ -182,6 +182,11 @@ def makeResImage(res_num, dataObj, wsAttenInd, xWidth, resWidth,
     #iqVelImage = iqVelImage/np.sqrt(np.mean(iqVelImage**2)) #changed 20190107, probably a mistake earlier
         #20190324 - move this before scaling
 
+    iVelImage = np.diff(singleFrameImage[:, :, 0], axis=1)
+    qVelImage = np.diff(singleFrameImage[:, :, 1], axis=1)
+    iVelImage = np.pad(iVelImage, ((0, 0), (0, 1)), 'edge')
+    qVelImage = np.pad(qVelImage, ((0, 0), (0, 1)), 'edge')
+
     if centerLoop:
         singleFrameImage[:, :, 0] = np.transpose(
             np.transpose(singleFrameImage[:, :, 0]) - np.mean(singleFrameImage[:, :, 0], 1))
@@ -190,8 +195,14 @@ def makeResImage(res_num, dataObj, wsAttenInd, xWidth, resWidth,
             np.transpose(singleFrameImage[:, :, 1]) - np.mean(singleFrameImage[:, :, 1], 1))
         iqVelImage = np.transpose(np.transpose(iqVelImage) - np.mean(iqVelImage, 1))  # added by NF 20180423
         magsdbImage = np.transpose(np.transpose(magsdbImage) - np.mean(magsdbImage, 1))  # added by NF 20180423
+        iVelImage = np.transpose(np.transpose(iVelImage) - np.mean(iVelImage, 1))
+        qVelImage = np.transpose(np.transpose(qVelImage) - np.mean(qVelImage, 1))
+
 
     iqVelImage = iqVelImage/np.sqrt(np.mean(iqVelImage**2)) #changed 20190107, probably a mistake earlier
+    iVelImage = iVelImage/np.sqrt(np.mean(iVelImage**2)) #changed 20190107, probably a mistake earlier
+    qVelImage = qVelImage/np.sqrt(np.mean(qVelImage**2)) #changed 20190107, probably a mistake earlier
+    
 
     if resWidth < xWidth:
         nPadVals = (xWidth - resWidth) / 2.
@@ -201,6 +212,8 @@ def makeResImage(res_num, dataObj, wsAttenInd, xWidth, resWidth,
             singleFrameImageFS[:, :, i] = np.pad(singleFrameImage[:, :, i],
                                                  [(0, 0), (int(np.ceil(nPadVals)), int(np.floor(nPadVals)))], 'edge')
         iqVelImage = np.pad(iqVelImage, [(0, 0), (int(np.ceil(nPadVals)), int(np.floor(nPadVals)))], 'edge')
+        iVelImage = np.pad(iVelImage, [(0, 0), (int(np.ceil(nPadVals)), int(np.floor(nPadVals)))], 'edge')
+        qVelImage = np.pad(qVelImage, [(0, 0), (int(np.ceil(nPadVals)), int(np.floor(nPadVals)))], 'edge')
         magsdbImage = np.pad(magsdbImage, [(0, 0), (int(np.ceil(nPadVals)), int(np.floor(nPadVals)))], 'edge')
         freqCubeFS = np.pad(freqCube, [(0, 0), (int(np.ceil(nPadVals)), int(np.floor(nPadVals)))], 'edge')
         singleFrameImage = singleFrameImageFS
@@ -213,6 +226,8 @@ def makeResImage(res_num, dataObj, wsAttenInd, xWidth, resWidth,
             singleFrameImageFS[:, :, i] = np.pad(singleFrameImage[:, :, i], [(0, mlDictnAttens - nAttens), (0, 0)],
                                                  'edge')
         iqVelImage = np.pad(iqVelImage, [(0, mlDictnAttens - nAttens), (0, 0)], 'edge')
+        iVelImage = np.pad(iVelImage, [(0, mlDictnAttens - nAttens), (0, 0)], 'edge')
+        qVelImage = np.pad(qVelImage, [(0, mlDictnAttens - nAttens), (0, 0)], 'edge')
         magsdbImage = np.pad(magsdbImage, [(0, mlDictnAttens - nAttens), (0, 0)], 'edge')
         freqCubeFS = np.pad(freqCube, [(0, mlDictnAttens - nAttens), (0, 0)], 'edge')
         singleFrameImage = singleFrameImageFS
@@ -223,6 +238,8 @@ def makeResImage(res_num, dataObj, wsAttenInd, xWidth, resWidth,
     elif nAttens > nAttensModel:
         singleFrameImage = singleFrameImage[:nAttensModel, :, :]
         iqVelImage = iqVelImage[:nAttensModel, :]
+        iVelImage = iVelImage[:nAttensModel, :]
+        qVelImage = qVelImage[:nAttensModel, :]
         magsdbImage = magsdbImage[:nAttensModel, :]
         freqCube = freqCube[:nAttensModel, :]
         attenList = attenList[:nAttensModel]
@@ -232,6 +249,10 @@ def makeResImage(res_num, dataObj, wsAttenInd, xWidth, resWidth,
 
     if useMag:
         singleFrameImage = np.dstack((singleFrameImage, magsdbImage))
+
+    if useVectIQV:
+        singleFrameImage = np.dstack((singleFrameImage, iVelImage))
+        singleFrameImage = np.dstack((singleFrameImage, qVelImage))
 
     return singleFrameImage, freqCube, attenList, iqVelImage, magsdbImage
 
