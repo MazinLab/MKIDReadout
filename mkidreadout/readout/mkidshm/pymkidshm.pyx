@@ -4,6 +4,7 @@
 
 import numpy as np
 cimport numpy as np
+from mkidcore.corelog import getLogger
 import os
 
 cdef extern from "<stdint.h>":
@@ -102,9 +103,7 @@ cdef class MKIDShmImage(object):
         else:
             self._create(name, kwargs.get('nCols', 100), kwargs.get('nRows', 100), kwargs.get('useWvl', False), 
                         kwargs.get('nWvlBins', 1), kwargs.get('wvlStart', 0), kwargs.get('wvlStop', 0))
-            
-         
-    
+
     def _create(self, name, nCols, nRows, useWvl, nWvlBins, wvlStart, wvlStop):
         cdef MKID_IMAGE_METADATA imagemd
         MKIDShmImage_populateMD(&imagemd, name.encode('UTF-8'), nCols, nRows, int(useWvl), nWvlBins, wvlStart, wvlStop)
@@ -165,6 +164,14 @@ cdef class MKIDShmImage(object):
     @property
     def useWvl(self):
         return self.image.md.useWvl
+
+    @useWvl.setter
+    def useWvl(self, use):
+        getLogger(__name__).warning('enabling/disabling use of wavelength solution not yet implemented')
+        if use:
+            pass
+        else:
+            pass
 
     @property
     def wvlStart(self):

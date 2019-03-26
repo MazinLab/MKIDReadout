@@ -136,8 +136,8 @@ cdef class Packetmaster(object):
                 Configuration object specifying shared memory objects for acquiring realtime images.
                 Typical usage would pass a configdict specified in dashboard.yml. Creates/opens 
                 MKIDShmImage objects for each image.
-                Object must have keys corresponding to the names of the images, and the values much have attributes
-                nWvlBins, useWvl, wvlStart, wvlStop.
+                Object must have keys corresponding to the names of the images, and values must have a get method for
+                valid for the attributes nWvlBins, useWvl, wvlStart, wvlStop (i.e. a ConfigThing or a dict)
         """
         #MISC param initialization
         self.nRows = nRows
@@ -162,33 +162,25 @@ cdef class Packetmaster(object):
             self.applyWvlSol(wvlSol, beammap)
         
         #INITIALIZE SHARED MEMORY IMAGES
-        self.sharedImages = []
+        self.sharedImages = {}
         if sharedImageCfg is not None:
-            self.nSharedImages = len(sharedImageCfg) 
 
             self.imageParams.nRoach = nRoaches
-            self.imageParams.nSharedImages = self.nSharedImages
+            self.imageParams.nSharedImages = len(sharedImageCfg)
             self.imageParams.wavecal = &(self.wavecal)
-            self.imageParams.sharedImageNames = <char**>malloc(self.nSharedImages*sizeof(char*))
+            self.imageParams.sharedImageNames = <char**>malloc(len(sharedImageCfg)*sizeof(char*))
             for i,image in enumerate(sharedImageCfg):
-                nWvlBins = sharedImageCfg[image].nWvlBins if sharedImageCfg[image].has_key('nWvlBins') else 1
-                useWvl = sharedImageCfg[image].useWvl if sharedImageCfg[image].has_key('useWvl') else False
-                wvlStart = sharedImageCfg[image].wvlStart if sharedImageCfg[image].has_key('wvlStart') else False
-                wvlStop = sharedImageCfg[image].wvlStop if sharedImageCfg[image].has_key('wvlStop') else False
-
-                self.sharedImages.append(MKIDShmImage(name=image, 
-                                 nRows=nRows, nCols=nCols, useWvl=useWvl,
-                                 nWvlBins=nWvlBins, wvlStart=wvlStart,
-                                 wvlStop=wvlStop))
+                self.sharedImages[image] = MKIDShmImage(name=image, nRows=nRows, nCols=nCols,
+                                                        useWvl=sharedImageCfg[image].get('useWvl', False),
+                                                        nWvlBins=sharedImageCfg[image].get('nWvlBins', 1),
+                                                        wvlStart=sharedImageCfg[image].get('wvlStart', False),
+                                                        wvlStop=sharedImageCfg[image].get('wvlStop', False))
                 self.imageParams.sharedImageNames[i] = <char*>malloc(STRBUF*sizeof(char*))
                 strcpy(self.imageParams.sharedImageNames[i], image.encode('UTF-8'))
-                
-        else:
-            self.nSharedImages = 0 
 
         #INITIALIZE READOUT STREAMS 
         self.nStreams = 0
-        if self.nSharedImages > 0:
+        if self.sharedImages:
             self.nStreams += 1
         if useWriter:
             self.nStreams += 1
@@ -197,16 +189,14 @@ cdef class Packetmaster(object):
         self.readerParams.nRoachStreams = self.nStreams
 
         streamNum = 0
-        if self.nSharedImages>0:
+        if self.sharedImages:
             self.imageParams.roachStream = &self.streams[streamNum]
-            streamSemName = STREAM_SEM_BASENAME + str(streamNum)
-            strcpy(self.imageParams.streamSemName, streamSemName.encode('UTF-8'))
+            strcpy(self.imageParams.streamSemName, (STREAM_SEM_BASENAME + str(streamNum)).encode('UTF-8'))
             streamNum += 1
 
         if useWriter:
             self.writerParams.roachStream = &self.streams[streamNum]
-            streamSemName = STREAM_SEM_BASENAME + str(streamNum)
-            strcpy(self.writerParams.streamSemName, streamSemName.encode('UTF-8'))
+            strcpy(self.writerParams.streamSemName, (STREAM_SEM_BASENAME + str(streamNum)).encode('UTF-8'))
             streamNum += 1
 
         strcpy(self.readerParams.streamSemBaseName, STREAM_SEM_BASENAME.encode('UTF-8'))
@@ -230,13 +220,12 @@ cdef class Packetmaster(object):
 
         startReaderThread(&(self.readerParams), &(self.threads[0]))
         threadNum = 1
-        if self.nSharedImages > 0:
+        if self.sharedImages:
             startShmImageWriterThread(&(self.imageParams), &(self.threads[threadNum]))
             threadNum += 1
         if useWriter:
             startBinWriterThread(&(self.writerParams), &(self.threads[threadNum]))
-        
- 
+
     def applyWvlSol(self, wvlSol, beammap):
         """
         Fills packetmaster's wavecal buffer with solution specified in wvlSol.
@@ -259,14 +248,12 @@ cdef class Packetmaster(object):
         c = np.zeros((self.nRows, self.nCols))
         resIDMap = beammap.residmap.T
 
-        for i in range(self.nRows):
-            for j in range(self.nCols):
-                resID = resIDMap[i,j]
-                if np.any(resID==calResIDs):
-                    curCoeffs = calCoeffs[resID==calResIDs]
-                    a[i,j] = curCoeffs[0]
-                    b[i,j] = curCoeffs[1]
-                    c[i,j] = curCoeffs[2]
+        for i,j in np.ndindex(self.nRows, self.nCols):
+            curCoeffs = calCoeffs[resIDMap[i,j]==calResIDs]
+            if curCoeffs.size:
+                a[i,j] = curCoeffs[0]
+                b[i,j] = curCoeffs[1]
+                c[i,j] = curCoeffs[2]
 
         a = a.flatten()
         b = b.flatten()
@@ -283,14 +270,12 @@ cdef class Packetmaster(object):
         self.wavecal.writing = 0
 
     def quit(self):
-        """
-        Exit all threads
-        """
+        """ Exit all threads """
         quitAllThreads(QUIT_SEM_NAME.encode('UTF-8'), self.nThreads)
 
     def __dealloc__(self):
         free(self.streams)
-        for i in range(self.nSharedImages):
+        for i in range(len(self.sharedImages)):
             free(self.imageParams.sharedImageNames[i])
         free(self.imageParams.sharedImageNames)
         free(self.threads)
