@@ -21,21 +21,22 @@ roaches: !include roach.yml
 
 dashboard: !configdict
   image_scale: 7 # Show this many^2 monitor screen pixels per MKID pixel
-  num_images_to_save: 300
-  average : 3 # Number of images to average for displaynum_images_to_add
+  average : 1 # Number of images to average for displaynum_images_to_add
   max_count_rate: 2500
   min_count_rate: 0
   n_darks: 5 # Num images for dark image
   n_flats: 5
   flatname: flat
   darkname: dark
-  fitstime: 60  #
+  fitstime: 60  # minimum number of seconds to package into each stream fits file, may run over
   wavecal: 2018-12-23 051888891e1e27c48f09da56342a914aed89.npz
   useWvl: True
   nWvlBins: 5
   wvlStart: 700
   wvlStop: 1500
-  inttime: 0.1
+  inttime: 1
+  mininttime: .1
+  maxinttime: 300
   spawn_packetmaster: True
 
 # Flipper is also controlled with the laser box arduino
@@ -55,9 +56,11 @@ filter: !configdict
   ip: localhost:50000
 
 telescope: !configdict
-  ip: 198.202.125.194
+  ip: 198.202.125.194   #Gen2 host for subaru
   port: 5004
   receive_port: 1024
+  user:
+  password: DO_NOT_COMMIT_A_VALUE
 
 
 

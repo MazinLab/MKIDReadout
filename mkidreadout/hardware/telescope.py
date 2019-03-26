@@ -15,6 +15,24 @@ __all__ = ['Telescope']
 import os
 import subprocess
 
+SUBARU_CLIENT = None
+
+
+def get_subaru(host='', user='', password=''):
+    # setup (use the Gen2 host, user name and password you are advised by
+    # observatory personnel)
+    global SUBARU_CLIENT
+    from g2cam.status.client import StatusClient
+    if SUBARU_CLIENT is None or SUBARU_CLIENT.is_disconnected:
+        SUBARU_CLIENT = StatusClient(host=host, username=user, password=password)
+        SUBARU_CLIENT.connect()
+
+    d = {'FITS.SBR.RA': None, 'FITS.SBR.DEC': None, 'FITS.SBR.HA': None, 'FITS.SBR.AIRMASS': None,
+         'TSCS.AZ': None, 'TSCS.EL': None}
+    SUBARU_CLIENT.fetch(d)
+
+    return {'RA': d['FITS.SBR.RA'], 'DEC': d['FITS.SBR.DEC'], 'HA': d['FITS.SBR.DEC'],
+            'AIRMASS': d['FITS.SBR.AIRMASS'], 'AZ': d['TSCS.AZ'], 'EL': d['TSCS.EL']}
 
 
 def getPalomarSeeing(verbose=False):

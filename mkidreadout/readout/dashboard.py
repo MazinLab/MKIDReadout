@@ -4,6 +4,8 @@ Author:    Alex Walter
 Date:      Jul 3, 2016
 
 
+#TODO LiveImageFetcher header info needs updateing on a regular basis
+
 This is a GUI class for real time control of the MEC and DARKNESS instruments. 
  - show realtime image
  - show realtime pixel timestreams (see guiwindows.PixelTimestreamWindow)
@@ -33,11 +35,11 @@ import mkidreadout.config
 
 import mkidcore.corelog
 from mkidcore.corelog import getLogger, create_log
-from mkidcore.fits import CalFactory, summarize, loadimg, combineHDU
+from mkidcore.fits import CalFactory, summarize, combineHDU
 
 from mkidreadout.readout.guiwindows import PixelTimestreamWindow, PixelHistogramWindow
 from mkidreadout.readout.lasercontrol import LaserControl
-from mkidreadout.readout.Telescope import *
+from hardware.telescope import *
 from mkidreadout.channelizer.Roach2Controls import Roach2Controls
 from mkidreadout.utils.utils import interpolateImage
 from mkidreadout.configuration.beammap.beammap import Beammap
@@ -55,18 +57,15 @@ def add_actions(target, actions):
             target.addAction(action)
 
 
-class ImageSearcher(QtCore.QObject):  # Extends QObject for use with QThreads
+class LiveImageFetcher(QtCore.QObject):  # Extends QObject for use with QThreads
     """
     This class fetches images from PacketMaster for the live view and fits files
-    
-    When it finds an image, it grabs the data, parses it into an array, and emits an imageComplete signal
-    Optionally, it deletes the data on the ramdisk so it doesn't fill up
-    
+
     SIGNALS
-        imageComplete - emits when an image is found
+        newImage - emits when an image is avaialble
         finished - emits when self.search is set to False
     """
-    imageComplete = QtCore.pyqtSignal(object)
+    newImage = QtCore.pyqtSignal(object)
     finished = QtCore.pyqtSignal()
 
     def __init__(self, sharedim, inttime=0.1, parent=None):
@@ -77,10 +76,13 @@ class ImageSearcher(QtCore.QObject):  # Extends QObject for use with QThreads
             parent - Leave as None so that we can add to new thread
         """
         super(QtCore.QObject, self).__init__(parent)
-        self.sharedim = sharedim
+        self.imagebuffer = sharedim
         self.inttime = inttime
         self.header = {}
         self.search = True
+
+    def update_itime(self, it):
+        self.inttime = float(it)
 
     def run(self):
         """
@@ -93,22 +95,21 @@ class ImageSearcher(QtCore.QObject):  # Extends QObject for use with QThreads
         INPUTS:
             removeOldFiles - remove .img and .png files after we read them
         """
-        #TODO search ->run
-        #TODO whole class into something else
         self.search = True
         while self.search:
             try:
                 utc = datetime.utcfromtimestamp(time.time()).strftime('%Y-%m-%d %H:%M:%S')
-                self.sharedim.startIntegration(integrationTime=self.inttime)
-                data = self.sharedim.receiveImage()
+                header = self.header
+                self.imagebuffer.startIntegration(integrationTime=self.inttime)
+                data = self.imagebuffer.receiveImage()
                 ret = fits.ImageHDU(data=data)
                 ret.header['utcstart'] = utc
                 ret.header['exptime'] = self.inttime
                 ret.header['wavecal'] = self.sharedim.wavecalID
                 #TODO add rest of wavelength info
-                for k, v in self.header.items():
+                for k, v in header.items():
                     ret.header[k] = v
-                self.imageComplete.emit(ret)
+                self.newImage.emit(ret)
             except Exception:
                 getLogger('Dashboard').error('Problem', exc_info=True)
         self.finished.emit()
@@ -573,11 +574,11 @@ class MKIDDashboard(QMainWindow):
 
         # Setup search for image files from cuber
         getLogger('Dashboard').info('Setting up image searcher...')
-        darkImageSearcher = ImageSearcher(self.liveimage, self.cfg.dashboard.inttime, parent=None)
-        thread = self.startworker(darkImageSearcher, 'DARKimageSearch')
-        thread.started.connect(darkImageSearcher.checkDir)
-        darkImageSearcher.imageComplete.connect(self.convertImage)
-        darkImageSearcher.finished.connect(thread.quit)
+        self.imageFetcher = LiveImageFetcher(self.liveimage, self.cfg.dashboard.inttime, parent=None)
+        thread = self.startworker(self.imageFetcher, 'imageFetcher')
+        thread.started.connect(self.imageFetcher.run)
+        self.imageFetcher.newImage.connect(self.convertImage)
+        self.imageFetcher.finished.connect(thread.quit)
 
         if not self.offline:
             QtCore.QTimer.singleShot(10, thread.start)  # start the thread after a second
@@ -596,6 +597,7 @@ class MKIDDashboard(QMainWindow):
         """
         for roach in self.roachList:
             roach.stopSendingPhotons()
+
         getLogger('Dashboard').info('Roaches stopped sending photon packets')
 
     def turnOnPhotonCapture(self):
@@ -606,6 +608,7 @@ class MKIDDashboard(QMainWindow):
         """
         for roach in self.roachList:
             roach.startSendingPhotons(self.config.packetmaster.ip, self.config.packetmaster.captureport)
+        self.imageFetcher.header = self.state()
         getLogger('Dashboard').info('Roaches sending photon packets!')
 
     def loadBeammap(self):
@@ -641,7 +644,6 @@ class MKIDDashboard(QMainWindow):
             roach.loadBeammapCoords(self.beammap, freqListFile=ffile)
 
         getLogger('Dashboard').info('Loaded beammap into roaches')
-
 
     def addDarkImage(self, photonImage):
         self.spinbox_darkImage.setEnabled(False)
@@ -684,7 +686,6 @@ class MKIDDashboard(QMainWindow):
         This function is automatically called when ImageSearcher object finds a new image file from cuber program
         We also call this function if we change the image processing controls like
             min/max count rate
-            num_images_to_add
         
         Here we set up a converter object to parse the photon counts into an RBG QImage object
         We do this in a separate thread because it might take a while to process
@@ -696,6 +697,7 @@ class MKIDDashboard(QMainWindow):
         if photonImage is not None:
             self.imageList.append(photonImage)
             self.fitsList.append(photonImage)
+            #TODO This needs to be sorted out now that the image just has the total
             self.imageList = self.imageList[-self.config.dashboard.average:]  #trust the garbage collector
 
             if self.takingDark > 0:
@@ -1163,16 +1165,22 @@ class MKIDDashboard(QMainWindow):
                 self.checkbox_flipper.setEnabled(True)
             self.logstate()
 
-    def state(self):
-        #TODO this is the crap that populates the headers and the log, it needs to be prompt enough that
-        #it won't cause the GUI to be sluggish so polls should be used with caution
+    def state(self, force_update=False):
+        """this is the function that populates the headers and the log, it needs to be prompt enough that it won't
+        cause slowdowns, TCS queries need to be cached in general at the 5-10 s level"""
+        from mkidreadout.hardware.telescope import get_subaru
+
+        #TODO sort out tcs query caching
+        if force_update or True:
+            d = get_subaru(host=self.cfg.telescope.ip, username=self.cfg.telescope.user,
+                           password=self.cfg.telescope.password)
+
         targ, cmt = str(self.textbox_target.text()), str(self.textbox_log.toPlainText())
-        # state = InstrumentState(target=targ, comment=cmt, flipper=None, laser)
-        # targetname, telescope params, filter, dither x y ts state, roach info if first log
         return dict(target=targ, ditherx=str(self.dither_dialog.status.xpos),
-                    dithery=str(self.dither_dialog.status.ypos),
-                    flipper='image', filter=self.filter, ra='00:00:00.00', dec='00:00:00.00',
-                    utc=datetime.utcnow().strftime("%Y%m%d%H%M%S"), roaches='roach.yml', comment=cmt)
+                    dithery=str(self.dither_dialog.status.ypos), laser='TODO',
+                    flipper='image', filter=self.filter, ra=d['RA'], dec=d['DEC'],
+                    ha=d['HA'], az=d['AZ'], el=d['EL'], airmass=d['AIRMASS'],
+                    utc=datetime.utcnow().strftime("%Y%m%d%H%M%S"), comment=cmt)
 
     def logstate(self):
         getLogger('ObsLog').info(json.dumps(self.state()))
@@ -1256,19 +1264,29 @@ class MKIDDashboard(QMainWindow):
 
         # ==================================
         # Image settings!
+        #average
+        label_spinbox_average = QLabel('Avg:')
+        spinbox_average = QSpinBox()
+        spinbox_average.setRange(1, 100)
+        spinbox_average.setValue(self.config.dashboard.average)
+        spinbox_average.setSuffix(' frames')
+        spinbox_average.setWrapping(False)
+        spinbox_average.setCorrectionMode(QAbstractSpinBox.CorrectToNearestValue)
+        spinbox_average.valueChanged.connect(partial(self.config.update, 'dashboard.average'))  # change cfg
+
         # integration Time
-        integrationTime = self.config.dashboard.average
-        image_int_time = self.config.packetmaster.int_time
-        max_int_time = self.config.dashboard.num_images_to_save
-        label_integrationTime = QLabel('int time:')
-        spinbox_integrationTime = QSpinBox()
-        spinbox_integrationTime.setRange(1, max_int_time)
+        integrationTime = self.config.dashboard.inttime
+        label_integrationTime = QLabel('Integrate ')
+        spinbox_integrationTime = QDoubleSpinBox()
+        spinbox_integrationTime.setRange(self.config.dashboard.mininttime, self.config.dashboard.maxinttime)
+        spinbox_integrationTime.setSingleStep(self.config.dashboard.mininttime)
+        spinbox_integrationTime.setDecimals(1)
         spinbox_integrationTime.setValue(integrationTime)
-        spinbox_integrationTime.setSuffix(' * {} s'.format(image_int_time))
+        spinbox_integrationTime.setSuffix(' s')
         spinbox_integrationTime.setWrapping(False)
         spinbox_integrationTime.setCorrectionMode(QAbstractSpinBox.CorrectToNearestValue)
-        spinbox_integrationTime.valueChanged.connect(partial(self.config.update, 'dashboard.average'))  # change in
-        # config file
+        spinbox_integrationTime.valueChanged.connect(partial(self.config.update, 'dashboard.inttime'))  # change cfg
+        spinbox_integrationTime.valueChanged.connect(self.imageFetcher.update_itime)
 
         # current num images integrated
         self.label_numIntegrated = QLabel('0/' + str(integrationTime))
@@ -1278,11 +1296,10 @@ class MKIDDashboard(QMainWindow):
         # remake current image after 10 ms
 
         # dark Image
-        darkIntTime = self.config.dashboard.n_darks
         self.spinbox_darkImage = QSpinBox()
-        self.spinbox_darkImage.setRange(1, max_int_time)
-        self.spinbox_darkImage.setValue(darkIntTime)
-        self.spinbox_darkImage.setSuffix(' * ' + str(image_int_time) + ' s')
+        self.spinbox_darkImage.setRange(1, self.config.dashboard.maxinttime)
+        self.spinbox_darkImage.setValue(self.config.dashboard.n_darks)
+        self.spinbox_darkImage.setSuffix(' frames')
         self.spinbox_darkImage.setWrapping(False)
         self.spinbox_darkImage.setCorrectionMode(QAbstractSpinBox.CorrectToNearestValue)
         self.spinbox_darkImage.valueChanged.connect(partial(self.config.update, 'dashboard.n_darks'))  # change in
@@ -1298,11 +1315,10 @@ class MKIDDashboard(QMainWindow):
         self.checkbox_darkImage.setChecked(False)
 
         # flat Image
-        flatIntTime = self.config.dashboard.n_flats
         self.spinbox_flatImage = QSpinBox()
-        self.spinbox_flatImage.setRange(1, max_int_time)
-        self.spinbox_flatImage.setValue(flatIntTime)
-        self.spinbox_flatImage.setSuffix(' * ' + str(image_int_time) + ' s')
+        self.spinbox_flatImage.setRange(1, self.config.dashboard.maxinttime)
+        self.spinbox_flatImage.setValue(self.config.dashboard.n_flats)
+        self.spinbox_flatImage.setSuffix(' frames')
         self.spinbox_flatImage.setWrapping(False)
         self.spinbox_flatImage.setCorrectionMode(QAbstractSpinBox.CorrectToNearestValue)
         self.spinbox_flatImage.valueChanged.connect(partial(self.config.update, 'dashboard.n_flats'))  # change in
@@ -1336,12 +1352,10 @@ class MKIDDashboard(QMainWindow):
         spinbox_minCountRate.setWrapping(False)
         spinbox_minCountRate.setCorrectionMode(QAbstractSpinBox.CorrectToNearestValue)
         # connections for max and min count rates
-        spinbox_minCountRate.valueChanged.connect(partial(self.config.update, 'dashboard.min_count_rate'))  # change
-        #  in config file
-        spinbox_maxCountRate.valueChanged.connect(partial(self.config.update, 'dashboard.max_count_rate'))  # change
-        #  in config file
-        spinbox_minCountRate.valueChanged.connect(
-            spinbox_maxCountRate.setMinimum)  # make sure min is always less than max
+        spinbox_minCountRate.valueChanged.connect(partial(self.config.update, 'dashboard.min_count_rate'))  # change cfg
+        spinbox_maxCountRate.valueChanged.connect(partial(self.config.update, 'dashboard.max_count_rate'))  # change cfg
+        # make sure min is always less than max
+        spinbox_minCountRate.valueChanged.connect(spinbox_maxCountRate.setMinimum)
         spinbox_maxCountRate.valueChanged.connect(spinbox_minCountRate.setMaximum)
         convertSS = lambda x: QtCore.QTimer.singleShot(10, self.convertImage)
         spinbox_maxCountRate.valueChanged.connect(convertSS)  # remake current image after 10 ms
@@ -1362,6 +1376,12 @@ class MKIDDashboard(QMainWindow):
         # Checkbox for Smoothing image
         self.checkbox_smooth = QCheckBox('Smooth Image')
         self.checkbox_smooth.setChecked(False)
+
+        #TODO Boxes for wavelength solution
+        # Settings needed: wavestart, stop, solution file, active or not
+        # self.checkbox_usewave = QCheckBox('Dither Image')
+        # self.checkbox_usewave.setChecked(False)
+        # self.checkbox_usewave.stateChanged.connect(self.packetmaster.useWvl)
 
         # Checkbox for dithering image
         # self.checkbox_dither = QCheckBox('Dither Image')
@@ -1427,6 +1447,12 @@ class MKIDDashboard(QMainWindow):
         vbox.addLayout(hbox_filter)
 
         vbox.addStretch()
+
+        hbox = QHBoxLayout()
+        hbox.addWidget(label_spinbox_average)
+        hbox.addWidget(label_spinbox_average)
+        hbox.addStretch()
+        vbox.addLayout(hbox)
 
         hbox_intTime = QHBoxLayout()
         hbox_intTime.addWidget(label_integrationTime)
