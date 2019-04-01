@@ -7,6 +7,7 @@ parser = argparse.ArgumentParser(description='Check score triage performance')
 parser.add_argument('mlFiles', nargs='+')
 parser.add_argument('-m', '--manualFiles', nargs='+')
 parser.add_argument('-c', '--cut', type=float)
+parser.add_argument('-p', '--plotConfusion', action='store_true')
 args = parser.parse_args()
 
 if args.manualFiles is None:
@@ -18,6 +19,8 @@ nFiles = len(args.mlFiles)
 mlMetadataList = []
 manualMetadataList = []
 attenDiff = np.array([])
+mlAttens = np.array([])
+manualAttens = np.array([])
 goodScore = np.array([])
 badScore = np.array([])
 resID = np.array([])
@@ -33,6 +36,8 @@ for i in range(nFiles):
     manualMetadataList.append(SweepMetadata(file=args.manualFiles[i]))
     goodMask = ~np.isnan(mlMetadataList[i].atten)
     attenDiff = np.append(attenDiff, mlMetadataList[i].mlatten[goodMask] - manualMetadataList[i].atten[goodMask])
+    mlAttens = np.append(mlAttens, mlMetadataList[i].mlatten[goodMask])
+    manualAttens = np.append(manualAttens, manualMetadataList[i].atten[goodMask])
     goodScore = np.append(goodScore, mlMetadataList[i].ml_isgood_score[goodMask])
     badScore = np.append(badScore, mlMetadataList[i].ml_isbad_score[goodMask])
     resID = np.append(resID, mlMetadataList[i].resIDs[goodMask])
@@ -86,6 +91,24 @@ for i in range(30):
 
 #fig0 = plt.figure()
 #fig1 = plt.figure()
+
+if args.plotConfusion:
+    manualAttens[manualAttens==-1] = max(manualAttens)
+    attenStart = min(manualAttens)
+    manualAttens -= attenStart
+    mlAttens -= attenStart
+    manualAttens = np.round(manualAttens).astype(int)
+    mlAttens = np.round(mlAttens).astype(int)
+    confImage = np.zeros((max(manualAttens) - min(manualAttens) + 1, max(manualAttens) - min(manualAttens) + 1))
+    for i in range(len(manualAttens)):
+        confImage[manualAttens[i], mlAttens[i]] += 1
+
+    plt.imshow(np.transpose(confImage))
+    plt.xlabel('True Atten')
+    plt.ylabel('Guess Atten')
+    plt.colorbar()
+    plt.show()
+
 
 #plt.hist(goodScore[cutMask], alpha=0.5, bins=20)
 #plt.hist(goodScore[~cutMask], alpha=0.5, bins=20)
