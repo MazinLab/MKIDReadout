@@ -36,6 +36,7 @@ typedef struct{
     char imageBufferName[80]; //form: /imgbuffername (in /dev/shm)
     char takeImageSemName[80];
     char doneImageSemName[80];
+    char wavecalID[80];
 
 } MKID_IMAGE_METADATA;
 
@@ -78,25 +79,6 @@ typedef struct{
 
 } MKID_EVENT_BUFFER;
 
-typedef struct{
-    char wavecalSolutionFile[80];
-    char bufferName[80];
-    uint32_t nCols;
-    uint32_t nRows;
-    int writing;
-
-} MKID_WAVECAL_METADATA;
-
-typedef struct{
-    MKID_WAVECAL_METADATA *md;
-    
-    // Each pixel has 3 coefficients, with address given by 
-    // &a = 3*(nCols*y + x); &b = &a + 1; &c = &a + 2
-    coeff_t *data; 
-
-} MKID_WAVECAL;
-
-    
 
 int MKIDShmImage_open(MKID_IMAGE *imageStruct, const char *imgName);
 int MKIDShmImage_close(MKID_IMAGE *imageStruct);
@@ -109,10 +91,6 @@ void MKIDShmImage_postDoneSem(MKID_IMAGE *image, int semInd);
 void MKIDShmImage_copy(MKID_IMAGE *image, image_t *ouputBuffer);
 void MKIDShmImage_setWvlRange(MKID_IMAGE *image, int wvlStart, int wvlStop);
 
-int MKIDShmWavecal_open(MKID_WAVECAL *wavecal, const char *name);
-int MKIDShmWavecal_close(MKID_WAVECAL *wavecal);
-int MKIDShmWavecal_create(MKID_WAVECAL_METADATA *wavecalMetadata, const char *name, MKID_WAVECAL *outputWavecal);
-coeff_t MKIDShmWavecal_getEnergy(MKID_WAVECAL *wavecal, int x, int y, float phase);
 
 void *openShmFile(const char *shmName, size_t size, int create);
 

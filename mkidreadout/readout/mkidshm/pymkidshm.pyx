@@ -6,6 +6,7 @@ import numpy as np
 cimport numpy as np
 from mkidcore.corelog import getLogger
 import os
+from libc.string cimport strcpy
 
 cdef extern from "<stdint.h>":
     ctypedef unsigned int uint32_t
@@ -27,6 +28,7 @@ cdef extern from "mkidshm.h":
         uint32_t nWvlBins
         uint32_t wvlStart
         uint32_t wvlStop
+        char wavecalID[80]
 
     #PARTIAL DEFINITION, only exposing necessary attributes
     ctypedef struct MKID_IMAGE:
@@ -150,8 +152,8 @@ cdef class MKIDShmImage(object):
         return imageBuffer
 
     @property
-    def wavecalID(self)
-        return '' if self.useWvl else ''
+    def wavecalID(self):
+        return '' if self.useWvl else self.image.md.wavecalID.decode()
 
     @property
     def dims(self):
@@ -167,11 +169,15 @@ cdef class MKIDShmImage(object):
 
     @useWvl.setter
     def useWvl(self, use):
-        getLogger(__name__).warning('enabling/disabling use of wavelength solution not yet implemented')
+        #getLogger(__name__).warning('enabling/disabling use of wavelength solution not yet implemented')
         if use:
-            pass
+            self.image.md.useWvl = 1
         else:
-            pass
+            self.image.md.useWvl = 0
+
+    @wavecalID.setter
+    def wavecalID(self, filename):
+        strcpy(self.image.md.wavecalID, filename.encode('UTF-8'))
 
     @property
     def wvlStart(self):

@@ -1,3 +1,4 @@
+import os, sys
 import numpy as np
 cimport numpy as np
 from mkidreadout.readout.mkidshm.pymkidshm import MKIDShmImage
@@ -153,18 +154,10 @@ cdef class Packetmaster(object):
             self.writerParams.cpu = -1
             self.imageParams.cpu = -1
 
-        #INITIALIZE WAVECAL
-        self.wavecal.data = <wvlcoeff_t*>malloc(N_WVL_COEFFS*sizeof(wvlcoeff_t)*nRows*nCols)
-        memset(self.wavecal.data, 0, N_WVL_COEFFS*sizeof(wvlcoeff_t)*nRows*nCols)
-        if wvlSol is not None:
-            if beammap is None:
-                raise Exception('Must provide a beammap to use a wavecal')
-            self.applyWvlSol(wvlSol, beammap)
         
         #INITIALIZE SHARED MEMORY IMAGES
         self.sharedImages = {}
         if sharedImageCfg is not None:
-
             self.imageParams.nRoach = nRoaches
             self.imageParams.nSharedImages = len(sharedImageCfg)
             self.imageParams.wavecal = &(self.wavecal)
@@ -177,6 +170,15 @@ cdef class Packetmaster(object):
                                                         wvlStop=sharedImageCfg[image].get('wvlStop', False))
                 self.imageParams.sharedImageNames[i] = <char*>malloc(STRBUF*sizeof(char*))
                 strcpy(self.imageParams.sharedImageNames[i], image.encode('UTF-8'))
+                self.sharedImages[image].wavecalID = ''
+
+        #INITIALIZE WAVECAL
+        self.wavecal.data = <wvlcoeff_t*>malloc(N_WVL_COEFFS*sizeof(wvlcoeff_t)*nRows*nCols)
+        memset(self.wavecal.data, 0, N_WVL_COEFFS*sizeof(wvlcoeff_t)*nRows*nCols)
+        if wvlSol is not None:
+            if beammap is None:
+                raise Exception('Must provide a beammap to use a wavecal')
+            self.applyWvlSol(wvlSol, beammap)
 
         #INITIALIZE READOUT STREAMS 
         self.nStreams = 0
@@ -241,8 +243,10 @@ cdef class Packetmaster(object):
         self.wavecal.nCols = self.nCols
         self.wavecal.nRows = self.nRows
         strcpy(self.wavecal.solutionFile, wvlSol._file_path.encode('UTF-8'))
+        for image in self.sharedImages:
+            self.sharedImages[image].wavecalID = os.path.basename(wvlSol._file_path)
 
-        calResIDs, calCoeffs = wvlSol.find_calibrations()
+        calCoeffs, calResIDs = wvlSol.find_calibrations()
         a = np.zeros((self.nRows, self.nCols))
         b = np.zeros((self.nRows, self.nCols))
         c = np.zeros((self.nRows, self.nCols))
@@ -251,6 +255,7 @@ cdef class Packetmaster(object):
         for i,j in np.ndindex(self.nRows, self.nCols):
             curCoeffs = calCoeffs[resIDMap[i,j]==calResIDs]
             if curCoeffs.size:
+                curCoeffs = curCoeffs[0]
                 a[i,j] = curCoeffs[0]
                 b[i,j] = curCoeffs[1]
                 c[i,j] = curCoeffs[2]

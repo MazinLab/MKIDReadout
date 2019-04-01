@@ -188,33 +188,3 @@ int MKIDShmImage_checkIfDone(MKID_IMAGE *image, int semInd){
 void MKIDShmImage_copy(MKID_IMAGE *image, image_t *outputBuffer){
     memcpy(outputBuffer, image->image, sizeof(image_t) * image->md->nCols * image->md->nRows * image->md->nWvlBins);}
 
-int MKIDShmWavecal_create(MKID_WAVECAL_METADATA *wavecalMetadata, const char *name, MKID_WAVECAL *outputWavecal){
-    MKID_WAVECAL_METADATA *mdPtr;
-    coeff_t *dataPtr;
-
-    mdPtr = (MKID_WAVECAL_METADATA*)openShmFile(name, sizeof(MKID_WAVECAL_METADATA), 1);
-
-    if(mdPtr==NULL)
-        return -1;
-
-    memcpy(mdPtr, wavecalMetadata, sizeof(MKID_WAVECAL_METADATA)); //copy contents of imageMetadata into shared memory buffer
-    outputWavecal->md = mdPtr;
-
-    // CREATE IMAGE DATA BUFFER
-    int bufferSize = (mdPtr->nCols)*(mdPtr->nRows)*3;
-
-    dataPtr = (coeff_t*)openShmFile(mdPtr->bufferName, sizeof(coeff_t)*bufferSize, 1);
-    if(dataPtr==NULL)
-        return -1;
-
-    outputWavecal->data = dataPtr;
-    return 0;
-
-}
-
-int MKIDShmWavecal_close(MKID_WAVECAL *wavecal){    
-    munmap(wavecal->data, sizeof(coeff_t)*(wavecal->md->nCols)*(wavecal->md->nRows)*3);
-    munmap(wavecal->md, sizeof(MKID_WAVECAL_METADATA));
-    return 0;
-
-}
