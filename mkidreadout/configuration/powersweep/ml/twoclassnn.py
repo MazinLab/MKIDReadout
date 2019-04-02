@@ -97,18 +97,21 @@ class mlClassification():
             if self.mlDict['useVectIQV']:
                 nColors += 2
 
+            if not self.mlDict.has_key('nImagesPerRes'):
+                self.mlDict['nImagesPerRes'] = 1
 
-            trainImages = np.empty((0, self.mlDict['attenWinBelow']+self.mlDict['attenWinAbove']+1, self.mlDict['xWidth'], nColors))
-            testImages = np.empty((0, self.mlDict['attenWinBelow']+self.mlDict['attenWinAbove']+1, self.mlDict['xWidth'], nColors))
-            trainLabels = np.empty((0, self.nClass))
-            testLabels = np.empty((0, self.nClass))
             # num_rotations = 3
             # angle = np.arange(0,2*math.pi,2*math.pi/num_rotations)
             train_ind = np.array(map(int,np.linspace(0,rawTrainData.res_nums-1,rawTrainData.res_nums*self.trainFrac)))
             test_ind=[]
             np.array([test_ind.append(el) for el in range(rawTrainData.res_nums) if el not in train_ind])
 
-            #TODO: fix append if this is too slow
+            trainImages = np.zeros((2*self.mlDict['nImagesPerRes']*len(train_ind), self.mlDict['attenWinBelow']+self.mlDict['attenWinAbove']+1, self.mlDict['xWidth'], nColors))
+            testImages = np.zeros((2*len(test_ind), self.mlDict['attenWinBelow']+self.mlDict['attenWinAbove']+1, self.mlDict['xWidth'], nColors))
+            trainLabels = np.zeros((2*self.mlDict['nImagesPerRes']*len(train_ind), self.nClass))
+            testLabels = np.zeros((2*len(test_ind), self.nClass))
+
+            imCtr = 0
             for rn in train_ind:#range(int(self.trainFrac*rawTrainData.res_nums)):
                 # for t in range(num_rotations):
                 #     image = self.makeResImage(res_num = rn, iAtten= iAttens[rn,c], angle=angle[t],showFrames=False, 
@@ -117,37 +120,44 @@ class mlClassification():
                                         self.mlDict['resWidth'], self.mlDict['padResWin'], self.mlDict['useIQV'], 
                                         self.mlDict['useMag'], self.mlDict['centerLoop'], self.mlDict['nAttens'], self.mlDict['useVectIQV']) 
                 if image is not None:
-                    imageGood = image[rawTrainData.opt_iAttens[rn]-self.mlDict['attenWinBelow']:rawTrainData.opt_iAttens[rn]+self.mlDict['attenWinAbove']+1]
-                    trainImages = np.append(trainImages, np.expand_dims(imageGood, axis=0), axis=0)
-                    trainLabels = np.append(trainLabels, np.expand_dims(np.array([1,0]), axis=0), axis=0)
-
                     badAttenMask = np.ones(self.mlDict['nAttens'])
                     badAttenMask[:self.mlDict['attenWinBelow']] = 0
                     badAttenMask[-self.mlDict['attenWinAbove']-1:] = 0
                     endInd = min(self.mlDict['nAttens'], rawTrainData.opt_iAttens[rn] + self.mlDict['badAttenRangeAbove'])
                     startInd = max(0, rawTrainData.opt_iAttens[rn] - self.mlDict['badAttenRangeBelow'])
-                    if self.mlDict['equalizeTrainingSat'] and startInd > self.mlDict['attenWinBelow'] and endInd < self.mlDict['nAttens'] - self.mlDict['attenWinAbove'] - 1:
-                        sat = np.random.choice(np.array([True, False]))
-                        if sat:
-                            endInd = self.mlDict['nAttens']
-                        else:
-                            startInd = 0
-                    badAttenMask[startInd:endInd] = 0
-                    badAttenInds = np.where(badAttenMask)[0]
-                    badAttenInd = np.random.choice(badAttenInds)
-                    imageBad = image[badAttenInd-self.mlDict['attenWinBelow']:badAttenInd+self.mlDict['attenWinAbove']+1]
-                    trainImages = np.append(trainImages, np.expand_dims(imageBad, axis=0), axis=0)
-                    trainLabels = np.append(trainLabels, np.expand_dims(np.array([0,1]), axis=0), axis=0)
 
 
+                    for k in range(self.mlDict['nImagesPerRes']):
+                        imageGood = image[rawTrainData.opt_iAttens[rn]-self.mlDict['attenWinBelow']:rawTrainData.opt_iAttens[rn]+self.mlDict['attenWinAbove']+1]
+                        trainImages[imCtr] = imageGood
+                        trainLabels[imCtr] = np.array([1,0])
+                        imCtr += 1
+
+                        if self.mlDict['equalizeTrainingSat'] and startInd > self.mlDict['attenWinBelow'] and endInd < self.mlDict['nAttens'] - self.mlDict['attenWinAbove'] - 1:
+                            sat = np.random.choice(np.array([True, False]))
+                            if sat:
+                                endInd = self.mlDict['nAttens']
+                            else:
+                                startInd = 0
+                        badAttenMask[startInd:endInd] = 0
+                        badAttenInds = np.where(badAttenMask)[0]
+                        badAttenInd = np.random.choice(badAttenInds)
+                        imageBad = image[badAttenInd-self.mlDict['attenWinBelow']:badAttenInd+self.mlDict['attenWinAbove']+1]
+                        trainImages[imCtr] = imageBad
+                        trainLabels[imCtr] = np.array([0,1])
+                        imCtr += 1
+
+
+            imCtr = 0
             for rn in test_ind:
                 image, _, _, _, _ = mlt.makeResImage(rn, rawTrainData, wsAttenInd, self.mlDict['xWidth'], 
                                         self.mlDict['resWidth'], self.mlDict['padResWin'], self.mlDict['useIQV'], 
                                         self.mlDict['useMag'], self.mlDict['centerLoop'], self.mlDict['nAttens'], self.mlDict['useVectIQV']) 
                 if image is not None:
                     imageGood = image[rawTrainData.opt_iAttens[rn]-self.mlDict['attenWinBelow']:rawTrainData.opt_iAttens[rn]+self.mlDict['attenWinAbove']+1]
-                    testImages = np.append(testImages, np.expand_dims(imageGood, axis=0), axis=0)
-                    testLabels = np.append(testLabels, np.expand_dims(np.array([1,0]), axis=0), axis=0)
+                    testImages[imCtr] = imageGood
+                    testLabels[imCtr] = np.array([1,0])
+                    imCtr += 1
 
                     badAttenMask = np.ones(self.mlDict['nAttens'])
                     badAttenMask[:self.mlDict['attenWinBelow']] = 0
@@ -164,8 +174,9 @@ class mlClassification():
                     badAttenInds = np.where(badAttenMask)[0]
                     badAttenInd = np.random.choice(badAttenInds)
                     imageBad = image[badAttenInd-self.mlDict['attenWinBelow']:badAttenInd+self.mlDict['attenWinAbove']+1]
-                    testImages = np.append(testImages, np.expand_dims(imageBad, axis=0), axis=0)
-                    testLabels = np.append(testLabels, np.expand_dims(np.array([0,1]), axis=0), axis=0)
+                    testImages[imCtr] = imageBad
+                    testLabels[imCtr] = np.array([0,1])
+                    imCtr += 1
 
             with open(self.trainFile, 'ab') as trainFile:
                 pickle.dump([np.array(trainImages), np.array(trainLabels)], trainFile)

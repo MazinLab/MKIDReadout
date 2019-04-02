@@ -1,4 +1,5 @@
 import numpy as np
+import os
 import matplotlib.pyplot as plt
 import argparse
 from mkidreadout.configuration.sweepdata import SweepMetadata
@@ -103,10 +104,13 @@ if args.plotConfusion:
     for i in range(len(manualAttens)):
         confImage[manualAttens[i], mlAttens[i]] += 1
 
-    plt.imshow(np.transpose(confImage))
+    plt.imshow(np.transpose(confImage), vmax=30)
     plt.xlabel('True Atten')
     plt.ylabel('Guess Atten')
+    title = args.mlFiles[0].split('_')[-1].split('.')[0]
+    plt.title(title)
     plt.colorbar()
+    plt.savefig(os.path.join(os.path.dirname(args.mlFiles[0]), title+'.png'))
     plt.show()
 
 
