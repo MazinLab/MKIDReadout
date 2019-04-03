@@ -117,6 +117,15 @@ class diagnostics():
                 y = outChan/ncols
                 x = outChan%ncols
                 axes[y,x].imshow(inChanWeights[:,:,x+y*ncols])
+
+    def plotLayer1WeightSum(self):
+        weights = self.getWeights(1)
+        for inChan in range(weights.shape[2]):
+            inChanWeights = weights[:,:,inChan,:]
+            fig, ax = plt.subplots()
+            ax.set_title(inChan)
+            ax.imshow(np.sum(inChanWeights, axis=2))
+
             
 
 
@@ -271,6 +280,7 @@ if __name__=='__main__':
     # diag.plotS21(105)
     if args.weights:
         diag.plotLayer1Weights()
+        diag.plotLayer1WeightSum()
         plt.show()
     elif args.mean:
         diag.plotMeanImage()
