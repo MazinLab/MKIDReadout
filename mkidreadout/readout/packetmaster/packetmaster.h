@@ -92,7 +92,9 @@ typedef struct{
 
 typedef struct{
     READOUT_STREAM *roachStream;
-    char ramdiskPath[STRBUF];
+
+    int writing;
+    char writerPath[STRBUF];
 
     char quitSemName[STRBUF];
     char streamSemName[STRBUF];

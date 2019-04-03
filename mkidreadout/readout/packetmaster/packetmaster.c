@@ -437,12 +437,10 @@ void* binWriter(void *prms)
     struct timespec spec;
     long outcount;
     int ret, mode=0;
-    FILE *wp, *rp;
+    FILE *wp;
     //char data[1024];
-    char path[80];
     char fname[120];
     READOUT_STREAM *rptr;
-    char startFileName[STRBUF], stopFileName[STRBUF];
     BIN_WRITER_PARAMS *params;
     sem_t *quitSem;
     sem_t *streamSem;
@@ -459,10 +457,7 @@ void* binWriter(void *prms)
     streamSem = sem_open(params->streamSemName, O_CREAT, S_IRUSR | S_IWUSR, 0);
     sem_post(streamSem);
 
-    sprintf(startFileName, "%s/%s", params->ramdiskPath, "START");
-    sprintf(stopFileName, "%s/%s", params->ramdiskPath, "STOP");
-    printf("Ramdisk path: %s\n", params->ramdiskPath);
-
+    
     // open shared memory block 1 for photon data
     rptr = params->roachStream;
     
@@ -484,7 +479,7 @@ void* binWriter(void *prms)
 	      sem_post(streamSem);
        }
 
-       if( mode == 0 && access(startFileName, F_OK ) != -1 ) {
+       if(mode == 0 && params->writing == 1) {
           // start file exists, go to mode 1
            mode = 1;
            printf("Mode 0->1\n");
@@ -492,15 +487,11 @@ void* binWriter(void *prms)
 
        if( mode == 1 ) {
           // read path from start, generate filename, and open file pointer for writing
-          rp = fopen(startFileName,"r");
-          fscanf(rp,"%s",path);
-          fclose(rp);
-          remove(startFileName);
 
           clock_gettime(CLOCK_REALTIME, &spec);   
           s  = spec.tv_sec;
           olds = s;
-          sprintf(fname,"%s%ld.bin",path,s);
+          sprintf(fname,"%s%ld.bin",params->writerPath,s);
           printf("Writing to %s\n",fname);
           wp = fopen(fname,"wb");
           mode = 2;
@@ -509,11 +500,10 @@ void* binWriter(void *prms)
        }
 
        if( mode == 2 ) {
-          if ( access(stopFileName, F_OK ) != -1 ) {
+          if (params->writing == 0) {
              // stop file exists, finish up and go to mode 0
 	         fclose(wp);
              wp = NULL;
-             remove(stopFileName);
              mode = 0;
              printf("Mode 2->0\n");
           } else {
@@ -526,7 +516,7 @@ void* binWriter(void *prms)
              if( s - olds >= 1 ) {
                  fclose(wp);
                  wp = NULL;
-                 sprintf(fname,"%s%ld.bin",path,s);
+                 sprintf(fname,"%s%ld.bin",params->writerPath,s);
                  printf("WRITER: Writing to %s, rate = %ld MBytes/sec\n",fname,outcount/1000000);
                  wp = fopen(fname,"wb");
                  olds = s;
@@ -550,8 +540,6 @@ void* binWriter(void *prms)
 	  fclose(wp);
     sem_close(quitSem);
     sem_close(streamSem);
-    remove(startFileName);
-    remove(stopFileName);
 
 /*
     clock_gettime(CLOCK_REALTIME, &spec);
