@@ -15,24 +15,59 @@ __all__ = ['Telescope']
 import os
 import subprocess
 
-SUBARU_CLIENT = None
+SUBARU = {'client':None, 'time':0, 'cache':None}
 
+def get_palomar(host='', user='', password=''):
+    #TODO implement
+    d = {'FITS.SBR.RA': None, 'FITS.SBR.DEC': None, 'FITS.SBR.EQUINOX': None,
+             'FITS.SBR.HA': None, 'FITS.SBR.AIRMASS': None, 'TSCS.UTC': None,
+             'TSCS.AZ': None, 'TSCS.EL': None}
+    return {'RA': d['FITS.SBR.RA'], 'DEC': d['FITS.SBR.DEC'], 'HA': d['FITS.SBR.HA'],
+            'AIRMASS': d['FITS.SBR.AIRMASS'], 'AZ': d['TSCS.AZ'], 'EL': d['TSCS.EL'], 'TCS-UTC': d['TSCS.UTC'],
+            'EQUINOX': d['FITS.SBR.EQUINOX']}
 
 def get_subaru(host='', user='', password=''):
     # setup (use the Gen2 host, user name and password you are advised by
     # observatory personnel)
-    global SUBARU_CLIENT
-    from g2cam.status.client import StatusClient
-    if SUBARU_CLIENT is None or SUBARU_CLIENT.is_disconnected:
-        SUBARU_CLIENT = StatusClient(host=host, username=user, password=password)
-        SUBARU_CLIENT.connect()
+    global SUBARU
 
-    d = {'FITS.SBR.RA': None, 'FITS.SBR.DEC': None, 'FITS.SBR.HA': None, 'FITS.SBR.AIRMASS': None,
-         'TSCS.AZ': None, 'TSCS.EL': None}
-    SUBARU_CLIENT.fetch(d)
+    QUERY = {'FITS.SBR.RA': None, 'FITS.SBR.DEC': None, 'FITS.SBR.EQUINOX': None,
+             'FITS.SBR.HA': None, 'FITS.SBR.AIRMASS': None, 'TSCS.UTC': None,
+             'TSCS.AZ': None, 'TSCS.EL': None}
+    MIN_SUBARU_QUERY_INTERVAL = 5
 
-    return {'RA': d['FITS.SBR.RA'], 'DEC': d['FITS.SBR.DEC'], 'HA': d['FITS.SBR.DEC'],
-            'AIRMASS': d['FITS.SBR.AIRMASS'], 'AZ': d['TSCS.AZ'], 'EL': d['TSCS.EL']}
+    try:
+        from g2cam.status.client import StatusClient
+    except ImportError:
+        d = QUERY
+        return {'RA': d['FITS.SBR.RA'], 'DEC': d['FITS.SBR.DEC'], 'HA': d['FITS.SBR.HA'],
+                'AIRMASS': d['FITS.SBR.AIRMASS'], 'AZ': d['TSCS.AZ'], 'EL': d['TSCS.EL'], 'UTCTCS': d['TSCS.UTC'],
+                'EQUINOX': d['FITS.SBR.EQUINOX']}
+
+    if not SUBARU['client'] is None or SUBARU['client'].is_disconnected:
+        try:
+            SUBARU['client'] = StatusClient(host=host, username=user, password=password)
+            SUBARU['client'].connect()
+        except Exception:
+            getLogger(__name__).error('Unable to connect to Subaru TCS', exc_info=True)
+
+    if time.time() - SUBARU['tstamp'] > MIN_SUBARU_QUERY_INTERVAL:
+
+        if SUBARU['cache'] is None:
+            SUBARU['cache'] = QUERY
+
+        try:
+            SUBARU.fetch(QUERY)
+            SUBARU['tstamp'] = time.time()
+            SUBARU['cache'] = QUERY
+        except Exception:
+            getLogger(__name__).error('Unable to fetch from Subaru TCS', exc_info=True)
+
+    d = SUBARU['cache']
+
+    return {'RA': d['FITS.SBR.RA'], 'DEC': d['FITS.SBR.DEC'], 'HA': d['FITS.SBR.HA'],
+            'AIRMASS': d['FITS.SBR.AIRMASS'], 'AZ': d['TSCS.AZ'], 'EL': d['TSCS.EL'], 'TCS-UTC': d['TSCS.UTC'],
+            'EQUINOX': d['FITS.SBR.EQUINOX']}
 
 
 def getPalomarSeeing(verbose=False):
@@ -43,34 +78,56 @@ def getPalomarSeeing(verbose=False):
     read in last line of file and extract seeing value
     return this value
     """
-    f="current.log"
-    address = "http://nera.palomar.caltech.edu/P18_seeing/%s"%f
-    if verbose==True:
+    f = "current.log"
+    address = "http://nera.palomar.caltech.edu/P18_seeing/%s" % f
+    if verbose:
         getLogger(__name__).debug("Grabbing file from %s", address)
-    if verbose== True:
-        p = subprocess.Popen("wget %s"%address,shell=True)
+        p = subprocess.Popen("wget %s" % address, shell=True)
     else:
-        p = subprocess.Popen("wget --quiet %s"%address,shell=True)
+        p = subprocess.Popen("wget --quiet %s" % address, shell=True)
     p.communicate()
-    stdin,stdout = os.popen2("tail -1 %s"%f)
+    stdin, stdout = os.popen2("tail -1 %s" % f)
     stdin.close()
-    line = stdout.readlines(); stdout.close()
-    if verbose==True:
-        print line
+    line = stdout.readlines()
+    stdout.close()
+
     breakdown = line[0].split('\t')
     seeing = breakdown[4]
-    if verbose==True:
+    if verbose:
+        print line
         getLogger(__name__).debug("Seeing = {}. Deleting {}".format(seeing, f))
     os.remove(f)
+
     return seeing
 
 
 class Telescope(object):
-
-    def __init__(self, ipaddress="198.202.125.194", port = 5004, receivePort=1024):
-        self.address = (ipaddress, port)
+    def __init__(self, ip="198.202.125.194", port=5004, receivePort=1024, user='',
+                 password='NEVER_COMMIT_A_PASS'):
+        self.address = (ip, port)
+        self.ip = ip
+        self.port = port
         self.receivePort = receivePort
-        
+        self.password = password
+        self.user = user
+
+    def get_header(self):
+        return {'RA': '00:00:00.0000', 'DEC': '00:00:00.0000', 'HA': 0.0, 'AIRMASS': 1.0, 'AZ': 45, 'EL': 90,
+                'TCS-UTC': '01/01/2000 00:00:00.00', 'EQUINOX': 2000.0}
+
+
+class Subaru(Telescope):
+    def __init__(self, **kwargs):
+        super(Subaru, self).__init__(**kwargs)
+
+    def get_header(self):
+        return get_subaru(self.ip, self.user, self.password)
+
+
+class Palomar(Telescope):
+    def __init__(self, **kwargs):
+        super(Palomar, self).__init__(**kwargs)
+
         #Palomar's position
         self.observatory = 'Palomar 200" Hale Telescope'
         self.lat = 33.0 + 21.0/60.0 + 21.6/3600.0

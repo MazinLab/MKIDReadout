@@ -74,6 +74,7 @@ List of useful class attributes:
 TODO:
     modify takePhaseSnapshot() to work for nStreams: need register names
     In performIQSweep(), is it skipping every other LO freq???
+
     Changed delays in performIQSweep(), and takeAvgIQData() from 0.1 to 0.01 seconds
 
 BUGS:
@@ -2300,8 +2301,7 @@ class Roach2Controls(object):
             time.sleep(0.001)  # takes nChannelsPerStream/fpgaClockRate seconds to load all the values
             if i % 2 == 1:
                 for stream in range(nStreams):
-                    iqPt[stream] = \
-                    self.fpga.snapshots[self.params['iqSnp_regs'][stream]].read(timeout=10, arm=False)['data']['iq']
+                    iqPt[stream] = self.fpga.snapshots[self.params['iqSnp_regs'][stream]].read(timeout=10, arm=False)['data']['iq']
                 iqData = np.append(iqData, iqPt, 1)
             self.fpga.write_int(self.params['iqSnpStart_reg'], 0)
 
@@ -2310,8 +2310,7 @@ class Roach2Controls(object):
             self.fpga.write_int(self.params['iqSnpStart_reg'], 1)
             time.sleep(0.001)
             for stream in range(nStreams):
-                iqPt[stream] = \
-                self.fpga.snapshots[self.params['iqSnp_regs'][stream]].read(timeout=10, arm=False)['data']['iq']
+                iqPt[stream] = self.fpga.snapshots[self.params['iqSnp_regs'][stream]].read(timeout=10, arm=False)['data']['iq']
             iqData = np.append(iqData, iqPt[:, :self.params['nChannelsPerStream'] * 2], 1)
             self.fpga.write_int(self.params['iqSnpStart_reg'], 0)
 
