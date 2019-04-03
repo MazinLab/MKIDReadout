@@ -39,7 +39,7 @@ from mkidcore.fits import CalFactory, summarize, combineHDU
 
 from mkidreadout.readout.guiwindows import PixelTimestreamWindow, PixelHistogramWindow
 from mkidreadout.readout.lasercontrol import LaserControl
-from hardware.telescope import *
+from hardware.telescope import Palomar, Subaru
 from mkidreadout.channelizer.Roach2Controls import Roach2Controls
 from mkidreadout.utils.utils import interpolateImage
 from mkidreadout.configuration.beammap.beammap import Beammap
@@ -56,6 +56,13 @@ def add_actions(target, actions):
         else:
             target.addAction(action)
 
+def build_hbox(things, stretch=True):
+    h = QHBoxLayout()
+    for t in things:
+        h.addWidget(t)
+    if stretch:
+        h.addStretch()
+    return h
 
 class LiveImageFetcher(QtCore.QObject):  # Extends QObject for use with QThreads
     """
@@ -540,9 +547,14 @@ class MKIDDashboard(QMainWindow):
                                             self.config.lasercontrol.receive_port)
 
         # telscope TCS connection
+        #TODO make the Telescope work with Subaru
         getLogger('Dashboard').info('Setting up telescope connection...')
-        self.telescopeController = Telescope(self.config.telescope.ip, self.config.telescope.port,
-                                             self.config.telescope.receive_port)
+        if self.config.instrument.lower() == 'MEC':
+            self.telescopeController = Subaru(ip=self.config.telescope.ip, user=self.config.telescope.user,
+                                              password=self.config.telescope.password)
+        else:
+            self.telescopeController = Palomar(ip=self.config.telescope.ip, port=self.config.telescope.port,
+                                               receivePort=self.config.telescope.receive_port)
         self.telescopeWindow = TelescopeWindow(self.telescopeController)
 
         # Setup GUI
@@ -1167,20 +1179,17 @@ class MKIDDashboard(QMainWindow):
 
     def state(self, force_update=False):
         """this is the function that populates the headers and the log, it needs to be prompt enough that it won't
-        cause slowdowns, TCS queries need to be cached in general at the 5-10 s level"""
-        from mkidreadout.hardware.telescope import get_subaru
+        cause slowdowns"""
 
-        #TODO sort out tcs query caching
-        if force_update or True:
-            d = get_subaru(host=self.cfg.telescope.ip, username=self.cfg.telescope.user,
-                           password=self.cfg.telescope.password)
+        d = self.telescopeController.get_header()
 
         targ, cmt = str(self.textbox_target.text()), str(self.textbox_log.toPlainText())
+
         return dict(target=targ, ditherx=str(self.dither_dialog.status.xpos),
                     dithery=str(self.dither_dialog.status.ypos), laser='TODO',
-                    flipper='image', filter=self.filter, ra=d['RA'], dec=d['DEC'],
-                    ha=d['HA'], az=d['AZ'], el=d['EL'], airmass=d['AIRMASS'],
-                    utc=datetime.utcnow().strftime("%Y%m%d%H%M%S"), comment=cmt)
+                    flipper='image', filter=self.filter, ra=d['RA'], dec=d['DEC'], equinox=d['EQUINOX'],
+                    ha=d['TCSHA'], az=d['TCSAZ'], el=d['TCSEL'], airmass=d['AIRMASS'],
+                    tcsutc=d['TCSUTC'], utc=datetime.utcnow().strftime("%Y%m%d%H%M%S"), comment=cmt)
 
     def logstate(self):
         getLogger('ObsLog').info(json.dumps(self.state()))
@@ -1378,10 +1387,33 @@ class MKIDDashboard(QMainWindow):
         self.checkbox_smooth.setChecked(False)
 
         #TODO Boxes for wavelength solution
-        # Settings needed: wavestart, stop, solution file, active or not
-        # self.checkbox_usewave = QCheckBox('Dither Image')
-        # self.checkbox_usewave.setChecked(False)
-        # self.checkbox_usewave.stateChanged.connect(self.packetmaster.useWvl)
+        # Settings needed: solution file
+        self.checkbox_usewave = QCheckBox('Apply wavecal')
+        self.checkbox_usewave.setChecked(False)
+        self.liveimage.useWvl = False
+        self.checkbox_usewave.stateChanged.connect(lambda: self.liveimage.useWvl != self.liveimage.useWvl)
+
+        #wavelength bounds
+        label_lambdaRange = QLabel('<font face="Symbol"><font size="+1">l</font></font><sub>-</sub> - '
+                                   '<font size="+1">l</font></font><sub>+</sub>') #QChar(0xBB, 0x03))
+        self.spinbox_maxLambda = spinbox_maxLambda = QSpinBox()
+        spinbox_maxLambda.setRange(0, 10000)
+        spinbox_maxLambda.setValue(self.config.dashboard.wvlStart)
+        spinbox_maxLambda.setSuffix(' nm')
+        spinbox_maxLambda.setWrapping(False)
+        spinbox_maxLambda.setCorrectionMode(QAbstractSpinBox.CorrectToNearestValue)
+        self.spinbox_minLambda = spinbox_minLambda = QSpinBox()
+        spinbox_minLambda.setRange(0, 10000)
+        spinbox_minLambda.setValue(self.config.dashboard.wvlStop)
+        spinbox_minLambda.setSuffix(' nm')
+        spinbox_minLambda.setWrapping(False)
+        spinbox_minLambda.setCorrectionMode(QAbstractSpinBox.CorrectToNearestValue)
+
+        # make sure min is always less than max
+        spinbox_minLambda.valueChanged.connect(spinbox_maxLambda.setMinimum)
+        spinbox_maxLambda.valueChanged.connect(spinbox_minLambda.setMaximum)
+        #don't bother remaking the current image because it requires taking a new one for a difference to be seen
+
 
         # Checkbox for dithering image
         # self.checkbox_dither = QCheckBox('Dither Image')
@@ -1425,17 +1457,11 @@ class MKIDDashboard(QMainWindow):
         vbox = QVBoxLayout()
         vbox.addWidget(label_currentTime)
 
-        hbox_dataDir = QHBoxLayout()
-        hbox_dataDir.addWidget(label_dataDir)
-        hbox_dataDir.addWidget(textbox_dataDir)
-        vbox.addLayout(hbox_dataDir)
+        vbox.addLayout(build_hbox((label_dataDir, textbox_dataDir)))
 
         vbox.addWidget(self.button_obs)
 
-        hbox_target = QHBoxLayout()
-        hbox_target.addWidget(label_target)
-        hbox_target.addWidget(self.textbox_target)
-        vbox.addLayout(hbox_target)
+        vbox.addLayout(build_hbox((label_target, self.textbox_target)))
 
         vbox.addWidget(self.textbox_log)
 
@@ -1448,34 +1474,10 @@ class MKIDDashboard(QMainWindow):
 
         vbox.addStretch()
 
-        hbox = QHBoxLayout()
-        hbox.addWidget(label_spinbox_average)
-        hbox.addWidget(label_spinbox_average)
-        hbox.addStretch()
-        vbox.addLayout(hbox)
-
-        hbox_intTime = QHBoxLayout()
-        hbox_intTime.addWidget(label_integrationTime)
-        hbox_intTime.addWidget(spinbox_integrationTime)
-        hbox_intTime.addWidget(self.label_numIntegrated)
-        hbox_intTime.addStretch()
-        vbox.addLayout(hbox_intTime)
-
-        hbox_darkImage = QHBoxLayout()
-        hbox_darkImage.addWidget(self.spinbox_darkImage)
-        hbox_darkImage.addWidget(button_darkImage)
-        hbox_darkImage.addWidget(QLabel('Use'))
-        hbox_darkImage.addWidget(self.checkbox_darkImage)
-        hbox_darkImage.addStretch()
-        vbox.addLayout(hbox_darkImage)
-
-        hbox_flatImage = QHBoxLayout()
-        hbox_flatImage.addWidget(self.spinbox_flatImage)
-        hbox_flatImage.addWidget(button_flatImage)
-        hbox_flatImage.addWidget(QLabel('Use'))
-        hbox_flatImage.addWidget(self.checkbox_flatImage)
-        hbox_flatImage.addStretch()
-        vbox.addLayout(hbox_flatImage)
+        vbox.addLayout(build_hbox((label_spinbox_average, spinbox_average)))
+        vbox.addLayout(build_hbox((label_integrationTime, spinbox_integrationTime, self.label_numIntegrated)))
+        vbox.addLayout(build_hbox((self.spinbox_darkImage, button_darkImage, QLabel('Use'), self.checkbox_darkImage)))
+        vbox.addLayout(build_hbox((self.spinbox_flatImage, button_flatImage, QLabel('Use'), self.checkbox_flatImage)))
 
         hbox_CountRate = QHBoxLayout()
         hbox_CountRate.addWidget(label_minCountRate)
@@ -1486,11 +1488,10 @@ class MKIDDashboard(QMainWindow):
         hbox_CountRate.addStretch()
         vbox.addLayout(hbox_CountRate)
 
-        hbox_stretch = QHBoxLayout()
-        hbox_stretch.addWidget(label_stretch)
-        hbox_stretch.addWidget(self.combobox_stretch)
-        hbox_stretch.addStretch()
-        vbox.addLayout(hbox_stretch)
+        vbox.addLayout(build_hbox((label_stretch, self.combobox_stretch)))
+
+        vbox.addWidget(self.checkbox_usewave)
+        vbox.addWidget(build_hbox((label_lambdaRange, self.spinbox_minLambda, self.spinbox_maxLambda)))
 
         vbox.addWidget(self.checkbox_showAllPix)
         vbox.addWidget(self.checkbox_interpolate)
@@ -1624,7 +1625,7 @@ class MKIDDashboard(QMainWindow):
 
         self.hide()
         time.sleep(1)
-        self.packetmaster.quit() #TODO consider adding a forced kill
+        self.packetmaster.quit()
 
         QtCore.QCoreApplication.instance().quit()
 

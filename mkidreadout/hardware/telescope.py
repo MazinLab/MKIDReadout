@@ -102,8 +102,7 @@ def getPalomarSeeing(verbose=False):
 
 
 class Telescope(object):
-    def __init__(self, ip="198.202.125.194", port=5004, receivePort=1024, user='',
-                 password='NEVER_COMMIT_A_PASS'):
+    def __init__(self, ip="198.202.125.194", port=5004, receivePort=1024, user='', password='NEVER_COMMIT_A_PASS'):
         self.address = (ip, port)
         self.ip = ip
         self.port = port
