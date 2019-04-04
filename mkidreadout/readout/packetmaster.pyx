@@ -151,6 +151,8 @@ cdef class Packetmaster(object):
             self.nRows = int(nRows)
             self.nCols = int(nCols)
 
+        npix = self.nRows*self.nCols
+
         #DEAL W/ CPU PRIORITY
         if maximizePriority:
             self.readerParams.cpu = READER_CPU
@@ -160,7 +162,6 @@ cdef class Packetmaster(object):
             self.readerParams.cpu = -1
             self.writerParams.cpu = -1
             self.imageParams.cpu = -1
-
         
         #INITIALIZE SHARED MEMORY IMAGES
         self.sharedImages = {}
@@ -179,8 +180,8 @@ cdef class Packetmaster(object):
                 strcpy(self.imageParams.sharedImageNames[i], image.encode('UTF-8'))
 
         #INITIALIZE WAVECAL
-        self.wavecal.data = <wvlcoeff_t*>malloc(N_WVL_COEFFS*sizeof(wvlcoeff_t)*nRows*nCols)
-        memset(self.wavecal.data, 0, N_WVL_COEFFS*sizeof(wvlcoeff_t)*nRows*nCols)
+        self.wavecal.data = <wvlcoeff_t*>malloc(N_WVL_COEFFS*sizeof(wvlcoeff_t)*npix)
+        memset(self.wavecal.data, 0, N_WVL_COEFFS*sizeof(wvlcoeff_t)*npix)
         if wvlSol is not None:
             if beammap is None:
                 raise Exception('Must provide a beammap to use a wavecal')

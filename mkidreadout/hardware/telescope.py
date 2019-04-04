@@ -26,6 +26,7 @@ def get_palomar(host='', user='', password=''):
             'AIRMASS': d['FITS.SBR.AIRMASS'], 'AZ': d['TSCS.AZ'], 'EL': d['TSCS.EL'], 'TCS-UTC': d['FITS.SBR.UT'],
             'EQUINOX': d['FITS.SBR.EQUINOX']}
 
+
 def get_subaru(host='', user='', password=''):
     # setup (use the Gen2 host, user name and password you are advised by
     # observatory personnel)
