@@ -539,7 +539,7 @@ class MKIDDashboard(QMainWindow):
                                          self.config.detector.ncols, self.config.packetmaster.captureport,
                                          ramdiskPath=self.config.packetmaster.ramdisk,
                                          useWriter=self.config.dashboard.spawn_packetmaster and not self.offline,
-                                         sharedImageCfg={'dashboard': self.cfg.dashboard})
+                                         sharedImageCfg={'dashboard': self.config.dashboard})
         self.liveimage = self.packetmaster.sharedImages['dashboard']
 
         # Laser Controller
@@ -587,7 +587,7 @@ class MKIDDashboard(QMainWindow):
 
         # Setup search for image files from cuber
         getLogger('Dashboard').info('Setting up image searcher...')
-        self.imageFetcher = LiveImageFetcher(self.liveimage, self.cfg.dashboard.inttime, parent=None)
+        self.imageFetcher = LiveImageFetcher(self.liveimage, self.config.dashboard.inttime, parent=None)
         thread = self.startworker(self.imageFetcher, 'imageFetcher')
         thread.started.connect(self.imageFetcher.run)
         self.imageFetcher.newImage.connect(self.convertImage)
