@@ -107,7 +107,7 @@ cdef class Packetmaster(object):
     cdef int nStreams
     cdef int nThreads
     cdef int nSharedImages
-    cdef object sharedImages
+    cdef readonly object sharedImages
 
     #TODO useWriter->savebinfiles, ramdiskPath->ramdisk ?use '' as default?
     def __init__(self, nRoaches, port, nRows=None, nCols=None, useWriter=True, wvlSol=None,
