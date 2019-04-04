@@ -1,7 +1,7 @@
 import os, sys
 import numpy as np
 cimport numpy as np
-from mkidreadout.readout.pymkidshm import ImageCube
+from mkidreadout.readout.sharedmem import ImageCube
 import mkidpipeline.calibration.wavecal as wvl
 
 from libc.stdlib cimport malloc, free

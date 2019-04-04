@@ -67,23 +67,23 @@ class CustomDevelop(develop, object):
         super(CustomDevelop,self).run()
 
 
-roach2utils_ext = Extension(name="mkidreadout.channelizer.roach2utils",
+extensions = [Extension(name="mkidreadout.channelizer.roach2utils",
                        sources=['mkidreadout/channelizer/roach2utils.pyx'],
                        include_dirs=[numpy.get_include()],
                        extra_compile_args=['-fopenmp'],
-                       extra_link_args=['-fopenmp'])
-
-pymkidshm_ext = Extension(name="mkidreadout.readout.mkidshm.pymkidshm",
-                        sources=['mkidreadout/readout/mkidshm/pymkidshm.pyx'],
+                       extra_link_args=['-fopenmp']),
+              Extension(name="mkidreadout.readout.sharedmem",
+                        sources=['mkidreadout/readout/sharedmem.pyx'],
                         include_dirs=[numpy.get_include()],
                         extra_compile_args=['-shared', '-fPIC'],
-                        extra_link_args=['-L.', '-lmkidshm', '-lrt', '-lpthread'])
-
-packetmaster_ext = Extension(name="mkidreadout.readout.packetmaster",
+                        extra_link_args=['-L.', '-lmkidshm', '-lrt', '-lpthread']),
+              Extension(name="mkidreadout.readout.packetmaster",
                         sources=['mkidreadout/readout/packetmaster.pyx'],
                         include_dirs=[numpy.get_include(), 'mkidreadout/readout/packetmaster'],
                         extra_compile_args=['-shared', '-fPIC'],
-                        extra_link_args=['-L./mkidreadout/readout/packetmaster', '-lpacketmaster', '-lmkidshm', '-lrt', '-lpthread'])
+                        extra_link_args=['-L./mkidreadout/readout/packetmaster', '-lpacketmaster',
+                                         '-lmkidshm', '-lrt', '-lpthread'])
+             ]
 
 with open("README.md", "r") as fh:
     long_description = fh.read()
@@ -104,7 +104,7 @@ setuptools.setup(
              'mkidreadout/channelizer/hightemplar.py',
              'mkidreadout/readout/dashboard.py',
              'mkidreadout/configuration/powersweep/clickthrough_hell.py'],
-    ext_modules=cythonize([roach2utils_ext, pymkidshm_ext, packetmaster_ext]), 
+    ext_modules=cythonize(extensions),
     classifiers=(
         "Programming Language :: Python :: 2.7",
         "License :: OSI Approved :: MIT License",

@@ -1,5 +1,5 @@
 # Cython wrapper for libmkidshm
-# Compile with: cython pymkidshm.pyx -o pymkidshm.c
+# Compile with: cython sharedmem.pyx -o pymkidshm.c
 #               gcc pymkidshm.c -fPIC -shared -I/home/neelay/anaconda2/envs/readout/include/python2.7/ -o pymkidshm.so -lmkidshm -lpthread -lrt
 
 import numpy as np
