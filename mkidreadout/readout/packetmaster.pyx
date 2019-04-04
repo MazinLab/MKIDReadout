@@ -39,7 +39,9 @@ cdef extern from "packetmaster.h":
     
     ctypedef struct BIN_WRITER_PARAMS:
         READOUT_STREAM *roachStream;
-        char ramdiskPath[80];
+
+        int writing;
+        char writerPath[80];
 
         char quitSemName[80];
         char streamSemName[80];
@@ -108,7 +110,7 @@ cdef class Packetmaster(object):
     cdef object sharedImages
 
     #TODO useWriter->savebinfiles, ramdiskPath->ramdisk ?use '' as default?
-    def __init__(self, nRoaches, nRows, nCols, port, useWriter=True, ramdiskPath=None, wvlSol=None,
+    def __init__(self, nRoaches, nRows, nCols, port, useWriter=True, wvlSol=None,
                  beammap=None, sharedImageCfg=None, maximizePriority=False):
         """
         Starts the reader (packet receiving) thread along with the appropriate number of parsing 
@@ -212,9 +214,7 @@ cdef class Packetmaster(object):
         #INITIALIZE REMAINING PARAMS
         self.readerParams.port = port
         if useWriter:
-            if ramdiskPath is None:
-                raise Exception('Must specify ramdisk path to use binWriter')
-            strcpy(self.writerParams.ramdiskPath, ramdiskPath.encode('UTF-8'))
+            self.writerParams.writing = 0
 
         #START THREADS
         self.nThreads = self.nStreams + 1
@@ -227,6 +227,15 @@ cdef class Packetmaster(object):
             threadNum += 1
         if useWriter:
             startBinWriterThread(&(self.writerParams), &(self.threads[threadNum]))
+
+    def startWriting(self, binDir=None):
+        if binDir is not None:
+            strcpy(self.writerParams.writerPath, binDir.encode('UTF-8'))
+
+        self.writerParams.writing = 1
+
+    def stopWriting(self):
+        self.writerParams.writing = 0
 
     def applyWvlSol(self, wvlSol, beammap):
         """
@@ -243,8 +252,6 @@ cdef class Packetmaster(object):
         self.wavecal.nCols = self.nCols
         self.wavecal.nRows = self.nRows
         strcpy(self.wavecal.solutionFile, wvlSol._file_path.encode('UTF-8'))
-        for image in self.sharedImages:
-            self.sharedImages[image].wavecalID = os.path.basename(wvlSol._file_path)
 
         calCoeffs, calResIDs = wvlSol.find_calibrations()
         a = np.zeros((self.nRows, self.nCols))

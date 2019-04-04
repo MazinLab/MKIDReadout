@@ -174,11 +174,7 @@ cdef class MKIDShmImage(object):
             self.image.md.useWvl = 1
         else:
             self.image.md.useWvl = 0
-
-    @wavecalID.setter
-    def wavecalID(self, filename):
-        strcpy(self.image.md.wavecalID, filename.encode('UTF-8'))
-
+            
     @property
     def wvlStart(self):
         return self.image.md.wvlStart
