@@ -1,7 +1,7 @@
 import time
 import sys
 import numpy as np
-from mkidreadout.hardware import PicomotorClient as pmc
+from mkidreadout.hardware import picomotorclient as pmc
 
 
 def moveLeft(dx):
