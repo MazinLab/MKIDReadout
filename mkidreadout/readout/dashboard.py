@@ -80,7 +80,7 @@ class LiveImageFetcher(QtCore.QObject):  # Extends QObject for use with QThreads
     def __init__(self, sharedim, inttime=0.1, parent=None):
         """
         INPUTS:
-            sharedim - MKIDShmImage
+            sharedim - ImageCube
             inttime - the integration time interval
             parent - Leave as None so that we can add to new thread
         """

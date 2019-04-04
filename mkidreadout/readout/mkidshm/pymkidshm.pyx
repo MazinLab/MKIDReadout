@@ -52,7 +52,7 @@ cdef extern from "mkidshm.h":
     cdef void MKIDShmImage_copy(MKID_IMAGE *image, image_t *outputBuffer);
 
 
-cdef class MKIDShmImage(object):
+cdef class ImageCube(object):
     """
     Python interface to MKID shared memory image defined in mkidshm.h (MKID_IMAGE struct)
     """

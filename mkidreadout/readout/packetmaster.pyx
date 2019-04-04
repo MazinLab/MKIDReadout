@@ -1,7 +1,7 @@
 import os, sys
 import numpy as np
 cimport numpy as np
-from mkidreadout.readout.mkidshm.pymkidshm import MKIDShmImage
+from mkidreadout.readout.mkidshm.pymkidshm import ImageCube
 import mkidpipeline.calibration.wavecal as wvl
 
 from libc.stdlib cimport malloc, free
@@ -138,7 +138,7 @@ cdef class Packetmaster(object):
             sharedImageCfg: yaml config object.
                 Configuration object specifying shared memory objects for acquiring realtime images.
                 Typical usage would pass a configdict specified in dashboard.yml. Creates/opens 
-                MKIDShmImage objects for each image.
+                ImageCube objects for each image.
                 Object must have keys corresponding to the names of the images, and values must have a get method for
                 valid for the attributes nWvlBins, useWvl, wvlStart, wvlStop (i.e. a ConfigThing or a dict)
         """
@@ -171,11 +171,11 @@ cdef class Packetmaster(object):
             self.imageParams.wavecal = &(self.wavecal)
             self.imageParams.sharedImageNames = <char**>malloc(len(sharedImageCfg)*sizeof(char*))
             for i,image in enumerate(sharedImageCfg):
-                self.sharedImages[image] = MKIDShmImage(name=image, nRows=self.nRows, nCols=self.nCols,
-                                                        useWvl=sharedImageCfg[image].get('useWvl', False),
-                                                        nWvlBins=sharedImageCfg[image].get('nWvlBins', 1),
-                                                        wvlStart=sharedImageCfg[image].get('wvlStart', False),
-                                                        wvlStop=sharedImageCfg[image].get('wvlStop', False))
+                self.sharedImages[image] = ImageCube(name=image, nRows=self.nRows, nCols=self.nCols,
+                                                     useWvl=sharedImageCfg[image].get('useWvl', False),
+                                                     nWvlBins=sharedImageCfg[image].get('nWvlBins', 1),
+                                                     wvlStart=sharedImageCfg[image].get('wvlStart', False),
+                                                     wvlStop=sharedImageCfg[image].get('wvlStop', False))
                 self.imageParams.sharedImageNames[i] = <char*>malloc(STRBUF*sizeof(char*))
                 strcpy(self.imageParams.sharedImageNames[i], image.encode('UTF-8'))
 
