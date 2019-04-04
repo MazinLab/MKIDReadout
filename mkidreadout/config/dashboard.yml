@@ -1,21 +1,20 @@
 !configdict
-#TODO make beammap into a beammap object and get rid of the dector crud
 paths: !configdict
-  beammap: ./darkness.bmap
   logs: ./logs/
   data: ./data/
 
+beammap: !bmap
+  file: /mnt/data0/baileyji/mec/finalMap_20181218.bmap
+  freqfiles: /mnt/data0/baileyji/mec/psfreq_dec/ps_freqs_FL*_clip.txt
+  nrows: 146
+  ncols: 140
+
 packetmaster: !configdict
-  ramdisk: /mnt/ramdisk # ramdisk directory aster3's cuber routine
   ip: 10.0.0.51
   captureport: 50000
   use_writer: True
 
 instrument : DARKNESS
-
-detector: !configdict
-  ncols: 80
-  nrows: 125
 
 roaches: !include roach.yml
 

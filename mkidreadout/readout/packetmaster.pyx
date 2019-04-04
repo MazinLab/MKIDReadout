@@ -110,7 +110,7 @@ cdef class Packetmaster(object):
     cdef object sharedImages
 
     #TODO useWriter->savebinfiles, ramdiskPath->ramdisk ?use '' as default?
-    def __init__(self, nRoaches, nRows, nCols, port, useWriter=True, wvlSol=None,
+    def __init__(self, nRoaches, port, nRows=None, nCols=None, useWriter=True, wvlSol=None,
                  beammap=None, sharedImageCfg=None, maximizePriority=False):
         """
         Starts the reader (packet receiving) thread along with the appropriate number of parsing 
@@ -120,12 +120,12 @@ cdef class Packetmaster(object):
         ----------
             nRoaches: int
                 Number of ROACH2 boards currently set up to read out the array and stream photons.
-            nRows: int
-                Number of rows on MKID array
-            nCols: int
-                Number of columns on MKID array
             port: int
                 Port to use for receiving photon stream
+            nRows: int
+                Number of rows on MKID array, required in no beammap, ignored if beammap
+            nCols: int
+                Number of columns on MKID array, required in no beammap, ignored if beammap
             useWriter: bool
                 If true, starts the writer thread for writing .bin files to disk
             ramdiskPath: string
@@ -134,7 +134,7 @@ cdef class Packetmaster(object):
             wvlSol: Wavecal Solution object. 
                 Used to fill buffer containing wavecal solution LUT.
             beammap: Beammap object.
-                Required if wvlSol is set, otherwise not used.
+                Required if wvlSol is set, used for nRows and nCols if present
             sharedImageCfg: yaml config object.
                 Configuration object specifying shared memory objects for acquiring realtime images.
                 Typical usage would pass a configdict specified in dashboard.yml. Creates/opens 
@@ -142,9 +142,14 @@ cdef class Packetmaster(object):
                 Object must have keys corresponding to the names of the images, and values must have a get method for
                 valid for the attributes nWvlBins, useWvl, wvlStart, wvlStop (i.e. a ConfigThing or a dict)
         """
-        #MISC param initialization
-        self.nRows = nRows
-        self.nCols = nCols
+        try:
+            self.nRows = int(beammap.nrows)
+            self.nCols = int(beammap.ncols)
+        except AttributeError:
+            if nRows is None or nCols is None:
+                raise ValueError('nRows and nCols must be set if no beammap specified')
+            self.nRows = int(nRows)
+            self.nCols = int(nCols)
 
         #DEAL W/ CPU PRIORITY
         if maximizePriority:
@@ -165,7 +170,7 @@ cdef class Packetmaster(object):
             self.imageParams.wavecal = &(self.wavecal)
             self.imageParams.sharedImageNames = <char**>malloc(len(sharedImageCfg)*sizeof(char*))
             for i,image in enumerate(sharedImageCfg):
-                self.sharedImages[image] = MKIDShmImage(name=image, nRows=nRows, nCols=nCols,
+                self.sharedImages[image] = MKIDShmImage(name=image, nRows=self.nRows, nCols=self.nCols,
                                                         useWvl=sharedImageCfg[image].get('useWvl', False),
                                                         nWvlBins=sharedImageCfg[image].get('nWvlBins', 1),
                                                         wvlStart=sharedImageCfg[image].get('wvlStart', False),

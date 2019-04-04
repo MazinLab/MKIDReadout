@@ -535,11 +535,10 @@ class MKIDDashboard(QMainWindow):
 
         # Initialize PacketMaster8
         getLogger('Dashboard').info('Initializing packetmaster...')
-        self.packetmaster = Packetmaster(len(self.config.roaches), self.config.detector.nrows,
-                                         self.config.detector.ncols, self.config.packetmaster.captureport,
-                                         ramdiskPath=self.config.packetmaster.ramdisk,
+        self.packetmaster = Packetmaster(len(self.config.roaches), self.config.packetmaster.captureport,
                                          useWriter=self.config.dashboard.spawn_packetmaster and not self.offline,
-                                         sharedImageCfg={'dashboard': self.config.dashboard})
+                                         sharedImageCfg={'dashboard': self.config.dashboard},
+                                         beammap=self.config.beammap)
         self.liveimage = self.packetmaster.sharedImages['dashboard']
 
         # Laser Controller
@@ -634,13 +633,9 @@ class MKIDDashboard(QMainWindow):
         indicating if that pixel is in the beammap or not
         """
         try:
-            self.beammap = Beammap(self.config.paths.beammap,
-                                   xydim=(self.config.detector.ncols, self.config.detector.nrows))
+            self.beammap = self.config.beammap
         except KeyError:
             getLogger('Dashboard').warning("No beammap specified in config, using default")
-            self.beammap = Beammap(default=self.config.instrument)
-        except IOError:
-            getLogger('Dashboard').warning("Could not find beammap %s. Using default", self.config.beammap)
             self.beammap = Beammap(default=self.config.instrument)
 
         self.beammapFailed = self.beammap.failmask
@@ -864,8 +859,8 @@ class MKIDDashboard(QMainWindow):
         y_pos = int(np.floor(event.pos().y() / self.config.dashboard.image_scale))
         if ((x_pos, y_pos) != self.pixelCurrent and
             x_pos >= 0 and y_pos >= 0 and
-            x_pos < self.config.detector.ncols and
-            y_pos < self.config.detector.nrows):
+            x_pos < self.beammap.ncols and
+            y_pos < self.beammap.nrows):
 
             self.pixelCurrent = [x_pos, y_pos]
             self.updateCurrentPixelLabel()
@@ -899,8 +894,8 @@ class MKIDDashboard(QMainWindow):
             y_start, y_end = sorted([y_pos, self.pixelClicked[1]])
             x_start = max(x_start, 0)  # make sure we're still inside the image
             y_start = max(y_start, 0)
-            x_end = min(x_end, self.config.detector.ncols - 1)
-            y_end = min(y_end, self.config.detector.nrows - 1)
+            x_end = min(x_end, self.beammap.ncols - 1)
+            y_end = min(y_end, self.beammap.nrows - 1)
 
             newPixels = set((x, y) for x in range(x_start, x_end + 1) for y in range(y_start, y_end + 1))
             self.selectedPixels = self.selectedPixels | newPixels  # Union of set so there are no repeats
@@ -939,8 +934,8 @@ class MKIDDashboard(QMainWindow):
         y_end = y_end * scale + scale
         x_start = max(x_start, 0)  # make sure we're still inside the image
         y_start = max(y_start, 0)
-        x_end = min(x_end, self.config.detector.ncols * scale)
-        y_end = min(y_end, self.config.detector.nrows * scale)
+        x_end = min(x_end, self.beammap.ncols * scale)
+        y_end = min(y_end, self.beammap.nrows * scale)
         width = x_end - x_start
         height = y_end - y_start
 
