@@ -56,6 +56,7 @@ def add_actions(target, actions):
         else:
             target.addAction(action)
 
+
 def build_hbox(things, stretch=True):
     h = QHBoxLayout()
     for t in things:
@@ -63,6 +64,7 @@ def build_hbox(things, stretch=True):
     if stretch:
         h.addStretch()
     return h
+
 
 class LiveImageFetcher(QtCore.QObject):  # Extends QObject for use with QThreads
     """
@@ -85,7 +87,6 @@ class LiveImageFetcher(QtCore.QObject):  # Extends QObject for use with QThreads
         super(QtCore.QObject, self).__init__(parent)
         self.imagebuffer = sharedim
         self.inttime = inttime
-        self.header = {}
         self.search = True
 
     def update_itime(self, it):
@@ -106,17 +107,17 @@ class LiveImageFetcher(QtCore.QObject):  # Extends QObject for use with QThreads
         while self.search:
             try:
                 utc = datetime.utcfromtimestamp(time.time()).strftime('%Y-%m-%d %H:%M:%S')
-                header = self.header
                 self.imagebuffer.startIntegration(integrationTime=self.inttime)
                 data = self.imagebuffer.receiveImage()
                 ret = fits.ImageHDU(data=data)
                 ret.header['utcstart'] = utc
                 ret.header['exptime'] = self.inttime
                 ret.header['wavecal'] = self.sharedim.wavecalID
-                #TODO add rest of wavelength info
-                for k, v in header.items():
-                    ret.header[k] = v
+                ret.header['wmin'] = self.sharedim.wvlstart
+                ret.header['wmax'] = self.sharedim.wvlStop
                 self.newImage.emit(ret)
+            except RuntimeError:
+                pass
             except Exception:
                 getLogger('Dashboard').error('Problem', exc_info=True)
         self.finished.emit()
@@ -707,9 +708,20 @@ class MKIDDashboard(QMainWindow):
         """
         # If there's new data, append it
         if photonImage is not None:
+            for k, v in self.last_tcs_poll.items():
+                photonImage.header[k] = v
+            if photonImage.data.ndim > 2:
+                use = (self.liveimage.bins >= self.spinbox_minLambda) & (self.liveimage.bins <= self.spinbox_maxLambda)
+                if not use.any():
+                    use = np.argmin(self.liveimage.bins - (self.spinbox_minLambda+self.spinbox_maxLambda)/2)
+                photonImage.data = photonImage.data[use]
+
+            #These two lines technically admit a synchronization issue if the number of bins was changable
+            photonImage.header['wmin'] = self.liveimage.bins[use].min()
+            photonImage.header['wmax'] = self.liveimage.bins[use].max()
             self.imageList.append(photonImage)
-            self.fitsList.append(photonImage)
-            #TODO This needs to be sorted out now that the image just has the total
+            self.fitsList.append(photonImage)  #for the stream
+
             self.imageList = self.imageList[-self.config.dashboard.average:]  #trust the garbage collector
 
             if self.takingDark > 0:
@@ -1317,6 +1329,8 @@ class MKIDDashboard(QMainWindow):
 
         def takeDark():
             self.darkField = None
+            self.spinbox_minLambda.setValue(0)
+            self.spinbox_maxLambda.setValue(10000)
             self.takingDark = self.spinbox_darkImage.value()
 
         button_darkImage.clicked.connect(takeDark)
@@ -1336,6 +1350,8 @@ class MKIDDashboard(QMainWindow):
 
         def takeFlat():
             self.flatField = None
+            self.spinbox_minLambda.setValue(0)
+            self.spinbox_maxLambda.setValue(10000)
             self.takingFlat = self.spinbox_flatImage.value()
 
         button_flatImage.clicked.connect(takeFlat)
