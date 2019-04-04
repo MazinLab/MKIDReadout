@@ -20,10 +20,10 @@ SUBARU = {'client':None, 'time':0, 'cache':None}
 def get_palomar(host='', user='', password=''):
     #TODO implement
     d = {'FITS.SBR.RA': None, 'FITS.SBR.DEC': None, 'FITS.SBR.EQUINOX': None,
-             'FITS.SBR.HA': None, 'FITS.SBR.AIRMASS': None, 'TSCS.UTC': None,
-             'TSCS.AZ': None, 'TSCS.EL': None}
+         'FITS.SBR.HA': None, 'FITS.SBR.AIRMASS': None, 'FITS.SBR.UT': None,
+         'TSCS.AZ': None, 'TSCS.EL': None}
     return {'RA': d['FITS.SBR.RA'], 'DEC': d['FITS.SBR.DEC'], 'HA': d['FITS.SBR.HA'],
-            'AIRMASS': d['FITS.SBR.AIRMASS'], 'AZ': d['TSCS.AZ'], 'EL': d['TSCS.EL'], 'TCS-UTC': d['TSCS.UTC'],
+            'AIRMASS': d['FITS.SBR.AIRMASS'], 'AZ': d['TSCS.AZ'], 'EL': d['TSCS.EL'], 'TCS-UTC': d['FITS.SBR.UT'],
             'EQUINOX': d['FITS.SBR.EQUINOX']}
 
 def get_subaru(host='', user='', password=''):
@@ -32,7 +32,7 @@ def get_subaru(host='', user='', password=''):
     global SUBARU
 
     QUERY = {'FITS.SBR.RA': None, 'FITS.SBR.DEC': None, 'FITS.SBR.EQUINOX': None,
-             'FITS.SBR.HA': None, 'FITS.SBR.AIRMASS': None, 'TSCS.UTC': None,
+             'FITS.SBR.HA': None, 'FITS.SBR.AIRMASS': None, 'FITS.SBR.UT': None,
              'TSCS.AZ': None, 'TSCS.EL': None}
     MIN_SUBARU_QUERY_INTERVAL = 5
 
@@ -41,7 +41,7 @@ def get_subaru(host='', user='', password=''):
     except ImportError:
         d = QUERY
         return {'RA': d['FITS.SBR.RA'], 'DEC': d['FITS.SBR.DEC'], 'HA': d['FITS.SBR.HA'],
-                'AIRMASS': d['FITS.SBR.AIRMASS'], 'AZ': d['TSCS.AZ'], 'EL': d['TSCS.EL'], 'UTCTCS': d['TSCS.UTC'],
+                'AIRMASS': d['FITS.SBR.AIRMASS'], 'AZ': d['TSCS.AZ'], 'EL': d['TSCS.EL'], 'UTCTCS': d['FITS.SBR.UT'],
                 'EQUINOX': d['FITS.SBR.EQUINOX']}
 
     if not SUBARU['client'] is None or SUBARU['client'].is_disconnected:
