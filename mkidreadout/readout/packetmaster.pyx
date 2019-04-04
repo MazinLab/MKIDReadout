@@ -177,7 +177,6 @@ cdef class Packetmaster(object):
                                                         wvlStop=sharedImageCfg[image].get('wvlStop', False))
                 self.imageParams.sharedImageNames[i] = <char*>malloc(STRBUF*sizeof(char*))
                 strcpy(self.imageParams.sharedImageNames[i], image.encode('UTF-8'))
-                self.sharedImages[image].wavecalID = ''
 
         #INITIALIZE WAVECAL
         self.wavecal.data = <wvlcoeff_t*>malloc(N_WVL_COEFFS*sizeof(wvlcoeff_t)*nRows*nCols)
