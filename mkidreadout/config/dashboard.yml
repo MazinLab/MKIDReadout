@@ -4,11 +4,8 @@ paths: !configdict
   data: ./data/
 
 beammap: !bmap
-  file: /mnt/data0/baileyji/mec/finalMap_20181218.bmap
-  freqfiles: /mnt/data0/baileyji/mec/psfreq_dec/ps_freqs_FL*_clip.txt
-  nrows: 146
-  ncols: 140
-
+  default: DARKNESS
+  
 packetmaster: !configdict
   ip: 10.0.0.51
   captureport: 50000
