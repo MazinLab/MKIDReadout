@@ -42,7 +42,7 @@ from mkidreadout.hardware.lasercontrol import LaserControl
 from mkidreadout.hardware.telescope import Palomar, Subaru
 from mkidreadout.channelizer.Roach2Controls import Roach2Controls
 from mkidreadout.utils.utils import interpolateImage
-from mkidreadout.configuration.beammap.beammap import Beammap
+from mkidcore.objects import Beammap
 import mkidreadout.configuration.sweepdata as sweepdata
 from mkidreadout.readout.packetmaster import Packetmaster
 import mkidreadout.hardware.conex
