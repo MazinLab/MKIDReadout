@@ -38,8 +38,8 @@ from mkidcore.corelog import getLogger, create_log
 from mkidcore.fits import CalFactory, summarize, combineHDU
 
 from mkidreadout.readout.guiwindows import PixelTimestreamWindow, PixelHistogramWindow
-from mkidreadout.readout.lasercontrol import LaserControl
-from hardware.telescope import Palomar, Subaru
+from mkidreadout.hardware.lasercontrol import LaserControl
+from mkidreadout.hardware.telescope import Palomar, Subaru
 from mkidreadout.channelizer.Roach2Controls import Roach2Controls
 from mkidreadout.utils.utils import interpolateImage
 from mkidreadout.configuration.beammap.beammap import Beammap
