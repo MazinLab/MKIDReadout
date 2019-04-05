@@ -68,21 +68,23 @@ class CustomDevelop(develop, object):
 
 
 extensions = [Extension(name="mkidreadout.channelizer.roach2utils",
-                       sources=['mkidreadout/channelizer/roach2utils.pyx'],
-                       include_dirs=[numpy.get_include()],
-                       extra_compile_args=['-fopenmp'],
-                       extra_link_args=['-fopenmp']),
+                        sources=['mkidreadout/channelizer/roach2utils.pyx'],
+                        include_dirs=[numpy.get_include()],
+                        extra_compile_args=['-fopenmp'],
+                        extra_link_args=['-fopenmp']),
               Extension(name="mkidreadout.readout.sharedmem",
                         sources=['mkidreadout/readout/sharedmem.pyx'],
-                        include_dirs=[numpy.get_include()],
+                        include_dirs=[numpy.get_include(), 'mkidreadout/readout/mkidshm'],
                         extra_compile_args=['-shared', '-fPIC'],
-                        extra_link_args=['-L./mkidreadout/readout/mkidshm', '-lmkidshm', '-lrt', '-lpthread']),
+                        library_dirs=['mkidreadout/readout/mkidshm'],
+                        extra_link_args=['-lmkidshm', '-lrt', '-lpthread']),
               Extension(name="mkidreadout.readout.packetmaster",
                         sources=['mkidreadout/readout/packetmaster.pyx'],
-                        include_dirs=[numpy.get_include(), 'mkidreadout/readout/packetmaster'],
+                        include_dirs=[numpy.get_include(), 'mkidreadout/readout/packetmaster',
+                                      'mkidreadout/readout/mkidshm'],
+                        library_dirs=['mkidreadout/readout/mkidshm', 'mkidreadout/readout/packetmaster'],
                         extra_compile_args=['-shared', '-fPIC'],
-                        extra_link_args=['-L./mkidreadout/readout/packetmaster', '-lpacketmaster',
-                                         '-lmkidshm', '-lrt', '-lpthread'])
+                        extra_link_args=['-lpacketmaster', '-lmkidshm', '-lrt', '-lpthread'])
              ]
 
 with open("README.md", "r") as fh:
