@@ -29,6 +29,7 @@ typedef struct{
     uint32_t nRows;
     uint32_t useWvl; //ignore wavelength information if 0
     uint32_t nWvlBins;
+    uint32_t useEdgeBins; //if 1 add bins for photons out of range
     uint32_t wvlStart;
     uint32_t wvlStop;
     uint64_t startTime; //start timestamp of current integration (same as firmware time)
@@ -83,7 +84,7 @@ typedef struct{
 int MKIDShmImage_open(MKID_IMAGE *imageStruct, const char *imgName);
 int MKIDShmImage_close(MKID_IMAGE *imageStruct);
 int MKIDShmImage_create(MKID_IMAGE_METADATA *imageMetadata, const char *imgName, MKID_IMAGE *outputImage);
-int MKIDShmImage_populateMD(MKID_IMAGE_METADATA *imageMetadata, const char *name, int nCols, int nRows, int useWvl, int nWvlBins, int wvlStart, int wvlStop);
+int MKIDShmImage_populateMD(MKID_IMAGE_METADATA *imageMetadata, const char *name, int nCols, int nRows, int useWvl, int nWvlBins, int useEdgeBins, int wvlStart, int wvlStop);
 void MKIDShmImage_startIntegration(MKID_IMAGE *image, uint64_t startTime, uint64_t integrationTime);
 void MKIDShmImage_wait(MKID_IMAGE *image, int semInd);
 int MKIDShmImage_checkIfDone(MKID_IMAGE *image, int semInd);

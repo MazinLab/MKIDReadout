@@ -47,6 +47,7 @@ int MKIDShmImage_create(MKID_IMAGE_METADATA *imageMetadata, const char *imgName,
     char doneSemName[80];
     image_t *imgPtr;
     int i;
+    int depth;
 
     mdPtr = (MKID_IMAGE_METADATA*)openShmFile(imgName, sizeof(MKID_IMAGE_METADATA), 1);
 
@@ -57,7 +58,12 @@ int MKIDShmImage_create(MKID_IMAGE_METADATA *imageMetadata, const char *imgName,
     outputImage->md = mdPtr;
 
     // CREATE IMAGE DATA BUFFER
-    int imageSize = (mdPtr->nCols)*(mdPtr->nRows)*(mdPtr->nWvlBins);
+    if(mdPtr->useEdgeBins==1)
+        depth = mdPtr->nWvlBins + 2;
+    else
+        depth = mdPtr->nWvlBins;
+
+    int imageSize = (mdPtr->nCols)*(mdPtr->nRows)*depth;
 
     imgPtr = (image_t*)openShmFile(mdPtr->imageBufferName, sizeof(image_t)*imageSize, 1);
     if(imgPtr==NULL)
@@ -90,6 +96,7 @@ int MKIDShmImage_open(MKID_IMAGE *imageStruct, const char *imgName){
     image_t *imgPtr;
     char doneSemName[80];
     int i;
+    int depth;
 
     // OPEN METADATA BUFFER
     mdPtr = (MKID_IMAGE_METADATA*)openShmFile(imgName, sizeof(MKID_IMAGE_METADATA), 0);
@@ -99,7 +106,12 @@ int MKIDShmImage_open(MKID_IMAGE *imageStruct, const char *imgName){
     imageStruct->md = mdPtr;
 
     // OPEN IMAGE BUFFER 
-    int imageSize = (mdPtr->nCols)*(mdPtr->nRows)*(mdPtr->nWvlBins);
+    if(mdPtr->useEdgeBins==1)
+        depth = mdPtr->nWvlBins + 2;
+    else
+        depth = mdPtr->nWvlBins;
+
+    int imageSize = (mdPtr->nCols)*(mdPtr->nRows)*depth;
     imgPtr = (image_t*)openShmFile(imageStruct->md->imageBufferName, imageSize*sizeof(image_t), 0);
     if(imgPtr == NULL)
         return -1;
@@ -123,6 +135,7 @@ int MKIDShmImage_open(MKID_IMAGE *imageStruct, const char *imgName){
 
 int MKIDShmImage_close(MKID_IMAGE *imageStruct){
     int i;
+    int depth;
 
     sem_close(imageStruct->takeImageSem);
 
@@ -130,17 +143,25 @@ int MKIDShmImage_close(MKID_IMAGE *imageStruct){
         sem_close(imageStruct->doneImageSemList[i]);
     free(imageStruct->doneImageSemList);
 
-    munmap(imageStruct->image, sizeof(image_t)*(imageStruct->md->nCols)*(imageStruct->md->nRows)*(imageStruct->md->nWvlBins));
+    if(imageStruct->md->useEdgeBins==1)
+        depth = imageStruct->md->nWvlBins + 2;
+    else
+        depth = imageStruct->md->nWvlBins;
+
+    int imageSize = (imageStruct->md->nCols)*(imageStruct->md->nRows)*depth;
+
+    munmap(imageStruct->image, sizeof(image_t)*imageSize);
     munmap(imageStruct->md, sizeof(MKID_IMAGE_METADATA));
     return 0;
 
 }
 
-int MKIDShmImage_populateMD(MKID_IMAGE_METADATA *imageMetadata, const char *name, int nCols, int nRows, int useWvl, int nWvlBins, int wvlStart, int wvlStop){
+int MKIDShmImage_populateMD(MKID_IMAGE_METADATA *imageMetadata, const char *name, int nCols, int nRows, int useWvl, int nWvlBins, int useEdgeBins, int wvlStart, int wvlStop){
     imageMetadata->nCols = nCols;
     imageMetadata->nRows = nRows;
     imageMetadata->useWvl = useWvl;
     imageMetadata->nWvlBins = nWvlBins;
+    imageMetadata->useEdgeBins = useEdgeBins;
     imageMetadata->wvlStart = wvlStart;
     imageMetadata->wvlStop = wvlStop;
     imageMetadata->startTime = 0;
@@ -186,5 +207,15 @@ int MKIDShmImage_checkIfDone(MKID_IMAGE *image, int semInd){
     return sem_trywait(image->doneImageSemList[semInd]);}
 
 void MKIDShmImage_copy(MKID_IMAGE *image, image_t *outputBuffer){
-    memcpy(outputBuffer, image->image, sizeof(image_t) * image->md->nCols * image->md->nRows * image->md->nWvlBins);}
+    int depth;
+
+    if(image->md->useEdgeBins==1)
+        depth = image->md->nWvlBins + 2;
+    else
+        depth = image->md->nWvlBins;
+    int imageSize = (image->md->nCols)*(image->md->nRows)*depth;
+
+    memcpy(outputBuffer, image->image, sizeof(image_t) * imageSize);
+
+}
 

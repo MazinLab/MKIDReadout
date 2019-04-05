@@ -26,6 +26,7 @@ cdef extern from "mkidshm.h":
         uint32_t nRows
         uint32_t useWvl
         uint32_t nWvlBins
+        uint32_t useEdgeBins
         uint32_t wvlStart
         uint32_t wvlStop
         char wavecalID[80]
@@ -45,7 +46,7 @@ cdef extern from "mkidshm.h":
     cdef int MKIDShmImage_open(MKID_IMAGE *imageStruct, char *imgName)
     cdef int MKIDShmImage_close(MKID_IMAGE *imageStruct)
     cdef int MKIDShmImage_create(MKID_IMAGE_METADATA *imageMetadata, char *imgName, MKID_IMAGE *outputImage)
-    cdef int MKIDShmImage_populateMD(MKID_IMAGE_METADATA *imageMetadata, char *name, int nCols, int nRows, int useWvl, int nWvlBins, int wvlStart, int wvlStop)
+    cdef int MKIDShmImage_populateMD(MKID_IMAGE_METADATA *imageMetadata, char *name, int nCols, int nRows, int useWvl, int nWvlBins, int useEdgeBins, int wvlStart, int wvlStop)
     cdef int MKIDShmImage_startIntegration(MKID_IMAGE *image, uint64_t startTime, uint64_t integrationTime)
     cdef int MKIDShmImage_wait(MKID_IMAGE *image, int semInd)
     cdef int MKIDShmImage_checkIfDone(MKID_IMAGE *image, int semInd)
@@ -76,6 +77,7 @@ cdef class ImageCube(object):
                 nCols: int (default: 100)
                 useWvl: bool (default: False)
                 nWvlBins: bool (default: 1)
+                useEdgeBins: bool (default: False)
                 wvlStart: float (default: 0)
                 wvlStop: float (default: 0)
 
@@ -95,6 +97,8 @@ cdef class ImageCube(object):
                 paramsMatch &= (int(kwargs.get('useWvl')) == self.image.md.useWvl)
             if kwargs.get('nWvlBins') is not None:
                 paramsMatch &= (kwargs.get('nWvlBins') == self.image.md.nWvlBins)
+            if kwargs.get('useEdgeBins') is not None:
+                paramsMatch &= (kwargs.get('useEdgeBins') == self.image.md.useEdgeBins)
             if kwargs.get('wvlStart') is not None:
                 paramsMatch &= (kwargs.get('wvlStart') == self.image.md.wvlStart)
             if kwargs.get('wvlStop') is not None:
@@ -104,11 +108,11 @@ cdef class ImageCube(object):
 
         else:
             self._create(name, kwargs.get('nCols', 100), kwargs.get('nRows', 100), kwargs.get('useWvl', False), 
-                        kwargs.get('nWvlBins', 1), kwargs.get('wvlStart', 0), kwargs.get('wvlStop', 0))
+                        kwargs.get('nWvlBins', 1), kwargs.get('useEdgeBins', False), kwargs.get('wvlStart', 0), kwargs.get('wvlStop', 0))
 
-    def _create(self, name, nCols, nRows, useWvl, nWvlBins, wvlStart, wvlStop):
+    def _create(self, name, nCols, nRows, useWvl, nWvlBins, useEdgeBins, wvlStart, wvlStop):
         cdef MKID_IMAGE_METADATA imagemd
-        MKIDShmImage_populateMD(&imagemd, name.encode('UTF-8'), nCols, nRows, int(useWvl), nWvlBins, wvlStart, wvlStop)
+        MKIDShmImage_populateMD(&imagemd, name.encode('UTF-8'), nCols, nRows, int(useWvl), nWvlBins, int(useEdgeBins), wvlStart, wvlStop)
         MKIDShmImage_create(&imagemd, name.encode('UTF-8'), &(self.image));
 
     def _open(self, name):
@@ -135,7 +139,12 @@ cdef class ImageCube(object):
         then grabs the image from buffer
         """
         MKIDShmImage_wait(&(self.image), self.doneSemInd)
-        return self._readImageBuffer().reshape(self.dims[0], self.dims[1])
+        flatImage = self._readImageBuffer()
+        if self.useWvl:
+            return np.reshape(flatImage, self._shape)
+        else:
+            flatImage = flatImage[:self._shape[1]*self._shape[2]]
+            return np.reshape(flatImage, (self._shape[1], self._shape[2]))
 
     def _checkIfDone(self):
         """
@@ -146,7 +155,7 @@ cdef class ImageCube(object):
 
 
     def _readImageBuffer(self):
-        imageSize = self.image.md.nCols * self.image.md.nRows * self.image.md.nWvlBins
+        imageSize = self._shape[0] * self._shape[1] * self._shape[2]
         imageBuffer = np.empty(imageSize, dtype=np.intc)
         MKIDShmImage_copy(&(self.image), <image_t*>np.PyArray_DATA(imageBuffer))
         return imageBuffer
@@ -156,8 +165,19 @@ cdef class ImageCube(object):
         return '' if self.useWvl else self.image.md.wavecalID.decode()
 
     @property
-    def dims(self):
-        return [self.image.md.nRows, self.image.md.nCols]
+    def shape(self):
+        if self.useWvl:
+            return self._shape
+        else:
+            return (self.image.md.nRows, self.image.md.nCols)
+
+    @property
+    def _shape(self):
+        if self.useEdgeBins:
+            depth = self.nWvlBins + 2
+        else:
+            depth = self.nWvlBins
+        return (depth, self.image.md.nRows, self.image.md.nCols)
 
     @property
     def nWvlBins(self):
@@ -166,6 +186,10 @@ cdef class ImageCube(object):
     @property
     def useWvl(self):
         return self.image.md.useWvl
+
+    @property 
+    def useEdgeBins(self):
+        return self.image.md.useEdgeBins
 
     @useWvl.setter
     def useWvl(self, use):
