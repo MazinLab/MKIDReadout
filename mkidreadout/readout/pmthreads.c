@@ -584,10 +584,31 @@ void addPacketToImage(MKID_IMAGE *sharedImage, char *photonWord,
 
             }
             wvl = getWavelength(data, wavecal);
-            if((wvl < sharedImage->md->wvlStart) || (wvl >= sharedImage->md->wvlStop))
-                continue; //check if wvl is out of range
-            wvlBinSpacing = (double)(sharedImage->md->wvlStop - sharedImage->md->wvlStart)/sharedImage->md->nWvlBins;
-            wvlBinInd = (int)(wvl - sharedImage->md->wvlStart)/wvlBinSpacing;         
+
+            if(sharedImage->md->useEdgeBins){
+                if(wvl < sharedImage->md->wvlStart)
+                    wvlBinInd = 0;
+                else if(wvl >= sharedImage->md->wvlStop)
+                    wvlBinInd = sharedImage->md->nWvlBins + 1;
+                else{
+                    wvlBinSpacing = (double)(sharedImage->md->wvlStop - sharedImage->md->wvlStart)/sharedImage->md->nWvlBins;
+                    wvlBinInd = (int)(wvl - sharedImage->md->wvlStart)/wvlBinSpacing + 1;
+
+                }
+            }
+
+            else{
+                if((wvl < sharedImage->md->wvlStart) || (wvl >= sharedImage->md->wvlStop))
+                    continue;
+                else{
+                    wvlBinSpacing = (double)(sharedImage->md->wvlStop - sharedImage->md->wvlStart)/sharedImage->md->nWvlBins;
+                    wvlBinInd = (int)(wvl - sharedImage->md->wvlStart)/wvlBinSpacing;
+
+                }
+
+            }
+
+
             sharedImage->image[(sharedImage->md->nCols)*(sharedImage->md->nRows)*wvlBinInd + (sharedImage->md->nCols)*(data->ycoord) + data->xcoord]++;
 
         }
