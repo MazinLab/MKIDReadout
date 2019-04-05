@@ -184,6 +184,14 @@ cdef class ImageCube(object):
         return self.image.md.nWvlBins
 
     @property
+    def wvlBinEdges(self):
+        wvlBinEdges = np.linspace(self.wvlStart, self.wvlStop, self.nWvlBins + 1)
+        if self.useEdgeBins:
+            wvlBinEdges = np.insert(wvlBinEdges, 0, 0)
+            wvlBinEdges = np.append(wvlBinEdges, np.inf)
+        return wvlBinEdges
+
+    @property
     def useWvl(self):
         return self.image.md.useWvl
 
