@@ -268,6 +268,9 @@ cdef class Packetmaster(object):
         self.wavecal.nRows = self.nRows
         strcpy(self.wavecal.solutionFile, wvlSol._file_path.encode('UTF-8'))
 
+        for image in self.sharedImages:
+            self.sharedImages[image].invalidate()
+
         try:
             with open('cache_{}.pickle'.format(os.path.basename(wvlSol_file))) as f:
                 a,b,c = pickle.load(f)

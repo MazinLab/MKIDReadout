@@ -166,6 +166,7 @@ int MKIDShmImage_populateMD(MKID_IMAGE_METADATA *imageMetadata, const char *name
     imageMetadata->wvlStop = wvlStop;
     imageMetadata->startTime = 0;
     imageMetadata->integrationTime = 0;
+    imageMetadata->valid = 1;
     snprintf(imageMetadata->imageBufferName, 80, "%s.buf", name);
     snprintf(imageMetadata->takeImageSemName, 80, "%s.takeImg", name);
     snprintf(imageMetadata->doneImageSemName, 80, "%s.doneImg", name);

@@ -185,6 +185,7 @@ void *shmImageWriter(void *prms)
                       takingImage[imgIdx] = 1;
                       doneIntegrating[imgIdx] = 0;   
                       strcpy(sharedImages[imgIdx].md->wavecalID, params->wavecal->solutionFile);
+                      sharedImages[imgIdx].md->valid = 1;
                       // zero out array:
                       memset(sharedImages[imgIdx].image, 0, sizeof(*(sharedImages[imgIdx].image)) * sharedImages[imgIdx].md->nCols * sharedImages[imgIdx].md->nRows); 
                       if(sharedImages[imgIdx].md->startTime==0)

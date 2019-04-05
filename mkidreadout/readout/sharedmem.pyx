@@ -29,6 +29,7 @@ cdef extern from "mkidshm.h":
         uint32_t useEdgeBins
         uint32_t wvlStart
         uint32_t wvlStop
+        uint32_t valid
         char wavecalID[80]
 
     #PARTIAL DEFINITION, only exposing necessary attributes
@@ -140,6 +141,8 @@ cdef class ImageCube(object):
         """
         MKIDShmImage_wait(&(self.image), self.doneSemInd)
         flatImage = self._readImageBuffer()
+        if not self.valid:
+            raise RuntimeError('Wavecal parameters changed during integration!')
         if self.useWvl:
             return np.reshape(flatImage, self._shape)
         else:
@@ -159,6 +162,13 @@ cdef class ImageCube(object):
         imageBuffer = np.empty(imageSize, dtype=np.intc)
         MKIDShmImage_copy(&(self.image), <image_t*>np.PyArray_DATA(imageBuffer))
         return imageBuffer
+
+    def invalidate(self):
+        """
+        Use to indicate (permissible) changes in image parameters (wvl ranges,
+        wavecal, etc). Invalidates current image if integrating
+        """
+        self.image.md.valid = 0
 
     @property
     def wavecalID(self):
@@ -202,6 +212,7 @@ cdef class ImageCube(object):
     @useWvl.setter
     def useWvl(self, use):
         #getLogger(__name__).warning('enabling/disabling use of wavelength solution not yet implemented')
+        self.invalidate()
         if use:
             self.image.md.useWvl = 1
         else:
@@ -214,6 +225,10 @@ cdef class ImageCube(object):
     @property
     def wvlStop(self):
         return self.image.md.wvlStop
+
+    @property 
+    def valid(self):
+        return bool(self.image.md.valid)
     
         
 

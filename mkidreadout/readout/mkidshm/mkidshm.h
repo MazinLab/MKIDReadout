@@ -32,6 +32,7 @@ typedef struct{
     uint32_t useEdgeBins; //if 1 add bins for photons out of range
     uint32_t wvlStart;
     uint32_t wvlStop;
+    uint32_t valid; //if 0 image is invalid b/c params changed during integration
     uint64_t startTime; //start timestamp of current integration (same as firmware time)
     uint64_t integrationTime; //integration time in half-ms
     char imageBufferName[80]; //form: /imgbuffername (in /dev/shm)
@@ -91,6 +92,8 @@ int MKIDShmImage_checkIfDone(MKID_IMAGE *image, int semInd);
 void MKIDShmImage_postDoneSem(MKID_IMAGE *image, int semInd);
 void MKIDShmImage_copy(MKID_IMAGE *image, image_t *ouputBuffer);
 void MKIDShmImage_setWvlRange(MKID_IMAGE *image, int wvlStart, int wvlStop);
+void MKIDShmImage_setInvalid(MKID_IMAGE *image);
+void MKIDShmImage_setValid(MKID_IMAGE *image);
 
 
 void *openShmFile(const char *shmName, size_t size, int create);
