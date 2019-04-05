@@ -32,12 +32,12 @@ def compile_and_install_software():
     if platform.system()!='Linux':
         return
 
-    src_paths = ['./mkidreadout/readout/mkidshm',
-                './mkidreadout/readout/packetmaster/']
+    src_paths = ['./mkidreadout/readout/mkidshm']
+                #'./mkidreadout/readout/packetmaster/']
 
     # compile the software
-    cmds = ["gcc -shared -o libmkidshm.so -fPIC mkidshm.c -lrt -lpthread",
-            "gcc -shared -o libpacketmaster.so -fPIC -I../mkidshm/ packetmaster.c -L../mkidshm/ -lmkidshm -lrt -lpthread"]
+    cmds = ["gcc -shared -o libmkidshm.so -fPIC mkidshm.c -lrt -lpthread"]
+            #"gcc -shared -o libpacketmaster.so -fPIC -I../mkidshm/ packetmaster.c -L../mkidshm/ -lmkidshm -lrt -lpthread"]
 #            'gcc -o Bin2PNG Bin2PNG.c -I. -lm -lrt -lpng',
 #            'gcc -o BinToImg BinToImg.c -I. -lm -lrt',
 #            'gcc -o BinCheck BinCheck.c -I. -lm -lrt']
@@ -79,12 +79,12 @@ extensions = [Extension(name="mkidreadout.channelizer.roach2utils",
                         library_dirs=['mkidreadout/readout/mkidshm'],
                         extra_link_args=['-lmkidshm', '-lrt', '-lpthread']),
               Extension(name="mkidreadout.readout.packetmaster",
-                        sources=['mkidreadout/readout/packetmaster.pyx'],
+                        sources=['mkidreadout/readout/packetmaster_lib.c', 'mkidreadout/readout/packetmaster.pyx'],
                         include_dirs=[numpy.get_include(), 'mkidreadout/readout/packetmaster',
                                       'mkidreadout/readout/mkidshm'],
                         library_dirs=['mkidreadout/readout/mkidshm', 'mkidreadout/readout/packetmaster'],
                         extra_compile_args=['-shared', '-fPIC'],
-                        extra_link_args=['-lpacketmaster', '-lmkidshm', '-lrt', '-lpthread'])
+                        extra_link_args=['-lmkidshm', '-lrt', '-lpthread'])
              ]
 
 with open("README.md", "r") as fh:
