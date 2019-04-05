@@ -26,10 +26,10 @@ dashboard: !configdict
   darkname: dark
   fitstime: 60  # minimum number of seconds to package into each stream fits file, may run over
   wavecal: 2018-12-23 051888891e1e27c48f09da56342a914aed89.npz
-  useWvl: True
-  nWvlBins: 5
-  wvlStart: 700  #wavecal units
-  wvlStop: 1500
+  use_wave: True
+  n_wave_bins: 5
+  wave_start: 700  #wavecal units
+  wave_stop: 1500
   inttime: 1
   mininttime: .1
   maxinttime: 300

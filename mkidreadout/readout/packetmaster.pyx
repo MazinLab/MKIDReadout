@@ -3,7 +3,7 @@ import numpy as np
 cimport numpy as np
 from mkidreadout.readout.sharedmem import ImageCube
 import mkidpipeline.calibration.wavecal as wvl
-
+import cPickle as pickle
 from libc.stdlib cimport malloc, free
 from libc.string cimport memset, memcpy, strcpy
 
@@ -23,7 +23,7 @@ cdef extern from "<stdint.h>":
     ctypedef unsigned int uint32_t
     ctypedef unsigned long long uint64_t
 
-cdef extern from "packetmaster.h":
+cdef extern from "pmthreads.h":
     cdef int STRBUF
     cdef int SHAREDBUF
     ctypedef float wvlcoeff_t
@@ -111,7 +111,7 @@ cdef class Packetmaster(object):
 
     #TODO useWriter->savebinfiles, ramdiskPath->ramdisk ?use '' as default?
     def __init__(self, nRoaches, port, nRows=None, nCols=None, useWriter=True, wvlSol=None,
-                 beammap=None, sharedImageCfg=None, maximizePriority=False):
+                 beammap=None, sharedImageCfg=None, maximizePriority=False, recreate_images=False):
         """
         Starts the reader (packet receiving) thread along with the appropriate number of parsing 
         threads according to the specified configuration.
@@ -140,8 +140,18 @@ cdef class Packetmaster(object):
                 Typical usage would pass a configdict specified in dashboard.yml. Creates/opens 
                 ImageCube objects for each image.
                 Object must have keys corresponding to the names of the images, and values must have a get method for
-                valid for the attributes nWvlBins, useWvl, wvlStart, wvlStop (i.e. a ConfigThing or a dict)
+                valid for the attributes n_wave_bins, use_wave, wave_start, wave_stop (i.e. a ConfigThing or a dict)
+            recreate_images: bool
+                Remove and recreate the shared images if true
         """
+
+        if recreate_images and sharedImageCfg is not None:
+            for k in sharedImageCfg:
+                f = '/dev/shm/{}'.format(k)
+                if os.path.exists(f):
+                    os.remove(f)
+                    os.remove(f+'.buf')
+
         try:
             self.nRows = int(beammap.nrows)
             self.nCols = int(beammap.ncols)
@@ -172,10 +182,10 @@ cdef class Packetmaster(object):
             self.imageParams.sharedImageNames = <char**>malloc(len(sharedImageCfg)*sizeof(char*))
             for i,image in enumerate(sharedImageCfg):
                 self.sharedImages[image] = ImageCube(name=image, nRows=self.nRows, nCols=self.nCols,
-                                                     useWvl=sharedImageCfg[image].get('useWvl', False),
-                                                     nWvlBins=sharedImageCfg[image].get('nWvlBins', 1),
-                                                     wvlStart=sharedImageCfg[image].get('wvlStart', False),
-                                                     wvlStop=sharedImageCfg[image].get('wvlStop', False))
+                                                     useWvl=sharedImageCfg[image].get('use_wave', False),
+                                                     nWvlBins=sharedImageCfg[image].get('n_wave_bins', 1),
+                                                     wvlStart=sharedImageCfg[image].get('wave_start', False),
+                                                     wvlStop=sharedImageCfg[image].get('wave_stop', False))
                 self.imageParams.sharedImageNames[i] = <char*>malloc(STRBUF*sizeof(char*))
                 strcpy(self.imageParams.sharedImageNames[i], image.encode('UTF-8'))
 
@@ -253,28 +263,35 @@ cdef class Packetmaster(object):
             wvlSol: Wavecal Solution object
             beamap: beammap object
         """
-        wvlSol = wvl.load_solution(wvlSol, singleton_ok=True) #make sure the solution isn't just a file name
+        wvlSol = wvl.Solution(wvlSol) #make sure the solution isn't just a file name
         self.wavecal.nCols = self.nCols
         self.wavecal.nRows = self.nRows
         strcpy(self.wavecal.solutionFile, wvlSol._file_path.encode('UTF-8'))
 
-        calCoeffs, calResIDs = wvlSol.find_calibrations()
-        a = np.zeros((self.nRows, self.nCols))
-        b = np.zeros((self.nRows, self.nCols))
-        c = np.zeros((self.nRows, self.nCols))
-        resIDMap = beammap.residmap.T
+        try:
+            with open('cache_{}.pickle'.format(os.path.basename(wvlSol))) as f:
+                a,b,c = pickle.load(f)
 
-        for i,j in np.ndindex(self.nRows, self.nCols):
-            curCoeffs = calCoeffs[resIDMap[i,j]==calResIDs]
-            if curCoeffs.size:
-                curCoeffs = curCoeffs[0]
-                a[i,j] = curCoeffs[0]
-                b[i,j] = curCoeffs[1]
-                c[i,j] = curCoeffs[2]
+        except IOError:
+            calCoeffs, calResIDs = wvlSol.find_calibrations()
+            a = np.zeros((self.nRows, self.nCols))
+            b = np.zeros((self.nRows, self.nCols))
+            c = np.zeros((self.nRows, self.nCols))
+            resIDMap = beammap.residmap.T
 
-        a = a.flatten()
-        b = b.flatten()
-        c = c.flatten()
+            for i,j in np.ndindex(self.nRows, self.nCols):
+                curCoeffs = calCoeffs[resIDMap[i,j]==calResIDs]
+                if curCoeffs.size:
+                    curCoeffs = curCoeffs[0]
+                    a[i,j] = curCoeffs[0]
+                    b[i,j] = curCoeffs[1]
+                    c[i,j] = curCoeffs[2]
+
+            a = a.flatten()
+            b = b.flatten()
+            c = c.flatten()
+            with open('cache_{}.pickle'.format(os.path.basename(wvlSol))) as f:
+                pickle.dump((a,b,c), f, protocol=2)
 
         coeffArray = np.zeros(N_WVL_COEFFS*self.nRows*self.nCols)
         coeffArray[0::3] = a

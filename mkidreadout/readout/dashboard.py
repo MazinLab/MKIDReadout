@@ -538,7 +538,7 @@ class MKIDDashboard(QMainWindow):
         self.packetmaster = Packetmaster(len(self.config.roaches), self.config.packetmaster.captureport,
                                          useWriter=self.config.dashboard.spawn_packetmaster and not self.offline,
                                          sharedImageCfg={'dashboard': self.config.dashboard},
-                                         beammap=self.config.beammap)
+                                         beammap=self.config.beammap, recreate_images=True)
         self.liveimage = self.packetmaster.sharedImages['dashboard']
 
         # Laser Controller
@@ -557,14 +557,6 @@ class MKIDDashboard(QMainWindow):
                                                receivePort=self.config.telescope.receive_port)
         self.telescopeWindow = TelescopeWindow(self.telescopeController)
 
-        # Setup GUI
-        getLogger('Dashboard').info('Setting up GUI...')
-        self.setWindowTitle(self.config.instrument + ' Dashboard')
-        self.create_image_widget()
-        self.create_dock_widget()
-        self.contextMenu = QMenu(self)  # pops up on right click
-        self.create_menu()  # file menu
-
         # Connect to ROACHES and initialize network port in firmware
         getLogger('Dashboard').info('Connecting roaches and loading beammap...')
         if not self.offline:
@@ -582,7 +574,11 @@ class MKIDDashboard(QMainWindow):
             self.turnOnPhotonCapture()
         self.loadBeammap()
 
-        self.packetmaster.applyWvlSol(self.dashboard.wavecal, self.beammap)
+        try:
+            self.packetmaster.applyWvlSol(self.config.dashboard.wavecal, self.beammap)
+        except IOError:
+            getLogger('Dashboard').critical('Unable to load wavecal {}.'.format(self.config.dashboard.wavecal))
+            exit(1)
 
         # Setup search for image files from cuber
         getLogger('Dashboard').info('Setting up image searcher...')
@@ -591,6 +587,14 @@ class MKIDDashboard(QMainWindow):
         thread.started.connect(self.imageFetcher.run)
         self.imageFetcher.newImage.connect(self.convertImage)
         self.imageFetcher.finished.connect(thread.quit)
+
+        # Setup GUI
+        getLogger('Dashboard').info('Setting up GUI...')
+        self.setWindowTitle(self.config.instrument + ' Dashboard')
+        self.create_image_widget()
+        self.create_dock_widget()
+        self.contextMenu = QMenu(self)  # pops up on right click
+        self.create_menu()  # file menu
 
         if not self.offline:
             QtCore.QTimer.singleShot(10, thread.start)  # start the thread after a second
@@ -620,7 +624,6 @@ class MKIDDashboard(QMainWindow):
         """
         for roach in self.roachList:
             roach.startSendingPhotons(self.config.packetmaster.ip, self.config.packetmaster.captureport)
-        self.imageFetcher.header = self.state()
         getLogger('Dashboard').info('Roaches sending photon packets!')
 
     def loadBeammap(self):
@@ -1397,11 +1400,15 @@ class MKIDDashboard(QMainWindow):
         self.checkbox_smooth = QCheckBox('Smooth Image')
         self.checkbox_smooth.setChecked(False)
 
-        #TODO Boxes for wavelength solution
-        # Settings needed: solution file
+        #TODO Settings for the solution file?
         self.checkbox_usewave = QCheckBox('Apply wavecal')
-        self.checkbox_usewave.setChecked(False)
-        self.liveimage.useWvl = False
+        if not os.path.exists(self.config.dashboard.wavecal):
+            self.config.dashboard.update('use_wave', False)
+            self.checkbox_usewave.setDisabled(True)
+            self.checkbox_usewave.setChecked(False)
+        else:
+            self.checkbox_usewave.setChecked(self.config.dashboard.use_wave)
+        self.liveimage.useWvl = self.config.dashboard.use_wave
         self.checkbox_usewave.stateChanged.connect(lambda: self.liveimage.useWvl != self.liveimage.useWvl)
 
         #wavelength bounds
@@ -1409,13 +1416,13 @@ class MKIDDashboard(QMainWindow):
                                    '<font size="+1">l</font></font><sub>+</sub>') #QChar(0xBB, 0x03))
         self.spinbox_maxLambda = spinbox_maxLambda = QSpinBox()
         spinbox_maxLambda.setRange(0, 10000)
-        spinbox_maxLambda.setValue(self.config.dashboard.wvlStart)
+        spinbox_maxLambda.setValue(self.config.dashboard.wave_start)
         spinbox_maxLambda.setSuffix(' nm')
         spinbox_maxLambda.setWrapping(False)
         spinbox_maxLambda.setCorrectionMode(QAbstractSpinBox.CorrectToNearestValue)
         self.spinbox_minLambda = spinbox_minLambda = QSpinBox()
         spinbox_minLambda.setRange(0, 10000)
-        spinbox_minLambda.setValue(self.config.dashboard.wvlStop)
+        spinbox_minLambda.setValue(self.config.dashboard.wave_stop)
         spinbox_minLambda.setSuffix(' nm')
         spinbox_minLambda.setWrapping(False)
         spinbox_minLambda.setCorrectionMode(QAbstractSpinBox.CorrectToNearestValue)
