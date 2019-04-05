@@ -8,6 +8,7 @@ import platform
 from setuptools.extension import Extension
 from Cython.Build import cythonize
 
+
 #pip install -e git+http://github.com/mazinlab/mkidreadout.git@restructure#egg=mkidreadout --src ./mkidtest
 
 
@@ -77,12 +78,14 @@ extensions = [Extension(name="mkidreadout.channelizer.roach2utils",
                         include_dirs=[numpy.get_include(), 'mkidreadout/readout/mkidshm'],
                         extra_compile_args=['-shared', '-fPIC'],
                         library_dirs=['mkidreadout/readout/mkidshm'],
-                        extra_link_args=['-lmkidshm', '-lrt', '-lpthread']),
+                        runtime_library_dirs=[os.path.abspath('mkidreadout/readout/mkidshm')],
+                        extra_link_args=['-lmkidshm', '-lrt', '-lpthread']),# '-Wl,-rpath=mkidreadout/readout/mkidshm']),
               Extension(name="mkidreadout.readout.packetmaster",
                         sources=['mkidreadout/readout/pmthreads.c', 'mkidreadout/readout/packetmaster.pyx'],
                         include_dirs=[numpy.get_include(), 'mkidreadout/readout/packetmaster',
                                       'mkidreadout/readout/mkidshm'],
-                        library_dirs=['mkidreadout/readout/mkidshm', 'mkidreadout/readout/packetmaster'],
+                        library_dirs=['mkidreadout/readout/mkidshm'],
+                        runtime_library_dirs=[os.path.abspath('mkidreadout/readout/mkidshm')],
                         extra_compile_args=['-shared', '-fPIC'],
                         extra_link_args=['-lmkidshm', '-lrt', '-lpthread'])
              ]
