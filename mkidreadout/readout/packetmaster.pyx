@@ -252,7 +252,7 @@ cdef class Packetmaster(object):
     def stopWriting(self):
         self.writerParams.writing = 0
 
-    def applyWvlSol(self, wvlSol, beammap):
+    def applyWvlSol(self, wvlSol_file, beammap):
         """
         Fills packetmaster's wavecal buffer with solution specified in wvlSol.
         (Should be!) safe to use while packetmaster threads are running, though
@@ -263,13 +263,13 @@ cdef class Packetmaster(object):
             wvlSol: Wavecal Solution object
             beamap: beammap object
         """
-        wvlSol = wvl.Solution(wvlSol) #make sure the solution isn't just a file name
+        wvlSol = wvl.Solution(wvlSol_file) #make sure the solution isn't just a file name
         self.wavecal.nCols = self.nCols
         self.wavecal.nRows = self.nRows
         strcpy(self.wavecal.solutionFile, wvlSol._file_path.encode('UTF-8'))
 
         try:
-            with open('cache_{}.pickle'.format(os.path.basename(wvlSol))) as f:
+            with open('cache_{}.pickle'.format(os.path.basename(wvlSol_file))) as f:
                 a,b,c = pickle.load(f)
 
         except IOError:
@@ -290,7 +290,7 @@ cdef class Packetmaster(object):
             a = a.flatten()
             b = b.flatten()
             c = c.flatten()
-            with open('cache_{}.pickle'.format(os.path.basename(wvlSol))) as f:
+            with open('cache_{}.pickle'.format(os.path.basename(wvlSol_file))) as f:
                 pickle.dump((a,b,c), f, protocol=2)
 
         coeffArray = np.zeros(N_WVL_COEFFS*self.nRows*self.nCols)
