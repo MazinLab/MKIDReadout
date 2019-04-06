@@ -96,7 +96,7 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name="mkidreadout",
-    version="0.0.1",
+    version="0.7.1",
     author="MazinLab",
     author_email="mazinlab@ucsb.edu",
     description="An UVOIR MKID Data Readout Package",

@@ -172,14 +172,14 @@ cdef class ImageCube(object):
 
     @property
     def wavecalID(self):
-        return '' if self.useWvl else self.image.md.wavecalID.decode()
+        return '' if not self.useWvl else self.image.md.wavecalID.decode()
 
     @property
     def shape(self):
         if self.useWvl:
             return self._shape
         else:
-            return (self.image.md.nRows, self.image.md.nCols)
+            return self.image.md.nRows, self.image.md.nCols
 
     @property
     def _shape(self):
@@ -187,7 +187,7 @@ cdef class ImageCube(object):
             depth = self.nWvlBins + 2
         else:
             depth = self.nWvlBins
-        return (depth, self.image.md.nRows, self.image.md.nCols)
+        return depth, self.image.md.nRows, self.image.md.nCols
 
     @property
     def nWvlBins(self):
@@ -211,13 +211,9 @@ cdef class ImageCube(object):
 
     @useWvl.setter
     def useWvl(self, use):
-        #getLogger(__name__).warning('enabling/disabling use of wavelength solution not yet implemented')
         self.invalidate()
-        if use:
-            self.image.md.useWvl = 1
-        else:
-            self.image.md.useWvl = 0
-            
+        self.image.md.useWvl = 1 if use else 0
+
     @property
     def wvlStart(self):
         return self.image.md.wvlStart

@@ -6,6 +6,7 @@ import mkidpipeline.calibration.wavecal as wvl
 import cPickle as pickle
 from libc.stdlib cimport malloc, free
 from libc.string cimport memset, memcpy, strcpy
+from mkidcore.corelog import getLogger
 
 READER_CPU = 1
 BIN_WRITER_CPU = 2
@@ -246,7 +247,6 @@ cdef class Packetmaster(object):
     def startWriting(self, binDir=None):
         if binDir is not None:
             strcpy(self.writerParams.writerPath, binDir.encode('UTF-8'))
-
         self.writerParams.writing = 1
 
     def stopWriting(self):
@@ -272,9 +272,10 @@ cdef class Packetmaster(object):
             self.sharedImages[image].invalidate()
 
         try:
+
             with open('cache_{}.pickle'.format(os.path.basename(wvlSol_file))) as f:
                 a,b,c = pickle.load(f)
-
+            getLogger(__name__).info('Using cache '+'cache_{}.pickle'.format(os.path.basename(wvlSol_file)))
         except IOError:
             calCoeffs, calResIDs = wvlSol.find_calibrations()
             a = np.zeros((self.nRows, self.nCols))
@@ -293,8 +294,9 @@ cdef class Packetmaster(object):
             a = a.flatten()
             b = b.flatten()
             c = c.flatten()
-            with open('cache_{}.pickle'.format(os.path.basename(wvlSol_file))) as f:
+            with open('cache_{}.pickle'.format(os.path.basename(wvlSol_file)),'w') as f:
                 pickle.dump((a,b,c), f, protocol=2)
+            getLogger(__name__).info('Wrote cache '+'cache_{}.pickle'.format(os.path.basename(wvlSol_file)))
 
         coeffArray = np.zeros(N_WVL_COEFFS*self.nRows*self.nCols)
         coeffArray[0::3] = a

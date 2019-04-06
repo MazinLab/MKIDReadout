@@ -556,6 +556,11 @@ class MKIDDashboard(QMainWindow):
             self.telescopeController = Palomar(ip=self.config.telescope.ip, port=self.config.telescope.port,
                                                receivePort=self.config.telescope.receive_port)
         self.telescopeWindow = TelescopeWindow(self.telescopeController)
+        self.last_tcs_poll = self.telescopeController.get_header()
+        timer = QtCore.QTimer(self)
+        timer.timeout.connect(self.update_tcs)
+        timer.setInterval(1000)
+        timer.start()
 
         # Connect to ROACHES and initialize network port in firmware
         getLogger('Dashboard').info('Connecting roaches and loading beammap...')
@@ -574,11 +579,12 @@ class MKIDDashboard(QMainWindow):
             self.turnOnPhotonCapture()
         self.loadBeammap()
 
-        try:
-            self.packetmaster.applyWvlSol(self.config.dashboard.wavecal, self.beammap)
-        except IOError:
-            getLogger('Dashboard').critical('Unable to load wavecal {}.'.format(self.config.dashboard.wavecal))
-            exit(1)
+        if self.config.dashboard.get('wavecal',''):
+            try:
+                self.packetmaster.applyWvlSol(self.config.dashboard.wavecal, self.beammap)
+            except IOError:
+                getLogger('Dashboard').critical('Unable to load wavecal {}.'.format(self.config.dashboard.wavecal))
+                exit(1)
 
         # Setup search for image files from cuber
         getLogger('Dashboard').info('Setting up image searcher...')
@@ -598,6 +604,9 @@ class MKIDDashboard(QMainWindow):
 
         if not self.offline:
             QtCore.QTimer.singleShot(10, thread.start)  # start the thread after a second
+
+    def update_tcs(self):
+        self.last_tcs_poll = self.telescopeController.get_header()
 
     def startworker(self, obj, name):
         self.workers.append(obj)
@@ -709,14 +718,22 @@ class MKIDDashboard(QMainWindow):
             for k, v in self.last_tcs_poll.items():
                 photonImage.header[k] = v
             if photonImage.data.ndim > 2:
-                use = (self.liveimage.bins >= self.spinbox_minLambda) & (self.liveimage.bins <= self.spinbox_maxLambda)
+                minl = self.spinbox_minLambda.value()
+                maxl = self.spinbox_maxLambda.value()
+                use = (self.liveimage.wvlBinEdges >= minl) & (self.liveimage.bins <= maxl)
                 if not use.any():
-                    use = np.argmin(self.liveimage.bins - (self.spinbox_minLambda+self.spinbox_maxLambda)/2)
+                    use = np.argmin(self.liveimage.wvlBinEdges - (maxl+minl)/2)
                 photonImage.data = photonImage.data[use]
 
-            #These two lines technically admit a synchronization issue if the number of bins was changable
-            photonImage.header['wmin'] = self.liveimage.bins[use].min()
-            photonImage.header['wmax'] = self.liveimage.bins[use].max()
+                if photonImage.data.ndim > 2:
+                    photonImage.data = photonImage.data.sum(0)
+
+                photonImage.header['wmin'] = minl
+                photonImage.header['wmax'] = maxl
+            else:
+                photonImage.header['wmin'] = '0'
+                photonImage.header['wmax'] = 'inf'
+
             self.imageList.append(photonImage)
             self.fitsList.append(photonImage)  #for the stream
 
@@ -1198,8 +1215,8 @@ class MKIDDashboard(QMainWindow):
         return dict(target=targ, ditherx=str(self.dither_dialog.status.xpos),
                     dithery=str(self.dither_dialog.status.ypos), laser='TODO',
                     flipper='image', filter=self.filter, ra=d['RA'], dec=d['DEC'], equinox=d['EQUINOX'],
-                    ha=d['TCSHA'], az=d['TCSAZ'], el=d['TCSEL'], airmass=d['AIRMASS'],
-                    tcsutc=d['TCSUTC'], utc=datetime.utcnow().strftime("%Y%m%d%H%M%S"), comment=cmt)
+                    ha=d['HA'], az=d['AZ'], el=d['EL'], airmass=d['AIRMASS'],
+                    tcsutc=d['TCS-UTC'], utc=datetime.utcnow().strftime("%Y%m%d%H%M%S"), comment=cmt)
 
     def logstate(self):
         getLogger('ObsLog').info(json.dumps(self.state()))
@@ -1416,13 +1433,13 @@ class MKIDDashboard(QMainWindow):
                                    '<font size="+1">l</font></font><sub>+</sub>') #QChar(0xBB, 0x03))
         self.spinbox_maxLambda = spinbox_maxLambda = QSpinBox()
         spinbox_maxLambda.setRange(0, 10000)
-        spinbox_maxLambda.setValue(self.config.dashboard.wave_start)
+        spinbox_maxLambda.setValue(self.config.dashboard.wave_stop)
         spinbox_maxLambda.setSuffix(' nm')
         spinbox_maxLambda.setWrapping(False)
         spinbox_maxLambda.setCorrectionMode(QAbstractSpinBox.CorrectToNearestValue)
         self.spinbox_minLambda = spinbox_minLambda = QSpinBox()
         spinbox_minLambda.setRange(0, 10000)
-        spinbox_minLambda.setValue(self.config.dashboard.wave_stop)
+        spinbox_minLambda.setValue(self.config.dashboard.wave_start)
         spinbox_minLambda.setSuffix(' nm')
         spinbox_minLambda.setWrapping(False)
         spinbox_minLambda.setCorrectionMode(QAbstractSpinBox.CorrectToNearestValue)
@@ -1474,13 +1491,9 @@ class MKIDDashboard(QMainWindow):
 
         vbox = QVBoxLayout()
         vbox.addWidget(label_currentTime)
-
         vbox.addLayout(build_hbox((label_dataDir, textbox_dataDir)))
-
         vbox.addWidget(self.button_obs)
-
         vbox.addLayout(build_hbox((label_target, self.textbox_target)))
-
         vbox.addWidget(self.textbox_log)
 
         hbox_filter = QHBoxLayout()
@@ -1509,7 +1522,7 @@ class MKIDDashboard(QMainWindow):
         vbox.addLayout(build_hbox((label_stretch, self.combobox_stretch)))
 
         vbox.addWidget(self.checkbox_usewave)
-        vbox.addWidget(build_hbox((label_lambdaRange, self.spinbox_minLambda, self.spinbox_maxLambda)))
+        vbox.addLayout(build_hbox((label_lambdaRange, self.spinbox_minLambda, self.spinbox_maxLambda)))
 
         vbox.addWidget(self.checkbox_showAllPix)
         vbox.addWidget(self.checkbox_interpolate)
