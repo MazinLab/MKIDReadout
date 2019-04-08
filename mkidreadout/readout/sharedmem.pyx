@@ -218,9 +218,19 @@ cdef class ImageCube(object):
     def wvlStart(self):
         return self.image.md.wvlStart
 
+    @wvlStart.setter
+    def wvlStart(self, wvl):
+        self.invalidate()
+        self.image.md.wvlStart = wvl
+
     @property
     def wvlStop(self):
         return self.image.md.wvlStop
+
+    @wvlStop.setter
+    def wvlStop(self, wvl):
+        self.invalidate()
+        self.image.md.wvlStop = wvl
 
     @property 
     def valid(self):
