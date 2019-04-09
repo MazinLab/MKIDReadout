@@ -232,6 +232,12 @@ cdef class ImageCube(object):
         self.invalidate()
         self.image.md.wvlStop = wvl
 
+    def update_wvlStop(self, wvl):
+        self.wvlStop = float(wvl)
+
+    def update_wvlStart(self, wvl):
+        self.wvlStart = float(wvl)
+
     @property 
     def valid(self):
         return bool(self.image.md.valid)

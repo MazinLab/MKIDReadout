@@ -24,7 +24,7 @@ dashboard: !configdict
   n_flats: 5
   flatname: flat
   darkname: dark
-  fitstime: 60  # minimum number of seconds to package into each stream fits file, may run over
+  fitstime: 60  # minimum number of seconds to package into each stream fits file, may run over by an integration time
   wavecal: 2018-12-23 051888891e1e27c48f09da56342a914aed89.npz
   use_wave: True
   wave_start: 700  #wavecal units
@@ -32,7 +32,6 @@ dashboard: !configdict
   inttime: 1
   mininttime: .1
   maxinttime: 300
-  spawn_packetmaster: True
 
 # Flipper is also controlled with the laser box arduino
 lasercontrol: !configdict

@@ -89,7 +89,7 @@ class LiveImageFetcher(QtCore.QObject):  # Extends QObject for use with QThreads
         self.inttime = inttime
         self.search = True
 
-    def update_itime(self, it):
+    def update_inttime(self, it):
         self.inttime = float(it)
 
     def run(self):
@@ -117,7 +117,7 @@ class LiveImageFetcher(QtCore.QObject):  # Extends QObject for use with QThreads
                 ret.header['wmax'] = self.sharedim.wvlStop
                 self.newImage.emit(ret)
             except RuntimeError:
-                pass
+                getLogger('Dashboard').error('Problem', exc_info=True)
             except Exception:
                 getLogger('Dashboard').error('Problem', exc_info=True)
         self.finished.emit()
@@ -538,8 +538,7 @@ class MKIDDashboard(QMainWindow):
         imgcfg = dict(self.config.dashboard)
         imgcfg['n_wvl_bins']=1
         self.packetmaster = Packetmaster(len(self.config.roaches), self.config.packetmaster.captureport,
-                                         useWriter=self.config.dashboard.spawn_packetmaster and not self.offline,
-                                         sharedImageCfg={'dashboard': imgcfg},
+                                         useWriter=not self.offline, sharedImageCfg={'dashboard': imgcfg},
                                          beammap=self.config.beammap, recreate_images=True)
         self.liveimage = self.packetmaster.sharedImages['dashboard']
 
@@ -609,6 +608,7 @@ class MKIDDashboard(QMainWindow):
 
     def update_tcs(self):
         self.last_tcs_poll = self.telescopeController.get_header()
+        getLogger('Dashboard').debug(self.last_tcs_poll)
 
     def startworker(self, obj, name):
         self.workers.append(obj)
@@ -1308,7 +1308,7 @@ class MKIDDashboard(QMainWindow):
         spinbox_integrationTime.setWrapping(False)
         spinbox_integrationTime.setCorrectionMode(QAbstractSpinBox.CorrectToNearestValue)
         spinbox_integrationTime.valueChanged.connect(partial(self.config.update, 'dashboard.inttime'))  # change cfg
-        spinbox_integrationTime.valueChanged.connect(self.imageFetcher.update_itime)
+        spinbox_integrationTime.valueChanged.connect(self.imageFetcher.update_inttime)
 
         # current num images integrated
         self.label_numIntegrated = QLabel('0/' + str(integrationTime))
@@ -1433,8 +1433,8 @@ class MKIDDashboard(QMainWindow):
         # make sure min is always less than max
         spinbox_minLambda.valueChanged.connect(spinbox_maxLambda.setMinimum)
         spinbox_maxLambda.valueChanged.connect(spinbox_minLambda.setMaximum)
-        spinbox_minLambda.valueChanged.connect(lambda x: self.liveimage.wvlStart=float(x))
-        spinbox_maxLambda.valueChanged.connect(lambda x: self.liveimage.wvlStop=float(x))
+        spinbox_minLambda.valueChanged.connect(self.liveimage.update_wvlStart)
+        spinbox_maxLambda.valueChanged.connect(self.liveimage.update_wvlStop)
         #don't bother remaking the current image because it requires taking a new one for a difference to be seen
 
         # Checkbox for dithering image

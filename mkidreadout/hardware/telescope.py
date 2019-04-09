@@ -40,6 +40,7 @@ def get_subaru(host='', user='', password=''):
     try:
         from g2cam.status.client import StatusClient
     except ImportError:
+        getLogger(__name__).error('Unable to import g2cam.status.client.StatusClient')
         d = QUERY
         return {'RA': d['FITS.SBR.RA'], 'DEC': d['FITS.SBR.DEC'], 'HA': d['FITS.SBR.HA'],
                 'AIRMASS': d['FITS.SBR.AIRMASS'], 'AZ': d['TSCS.AZ'], 'EL': d['TSCS.EL'], 'UTCTCS': d['FITS.SBR.UT'],
@@ -67,7 +68,7 @@ def get_subaru(host='', user='', password=''):
     d = SUBARU['cache']
 
     return {'RA': d['FITS.SBR.RA'], 'DEC': d['FITS.SBR.DEC'], 'HA': d['FITS.SBR.HA'],
-            'AIRMASS': d['FITS.SBR.AIRMASS'], 'AZ': d['TSCS.AZ'], 'EL': d['TSCS.EL'], 'TCS-UTC': d['TSCS.UTC'],
+            'AIRMASS': d['FITS.SBR.AIRMASS'], 'AZ': d['TSCS.AZ'], 'EL': d['TSCS.EL'], 'TCS-UTC': d['FITS.SBR.UT'],
             'EQUINOX': d['FITS.SBR.EQUINOX']}
 
 
