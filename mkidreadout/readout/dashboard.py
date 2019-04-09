@@ -536,7 +536,7 @@ class MKIDDashboard(QMainWindow):
         # Initialize PacketMaster8
         getLogger('Dashboard').info('Initializing packetmaster...')
         imgcfg = dict(self.config.dashboard)
-        imgcfg['n_wvl_bins']=1
+        imgcfg['n_wave_bins']=1
         self.packetmaster = Packetmaster(len(self.config.roaches), self.config.packetmaster.captureport,
                                          useWriter=not self.offline, sharedImageCfg={'dashboard': imgcfg},
                                          beammap=self.config.beammap, recreate_images=True)
