@@ -535,9 +535,11 @@ class MKIDDashboard(QMainWindow):
 
         # Initialize PacketMaster8
         getLogger('Dashboard').info('Initializing packetmaster...')
+        imgcfg = dict(self.config.dashboard)
+        imgcfg['n_wvl_bins']=1
         self.packetmaster = Packetmaster(len(self.config.roaches), self.config.packetmaster.captureport,
                                          useWriter=self.config.dashboard.spawn_packetmaster and not self.offline,
-                                         sharedImageCfg={'dashboard': self.config.dashboard},
+                                         sharedImageCfg={'dashboard': imgcfg},
                                          beammap=self.config.beammap, recreate_images=True)
         self.liveimage = self.packetmaster.sharedImages['dashboard']
 
@@ -717,22 +719,6 @@ class MKIDDashboard(QMainWindow):
         if photonImage is not None:
             for k, v in self.last_tcs_poll.items():
                 photonImage.header[k] = v
-            if photonImage.data.ndim > 2:
-                minl = self.spinbox_minLambda.value()
-                maxl = self.spinbox_maxLambda.value()
-                use = (self.liveimage.wvlBinEdges >= minl) & (self.liveimage.bins <= maxl)
-                if not use.any():
-                    use = np.argmin(self.liveimage.wvlBinEdges - (maxl+minl)/2)
-                photonImage.data = photonImage.data[use]
-
-                if photonImage.data.ndim > 2:
-                    photonImage.data = photonImage.data.sum(0)
-
-                photonImage.header['wmin'] = minl
-                photonImage.header['wmax'] = maxl
-            else:
-                photonImage.header['wmin'] = '0'
-                photonImage.header['wmax'] = 'inf'
 
             self.imageList.append(photonImage)
             self.fitsList.append(photonImage)  #for the stream
@@ -1447,8 +1433,9 @@ class MKIDDashboard(QMainWindow):
         # make sure min is always less than max
         spinbox_minLambda.valueChanged.connect(spinbox_maxLambda.setMinimum)
         spinbox_maxLambda.valueChanged.connect(spinbox_minLambda.setMaximum)
+        spinbox_minLambda.valueChanged.connect(lambda x: self.liveimage.wvlStart=float(x))
+        spinbox_maxLambda.valueChanged.connect(lambda x: self.liveimage.wvlStop=float(x))
         #don't bother remaking the current image because it requires taking a new one for a difference to be seen
-
 
         # Checkbox for dithering image
         # self.checkbox_dither = QCheckBox('Dither Image')

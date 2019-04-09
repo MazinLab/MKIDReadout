@@ -27,7 +27,6 @@ dashboard: !configdict
   fitstime: 60  # minimum number of seconds to package into each stream fits file, may run over
   wavecal: 2018-12-23 051888891e1e27c48f09da56342a914aed89.npz
   use_wave: True
-  n_wave_bins: 5
   wave_start: 700  #wavecal units
   wave_stop: 1500
   inttime: 1
