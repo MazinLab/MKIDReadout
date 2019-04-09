@@ -50,11 +50,11 @@ filter: !configdict
   ip: localhost:50000
 
 telescope: !configdict
-  ip: 198.202.125.194   #Gen2 host for subaru
-  port: 5004
-  receive_port: 1024
-  user:
-  password: DO_NOT_COMMIT_A_VALUE
+  ip: g2ins1.sum.subaru.nao.ac.jp #Gen2 host for subaru
+  port:
+  receive_port:
+  user: mec
+  password: ''
 
 
 
