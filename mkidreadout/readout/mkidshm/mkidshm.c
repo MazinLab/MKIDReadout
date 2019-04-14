@@ -2,6 +2,7 @@
 
 void *openShmFile(const char *shmName, size_t size, int create){
     char name[80];
+    char error[200];
     int fd;
     void *shmPtr;
     int flag;
@@ -15,14 +16,16 @@ void *openShmFile(const char *shmName, size_t size, int create){
 
     fd = shm_open(name, flag, S_IWUSR|S_IRUSR|S_IWGRP|S_IRGRP);
     if(fd == -1){
-        perror("Error opening shm metadata");
+        snprintf(error, 200, "Error opening %s", name);
+        perror(error);
         return NULL;
 
     }
 
     
     if(ftruncate(fd, size)==-1){
-        perror("Error truncating shm metadata FD");
+        snprintf(error, 200, "Error truncating %s", name);
+        perror(error);
         close(fd);
         return NULL;
 
@@ -30,7 +33,8 @@ void *openShmFile(const char *shmName, size_t size, int create){
 
     shmPtr = mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
     if(shmPtr == MAP_FAILED){
-        perror("Error mapping shm metadata");
+        snprintf(error, 200, "Error mapping %s", name);
+        perror(error);
         close(fd);
         return NULL;
 

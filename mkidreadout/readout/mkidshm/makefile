@@ -1,5 +1,5 @@
 libmkidshm.so:
-	gcc -shared -o libmkidshm.so -fPIC mkidshm.c -lrt -lpthread
+	gcc -shared -g -O0 -o libmkidshm.so -fPIC mkidshm.c -lrt -lpthread
 
 clean: 
 	$(RM) *.o *.so pymkidshm.c
