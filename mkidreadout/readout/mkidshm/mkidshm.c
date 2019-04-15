@@ -107,6 +107,13 @@ int MKIDShmImage_open(MKID_IMAGE *imageStruct, const char *imgName){
     if(mdPtr == NULL)
         return -1;
 
+
+    if(mdPtr->version != MKIDSHM_VERSION){
+        printf("ERROR: Version mismatch between libmkidshm and shared memory file");
+        return -1;
+
+    }
+
     imageStruct->md = mdPtr;
 
     // OPEN IMAGE BUFFER 
@@ -161,6 +168,7 @@ int MKIDShmImage_close(MKID_IMAGE *imageStruct){
 }
 
 int MKIDShmImage_populateMD(MKID_IMAGE_METADATA *imageMetadata, const char *name, int nCols, int nRows, int useWvl, int nWvlBins, int useEdgeBins, int wvlStart, int wvlStop){
+    imageMetadata->version = MKIDSHM_VERSION;
     imageMetadata->nCols = nCols;
     imageMetadata->nRows = nRows;
     imageMetadata->useWvl = useWvl;
@@ -170,6 +178,7 @@ int MKIDShmImage_populateMD(MKID_IMAGE_METADATA *imageMetadata, const char *name
     imageMetadata->wvlStop = wvlStop;
     imageMetadata->startTime = 0;
     imageMetadata->integrationTime = 0;
+    imageMetadata->takingImage = 0;
     imageMetadata->valid = 1;
     snprintf(imageMetadata->imageBufferName, 80, "%s.buf", name);
     snprintf(imageMetadata->takeImageSemName, 80, "%s.takeImg", name);
