@@ -8,6 +8,7 @@
 #include <semaphore.h>
 #include <string.h>
 #include <errno.h>
+#include <time.h>
 
 // Compile shared object with: gcc -shared -o libmkidshm.so -fPIC mkidshm.c -lrt -lpthread
 

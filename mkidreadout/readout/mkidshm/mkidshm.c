@@ -220,8 +220,9 @@ int MKIDShmImage_timedwait(MKID_IMAGE *image, int semInd, int time, int stopImag
     struct timespec tspec;
     int retval;
     time += TIMEDWAIT_FUDGE;
-    tspec.tv_sec = time/2000;
-    tspec.tv_nsec = (time%2000)*500000;
+    clock_gettime(CLOCK_REALTIME, &tspec);
+    tspec.tv_sec += time/2000;
+    tspec.tv_nsec += (time%2000)*500000;
     retval = sem_timedwait(image->doneImageSemList[semInd], &tspec);
 
     if((retval == -1) && (stopImage)){
