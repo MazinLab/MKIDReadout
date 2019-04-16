@@ -3,6 +3,12 @@ Automates the functionality in the pixels_movingscan GUI. Finds the optimal scal
 offset from the raw beammap data, applies these, and saves the beammap file. Note that clean.py
 should still be run after this.
 
+Algorithm outline:
+    1. Take an FFT of the lattice of raw pixel coordinates (x/y sweep timestamps from sweep.py)
+    2. Find the fundamental frequencies in x and y planes (click on them w/ GUI)
+    3. Use these to determine scale factor and angle
+TODO: implement skew
+
 Author: Neelay Fruitwala
 
 Usage: python alignGrid.py <configFile>
