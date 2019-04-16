@@ -21,6 +21,7 @@ extern "C" {
 
 #define N_DONE_SEMS 10
 #define MKIDSHM_VERSION 0
+#define TIMEDWAIT_FUDGE 500 //half ms
 typedef int image_t; //can mess around with changing this w/o many subsitutions
 typedef float coeff_t;
 
@@ -92,7 +93,9 @@ int MKIDShmImage_create(MKID_IMAGE_METADATA *imageMetadata, const char *imgName,
 int MKIDShmImage_populateMD(MKID_IMAGE_METADATA *imageMetadata, const char *name, int nCols, int nRows, int useWvl, int nWvlBins, int useEdgeBins, int wvlStart, int wvlStop);
 void MKIDShmImage_startIntegration(MKID_IMAGE *image, uint64_t startTime, uint64_t integrationTime);
 void MKIDShmImage_wait(MKID_IMAGE *image, int semInd);
-int MKIDShmImage_timedwait(MKID_IMAGE *image, int semInd, double time);
+
+//time is in half-ms, cancels integration if stopImage is 1
+int MKIDShmImage_timedwait(MKID_IMAGE *image, int semInd, int time, int stopImage);
 int MKIDShmImage_checkIfDone(MKID_IMAGE *image, int semInd);
 void MKIDShmImage_postDoneSem(MKID_IMAGE *image, int semInd);
 void MKIDShmImage_copy(MKID_IMAGE *image, image_t *ouputBuffer);

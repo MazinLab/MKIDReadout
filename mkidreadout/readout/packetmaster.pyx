@@ -17,8 +17,8 @@ N_WVL_COEFFS = 3
 
 #WARNING: DO NOT USE IF THERE MAY BE MULTIPLE INSTANCES OF PACKETMASTER;
 #         THESE ARE SYSTEM WIDE SEMAPHORES
-STREAM_SEM_BASENAME = 'readoutStreamSem'
-QUIT_SEM_NAME = 'quitSem'
+STREAM_SEM_BASENAME = 'packetmaster_readoutStreamSem'
+QUIT_SEM_NAME = 'packetmaster_quitSem'
 
 cdef extern from "<stdint.h>":
     ctypedef unsigned int uint32_t

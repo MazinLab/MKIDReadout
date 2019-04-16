@@ -99,7 +99,6 @@ void *shmImageWriter(void *prms)
     uint16_t curRoachInd;
     uint32_t *doneIntegrating; //Array of bitmasks (one for each image, bits are roaches)
     uint32_t doneIntMask; //constant - each place value corresponds to a roach board
-    int *takingImage;
     SHM_IMAGE_WRITER_PARAMS *params;
     MKID_IMAGE *sharedImages;
     sem_t *quitSem;
@@ -126,7 +125,6 @@ void *shmImageWriter(void *prms)
     boardNums = calloc(params->nRoach, sizeof(uint16_t));
 
     doneIntegrating = calloc(params->nSharedImages, sizeof(uint32_t));
-    takingImage = calloc(params->nSharedImages, sizeof(int));
     sharedImages = (MKID_IMAGE*)malloc(params->nSharedImages*sizeof(MKID_IMAGE));
 
     for(imgIdx=0; imgIdx<params->nSharedImages; imgIdx++){
@@ -182,7 +180,7 @@ void *shmImageWriter(void *prms)
                   if(sem_trywait(sharedImages[imgIdx].takeImageSem)==0)
                   {
                       printf("SharedImageWriter: taking image %s\n", params->sharedImageNames[imgIdx]);
-                      takingImage[imgIdx] = 1;
+                      sharedImages[imgIdx].md->takingImage = 1;
                       doneIntegrating[imgIdx] = 0;   
                       strcpy(sharedImages[imgIdx].md->wavecalID, params->wavecal->solutionFile);
                       sharedImages[imgIdx].md->valid = 1;
@@ -233,7 +231,7 @@ void *shmImageWriter(void *prms)
                 
                 for(imgIdx=0; imgIdx<params->nSharedImages; imgIdx++)
                 {
-                   if(takingImage[imgIdx])
+                   if(sharedImages[imgIdx].md->takingImage)
                    {
                        //printf("curRoachTs: %lld\n", curTs);
                        if((curTs>sharedImages[imgIdx].md->startTime)&&(curTs<=(sharedImages[imgIdx].md->startTime+sharedImages[imgIdx].md->integrationTime)))
@@ -250,7 +248,7 @@ void *shmImageWriter(void *prms)
 
                        if(doneIntegrating[imgIdx]==doneIntMask) //check to see if all boards are done integrating
                        {
-                           takingImage[imgIdx] = 0;
+                           sharedImages[imgIdx].md->takingImage = 0;
                            clock_gettime(CLOCK_REALTIME, &stopSpec);
                            //nsElapsed = stopSpec.tv_nsec - startSpec.tv_nsec;
                            MKIDShmImage_postDoneSem(sharedImages + imgIdx, -1);
@@ -285,7 +283,6 @@ void *shmImageWriter(void *prms)
     for(imgIdx=0; imgIdx<params->nSharedImages; imgIdx++)
         MKIDShmImage_close(sharedImages+imgIdx);
     free(sharedImages);
-    free(takingImage);
     free(doneIntegrating);
     sem_close(streamSem);
     sem_close(quitSem);
@@ -609,13 +606,14 @@ void addPacketToImage(MKID_IMAGE *sharedImage, char *photonWord,
 
             }
 
-
-            sharedImage->image[(sharedImage->md->nCols)*(sharedImage->md->nRows)*wvlBinInd + (sharedImage->md->nCols)*(data->ycoord) + data->xcoord]++;
+            if(sharedImage->md->takingImage)
+                sharedImage->image[(sharedImage->md->nCols)*(sharedImage->md->nRows)*wvlBinInd + (sharedImage->md->nCols)*(data->ycoord) + data->xcoord]++;
 
         }
         
         else
-            sharedImage->image[(sharedImage->md->nCols)*(data->ycoord) + data->xcoord]++;
+            if(sharedImage->md->takingImage)
+                sharedImage->image[(sharedImage->md->nCols)*(data->ycoord) + data->xcoord]++;
       
     }
 

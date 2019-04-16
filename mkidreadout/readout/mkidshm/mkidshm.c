@@ -216,6 +216,25 @@ void MKIDShmImage_postDoneSem(MKID_IMAGE *image, int semInd){
 void MKIDShmImage_wait(MKID_IMAGE *image, int semInd){
     sem_wait(image->doneImageSemList[semInd]);}
 
+int MKIDShmImage_timedwait(MKID_IMAGE *image, int semInd, int time, int stopImage){
+    struct timespec tspec;
+    int retval;
+    time += TIMEDWAIT_FUDGE;
+    tspec.tv_sec = time/2000;
+    tspec.tv_nsec = (time%2000)*500000;
+    retval = sem_timedwait(image->doneImageSemList[semInd], &tspec);
+
+    if((retval == -1) && (stopImage)){
+        image->md->takingImage = 0;
+        sem_trywait(image->takeImageSem);
+
+    }
+
+    return retval;
+
+
+}
+
 //Non-blocking
 int MKIDShmImage_checkIfDone(MKID_IMAGE *image, int semInd){
     return sem_trywait(image->doneImageSemList[semInd]);}
