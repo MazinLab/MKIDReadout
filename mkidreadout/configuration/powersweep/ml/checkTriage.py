@@ -107,7 +107,7 @@ if args.plotConfusion:
     plt.imshow(np.transpose(confImage), vmax=30)
     plt.xlabel('True Atten')
     plt.ylabel('Guess Atten')
-    title = args.mlFiles[0].split('_')[-1].split('.')[0]
+    title = os.path.basename(args.mlFiles[0]).split('.')[0] #args.mlFiles[0].split('_')[-1].split('.')[0]
     plt.title(title)
     plt.colorbar()
     plt.savefig(os.path.join(os.path.dirname(args.mlFiles[0]), title+'.png'))
