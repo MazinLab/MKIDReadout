@@ -180,6 +180,8 @@ int MKIDShmImage_populateMD(MKID_IMAGE_METADATA *imageMetadata, const char *name
     imageMetadata->integrationTime = 0;
     imageMetadata->takingImage = 0;
     imageMetadata->valid = 1;
+    snprintf(imageMetadata->name, 80, "%s", name);
+    snprintf(imageMetadata->wavecalID, 150, "%s", "none");
     snprintf(imageMetadata->imageBufferName, 80, "%s.buf", name);
     snprintf(imageMetadata->takeImageSemName, 80, "%s.takeImg", name);
     snprintf(imageMetadata->doneImageSemName, 80, "%s.doneImg", name);

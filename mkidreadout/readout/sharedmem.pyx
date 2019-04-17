@@ -31,7 +31,8 @@ cdef extern from "mkidshm.h":
         uint32_t wvlStop
         uint32_t valid
         uint32_t integrationTime
-        char wavecalID[80]
+        char name[80]
+        char wavecalID[150]
 
     #PARTIAL DEFINITION, only exposing necessary attributes
     ctypedef struct MKID_IMAGE:
@@ -118,10 +119,14 @@ cdef class ImageCube(object):
     def _create(self, name, nCols, nRows, useWvl, nWvlBins, useEdgeBins, wvlStart, wvlStop):
         cdef MKID_IMAGE_METADATA imagemd
         MKIDShmImage_populateMD(&imagemd, name.encode('UTF-8'), nCols, nRows, int(useWvl), nWvlBins, int(useEdgeBins), wvlStart, wvlStop)
-        MKIDShmImage_create(&imagemd, name.encode('UTF-8'), &(self.image));
+        rval = MKIDShmImage_create(&imagemd, name.encode('UTF-8'), &(self.image));
+        if rval != 0:
+            raise Exception('Error opening shared memory file')
 
     def _open(self, name):
-        MKIDShmImage_open(&(self.image), name.encode('UTF-8'))
+        rval = MKIDShmImage_open(&(self.image), name.encode('UTF-8'))
+        if rval != 0:
+            raise Exception('Error opening shared memory file')
 
     def startIntegration(self, startTime=0, integrationTime=1):
         """
@@ -176,7 +181,11 @@ cdef class ImageCube(object):
 
     @property
     def wavecalID(self):
-        return '' if not self.useWvl else self.image.md.wavecalID.decode()
+        return '' if not self.useWvl else self.image.md.wavecalID.decode(encoding='UTF-8')
+
+    @property
+    def name(self):
+        return self.image.md.name.decode()
 
     @property
     def shape(self):
