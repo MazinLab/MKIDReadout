@@ -34,6 +34,8 @@ import mkidreadout.configuration.powersweep.ml.tools as mlt
 import warnings
 warnings.filterwarnings("ignore")
 
+MAX_IMAGES = 10000
+
 
 class mlClassification():
     def __init__(self,  mlDict):
@@ -67,7 +69,7 @@ class mlClassification():
 
             if self.mlDict['trimAttens']:
                 goodResMask = goodResMask & ~(rawTrainData.opt_iAttens < self.mlDict['attenWinBelow'])
-                goodResMask = goodResMask & ~(rawTrainData.opt_iAttens > (len(rawTrainData.attens) - self.mlDict['attenWinAbove']))
+                goodResMask = goodResMask & ~(rawTrainData.opt_iAttens >= (len(rawTrainData.attens) - self.mlDict['attenWinAbove']))
             if self.mlDict['filterMaxedAttens']:
                 maxAttenInd = np.argmax(rawTrainData.attens)
                 goodResMask = goodResMask & ~(rawTrainData.opt_iAttens==maxAttenInd)
@@ -447,10 +449,14 @@ class mlClassification():
 
         testScore = self.sess.run(accuracy, feed_dict={self.x: testImages, y_: testLabels, self.keep_prob: 1, self.is_training: False}) * 100
         print 'Accuracy of model in testing: ', testScore, '%'
-        if testScore < 85: print 'Consider making more training images'
-        print 'Testing accuracy within 1 dB: ', float(len(within1dB))/len(ys_true)*100, '%' 
 
-        trainScore = self.sess.run(accuracy, feed_dict={self.x: trainImages, y_: trainLabels, self.keep_prob: 1, self.is_training: False}) * 100
+        trainScore = 0
+        nTrainScoreBatches = len(trainImages)/MAX_IMAGES + 1
+        for i in range(nTrainScoreBatches):
+            endInd = min((i+1)*MAX_IMAGES, len(trainImages))
+            trainImagesBatch = trainImages[i*MAX_IMAGES:endInd]
+            trainLabelsBatch = trainLabels[i*MAX_IMAGES:endInd]
+            trainScore += self.sess.run(accuracy, feed_dict={self.x: trainImagesBatch, y_: trainLabelsBatch, self.keep_prob: 1, self.is_training: False}) * 100/nTrainScoreBatches
         print 'Accuracy of model in training: ', trainScore, '%'
         print tf.get_default_graph().get_all_collection_keys()
         
