@@ -112,12 +112,12 @@ class LiveImageFetcher(QtCore.QObject):  # Extends QObject for use with QThreads
                 ret = fits.ImageHDU(data=data)
                 ret.header['utcstart'] = utc
                 ret.header['exptime'] = self.inttime
-                ret.header['wavecal'] = self.sharedim.wavecalID
-                ret.header['wmin'] = self.sharedim.wvlstart
-                ret.header['wmax'] = self.sharedim.wvlStop
+                ret.header['wavecal'] = self.imagebuffer.wavecalID
+                ret.header['wmin'] = self.imagebuffer.wvlStart
+                ret.header['wmax'] = self.imagebuffer.wvlStop
                 self.newImage.emit(ret)
-            except RuntimeError:
-                getLogger('Dashboard').error('Problem', exc_info=True)
+            except RuntimeError as e:
+                getLogger('Dashboard').debug('Image stream unavailable: {}'.format(e))
             except Exception:
                 getLogger('Dashboard').error('Problem', exc_info=True)
         self.finished.emit()
@@ -590,10 +590,10 @@ class MKIDDashboard(QMainWindow):
         # Setup search for image files from cuber
         getLogger('Dashboard').info('Setting up image searcher...')
         self.imageFetcher = LiveImageFetcher(self.liveimage, self.config.dashboard.inttime, parent=None)
-        thread = self.startworker(self.imageFetcher, 'imageFetcher')
-        thread.started.connect(self.imageFetcher.run)
+        fetcherthread = self.startworker(self.imageFetcher, 'imageFetcher')
+        fetcherthread.started.connect(self.imageFetcher.run)
         self.imageFetcher.newImage.connect(self.convertImage)
-        self.imageFetcher.finished.connect(thread.quit)
+        self.imageFetcher.finished.connect(fetcherthread.quit)
 
         # Setup GUI
         getLogger('Dashboard').info('Setting up GUI...')
@@ -603,8 +603,7 @@ class MKIDDashboard(QMainWindow):
         self.contextMenu = QMenu(self)  # pops up on right click
         self.create_menu()  # file menu
 
-        if not self.offline:
-            QtCore.QTimer.singleShot(10, thread.start)  # start the thread after a second
+        QtCore.QTimer.singleShot(10, fetcherthread.start)  # start the thread after a second
 
     def update_tcs(self):
         self.last_tcs_poll = self.telescopeController.get_header()
@@ -736,7 +735,7 @@ class MKIDDashboard(QMainWindow):
 
         # If we've got a full set of data package it as a fits file
         tconv = lambda x: (datetime.strptime(x, '%Y-%m-%d %H:%M:%S') - datetime(1970, 1, 1)).total_seconds()
-        tstart = tconv(self.fitsList[0].header['utc']) if self.fitsList else time.time()
+        tstart = tconv(self.fitsList[0].header['utcstart']) if self.fitsList else time.time()
         tstamp = int(time.time())
         if ((sum([i.header['exptime'] for i in self.fitsList]) >= self.config.dashboard.fitstime) or
             (tstamp - tstart) >= self.config.dashboard.fitstime):
@@ -1412,7 +1411,7 @@ class MKIDDashboard(QMainWindow):
         else:
             self.checkbox_usewave.setChecked(self.config.dashboard.use_wave)
         self.liveimage.useWvl = self.config.dashboard.use_wave
-        self.checkbox_usewave.stateChanged.connect(lambda: self.liveimage.useWvl != self.liveimage.useWvl)
+        self.checkbox_usewave.stateChanged.connect(lambda: self.liveimage.set_useWvl(not self.liveimage.useWvl))
 
         #wavelength bounds
         label_lambdaRange = QLabel('<font face="Symbol"><font size="+1">l</font></font><sub>-</sub> - '
