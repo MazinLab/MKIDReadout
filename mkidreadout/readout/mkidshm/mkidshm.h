@@ -101,8 +101,8 @@ int MKIDShmImage_checkIfDone(MKID_IMAGE *image, int semInd);
 void MKIDShmImage_postDoneSem(MKID_IMAGE *image, int semInd);
 void MKIDShmImage_copy(MKID_IMAGE *image, image_t *ouputBuffer);
 void MKIDShmImage_setWvlRange(MKID_IMAGE *image, int wvlStart, int wvlStop);
-void MKIDShmImage_setInvalid(MKID_IMAGE *image);
-void MKIDShmImage_setValid(MKID_IMAGE *image);
+//void MKIDShmImage_setInvalid(MKID_IMAGE *image);
+//void MKIDShmImage_setValid(MKID_IMAGE *image);
 
 
 void *openShmFile(const char *shmName, size_t size, int create);

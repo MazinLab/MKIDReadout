@@ -190,6 +190,7 @@ int MKIDShmImage_populateMD(MKID_IMAGE_METADATA *imageMetadata, const char *name
 void MKIDShmImage_startIntegration(MKID_IMAGE *image, uint64_t startTime, uint64_t integrationTime){
     image->md->startTime = startTime;
     image->md->integrationTime = integrationTime;
+    image->md->valid = 1;
     
     sem_post(image->takeImageSem);
     
