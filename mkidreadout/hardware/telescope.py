@@ -46,7 +46,7 @@ def get_subaru(host='', user='', password=''):
                 'AIRMASS': d['FITS.SBR.AIRMASS'], 'AZ': d['TSCS.AZ'], 'EL': d['TSCS.EL'], 'UTCTCS': d['FITS.SBR.UT'],
                 'EQUINOX': d['FITS.SBR.EQUINOX']}
 
-    if not SUBARU['client'] is None or SUBARU['client'].is_disconnected:
+    if not SUBARU['client'] is None:# or SUBARU['client'].is_disconnected: #TODO is_disconnected isn't an attrib
         try:
             SUBARU['client'] = StatusClient(host=host, username=user, password=password)
             SUBARU['client'].connect()

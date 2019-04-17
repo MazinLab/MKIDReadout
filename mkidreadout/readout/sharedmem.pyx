@@ -91,7 +91,6 @@ cdef class ImageCube(object):
 
         if not name.startswith('/'):
             name = '/'+name
-        #self.name = name
         if os.path.isfile(os.path.join('/dev/shm', name[1:])):
             self._open(name)
             paramsMatch = True
@@ -153,7 +152,7 @@ cdef class ImageCube(object):
         if not self.valid:
             raise RuntimeError('Wavecal parameters changed during integration!')
         if self.useWvl:
-            return np.reshape(flatImage, self._shape)
+            return np.reshape(flatImage, self._shape).squeeze()
         else:
             return np.reshape(flatImage[:self._shape[1]*self._shape[2]],
                               (self._shape[1], self._shape[2]))
@@ -228,7 +227,8 @@ cdef class ImageCube(object):
         self.invalidate()
         self.image.md.useWvl = 1 if use else 0
         msg = 'Wavecal application to data in shared image {} {}.'
-        getLogger('mkidreadout.readout.sharedmem').debug(msg.format('self.name', 'enabled' if use else ' disabled'))
+        getLogger('mkidreadout.readout.sharedmem').debug(msg.format(self.image.md.name.decode(),
+                                                                    'enabled' if use else ' disabled'))
 
     @useWvl.setter
     def useWvl(self, use):
