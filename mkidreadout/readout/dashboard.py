@@ -108,11 +108,16 @@ class LiveImageFetcher(QtCore.QObject):  # Extends QObject for use with QThreads
             try:
                 utc = datetime.utcfromtimestamp(time.time()).strftime('%Y-%m-%d %H:%M:%S')
                 self.imagebuffer.startIntegration(integrationTime=self.inttime)
+                time.sleep(self.inttime)
                 data = self.imagebuffer.receiveImage()
+                # print(data)
+                # time.sleep(self.inttime)
+                # data = np.random.uniform(size=(146,140))
                 ret = fits.ImageHDU(data=data)
                 ret.header['utcstart'] = utc
                 ret.header['exptime'] = self.inttime
-                ret.header['wavecal'] = self.imagebuffer.wavecalID
+                foo = self.imagebuffer.wavecalID.decode('UTF-8', "backslashreplace")
+                ret.header['wavecal'] = foo
                 ret.header['wmin'] = self.imagebuffer.wvlStart
                 ret.header['wmax'] = self.imagebuffer.wvlStop
                 self.newImage.emit(ret)
@@ -541,6 +546,10 @@ class MKIDDashboard(QMainWindow):
                                          useWriter=not self.offline, sharedImageCfg={'dashboard': imgcfg},
                                          beammap=self.config.beammap, recreate_images=True)
         self.liveimage = self.packetmaster.sharedImages['dashboard']
+
+        self.liveimage.startIntegration(integrationTime=1)
+        data = self.liveimage.receiveImage()
+        getLogger('Dahsboard').debug(data)
 
         # Laser Controller
         getLogger('Dashboard').info('Setting up laser control...')
@@ -1432,8 +1441,8 @@ class MKIDDashboard(QMainWindow):
         # make sure min is always less than max
         spinbox_minLambda.valueChanged.connect(spinbox_maxLambda.setMinimum)
         spinbox_maxLambda.valueChanged.connect(spinbox_minLambda.setMaximum)
-        spinbox_minLambda.valueChanged.connect(self.liveimage.update_wvlStart)
-        spinbox_maxLambda.valueChanged.connect(self.liveimage.update_wvlStop)
+        spinbox_minLambda.valueChanged.connect(self.liveimage.set_wvlStart)
+        spinbox_maxLambda.valueChanged.connect(self.liveimage.set_wvlStop)
         #don't bother remaking the current image because it requires taking a new one for a difference to be seen
 
         # Checkbox for dithering image
@@ -1688,7 +1697,7 @@ if __name__ == "__main__":
     create_log('mkidcore',
                console=True, mpsafe=True, propagate=False,
                fmt='%(asctime)s mkidcore.x.%(funcName)s: %(levelname)s %(message)s',
-               level=mkidcore.corelog.DEBUG)
+               level='INFO')
     create_log('packetmaster',
                logfile=os.path.join(config.paths.logs, 'packetmaster_{}.log'.format(timestamp)),
                console=True, mpsafe=True, propagate=False,

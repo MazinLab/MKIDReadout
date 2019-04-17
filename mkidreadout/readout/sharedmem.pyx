@@ -87,8 +87,10 @@ cdef class ImageCube(object):
         """
 
         self.doneSemInd = doneSemInd
-        if not name[0]=='/':
+
+        if not name.startswith('/'):
             name = '/'+name
+        #self.name = name
         if os.path.isfile(os.path.join('/dev/shm', name[1:])):
             self._open(name)
             paramsMatch = True
@@ -212,13 +214,16 @@ cdef class ImageCube(object):
         return self.image.md.useEdgeBins
 
     def set_useWvl(self, use):
+        if self.image.md.useWvl == use:
+            return
         self.invalidate()
         self.image.md.useWvl = 1 if use else 0
+        msg = 'Wavecal application to data in shared image {} {}.'
+        getLogger('mkidreadout.readout.sharedmem').debug(msg.format('self.name', 'enabled' if use else ' disabled'))
 
     @useWvl.setter
     def useWvl(self, use):
-        self.invalidate()
-        self.image.md.useWvl = 1 if use else 0
+        self.set_useWvl(use)
 
     @property
     def wvlStart(self):
@@ -238,10 +243,10 @@ cdef class ImageCube(object):
         self.invalidate()
         self.image.md.wvlStop = wvl
 
-    def update_wvlStop(self, wvl):
+    def set_wvlStop(self, wvl):
         self.wvlStop = float(wvl)
 
-    def update_wvlStart(self, wvl):
+    def set_wvlStart(self, wvl):
         self.wvlStart = float(wvl)
 
     @property 
