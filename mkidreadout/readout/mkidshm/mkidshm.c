@@ -220,11 +220,22 @@ void MKIDShmImage_wait(MKID_IMAGE *image, int semInd){
 int MKIDShmImage_timedwait(MKID_IMAGE *image, int semInd, int time, int stopImage){
     struct timespec tspec;
     int retval;
+    //char error[200];
+
     time += TIMEDWAIT_FUDGE;
     clock_gettime(CLOCK_REALTIME, &tspec);
     tspec.tv_sec += time/2000;
     tspec.tv_nsec += (time%2000)*500000;
+    tspec.tv_sec += tspec.tv_nsec/1000000000;
+    tspec.tv_nsec = tspec.tv_nsec%1000000000;
+
     retval = sem_timedwait(image->doneImageSemList[semInd], &tspec);
+
+    //if(retval == -1){
+    //    snprintf(error, 200, "Timedwait error %ld", tspec.tv_nsec);
+    //    perror(error);
+
+    //}
 
     if((retval == -1) && (stopImage)){
         image->md->takingImage = 0;
