@@ -122,9 +122,20 @@ class Telescope(object):
 class Subaru(Telescope):
     def __init__(self, **kwargs):
         super(Subaru, self).__init__(**kwargs)
+        self.observatory = 'Subaru Telescope'
+        self.lat = 19.0 + 49.0/60.0 + 43/3600.0
+        self.lon = 155.0 + 28.0/60.0 + 50/3600.0
+        self.latStr = '19.0:49.0:43.0'
+        self.lonStr = '-155.0:28.0:50.00'
+        self.elevation = 4139.0
 
     def get_header(self):
         return get_subaru(self.ip, self.user, self.password)
+
+    def get_telescope_position(self, targetName='sky'):
+        if targetName is None or len(targetName) == 0:
+            targetName = 'sky'
+        return self.get_header()
 
 
 class Palomar(Telescope):
@@ -133,6 +144,7 @@ class Palomar(Telescope):
 
         #Palomar's position
         self.observatory = 'Palomar 200" Hale Telescope'
+
         self.lat = 33.0 + 21.0/60.0 + 21.6/3600.0
         self.lon = 116.0 + 51.0/60.0 + 46.8/3600.0
         self.latStr = '33.0:21.0:21.6'

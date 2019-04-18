@@ -556,7 +556,7 @@ class MKIDDashboard(QMainWindow):
         # telscope TCS connection
         #TODO make the Telescope work with Subaru
         getLogger('Dashboard').info('Setting up telescope connection...')
-        if self.config.instrument.lower() == 'MEC':
+        if self.config.instrument.lower() == 'mec':
             self.telescopeController = Subaru(ip=self.config.telescope.ip, user=self.config.telescope.user,
                                               password=self.config.telescope.password)
         else:
