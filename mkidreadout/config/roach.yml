@@ -4,10 +4,15 @@ minFramePeriod: 125000 # min sec between sending photon data. 2kHz = 125000 cloc
 fpgpath: darkquad29_2018_Feb_08_1046.fpg
 fpgaparamfile: ''  #leave blank for the default
 
-fircoefffile: unity50.txt
-freqfileroot: ps_freqs.txt
-longsnaproot:  ls_freqs.npz   #formerly longsnapfile need per roach extensions
-powersweeproot: ps_freqs.h5 #formerly powersweepfile need per roach extensions
+#fircoefffile: unity50.txt
+#freqfileroot: ps_freqs.txt
+#longsnaproot:  ls_freqs.npz   #formerly longsnapfile need per roach extensions
+#powersweeproot: ps_freqs.h5 #formerly powersweepfile need per roach extensions
+fircoefffile: wienerFilter100s_coefficients_r{roach}.txt
+freqfileroot: ps_freqs_FL{feedline}{range}_clip.txt
+longsnaproot:  phasesnaps/{roach}/snap_{roach}.npz
+powersweeproot: ps_{roach}_FL{feedline}_{range}.h5
+
 
 numsigs_thresh: 4.0
 numsnaps_thresh: 5

@@ -392,7 +392,11 @@ class InitGui(QMainWindow):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='MKID Init GUI')
-    parser.add_argument('roaches', nargs='+', type=int, help='Roach numbers')
+    parser.add_argument('instrument', type=str, default='mec',
+                        help='The instrument, required for -a')
+    parser.add_argument('-a', action='store_true', default=False, dest='all_roaches',
+                        help='Run with all roaches for instrument in cfg')
+    parser.add_argument('-r', nargs='+', type=int, help='Roach numbers', dest='roaches')
     parser.add_argument('-c', '--config', default=mkidreadout.config.DEFAULT_INIT_CFGFILE, dest='config',
                         type=str, help='The config file')
     parser.add_argument('--gencfg', default=False, dest='genconfig', action='store_true',
@@ -419,6 +423,10 @@ if __name__ == "__main__":
                level=mkidcore.corelog.INFO)
 
     app = QApplication(sys.argv)
-    form = InitGui(args.roaches, config=args.config)
+    roaches = mkidreadout.instruments.ROACHES[args.instrument] if args.all_roaches else args.roaches
+    if not roaches:
+        getLogger('Init').error('No roaches specified')
+        exit()
+    form = InitGui(roaches, config=args.config)
     form.show()
     app.exec_()

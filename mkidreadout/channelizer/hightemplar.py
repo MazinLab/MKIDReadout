@@ -21,6 +21,7 @@ Features to add:
  - keep log of errors and warnings in txt file
     - add to file menu (help) a viewer for log file
 """
+from __future__ import print_function
 import sys, traceback, argparse, os
 from datetime import datetime
 from functools import partial
@@ -33,6 +34,7 @@ from PyQt4.QtGui import *
 from mkidcore.corelog import getLogger, create_log
 import mkidreadout.config
 import mkidcore.corelog
+import mkidreadout.instruments
 from mkidreadout.channelizer.RoachStateMachine import RoachStateMachine
 from mkidreadout.channelizer.RoachSettingsWindow import RoachSettingsWindow
 from mkidreadout.channelizer.RoachPlotWindow import RoachPhaseStreamWindow, RoachSweepWindow
@@ -133,7 +135,7 @@ class HighTemplar(QMainWindow):
         #    self.setDdsShift(self.roachNums[i])
 
     def test(self, roachNum, state):
-        print "Roach " + str(roachNum) + ' - ' + str(state)
+        print("Roach " + str(roachNum) + ' - ' + str(state))
 
     def catchRoachError(self, roachNum, command, exc_info=None):
         """
@@ -526,7 +528,9 @@ class HighTemplar(QMainWindow):
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description='MKID High Templar GUI')
-    parser.add_argument('roaches', nargs='+', type=int, help='Roach numbers')
+    parser.add_argument('-a', action='store_true', default=False, dest='all_roaches',
+                        help='Run with all roaches for instrument in cfg')
+    parser.add_argument('-r', nargs='+', type=int, help='Roach numbers', dest='roaches')
     parser.add_argument('-c', '--config', default=mkidreadout.config.DEFAULT_TEMPLAR_CFGFILE, dest='config',
                         type=str, help='The config file')
     parser.add_argument('--gencfg', default=False, dest='genconfig', action='store_true',
@@ -556,6 +560,11 @@ if __name__ == "__main__":
                level=mkidcore.corelog.INFO)
 
     app = QApplication(sys.argv)
-    form = HighTemplar(args.roaches, args.config)
+    roaches = mkidreadout.instruments.ROACHES[config.instrument] if args.all_roaches else args.roaches
+
+    if not roaches:
+        getLogger('hightemplar').error('No roaches specified')
+        exit()
+    form = HighTemplar(roaches, args.config)
     form.show()
     app.exec_()

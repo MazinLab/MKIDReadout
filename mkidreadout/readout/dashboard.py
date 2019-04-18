@@ -32,6 +32,7 @@ import threading
 from astropy.io import fits
 
 import mkidreadout.config
+import mkidreadout.instruments
 
 import mkidcore.corelog
 from mkidcore.corelog import getLogger, create_log
@@ -1656,7 +1657,9 @@ class MKIDDashboard(QMainWindow):
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description='MKID Dashboard')
-    parser.add_argument('roaches', nargs='+', type=int, help='Roach numbers')
+    parser.add_argument('-a', action='store_true', default=False, dest='all_roaches',
+                        help='Run with all roaches for instrument in cfg')
+    parser.add_argument('-r', nargs='+', type=int, help='Roach numbers', dest='roaches')
     parser.add_argument('-c', '--config', default=mkidreadout.config.DEFAULT_DASHBOARD_CFGFILE, dest='config',
                         type=str, help='The config file')
     parser.add_argument('-o', '--offline', default=False, dest='offline', action='store_true', help='Run offline')
@@ -1702,6 +1705,11 @@ if __name__ == "__main__":
                level=mkidcore.corelog.DEBUG)
 
     app = QApplication(sys.argv)
-    form = MKIDDashboard(args.roaches, config=config, offline=args.offline)
+    roaches = mkidreadout.instruments.ROACHES[config.instrument] if args.all_roaches else args.roaches
+
+    if not roaches:
+        getLogger('Dashboard').error('No roaches specified')
+        exit()
+    form = MKIDDashboard(roaches, config=config, offline=args.offline)
     form.show()
     app.exec_()
