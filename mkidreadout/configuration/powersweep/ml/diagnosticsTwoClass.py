@@ -227,22 +227,25 @@ class diagnostics():
         if show:
             plt.show()
 
-    def plotActivations(self, res_num, show=True):
+    def plotActivations(self, res_num, manAtten=None, show=True):
         acts = self.getActivations(res_num)
         plt.figure()
         plt.plot(acts)
+        if manAtten:
+            plt.plot(manAtten, acts[manAtten, 0], '.')
         plt.title('Activations')
         if show:
             plt.show()
 
     def plotImageDiagnostics(self, resID, start_atten=0, end_atten=-1):
         res_num = np.where(self.inferenceData.resIDs==resID)[0][0]
+        manAtten = self.inferenceData.opt_iAttens[res_num]
         print('Resonator Number', res_num)
         self.plotLoops(res_num, start_atten, end_atten, grid=False, show=False)
         self.plotIQ_vels(res_num, start_atten, end_atten, grid=False, show=False)
         self.plotS21(res_num, start_atten, end_atten, grid=False, show=False)
         self.plotCenterFreq(res_num, show=False)
-        self.plotActivations(res_num, show=True)
+        self.plotActivations(res_num, manAtten, show=True)
 
     def plotMeanImage(self):
         self.plotLoops(-1, grid=False, show=False)
