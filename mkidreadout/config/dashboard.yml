@@ -50,10 +50,10 @@ filter: !configdict
   ip: localhost:50000
 
 telescope: !configdict
-  ip: g2ins1.sum.subaru.nao.ac.jp #Gen2 host for subaru
+  ip: g2db.sum.subaru.nao.ac.jp #Gen2 host for subaru
   port:
   receive_port:
-  user: mec
+  user: ''
   password: ''
 
 

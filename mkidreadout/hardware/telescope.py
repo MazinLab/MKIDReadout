@@ -4,6 +4,7 @@ Date: Jul 8, 2016
 
 This class grabs info from the Palomar telescope
 """
+from __future__ import print_function
 from socket import *
 import time, math
 import datetime
@@ -46,21 +47,22 @@ def get_subaru(host='', user='', password=''):
                 'AIRMASS': d['FITS.SBR.AIRMASS'], 'AZ': d['TSCS.AZ'], 'EL': d['TSCS.EL'], 'UTCTCS': d['FITS.SBR.UT'],
                 'EQUINOX': d['FITS.SBR.EQUINOX']}
 
-    if not SUBARU['client'] is None:# or SUBARU['client'].is_disconnected: #TODO is_disconnected isn't an attrib
+    if SUBARU['client'] is None:# or SUBARU['client'].is_disconnected: #TODO is_disconnected isn't an attrib
         try:
-            SUBARU['client'] = StatusClient(host=host, username=user, password=password)
+            SUBARU['client'] = StatusClient(host=host, username=None if not user else user,
+                                            password=None if not password else password)
             SUBARU['client'].connect()
         except Exception:
             getLogger(__name__).error('Unable to connect to Subaru TCS', exc_info=True)
 
-    if time.time() - SUBARU['tstamp'] > MIN_SUBARU_QUERY_INTERVAL:
+    if time.time() - SUBARU['time'] > MIN_SUBARU_QUERY_INTERVAL:
 
         if SUBARU['cache'] is None:
             SUBARU['cache'] = QUERY
 
         try:
-            SUBARU.fetch(QUERY)
-            SUBARU['tstamp'] = time.time()
+            SUBARU['client'].fetch(QUERY)
+            SUBARU['time'] = time.time()
             SUBARU['cache'] = QUERY
         except Exception:
             getLogger(__name__).error('Unable to fetch from Subaru TCS', exc_info=True)
@@ -96,7 +98,7 @@ def getPalomarSeeing(verbose=False):
     breakdown = line[0].split('\t')
     seeing = breakdown[4]
     if verbose:
-        print line
+        print(line)
         getLogger(__name__).debug("Seeing = {}. Deleting {}".format(seeing, f))
     os.remove(f)
 

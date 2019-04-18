@@ -27,6 +27,7 @@ dependencies:
   - requests
   - lmfit
   - funcsig
+  - pymongo
 #optional
   - mpmath
   - blas
