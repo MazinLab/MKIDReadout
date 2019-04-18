@@ -52,7 +52,7 @@ cdef extern from "mkidshm.h":
     cdef int MKIDShmImage_populateMD(MKID_IMAGE_METADATA *imageMetadata, char *name, int nCols, int nRows, int useWvl, int nWvlBins, int useEdgeBins, int wvlStart, int wvlStop)
     cdef int MKIDShmImage_startIntegration(MKID_IMAGE *image, uint64_t startTime, uint64_t integrationTime)
     cdef int MKIDShmImage_wait(MKID_IMAGE *image, int semInd)
-    cdef int MKIDShmImage_timedwait(MKID_IMAGE *image, int semInd, int time, int stopImage)
+    cdef int MKIDShmImage_timedwait(MKID_IMAGE *image, int semInd, int time, int stopImage) nogil
     cdef int MKIDShmImage_checkIfDone(MKID_IMAGE *image, int semInd)
     cdef void MKIDShmImage_copy(MKID_IMAGE *image, image_t *outputBuffer)
 
@@ -147,7 +147,8 @@ cdef class ImageCube(object):
         Waits for doneImage semaphore to be posted by packetmaster,
         then grabs the image from buffer
         """
-        retval = MKIDShmImage_timedwait(&(self.image), self.doneSemInd, self.image.md.integrationTime, 1)
+        with nogil:
+            retval = MKIDShmImage_timedwait(&(self.image), self.doneSemInd, self.image.md.integrationTime, 1)
         flatImage = self._readImageBuffer()
         if not self.valid:
             raise RuntimeError('Wavecal parameters changed during integration!')
