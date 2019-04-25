@@ -53,6 +53,7 @@ class InitGui(QMainWindow):
         #  for now
         self.settingsWindow.resetRoach.connect(self.resetRoachState)
         self.settingsWindow.initTemplar.connect(self.initTemplar)
+        self.settingsWindow.reinitADCDAC.connect(self.reinitADCDAC)
         QApplication.setStyle(QStyleFactory.create('plastique'))
 
         # Setup RoachStateMachine and threads for each roach
@@ -86,6 +87,12 @@ class InitGui(QMainWindow):
             self.colorCommandButtons(num, colorStatus)  # color the command buttons appropriately
             # QtCore.QMetaObject.invokeMethod(roach, 'executeCommands', Qt.QueuedConnection)
             self.roachThreads[i].start()  # starting the thread automatically invokes the roach's executeCommand function
+
+    def reinitADCDAC(self, roachNum):
+        getLogger('Init').info('reInitADCDACBoard called on {}'.format(roachNum))
+        self.roaches[self.roachNums.index(roachNum)].roachController.reInitADCDACBoard()
+        self.roaches[self.roachNums.index(roachNum)].calZdok()
+        getLogger('Init').info('reInitADCDACBoard done on {}'.format(roachNum))
 
     def test(self, roachNum, state):
         getLogger('Init').info("Roach " + str(roachNum) + ' - ' + str(state))
