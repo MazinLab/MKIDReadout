@@ -33,9 +33,7 @@ from PyQt4.QtGui import *
 from astropy.io import fits
 
 import mkidcore.corelog
-import mkidcore.corelog
 import mkidcore.instruments
-import mkidreadout.config
 import mkidreadout.config
 import mkidreadout.configuration.sweepdata as sweepdata
 import mkidreadout.hardware.hsfw
@@ -368,15 +366,6 @@ class MKIDDashboard(QMainWindow):
         self.dither_dialog.complete.connect(logdither)
         self.dither_dialog.statusupdate.connect(self.logstate)
         self.dither_dialog.hide()
-
-        # Setup GUI
-        getLogger('Dashboard').info('Setting up GUI...')
-        self.setWindowTitle(self.config.instrument + ' Dashboard')
-        self.create_image_widget()
-        self.create_dock_widget()
-        self.contextMenu = QMenu(self)  # pops up on right click
-        self.create_menu()  # file menu
-
 
         #Connect to Filter wheel
         self.setFilter(-1)
