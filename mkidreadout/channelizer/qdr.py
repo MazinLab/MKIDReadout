@@ -4,8 +4,9 @@ QDR calibration functions.
 """
 from __future__ import print_function
 
-import numpy
 import struct
+
+import numpy
 
 CAL_DATA = [
                 [0xAAAAAAAA,0x55555555,0xAAAAAAAA,0x55555555,0xAAAAAAAA,0x55555555,

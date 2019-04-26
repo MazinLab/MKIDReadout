@@ -1,12 +1,16 @@
 from __future__ import print_function
-import setuptools, sys, numpy
+
 import os
-from setuptools.command.install import install
-from setuptools.command.develop import develop
-import subprocess
 import platform
-from setuptools.extension import Extension
+import subprocess
+
+import numpy
+import setuptools
+import sys
 from Cython.Build import cythonize
+from setuptools.command.develop import develop
+from setuptools.command.install import install
+from setuptools.extension import Extension
 
 
 #pip install -e git+http://github.com/mazinlab/mkidreadout.git@restructure#egg=mkidreadout --src ./mkidtest

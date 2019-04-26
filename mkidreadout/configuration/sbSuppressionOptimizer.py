@@ -15,16 +15,24 @@ Author: Neelay Fruitwala
 
 #TODO modernize to use Roach2Controls instead of functionality from adcSnapCheck imported as adcSnap
 from __future__ import print_function
-from mkidreadout.channelizer.Roach2Controls import Roach2Controls
-import numpy as np
-import time, sys, os
-import matplotlib.pyplot as plt
-import ConfigParser
-import scipy.optimize as spo
-import threading
-import SDR.Projects.FirmwareTests.darkDebug.adcSnapCheck as adcSnap
 # TODO modernize to use Roach2Controls instead of functionality from adcSnapCheck imported as adcSnap
 from __future__ import print_function
+
+import ConfigParser
+import os
+import sys
+import threading
+import time
+
+import SDR.Projects.FirmwareTests.darkDebug.adcSnapCheck as adcSnap
+import matplotlib.pyplot as plt
+import numpy as np
+import scipy.optimize as spo
+
+from mkidreadout.channelizer.Roach2Controls import Roach2Controls
+# TODO modernize to use Roach2Controls instead of functionality from adcSnapCheck imported as adcSnap
+# TODO modernize to use Roach2Controls instead of functionality from adcSnapCheck imported as adcSnap
+from __future__ import print_function, print_function
 
 import ConfigParser
 import os

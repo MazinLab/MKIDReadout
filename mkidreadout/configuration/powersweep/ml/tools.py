@@ -1,4 +1,3 @@
-import tensorflow as tf
 import glob
 
 import tensorflow as tf

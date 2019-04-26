@@ -4,11 +4,7 @@ use would have the save functionality used exclusively for inference.
 
 '''
 
-import os
 import pickle
-import sys
-
-import numpy as np
 
 from mkidreadout.utils.iqsweep import *
 
