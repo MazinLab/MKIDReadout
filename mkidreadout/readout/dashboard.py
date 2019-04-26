@@ -367,8 +367,6 @@ class MKIDDashboard(QMainWindow):
         self.dither_dialog.statusupdate.connect(self.logstate)
         self.dither_dialog.hide()
 
-        #Connect to Filter wheel
-        self.setFilter(-1)
 
         # Connect to ROACHES and initialize network port in firmware
         getLogger('Dashboard').info('Connecting roaches and loading beammap...')
@@ -409,6 +407,9 @@ class MKIDDashboard(QMainWindow):
         self.create_dock_widget()
         self.contextMenu = QMenu(self)  # pops up on right click
         self.create_menu()  # file menu
+
+        # Connect to Filter wheel
+        self.setFilter(None)
 
         QtCore.QTimer.singleShot(10, fetcherthread.start)  # start the thread after a second
 
@@ -967,11 +968,11 @@ class MKIDDashboard(QMainWindow):
         self.logstate()
 
     def setFilter(self, filter_index=None):
-        error=False
-        if filter_index is None or filter_index<0:
+        error = False
+        if filter_index is None:
             result = mkidreadout.hardware.hsfw.getfilter(self.config.filter.ip)
             if str(result).lower().startswith('error'):
-                error=True
+                error = True
             else:
                 self.filter=int(result)
                 filternames = mkidreadout.hardware.hsfw.getfilternames(self.config.filter.ip)
@@ -981,17 +982,17 @@ class MKIDDashboard(QMainWindow):
                 self.combobox_filter.setCurrentIndex(self.filter - 1)
         else:
             if str(self.combobox_filter.itemText(filter_index)).startswith('Connect'):
-                return self.setFilter(-1)
+                return self.setFilter(None)
             elif str(self.combobox_filter.itemText(filter_index)).startswith('Error'):
                 return
             else:
                 result = mkidreadout.hardware.hsfw.setfilter(filter_index+1, home=False,host=self.config.filter.ip)
                 if str(result).lower().startswith('error'):
-                    error=True
+                    error = True
                 else:
                     self.filter = int(result)
         if error:
-            self.filter='UNKNOWN'
+            self.filter = 'UNKNOWN'
             self.combobox_filter.clear()
             self.combobox_filter.addItems(['Connect', 'Error'])
             self.combobox_filter.setCurrentIndex(1)
