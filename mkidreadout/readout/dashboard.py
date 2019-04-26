@@ -532,9 +532,10 @@ class MKIDDashboard(QMainWindow):
         self.clicking = False  # Flag to indicate we've pressed the left mouse button and haven't released it yet
         self.pixelClicked = None  # Holds the pixel clicked when mouse is pressed
         self.pixelCurrent = None  # Holds the pixel the mouse is currently hovering on
-        self.takingDark = -1  # Flag for taking dark image. Indicates number of images we still need for darkField
+        self.takingDark = False  # Flag for taking dark image. Indicates number of images we still need for darkField
         # image.
-        self.takingFlat = -1  # Flag for taking flat image. Indicates number of images we still need for flatField image
+        self.takingFlat = False  # Flag for taking flat image. Indicates number of images we still need for flatField
+        # image
 
         # Initialize PacketMaster8
         getLogger('Dashboard').info('Initializing packetmaster...')
@@ -674,40 +675,26 @@ class MKIDDashboard(QMainWindow):
         getLogger('Dashboard').info('Loaded beammap into roaches')
 
     def addDarkImage(self, photonImage):
-        self.spinbox_darkImage.setEnabled(False)
-        if self.darkField is None or self.takingDark == self.spinbox_darkImage.value():
-            self.darkFactory = CalFactory('dark', images=(photonImage,))
-        else:
-            self.darkFactory.add_image(photonImage)
-
-        self.takingDark -= 1
-        if self.takingDark == 0:
-            self.takingDark = -1
-            name = '{}_dark_{}'.format(self.config.dashboard.darkname, int(time.time()))
-            self.darkField = self.darkFactory.generate(fname=os.path.join(self.config.paths.data, name+'.fits'),
-                                                       name=name, badmask=self.beammapFailed, save=True)
-            getLogger('Dashboard').info('Finished dark:\n {}'.format(summarize(self.darkField).replace('\n', '\n  ')))
-            self.checkbox_darkImage.setChecked(True)
-            self.spinbox_darkImage.setEnabled(True)
+        self.darkFactory = CalFactory('dark', images=(photonImage,))
+        self.takingDark = False
+        self.darkField = self.darkFactory.generate(fname=self.darkfile, badmask=self.beammapFailed, save=True,
+                                                   name=os.path.splitext(os.path.basename(self.darkfile))[0])
+        getLogger('Dashboard').info('Finished dark:\n {}'.format(summarize(self.darkField).replace('\n', '\n  ')))
+        self.checkbox_darkImage.setChecked(True)
+        self.spinbox_minLambda.setEnabled(True)
+        self.spinbox_maxLambda.setEnabled(True)
+        self.spinbox_integrationTime.setEnabled(True)
 
     def addFlatImage(self, photonImage, minFlat=1, maxFlat=2500):
-        self.spinbox_flatImage.setEnabled(False)
-
-        if self.flatField is None or self.takingFlat == self.spinbox_flatImage.value():
-            self.flatFactory = CalFactory('flat', images=(photonImage,), min=minFlat, max=maxFlat,
-                                          dark=self.darkField, colslice=slice(20, 60))
-        else:
-            self.flatFactory.add_image(photonImage)
-
-        self.takingFlat -= 1
-        if self.takingFlat == 0:
-            self.takingFlat = -1
-            name = '{}_flat_{}'.format(self.config.dashboard.flatname, int(time.time()))
-            self.flatField = self.flatFactory.generate(fname=os.path.join(self.config.paths.data, name+'.fits'),
-                                                       name=name, badmask=self.beammapFailed, save=True)
-            getLogger('Dashboard').info('Finished flat:\n {}'.format(summarize(self.flatField).replace('\n', '\n  ')))
-            self.checkbox_flatImage.setChecked(True)
-            self.spinbox_flatImage.setEnabled(True)
+        self.flatFactory = CalFactory('flat', images=(photonImage,), dark=self.darkField)
+        self.takingFlat = False
+        self.flatField = self.flatFactory.generate(fname=self.flatfile, badmask=self.beammapFailed, save=True,
+                                                   name=os.path.splitext(os.path.basename(self.flatfile))[0])
+        getLogger('Dashboard').info('Finished flat:\n {}'.format(summarize(self.flatField).replace('\n', '\n  ')))
+        self.checkbox_flatImage.setChecked(True)
+        self.spinbox_minLambda.setEnabled(True)
+        self.spinbox_maxLambda.setEnabled(True)
+        self.spinbox_integrationTime.setEnabled(True)
 
     def convertImage(self, photonImage=None):
         """
@@ -729,11 +716,11 @@ class MKIDDashboard(QMainWindow):
             self.imageList.append(photonImage)
             self.fitsList.append(photonImage)  #for the stream
 
-            self.imageList = self.imageList[-self.config.dashboard.average:]  #trust the garbage collector
+            self.imageList = self.imageList[-1:]  #trust the garbage collector
 
-            if self.takingDark > 0:
+            if self.takingDark:
                 self.addDarkImage(photonImage)
-            elif self.takingFlat > 0:
+            elif self.takingFlat:
                 self.addFlatImage(photonImage)
             elif self.observing:
                 self.sciFactory.add_image(photonImage)
@@ -753,16 +740,22 @@ class MKIDDashboard(QMainWindow):
         # Get the (average) photon count image
         if self.checkbox_flatImage.isChecked() and self.flatField is None:
             try:
-                self.flatField = fits.open(self.config.dashboard.flatfile)
+                self.flatField = fits.open(self.flatfile)
             except IOError:
-                getLogger('Dashboard').warning('Unable to load flat from {}'.format(self.config.dashboard.flatfile))
+                getLogger('Dashboard').warning('Unable to load flat from {}'.format(self.flatfile))
+
+        if self.checkbox_darkImage.isChecked() and self.darkField is None:
+            try:
+                self.darkField = fits.open(self.darkfile)
+            except IOError:
+                getLogger('Dashboard').warning('Unable to load flat from {}'.format(self.darkfile))
+
 
         #TODO this really could be moved into the ConvertPhotonsToRGB thread
-        cf = CalFactory('avg', images=self.imageList[-self.config.dashboard.average:],
+        cf = CalFactory('avg', images=self.imageList[-1:],
                         dark=self.darkField if self.checkbox_darkImage.isChecked() else None,
                         flat=self.flatField if self.checkbox_flatImage.isChecked() else None)
-
-        image = cf.generate(name='Last3frames', bias=0)
+        image = cf.generate(name='LiveImage', bias=0)
         image.data[self.beammapFailed] = np.nan
 
         # Set up worker object and thread
@@ -771,21 +764,29 @@ class MKIDDashboard(QMainWindow):
                                         self.config.dashboard.max_count_rate,
                                         self.combobox_stretch.currentText(),
                                         self.checkbox_interpolate.isChecked(),
-                                        not self.checkbox_smooth.isChecked()) # if we're smoothing don't make pixels red
+                                        not self.checkbox_smooth.isChecked())  # no red pixels if smoothing
 
         thread = self.startworker(converter, "convertImage_{}".format(len(self.threadPool)))
-
         thread.started.connect(converter.stretchImage)
         converter.convertedImage.connect(lambda x: thread.quit())
         converter.convertedImage.connect(self.updateImage)
-        thread.finished.connect(partial(self.threadPool.remove, thread))  # delete these when done so we don't
-        #  have a memory leak
+        thread.finished.connect(partial(self.threadPool.remove, thread))  # delete these when done to avoid mem leak
         thread.finished.connect(partial(self.workers.remove, converter))
+        thread.start()  # When it's done converting the worker will emit a convertedImage Signal
 
-        # When it's done converting the worker will emit a convertedImage Signal
-        converter.convertedImage.connect(lambda x: self.label_numIntegrated.setText(
-            str(self.config.dashboard.average) + '/' + self.label_numIntegrated.text().split('/')[-1]))
-        thread.start()
+    @property
+    def flatfile(self):
+        wvstr = '_{:.0f}-{:.0f}nm'.format(self.spinbox_minLambda.value(), self.spinbox_maxLambda.value())
+        name = '{}_flat_{:.0f}{}'.format(self.config.dashboard.flatname, time.time(),
+                                         wvstr if self.checkbox_usewave else '')
+        return os.path.join(self.config.paths.data, name + '.fits')
+
+    @property
+    def darkfile(self):
+        wvstr = '_{:.0f}-{:.0f}nm'.format(self.spinbox_minLambda.value(),self.spinbox_maxLambda.value())
+        name = '{}_dark_{:.0f}{}'.format(self.config.dashboard.darkname, time.time(),
+                                         wvstr if self.checkbox_usewave else '')
+        return os.path.join(self.config.paths.data, name+'.fits')
 
     def updateImage(self, q_image):
         """
@@ -981,7 +982,7 @@ class MKIDDashboard(QMainWindow):
         if not len(pixelList):
             return 0
         if numImages2Sum < 1:
-            numImages2Sum = self.config.dashboard.average
+            numImages2Sum = 1
 
         cf=CalFactory('sum', images=self.imageList[-numImages2Sum:], dark=self.darkField if applyDark else None)
         im = cf.generate(name='pixelcount')
@@ -1292,74 +1293,52 @@ class MKIDDashboard(QMainWindow):
 
         # ==================================
         # Image settings!
-        #average
-        label_spinbox_average = QLabel('Avg:')
-        spinbox_average = QSpinBox()
-        spinbox_average.setRange(1, 100)
-        spinbox_average.setValue(self.config.dashboard.average)
-        spinbox_average.setSuffix(' frames')
-        spinbox_average.setWrapping(False)
-        spinbox_average.setCorrectionMode(QAbstractSpinBox.CorrectToNearestValue)
-        spinbox_average.valueChanged.connect(partial(self.config.update, 'dashboard.average'))  # change cfg
-
         # integration Time
         integrationTime = self.config.dashboard.inttime
         label_integrationTime = QLabel('Integrate ')
-        spinbox_integrationTime = QDoubleSpinBox()
-        spinbox_integrationTime.setRange(self.config.dashboard.mininttime, self.config.dashboard.maxinttime)
-        spinbox_integrationTime.setSingleStep(self.config.dashboard.mininttime)
-        spinbox_integrationTime.setDecimals(1)
-        spinbox_integrationTime.setValue(integrationTime)
-        spinbox_integrationTime.setSuffix(' s')
-        spinbox_integrationTime.setWrapping(False)
-        spinbox_integrationTime.setCorrectionMode(QAbstractSpinBox.CorrectToNearestValue)
-        spinbox_integrationTime.valueChanged.connect(partial(self.config.update, 'dashboard.inttime'))  # change cfg
-        spinbox_integrationTime.valueChanged.connect(self.imageFetcher.update_inttime)
+        self.spinbox_integrationTime = QDoubleSpinBox()
+        self.spinbox_integrationTime.setRange(self.config.dashboard.mininttime, self.config.dashboard.maxinttime)
+        self.spinbox_integrationTime.setSingleStep(self.config.dashboard.mininttime)
+        self.spinbox_integrationTime.setDecimals(1)
+        self.spinbox_integrationTime.setValue(integrationTime)
+        self.spinbox_integrationTime.setSuffix(' s')
+        self.spinbox_integrationTime.setWrapping(False)
+        self.spinbox_integrationTime.setCorrectionMode(QAbstractSpinBox.CorrectToNearestValue)
+        self.spinbox_integrationTime.valueChanged.connect(partial(self.config.update, 'dashboard.inttime'))
+        self.spinbox_integrationTime.valueChanged.connect(self.imageFetcher.update_inttime)
 
         # current num images integrated
-        self.label_numIntegrated = QLabel('0/' + str(integrationTime))
-        spinbox_integrationTime.valueChanged.connect(
-            lambda x: self.label_numIntegrated.setText(self.label_numIntegrated.text().split('/')[0] + '/' + str(x)))
-        spinbox_integrationTime.valueChanged.connect(lambda x: QtCore.QTimer.singleShot(10, self.convertImage))  #
+
+        # self.spinbox_integrationTime.valueChanged.connect(lambda x: QtCore.QTimer.singleShot(10, self.convertImage))  #
         # remake current image after 10 ms
 
         # dark Image
-        self.spinbox_darkImage = QSpinBox()
-        self.spinbox_darkImage.setRange(1, self.config.dashboard.maxinttime)
-        self.spinbox_darkImage.setValue(self.config.dashboard.n_darks)
-        self.spinbox_darkImage.setSuffix(' frames')
-        self.spinbox_darkImage.setWrapping(False)
-        self.spinbox_darkImage.setCorrectionMode(QAbstractSpinBox.CorrectToNearestValue)
-        self.spinbox_darkImage.valueChanged.connect(partial(self.config.update, 'dashboard.n_darks'))  # change in
-        # config file
         button_darkImage = QPushButton('Take Dark')
 
         def takeDark():
             self.darkField = None
-            self.spinbox_minLambda.setValue(0)
-            self.spinbox_maxLambda.setValue(10000)
-            self.takingDark = self.spinbox_darkImage.value()
+            # self.spinbox_minLambda.setValue(0)
+            # self.spinbox_maxLambda.setValue(10000)
+            self.spinbox_minLambda.setDisabled(True)
+            self.spinbox_maxLambda.setDisabled(True)
+            self.spinbox_integrationTime.setDisabled(True)
+            self.takingDark = True
 
         button_darkImage.clicked.connect(takeDark)
         self.checkbox_darkImage = QCheckBox()
         self.checkbox_darkImage.setChecked(False)
 
-        # flat Image
-        self.spinbox_flatImage = QSpinBox()
-        self.spinbox_flatImage.setRange(1, self.config.dashboard.maxinttime)
-        self.spinbox_flatImage.setValue(self.config.dashboard.n_flats)
-        self.spinbox_flatImage.setSuffix(' frames')
-        self.spinbox_flatImage.setWrapping(False)
-        self.spinbox_flatImage.setCorrectionMode(QAbstractSpinBox.CorrectToNearestValue)
-        self.spinbox_flatImage.valueChanged.connect(partial(self.config.update, 'dashboard.n_flats'))  # change in
         # config file
         button_flatImage = QPushButton('Take Flat')
 
         def takeFlat():
             self.flatField = None
-            self.spinbox_minLambda.setValue(0)
-            self.spinbox_maxLambda.setValue(10000)
-            self.takingFlat = self.spinbox_flatImage.value()
+            # self.spinbox_minLambda.setValue(0)
+            # self.spinbox_maxLambda.setValue(10000)
+            self.spinbox_minLambda.setDisabled(True)
+            self.spinbox_maxLambda.setDisabled(True)
+            self.spinbox_integrationTime.setDisabled(True)
+            self.takingFlat = True
 
         button_flatImage.clicked.connect(takeFlat)
         self.checkbox_flatImage = QCheckBox()
@@ -1429,6 +1408,9 @@ class MKIDDashboard(QMainWindow):
         spinbox_maxLambda.setSuffix(' nm')
         spinbox_maxLambda.setWrapping(False)
         spinbox_maxLambda.setCorrectionMode(QAbstractSpinBox.CorrectToNearestValue)
+        spinbox_maxLambda.valueChanged.connect(lambda x: self.checkbox_darkImage.setChecked(False))
+        spinbox_maxLambda.valueChanged.connect(lambda x: self.checkbox_flatImage.setChecked(False))
+
         self.spinbox_minLambda = spinbox_minLambda = QSpinBox()
         spinbox_minLambda.setRange(0, 10000)
         spinbox_minLambda.setValue(self.config.dashboard.wave_start)
@@ -1441,7 +1423,10 @@ class MKIDDashboard(QMainWindow):
         spinbox_maxLambda.valueChanged.connect(spinbox_minLambda.setMaximum)
         spinbox_minLambda.valueChanged.connect(self.liveimage.set_wvlStart)
         spinbox_maxLambda.valueChanged.connect(self.liveimage.set_wvlStop)
-        #don't bother remaking the current image because it requires taking a new one for a difference to be seen
+        spinbox_minLambda.valueChanged.connect(lambda x: self.checkbox_darkImage.setChecked(False))
+        spinbox_minLambda.valueChanged.connect(lambda x: self.checkbox_flatImage.setChecked(False))
+        # don't bother remaking the current image because it requires taking a new one for a
+        # difference to be seen
 
         # Checkbox for dithering image
         # self.checkbox_dither = QCheckBox('Dither Image')
@@ -1498,10 +1483,9 @@ class MKIDDashboard(QMainWindow):
 
         vbox.addStretch()
 
-        vbox.addLayout(build_hbox((label_spinbox_average, spinbox_average)))
-        vbox.addLayout(build_hbox((label_integrationTime, spinbox_integrationTime, self.label_numIntegrated)))
-        vbox.addLayout(build_hbox((self.spinbox_darkImage, button_darkImage, QLabel('Use'), self.checkbox_darkImage)))
-        vbox.addLayout(build_hbox((self.spinbox_flatImage, button_flatImage, QLabel('Use'), self.checkbox_flatImage)))
+        vbox.addLayout(build_hbox((label_integrationTime, self.spinbox_integrationTime)))
+        vbox.addLayout(build_hbox((button_darkImage, QLabel('Use'), self.checkbox_darkImage)))
+        vbox.addLayout(build_hbox((button_flatImage, QLabel('Use'), self.checkbox_flatImage)))
 
         hbox_CountRate = QHBoxLayout()
         hbox_CountRate.addWidget(label_minCountRate)
