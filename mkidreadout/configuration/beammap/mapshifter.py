@@ -3,9 +3,10 @@ Takes in a raw beammap and finds an optimal physical shift in pixel coordinates 
 matches
 """
 
-import numpy as np
 import glob
+
 import matplotlib.pyplot as plt
+import numpy as np
 from astropy.stats import mad_std
 
 

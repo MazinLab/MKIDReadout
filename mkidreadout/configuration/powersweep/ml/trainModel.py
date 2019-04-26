@@ -8,8 +8,9 @@ Trained model is saved in .meta file in
 modelDir specified in config file.
 '''
 
-from neuralnet import *
 from mkidreadout.utils.readDict import readDict
+
+from neuralnet import *
 
 if len(sys.argv)<2:
     print 'Must supply config file!'

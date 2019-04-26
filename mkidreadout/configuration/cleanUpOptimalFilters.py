@@ -3,7 +3,6 @@ Script to resolve channel discrepancies in optimal filters calculated using a di
 '''
 
 import numpy as np
-import os
 
 #todo make part of an optimal filters result object
 

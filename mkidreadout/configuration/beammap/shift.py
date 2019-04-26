@@ -1,7 +1,8 @@
-import numpy as np
 import matplotlib.pyplot as plt
-from astropy.stats import mad_std
+import numpy as np
 import scipy.optimize as opt
+from astropy.stats import mad_std
+
 from mkidcore.objects import Beammap
 from mkidreadout.configuration.beammap.utils import isResonatorOnCorrectFeedline, placeResonatorOnFeedline
 

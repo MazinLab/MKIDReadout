@@ -18,15 +18,21 @@ Usage: python alignGrid.py <configFile>
 
 """
 from __future__ import print_function
-import os, sys
+
+import os
+import sys
+import warnings
+
+import matplotlib.patches as patches
+import matplotlib.pyplot as plt
 import numpy as np
 import scipy.ndimage as sciim
-import matplotlib.pyplot as plt
-import matplotlib.patches as patches
-import warnings
+
 from mkidcore.readdict import ReadDict
 from mkidreadout.configuration.beammap.flags import beamMapFlags
-from mkidreadout.configuration.beammap.utils import isInCorrectFL, getFLFromID, MEC_FL_WIDTH, DARKNESS_FL_WIDTH, N_FL_MEC, N_FL_DARKNESS
+from mkidreadout.configuration.beammap.utils import DARKNESS_FL_WIDTH, MEC_FL_WIDTH, N_FL_DARKNESS, N_FL_MEC, \
+    getFLFromID, isInCorrectFL
+
 
 class BMAligner(object):
     def __init__(self, beamListFn, nXPix, nYPix, instrument, flip=False, usFactor=50):

@@ -1,6 +1,7 @@
-import numpy as np
-import matplotlib.pyplot as plt
 import os
+
+import matplotlib.pyplot as plt
+import numpy as np
 
 mdd = os.environ['MKID_DATA_DIR']
 beammapFileName = 'Beammap/finalMap_20170403.txt'

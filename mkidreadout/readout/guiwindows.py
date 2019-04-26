@@ -7,14 +7,16 @@ GUI window  classes
 """
 import threading
 import time
+
 import numpy as np
 from PyQt4 import QtCore
 from PyQt4.QtGui import *
-from matplotlib.figure import Figure
-import mkidreadout.hardware.conex as conex
-from mkidcore.corelog import getLogger, create_log
-
 from matplotlib.backends.backend_qt4agg import FigureCanvasQTAgg as FigureCanvas
+from matplotlib.figure import Figure
+
+import mkidreadout.hardware.conex as conex
+from mkidcore.corelog import getLogger
+
 try:
     from matplotlib.backends.backend_qt4agg import NavigationToolbar2QTAgg as NavigationToolbar
 except ImportError: #Named changed in some newer matplotlib versions
@@ -65,7 +67,7 @@ class TelescopeWindow(QMainWindow):
             vbox.addLayout(hbox)
 
         label_telescopeStatus = QLabel('Telescope Status')
-        font = label_telescopeStatus.font()
+        font = label_telescopeStatus.font() 
         font.setPointSize(24)
         label_telescopeStatus.setFont(font)
         vbox.addWidget(label_telescopeStatus)

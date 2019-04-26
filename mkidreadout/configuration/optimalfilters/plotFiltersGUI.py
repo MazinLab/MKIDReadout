@@ -1,15 +1,15 @@
-import sys
 import os
-from PyQt4 import QtGui
-from PyQt4 import QtCore
+import sys
+
+from PyQt4 import QtCore, QtGui
 from matplotlib.backends.backend_qt4agg import FigureCanvasQTAgg as FigureCanvas
+
 try:
 	from matplotlib.backends.backend_qt4agg import NavigationToolbar2QTAgg as NavigationToolbar
 except ImportError: #Named changed in some newer matplotlib versions
 	from matplotlib.backends.backend_qt4agg import NavigationToolbar2QT as NavigationToolbar
 import matplotlib.pyplot as plt
 import numpy as np
-import random
 import pickle
 import makeFilters as mF
 import inspect

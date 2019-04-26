@@ -18,18 +18,16 @@ Note: Power in dBm is approximately -(resAtten + 12). (so a res atten of 65 will
 """
 
 
-import traceback, sys, warnings
-from functools import partial
 import ConfigParser
-from PyQt4 import QtCore
+import sys
+import traceback
+import warnings
+from functools import partial
+
 import numpy as np
-import matplotlib.pyplot as plt
+from PyQt4 import QtCore
 
 from mkidreadout.channelizer.RoachStateMachine import RoachStateMachine
-
-
-
-
 
 
 class DigitalWideSweep(QtCore.QObject):

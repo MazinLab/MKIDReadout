@@ -1,5 +1,7 @@
 import numpy as np
+
 import triggerPhotons as tP
+
 
 def makeNoiseSpectrum(data, peakIndices=(), window=800, noiseOffsetFromPeak=200, sampleRate=1e6, filt=(),isVerbose=False,baselineSubtract=True):
     '''

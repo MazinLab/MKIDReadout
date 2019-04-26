@@ -1,11 +1,14 @@
 #TODO break out into a helper repository
 
-import numpy as np
-from matplotlib import pyplot as plt
-from astropy.modeling import models, fitting
+import commands
+import os
+
 import astropy.modeling
+import numpy as np
+from astropy.modeling import fitting, models
+from matplotlib import pyplot as plt
+
 from mkidreadout.utils.utils import interpolateImage
-import os, commands
 
 
 def fit2DMoffat(image,guess):

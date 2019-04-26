@@ -1,6 +1,4 @@
 import numpy as np
-import os, sys
-import matplotlib.pyplot as plt
 
 def streamSpectrum(iVals,qVals):
     #TODO break out into library module

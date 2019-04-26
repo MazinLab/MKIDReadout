@@ -20,36 +20,37 @@ This is a GUI class for real time control of the MEC and DARKNESS instruments.
     ConvertPhotonsToRGB - converts a 2D list of photon counts to a QImage
  """
 from __future__ import print_function
-import argparse, sys, os, time, json
-from functools import partial
-import numpy as np
-from astropy.io import fits
-from datetime import datetime
 
+import argparse
+import json
+import os
+import sys
+import time
+from datetime import datetime
+from functools import partial
+
+import numpy as np
 from PyQt4 import QtCore
 from PyQt4.QtCore import Qt
 from PyQt4.QtGui import *
-
-import mkidreadout.config
-import mkidcore.instruments
+from astropy.io import fits
 
 import mkidcore.corelog
-
+import mkidcore.corelog
+import mkidcore.instruments
+import mkidreadout.config
+import mkidreadout.config
+import mkidreadout.configuration.sweepdata as sweepdata
+import mkidreadout.hardware.hsfw
+from mkidcore.corelog import create_log, getLogger
+from mkidcore.fits import CalFactory, combineHDU, summarize
+from mkidcore.objects import Beammap
+from mkidreadout.channelizer.Roach2Controls import Roach2Controls
 from mkidreadout.hardware.lasercontrol import LaserControl
 from mkidreadout.hardware.telescope import Palomar, Subaru
-from mkidreadout.readout.guiwindows import PixelTimestreamWindow, PixelHistogramWindow, TelescopeWindow, DitherWindow
+from mkidreadout.readout.guiwindows import DitherWindow, PixelHistogramWindow, PixelTimestreamWindow, TelescopeWindow
 from mkidreadout.readout.packetmaster import Packetmaster
-from mkidreadout.channelizer.Roach2Controls import Roach2Controls
-import mkidreadout.hardware.hsfw
 from mkidreadout.utils.utils import interpolateImage
-
-import mkidreadout.configuration.sweepdata as sweepdata
-import mkidreadout.config
-
-import mkidcore.corelog
-from mkidcore.corelog import getLogger, create_log
-from mkidcore.objects import Beammap
-from mkidcore.fits import CalFactory, summarize, combineHDU
 
 
 def add_actions(target, actions):

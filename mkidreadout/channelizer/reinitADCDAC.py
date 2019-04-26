@@ -9,9 +9,12 @@ Usage: $python reinitADCDAC.py 220 221 223
 
 """
 from __future__ import print_function
-import threading, argparse
-from mkidreadout.channelizer.InitStateMachine import InitStateMachine
+
+import argparse
+import threading
+
 import mkidreadout.config
+from mkidreadout.channelizer.InitStateMachine import InitStateMachine
 
 
 def worker(rNum, config):

@@ -1,6 +1,8 @@
-import time
 import sys
+import time
+
 import numpy as np
+
 from mkidreadout.hardware import picomotorclient as pmc
 
 

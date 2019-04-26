@@ -1,10 +1,14 @@
 from __future__ import print_function
+
+import warnings
+
 import numpy as np
 import scipy.optimize as opt
-from baselineIIR import IirFilter
+
 import makeNoiseSpectrum as mNS
-import warnings
+from baselineIIR import IirFilter
 from phase_wrap import fix_phase_wrap
+
 
 def makeTemplate(rawData, numOffsCorrIters=1 , decayTime=50, nSigmaTrig=4.,
                  isVerbose=False, defaultFilter=(), fix_wrap=False):

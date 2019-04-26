@@ -1,9 +1,9 @@
 
 #TODO merge this functionality into __main__ of Roach2Controls
+import argparse
+
 from Roach2Controls import Roach2Controls
 from adcTools import *
-import os, sys
-import argparse
 
 if __name__=='__main__':
     parser = argparse.ArgumentParser(description='Take quick ADC snapshots')

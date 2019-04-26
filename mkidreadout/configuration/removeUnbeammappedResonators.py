@@ -10,9 +10,11 @@ Date: Sep 27, 2017
 
 
 
-import numpy as np
-import os,sys
 import commands
+import os
+import sys
+
+import numpy as np
 
 
 #todo make part of a frequency comb object

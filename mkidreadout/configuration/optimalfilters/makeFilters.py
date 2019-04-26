@@ -1,5 +1,7 @@
 import numpy as np
+
 import makeNoiseSpectrum as mNS
+
 
 def wienerFilter(template, noiseSpectrum,nTaps=50):
     """

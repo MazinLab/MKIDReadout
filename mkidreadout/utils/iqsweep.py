@@ -7,14 +7,16 @@ Created by Ben Mazin on 2011-03-24.
 Copyright (c) 2011 . All rights reserved.
 """
 
-from tables import *
-import numpy as np
 import os
 import sys
+import time
+
 import matplotlib
 import matplotlib.pyplot as plt
+import numpy as np
 from matplotlib.backends.backend_pdf import PdfPages
-import time
+from tables import *
+
 
 class IQsweeptables(IsDescription):
     """The pytables derived class that hold IQ sweep data on the disk

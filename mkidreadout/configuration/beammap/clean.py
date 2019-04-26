@@ -12,19 +12,20 @@ TODO: refactor to actually use the Beammap class
 """
 
 from __future__ import print_function
-import numpy as np
-import os
-import logging
+
 import argparse
-import ipdb
-import matplotlib.pyplot as plt
 import itertools
-from mkidreadout.utils.arrayPopup import plotArray
+import logging
+
+import matplotlib.pyplot as plt
+import numpy as np
 from mkidreadout.utils.readDict import readDict
-from mkidreadout.configuration.beammap.flags import beamMapFlags
-from mkidreadout.configuration.beammap.utils import isInCorrectFL, getFLFromID, getFLFromCoords, isResonatorOnCorrectFeedline, generateCoords
+
 from mkidcore.objects import Beammap
 from mkidreadout.configuration.beammap import shift
+from mkidreadout.configuration.beammap.flags import beamMapFlags
+from mkidreadout.configuration.beammap.utils import generateCoords, getFLFromCoords, getFLFromID, isInCorrectFL, \
+    isResonatorOnCorrectFeedline
 
 MEC_FL_WIDTH = 14
 DARKNESS_FL_WIDTH = 25

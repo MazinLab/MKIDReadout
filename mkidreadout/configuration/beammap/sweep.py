@@ -28,8 +28,9 @@ Usage:
 """
 
 import os
-import numpy as np
+
 import matplotlib
+import numpy as np
 
 matplotlib.use('Qt4Agg')
 import matplotlib.pyplot as plt

@@ -1,7 +1,8 @@
-from scipy.interpolate import griddata
-import numpy as np
-import matplotlib.pyplot as plt
 import struct
+
+import matplotlib.pyplot as plt
+import numpy as np
+from scipy.interpolate import griddata
 
 
 def interpolateImage(image, method='cubic'):

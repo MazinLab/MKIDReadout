@@ -1,10 +1,11 @@
-import numpy as np
-from mkidreadout.widesweep.WideSweepFile import WideSweepFile
-from Resonator import Resonator
-from matplotlib.backends.backend_pdf import PdfPages
-
 import argparse
 import os
+
+import numpy as np
+from matplotlib.backends.backend_pdf import PdfPages
+from mkidreadout.widesweep.WideSweepFile import WideSweepFile
+
+from Resonator import Resonator
 
 
 class Autofit(object):

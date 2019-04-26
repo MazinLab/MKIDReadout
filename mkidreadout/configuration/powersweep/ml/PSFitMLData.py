@@ -4,10 +4,14 @@ use would have the save functionality used exclusively for inference.
 
 '''
 
-from mkidreadout.utils.iqsweep import *
-import numpy as np
-import sys, os
+import os
 import pickle
+import sys
+
+import numpy as np
+
+from mkidreadout.utils.iqsweep import *
+
 np.set_printoptions(threshold=np.inf)
 #removes visible depreciation warnings from lib.iqsweep
 import warnings

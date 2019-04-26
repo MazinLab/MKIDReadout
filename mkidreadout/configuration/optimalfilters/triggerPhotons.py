@@ -1,6 +1,8 @@
-import smooth
 import matplotlib.pyplot as plt
 import numpy as np
+
+import smooth
+
 
 def calcThreshold(phase,nSigma=2.5,nSamples=5000):
     '''

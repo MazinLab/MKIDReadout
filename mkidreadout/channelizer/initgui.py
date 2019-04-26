@@ -15,9 +15,14 @@ Command Flow:
 NOTES:
  - do not add commands to the RoachStateMachine object while the thread is executing commands
 """
-import sys, time, traceback, os, argparse
+import argparse
+import os
+import sys
+import time
+import traceback
 from datetime import datetime
 from functools import partial
+
 import numpy as np
 from PyQt4 import QtCore
 from PyQt4.QtCore import Qt
@@ -25,9 +30,9 @@ from PyQt4.QtGui import *
 
 import mkidcore.corelog
 import mkidreadout.config
-from mkidcore.corelog import getLogger, create_log
-from mkidreadout.channelizer.InitStateMachine import InitStateMachine
+from mkidcore.corelog import create_log, getLogger
 from mkidreadout.channelizer.InitSettingsWindow import InitSettingsWindow
+from mkidreadout.channelizer.InitStateMachine import InitStateMachine
 
 
 class InitGui(QMainWindow):

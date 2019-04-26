@@ -6,9 +6,10 @@ July 8, 2016
 Takes the frequency, I, and Q values around a single microwave resonator as inputs.  Adjusts the loop for the cable delay and fits the position of the center.
 """
 
+import matplotlib.pyplot as plt
 import numpy as np
 import scipy.linalg
-import matplotlib.pyplot as plt
+
 
 def RemoveDelay(IData, QData, frequencyData, tau):
     delayAngle = 2.0*np.pi*frequencyData*tau

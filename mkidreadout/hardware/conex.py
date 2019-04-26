@@ -6,16 +6,17 @@ This code is for controlling/dithering the Newport Conex-AG-M100D stage in the M
 
 """
 from __future__ import print_function
-import serial
+
 import time
-import numpy as np
-import mkidcore
-from mkidcore.corelog import getLogger, create_log
 from threading import RLock, Thread
-import itertools
-import argparse
-from flask_restful import Api, Resource, reqparse, fields, marshal
+
+import numpy as np
 import requests
+import serial
+from flask_restful import Api, Resource, reqparse
+
+import mkidcore
+from mkidcore.corelog import create_log, getLogger
 
 TIMEOUT = 2.0               # timeout for request post
 CONEX_COM_PORT = "COM9"
@@ -624,7 +625,7 @@ def queryMove(address='http://localhost:50001', timeout=TIMEOUT):
 
 
 if __name__=='__main__':
-    from flask import Flask, jsonify, make_response
+    from flask import Flask
 
     create_log('ConexManager',
                 console=True, mpsafe=True, propagate=False,

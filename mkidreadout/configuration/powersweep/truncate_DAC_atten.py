@@ -20,19 +20,13 @@ Instructions:
     happy with all the truncation values. Both Save and Save All will overwrite
     existing _trunc files.
 '''
-import numpy as np
-import time, warnings, traceback
-import ConfigParser
-from functools import partial
-from PyQt4.QtGui import *
-from PyQt4 import QtGui
-from PyQt4 import QtCore
-from PyQt4.QtCore import Qt
-from matplotlib.figure import Figure
-from matplotlib.backends.backend_qt4agg import FigureCanvasQTAgg as FigureCanvas
-import os, sys
-import shutil
+import os
+import sys
 
+import numpy as np
+from PyQt4.QtGui import *
+from matplotlib.backends.backend_qt4agg import FigureCanvasQTAgg as FigureCanvas
+from matplotlib.figure import Figure
 
 
 class roach:

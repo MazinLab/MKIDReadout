@@ -9,8 +9,9 @@ We also have the Darkness pupil image flipper controlled with this arduino
 """
 
 from __future__ import print_function
-from mkidcore.safesocket import *
+
 from mkidcore.corelog import getLogger, setup_logging
+from mkidcore.safesocket import *
 
 
 class LaserControl(object):

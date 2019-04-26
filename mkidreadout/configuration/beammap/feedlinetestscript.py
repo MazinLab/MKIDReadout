@@ -1,8 +1,9 @@
-from . import mapchecker
-from . import feedline
-import numpy as np
-import matplotlib.pyplot as plt
 import time
+
+import matplotlib.pyplot as plt
+import numpy as np
+
+from . import feedline, mapchecker
 
 # This is for development on a local machine, in full use this will just point to wherever beammap test data is stored
 # REMINDER NOTE: Find where the feedline design frequency file is stored on Dark to correctly use that path

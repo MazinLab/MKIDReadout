@@ -1,8 +1,10 @@
+import csv
+import os
+
+import matplotlib.pyplot as plt
 import numpy as np
 import scipy.signal
-import os
-import csv
-import matplotlib.pyplot as plt
+
 
 class IirFilter:
     def __init__(self,criticalFreqHz=100,sampleFreqHz=1e6,order=2,btype='lowpass',numCoeffs=[],denomCoeffs=[],zeros=[],poles=[],gain=[]):

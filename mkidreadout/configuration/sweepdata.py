@@ -1,9 +1,7 @@
-import numpy as np
-import re
-import os
 import matplotlib.pyplot as plt
+import numpy as np
+
 from mkidcore.corelog import getLogger
-import mkidcore.instruments as instruments
 
 # flags
 ISGOOD = 0b1

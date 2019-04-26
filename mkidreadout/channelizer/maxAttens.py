@@ -7,9 +7,12 @@ Usage: $python maxAttens.py 222 223
 
 """
 
-import sys,time
+import sys
 import threading
+import time
+
 from mkidreadout.channelizer.Roach2Controls import Roach2Controls
+
 
 def worker(rNum, params='darknessfpga.param'):
     ip = '10.0.0.'+str(rNum)

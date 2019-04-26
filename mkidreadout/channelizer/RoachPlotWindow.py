@@ -13,17 +13,20 @@ Classes:
 Note: see http://bastibe.de/2013-05-30-speeding-up-matplotlib.html for making matplotlib faster
 """
 
-import numpy as np
 from functools import partial
-from PyQt4.QtGui import *
-from PyQt4 import QtGui
-from PyQt4 import QtCore
+
+import numpy as np
+import scipy.integrate
+import scipy.signal
+import skimage.feature
+from PyQt4 import QtCore, QtGui
 from PyQt4.QtCore import Qt
-from matplotlib.figure import Figure
+from PyQt4.QtGui import *
 from matplotlib.backends.backend_qt4agg import FigureCanvasQTAgg as FigureCanvas
-from mkidcore.corelog import getLogger
+from matplotlib.figure import Figure
+
 import mkidreadout.configuration.sweepdata as sweepdata
-import scipy.signal, skimage.feature, scipy.integrate
+from mkidcore.corelog import getLogger
 
 try:
     from matplotlib.backends.backend_qt4agg import NavigationToolbar2QTAgg as NavigationToolbar

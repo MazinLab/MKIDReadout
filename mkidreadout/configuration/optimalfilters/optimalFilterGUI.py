@@ -1,16 +1,17 @@
-from PyQt4 import QtGui
-from PyQt4 import QtCore
-
-import time
-import traceback
-import sys
-import os
-from functools import partial
-import numpy as np
-import processData as pD
 import glob
 import inspect
+import os
+import sys
+import time
+import traceback
+from functools import partial
+
+import numpy as np
+from PyQt4 import QtCore, QtGui
+
 import makeFilters as mF
+import processData as pD
+
 reload(pD)
 
 class WorkerSignals(QtCore.QObject):

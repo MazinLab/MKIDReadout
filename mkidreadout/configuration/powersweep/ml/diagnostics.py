@@ -1,14 +1,16 @@
-import numpy as np
-import matplotlib.pylab as plt
-import tensorflow as tf
-import os, sys
 import argparse
-from PSFitMLData import PSFitMLData
-import tools as mlt
+import os
+import sys
 
-from mkidreadout.utils.readDict import readDict
-from mkidreadout.configuration.powersweep.psmldata import MLData
+import matplotlib.pylab as plt
+import numpy as np
+import tensorflow as tf
+
+import tools as mlt
+from PSFitMLData import PSFitMLData
 from mkidcore.corelog import getLogger
+from mkidreadout.configuration.powersweep.psmldata import MLData
+
 
 class diagnostics():
     def __init__(self, modelDir, psDataFileName, metadataFn=None, wsAtten=None, resWidth=None):

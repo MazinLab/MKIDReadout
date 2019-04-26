@@ -16,17 +16,15 @@ mlClassification defines the graph structure, trains the model, and saves it so 
 
 '''
 
-import numpy as np
-import sys, os
-import matplotlib.pyplot as plt
+import math
+import random
+
 import tensorflow as tf
 from tensorflow.python import debug as tf_debug
-import pickle
-import random
-import time
-import math
+
 from mkidreadout.configuration.powersweep.ml.PSFitMLData import *
 from mkidreadout.configuration.powersweep.psmldata import *
+
 np.set_printoptions(threshold=np.inf)
 import mkidreadout.configuration.powersweep.ml.tools as mlt
 
@@ -452,7 +450,6 @@ class mlClassification():
 
     def plotWeights(self, weights):
         '''creates a 2d map showing the positive and negative weights for each class'''
-        import math
         #weights = self.sess.run(self.W_fc2)
         #weights = np.reshape(weights,(math.sqrt(self.fc_filters),math.sqrt(self.fc_filters),self.nClass))
         #weights = np.flipud(weights)

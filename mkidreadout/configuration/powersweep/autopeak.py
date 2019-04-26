@@ -1,9 +1,10 @@
 """ Implements a template filter to identify WS peaks """
 import numpy as np
 import scipy.signal as signal
+
+import mkidreadout.configuration.sweepdata as sweepdata
 from mkidcore.corelog import getLogger
 from mkidreadout.configuration.widesweep.wsdata import WSFitMLData
-import mkidreadout.configuration.sweepdata as sweepdata
 
 
 class Finder(object):

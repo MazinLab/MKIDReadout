@@ -1,8 +1,8 @@
 # coding: utf-8
-import numpy as np
 import glob
 import os
 
+import numpy as np
 
 '''NOTE : Update this class to reject/notify the user if they are trying to analyze a 'bad' feedline.
 Figure out what constitutes 'bad'... <100, 500, 1000 pixels?, at least anything completely empty should return "bad"'''

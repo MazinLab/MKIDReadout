@@ -1,10 +1,10 @@
-import numpy as np
+import sys
+
 import matplotlib.pyplot as plt
+import numpy as np
+from mkidreadout.configuration.widesweep.digitalWS import DigitalWideSweep
 
 from mkidreadout.channelizer.RoachStateMachine import RoachStateMachine
-from mkidreadout.configuration.widesweep.digitalWS import DigitalWideSweep
-import time, sys
-
 
 
 def quickSweep(defaultValues,roachNums, filePrefix, debug):

@@ -1,6 +1,7 @@
 # TODO Merge with roach2controls main
-from Roach2Controls import Roach2Controls
 import sys
+
+from Roach2Controls import Roach2Controls
 
 if __name__=='__main__':
     args = sys.argv[1:]

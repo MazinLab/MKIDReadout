@@ -1,8 +1,8 @@
-import numpy as np
-import os
-from mkidreadout.configuration.sweepdata import FreqSweep, SweepMetadata, ISGOOD, ISBAD
-from mkidcore.corelog import getLogger
 import matplotlib.pyplot as plt
+import numpy as np
+
+from mkidcore.corelog import getLogger
+from mkidreadout.configuration.sweepdata import FreqSweep, ISGOOD, SweepMetadata
 
 
 class MLData(object):

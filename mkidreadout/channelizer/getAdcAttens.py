@@ -1,8 +1,10 @@
-import os, sys
-import numpy as np
+import sys
+
 import matplotlib.pyplot as plt
+
 from mkidreadout.channelizer.Roach2Controls import Roach2Controls
 from mkidreadout.channelizer.adcTools import *
+
 
 #TODO: error check threshold on max to 3.5 RMS at a low RMS value
 

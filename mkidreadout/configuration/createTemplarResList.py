@@ -1,7 +1,7 @@
 
-import numpy as np
 import os
-import sys
+
+import numpy as np
 
 
 def createTemplarResList(fn, LO1, LO2, feedline=1, atten=46):

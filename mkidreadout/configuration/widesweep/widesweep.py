@@ -35,24 +35,22 @@ Matt Strader
 Chris Stoughton
 Rupert Dodkins
 """
-#!/bin/env python
-from PyQt4.QtCore import *
-from PyQt4.QtGui import *
-from PyQt4 import QtGui
+import os
+import sys
+
 import matplotlib.pyplot as plt
 import numpy as np
-import sys, os, time, shutil
-from multiprocessing import Process
-from matplotlib.backends.backend_qt4agg import FigureCanvasQTAgg as FigureCanvas
-from matplotlib.backends.backend_qt4agg import NavigationToolbar2QT as NavigationToolbar
+from PyQt4 import QtGui
+# !/bin/env python
+from PyQt4.QtCore import *
+from PyQt4.QtGui import *
+from matplotlib.backends.backend_qt4agg import FigureCanvasQTAgg as FigureCanvas, \
+    NavigationToolbar2QT as NavigationToolbar
 from matplotlib.figure import Figure
-import matplotlib
-from functools import partial
-from scipy import signal
-from scipy.signal import filter_design as fd
-from scipy.interpolate import UnivariateSpline
-#import Peaks as Peaks
+
+# import Peaks as Peaks
 from WideSweepFile import WideSweepFile
+
 
 class WideAna(QMainWindow):
     def __init__(self, parent=None,plotFunc=None,title='',separateProcess=False, image=None,showMe=True, initialFile=None, flNum=None):

@@ -22,22 +22,25 @@ Features to add:
     - add to file menu (help) a viewer for log file
 """
 from __future__ import print_function
-import sys, traceback, argparse, os
+
+import argparse
+import os
+import sys
+import traceback
 from datetime import datetime
 from functools import partial
+
 import numpy as np
-from PyQt4 import QtCore
+from PyQt4 import QtCore, QtGui
 from PyQt4.QtCore import Qt
-from PyQt4 import QtGui
 from PyQt4.QtGui import *
 
-from mkidcore.corelog import getLogger, create_log
-import mkidreadout.config
-import mkidcore.corelog
 import mkidcore.instruments
-from mkidreadout.channelizer.RoachStateMachine import RoachStateMachine
-from mkidreadout.channelizer.RoachSettingsWindow import RoachSettingsWindow
+import mkidreadout.config
+from mkidcore.corelog import create_log, getLogger
 from mkidreadout.channelizer.RoachPlotWindow import RoachPhaseStreamWindow, RoachSweepWindow
+from mkidreadout.channelizer.RoachSettingsWindow import RoachSettingsWindow
+from mkidreadout.channelizer.RoachStateMachine import RoachStateMachine
 
 
 class HighTemplar(QMainWindow):

@@ -1,11 +1,13 @@
-import os, sys
+import cPickle as pickle
+import os
+
 import numpy as np
 cimport numpy as np
+from libc.stdlib import free, malloc
+from libc.string import memcpy, memset, strcpy
 from mkidreadout.readout.sharedmem import ImageCube
+
 import mkidpipeline.calibration.wavecal as wvl
-import cPickle as pickle
-from libc.stdlib cimport malloc, free
-from libc.string cimport memset, memcpy, strcpy
 from mkidcore.corelog import getLogger
 
 READER_CPU = 1

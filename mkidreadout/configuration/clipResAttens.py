@@ -15,10 +15,12 @@ Usage:
 $python clipResAttens.py ps_freq_FL6a.txt ps_freq_FL6b.txt
 """
 
-import sys,os
-import numpy as np
-import matplotlib.pyplot as plt
+import os
+import sys
 from glob import glob
+
+import matplotlib.pyplot as plt
+import numpy as np
 
 
 def clipHist(filename):

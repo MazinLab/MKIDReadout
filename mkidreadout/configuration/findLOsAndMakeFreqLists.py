@@ -12,11 +12,15 @@ Usage: python findLOsAndMakeFreqFiles.py <setupcfgfile> <templarcfgfile>
         find the file it looks in MKID_DATA_DIR.
 
 '''
-import os, sys
-import numpy as np
 import ConfigParser
-from mkidreadout.configuration.createTemplarResList import createTemplarResList
+import os
+import sys
+
+import numpy as np
+
 from mkidcore.readdict import ReadDict
+from mkidreadout.configuration.createTemplarResList import createTemplarResList
+
 
 def findLOs(freqs, loRange=0.2, nIters=10000, colParamWeight=1, resBW=0.0002, ifHole=0.003):
     '''

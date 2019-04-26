@@ -83,20 +83,30 @@ BUGS:
     This should be fixed with some indexing tricks which don't rely on np.where
 """
 
-import sys, os, time, datetime, struct, math, calendar
-import warnings, inspect
+import binascii
+import calendar
+import datetime
+import inspect
+import math
+import os
+import socket
+import struct
+import sys
+import time
+import warnings
+from socket import inet_aton
+
+import casperfpga
 import numpy as np
 import scipy.special
-import casperfpga
-import socket
-import binascii
-from socket import inet_aton
-from mkidreadout.channelizer.binTools import castBin
-from mkidcore.readdict import ReadDict
-from mkidreadout.channelizer.adcTools import streamSpectrum, checkSpectrumForSpikes
+
 from mkidcore.corelog import getLogger
-import mkidcore.corelog
+from mkidcore.readdict import ReadDict
+from mkidreadout.channelizer.adcTools import checkSpectrumForSpikes, streamSpectrum
+from mkidreadout.channelizer.binTools import castBin
 from mkidreadout.configuration import sweepdata
+
+
 #from mkidreadout.channelizer.Roach2Utils import cy_generateTones
 
 

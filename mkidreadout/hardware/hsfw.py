@@ -22,14 +22,16 @@ msg = msg & "This filter wheel ID is " & chr(FW.WheelID) & vbNewLine
 msg = msg & "Firmware Version = " & FW.FirmwareVersion & vbNewLine
 msg = msg & "Test Complete"
 """
-import errno, sys
-from mkidcore.corelog import getLogger
-import mkidcore.safesocket as socket
-import traceback
-import platform
-import threading
 import argparse
+import errno
+import platform
+import sys
+import threading
+import traceback
+
 import mkidcore.corelog
+import mkidcore.safesocket as socket
+from mkidcore.corelog import getLogger
 
 HSFWERRORS = {0: 'No error has occurred. (cleared state)',
               1: 'The 12VDC power has been disconnected from the device.',

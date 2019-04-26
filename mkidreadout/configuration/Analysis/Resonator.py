@@ -1,9 +1,12 @@
-import numpy as np
-from mkidcore.mpfit import mpfit
 import math
 import random
-import matplotlib.pyplot as plt
+
 import matplotlib
+import matplotlib.pyplot as plt
+import numpy as np
+
+from mkidcore.mpfit import mpfit
+
 
 class Resonator:
     def __init__(self, freq, I, Ierr, Q, Qerr):

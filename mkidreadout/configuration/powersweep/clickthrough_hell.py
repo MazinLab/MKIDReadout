@@ -1,21 +1,23 @@
 #!/usr/bin/env python
 # clickthrough hell
 from __future__ import print_function
-from numpy import *
-import numpy
-from PyQt4.QtGui import *
-from PyQt4.QtCore import *
-from mkidreadout.utils.iqsweep import *
-from matplotlib.backends.backend_qt4 import NavigationToolbar2QT as NavigationToolbar
-from mkidreadout.configuration.powersweep.autopeak import Finder
-import mkidcore.instruments as instruments
 
+import argparse
+
+import numpy
+import scipy.integrate
+from PyQt4.QtCore import *
+from PyQt4.QtGui import *
+from matplotlib.backends.backend_qt4 import NavigationToolbar2QT as NavigationToolbar
+from numpy import *
+
+import mkidcore.instruments as instruments
 import mkidreadout.configuration.powersweep.gui as gui
 import mkidreadout.configuration.sweepdata as sweepdata
+from mkidcore.corelog import create_log, getLogger
 from mkidreadout.configuration.powersweep import psmldata
-from mkidcore.corelog import getLogger, create_log
-import argparse
-import scipy.integrate
+from mkidreadout.configuration.powersweep.autopeak import Finder
+from mkidreadout.utils.iqsweep import *
 
 
 class StartQt4(QMainWindow):

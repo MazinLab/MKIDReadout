@@ -1,11 +1,14 @@
+from math import fabs
+
 import numpy as np
 from matplotlib import pylab as plt
-from math import fabs
+from mkidreadout.configuration.widesweep.wsfitml.params import *
 from scipy.interpolate import UnivariateSpline
+
+import logits as ML
 # from datetime import datetime
 import scfit as Sc
-import logits as ML
-from mkidreadout.configuration.widesweep.wsfitml.params import *
+
 np.set_printoptions(threshold=np.nan)
 
 def load_raw_wide_sweep(WideSweepFile, span=-1):

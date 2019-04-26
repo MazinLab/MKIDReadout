@@ -3,13 +3,16 @@ Author:    Matt Strader
 
 """
 from __future__ import print_function
-import time
-import numpy as np
-import matplotlib.pyplot as plt
+
 import sys
+import time
+
+import matplotlib.pyplot as plt
+import numpy as np
 import scipy.ndimage
-from mkidreadout.channelizer.Roach2Controls import Roach2Controls
+
 from mkidcore.corelog import getLogger
+from mkidreadout.channelizer.Roach2Controls import Roach2Controls
 
 
 def incrementMmcmPhase(fpga, stepSize=2):

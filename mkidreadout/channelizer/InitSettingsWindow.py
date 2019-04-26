@@ -4,12 +4,13 @@ Date: May 18, 2016
 
 A class for the settings window for HighTemplar.py. 
 """
-import numpy as np
 from functools import partial
-from PyQt4.QtGui import *
-from PyQt4 import QtGui
-from PyQt4 import QtCore
+
+import numpy as np
+from PyQt4 import QtCore, QtGui
 from PyQt4.QtCore import Qt
+from PyQt4.QtGui import *
+
 from InitStateMachine import InitStateMachine
 
 

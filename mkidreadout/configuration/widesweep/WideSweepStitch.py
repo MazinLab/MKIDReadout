@@ -1,6 +1,6 @@
-import numpy as np
 import argparse
 
+import numpy as np
 
 '''
 Takes two widesweep-good.txt files that were generated from 

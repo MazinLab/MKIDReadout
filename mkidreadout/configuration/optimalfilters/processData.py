@@ -1,11 +1,13 @@
+import os
+import pickle
+import sys
+import time
+
 import numpy as np
-import makeTemplate as mT
+
 import makeFilters as mF
 import makeNoiseSpectrum as mNS
-import os
-import sys
-import pickle
-import time
+import makeTemplate as mT
 
 
 def processData(directory, defaultTemplate, isVerbose=False, GUI=False,

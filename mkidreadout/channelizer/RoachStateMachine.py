@@ -4,16 +4,20 @@ DATE: May 15, 2016
 
 The RoachStateMachine class runs the commands on the readout boards. Uses Roach2Controls Class
 """
-import os, sys, time, random
-import traceback
+import os
+import random
+import sys
+import time
+from Queue import Queue
+
 import numpy as np
 from PyQt4 import QtCore
-from Queue import Queue
+from pkg_resources import resource_filename
+
+import mkidreadout.configuration.sweepdata as sweepdata
+from mkidcore.corelog import getLogger
 from mkidreadout.channelizer.Roach2Controls import Roach2Controls
 from mkidreadout.utils import iqsweep
-from mkidcore.corelog import getLogger
-from pkg_resources import resource_filename
-import mkidreadout.configuration.sweepdata as sweepdata
 
 
 class RoachStateMachine(QtCore.QObject):  # Extends QObject for use with QThreads

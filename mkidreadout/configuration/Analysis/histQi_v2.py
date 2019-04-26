@@ -1,7 +1,8 @@
 #!/usr/bin/python
+import os
+
 import numpy as np
 from matplotlib import pyplot as plt
-import os
 
 #Plots Histogram of f, Q, and Distance of f to nearest neighbor, Q vs f, Dist to neigh vs f and saves it to a pdf.  You need to change the filename and pdftitle (and possibly the text position in line 79
 

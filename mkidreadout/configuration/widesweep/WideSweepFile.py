@@ -1,10 +1,10 @@
-import numpy as np
-from scipy.interpolate import UnivariateSpline
-from scipy import signal
 import math
 
 import matplotlib.pyplot as plt
+import numpy as np
 from matplotlib.backends.backend_pdf import PdfPages
+from scipy import signal
+from scipy.interpolate import UnivariateSpline
 
 
 def peaks(y, nsig, m=2, returnDict=False):

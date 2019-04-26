@@ -15,19 +15,22 @@ TODO:
 """
 
 
-import traceback, sys, warnings, random, os, time
-from functools import partial
-import ConfigParser
-from multiprocessing import Pool
+import os
+import random
+import sys
 import threading
-import numpy as np
-import matplotlib.pyplot as plt
+import traceback
+import warnings
+from functools import partial
+from multiprocessing import Pool
 
+import matplotlib.pyplot as plt
+import numpy as np
 from mkidreadout.utils.readDict import readDict
-from mkidreadout.channelizer.RoachStateMachine import RoachStateMachine
+
 from mkidreadout.channelizer.Roach2Controls import Roach2Controls
-from mkidreadout.channelizer.reinitADCDAC import reinitADCDAC
 from mkidreadout.channelizer.maxAttens import maxAttens
+from mkidreadout.channelizer.reinitADCDAC import reinitADCDAC
 
 
 def setupMultRoaches4FreqSweep(roachNums, freqFN='rfFreqs.txt', defineLUTs=False):

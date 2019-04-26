@@ -5,10 +5,14 @@ Date: Jul 8, 2016
 This class grabs info from the Palomar telescope
 """
 from __future__ import print_function
-from socket import *
-import time, math
+
 import datetime
+import math
+import time
+from socket import *
+
 import ephem
+
 from mkidcore.corelog import getLogger
 
 __all__ = ['Telescope']

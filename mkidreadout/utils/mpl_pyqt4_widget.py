@@ -3,11 +3,9 @@ from PyQt4.QtCore import *
 from PyQt4.QtGui import *
 
 from matplotlib.backends.backend_qt4agg import FigureCanvasQTAgg as FigureCanvas
-from matplotlib.backends.backend_qt4 import NavigationToolbar2QT as NavigationToolbar
 
 from matplotlib.figure import Figure
 
-import numpy as N
 
 class MyMplCanvas(FigureCanvas):
 	def __init__(self, parent=None, width = 10, height = 12, dpi = 100, sharex = None, sharey = None):

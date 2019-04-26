@@ -1,13 +1,16 @@
 from __future__ import print_function
-import numpy as np
+
+import ConfigParser
+import itertools
 import os
 import time
-from numba import jit
-import ConfigParser
+
+import numpy as np
 import scipy.optimize as spo
+from numba import jit
+
+from mkidcore.instruments import DARKNESS_FEEDLINE_INFO, MEC_FEEDLINE_INFO
 from mkidreadout.configuration.beammap.flags import beamMapFlags
-import itertools
-from mkidcore.instruments import MEC_FEEDLINE_INFO, DARKNESS_FEEDLINE_INFO
 
 MEC_FL_WIDTH = MEC_FEEDLINE_INFO['width']
 MEC_FL_LENGTH = MEC_FEEDLINE_INFO['length']

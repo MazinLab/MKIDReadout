@@ -1,5 +1,3 @@
-import numpy as np
-
 def getDefaultRegList():
     return [0x80000028, 0x69500009, 0x8800000A, 0x0000000B, 0xca9ce00c, 0x108e968d, 0x5441100E]
 

@@ -3,16 +3,20 @@ AUTHOR: Matt
 
 The InitStateMachine class runs the commands on the readout boards. 
 """
-import sys, time, random
+import os
+import random
+import sys
+import time
+from Queue import Queue
+
 import numpy as np
 from PyQt4 import QtCore
-from Queue import Queue
-from mkidreadout.channelizer.Roach2Controls import Roach2Controls
-from mkidreadout.channelizer.zdokcal import loadDelayCal, findCal
-from mkidreadout.channelizer.qdr import Qdr as myQdr
 from pkg_resources import resource_filename
+
 from mkidcore.corelog import getLogger
-import os
+from mkidreadout.channelizer.Roach2Controls import Roach2Controls
+from mkidreadout.channelizer.qdr import Qdr as myQdr
+from mkidreadout.channelizer.zdokcal import findCal, loadDelayCal
 
 
 class InitStateMachine(QtCore.QObject):  # Extends QObject for use with QThreads

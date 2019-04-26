@@ -1,8 +1,10 @@
-import mlutils as ws
-from mkidreadout.configuration.widesweep.wsfitml.params import datadir, rawsweepfile
 import matplotlib.pyplot as plt
 import numpy as np
+from mkidreadout.configuration.widesweep.wsfitml.params import datadir, rawsweepfile
 from sklearn.svm import SVR
+
+import mlutils as ws
+
 
 def fitSVR(freqs, mag, C, gamma):
     x = np.reshape(freqs, (len(freqs),1))

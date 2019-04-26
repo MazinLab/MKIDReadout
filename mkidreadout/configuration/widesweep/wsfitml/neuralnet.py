@@ -1,8 +1,8 @@
+import os
+
 import numpy as np
 import tensorflow as tf
-import matplotlib.pyplot as plt
-from scipy import signal
-import os, sys
+
 
 class WSFitNN:
     def __init__(self, **kwargs):

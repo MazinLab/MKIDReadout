@@ -1,6 +1,7 @@
-import numpy as np
-import sys, os
+import os
+import sys
 
+import numpy as np
 
 #todo make part of a frequency comb object
 

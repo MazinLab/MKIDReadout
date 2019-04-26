@@ -4,16 +4,17 @@ Date: May 18, 2016
 
 A class for the settings window for HighTemplar.py. 
 """
-import numpy as np
 import os
 from functools import partial
-from PyQt4.QtGui import *
-from PyQt4 import QtGui
-from PyQt4 import QtCore
+
+import numpy as np
+from PyQt4 import QtCore, QtGui
 from PyQt4.QtCore import Qt
-from mkidreadout.channelizer.RoachStateMachine import RoachStateMachine
-from mkidcore.corelog import getLogger
+from PyQt4.QtGui import *
 from pkg_resources import resource_filename
+
+from mkidcore.corelog import getLogger
+from mkidreadout.channelizer.RoachStateMachine import RoachStateMachine
 
 
 class RoachSettingsWindow(QTabWidget):

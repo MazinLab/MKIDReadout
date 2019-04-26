@@ -1,7 +1,8 @@
-import numpy as np
 import tensorflow as tf
-import logging
-import os, sys, glob
+import glob
+
+import tensorflow as tf
+
 from PSFitMLData import *
 from mkidreadout.configuration.powersweep.psmldata import *
 

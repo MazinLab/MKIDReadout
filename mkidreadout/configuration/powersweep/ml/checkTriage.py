@@ -1,6 +1,8 @@
-import numpy as np
-import matplotlib.pyplot as plt
 import argparse
+
+import matplotlib.pyplot as plt
+import numpy as np
+
 from mkidreadout.configuration.sweepdata import SweepMetadata
 
 parser = argparse.ArgumentParser(description='Check score triage performance')

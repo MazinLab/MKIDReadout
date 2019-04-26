@@ -4,9 +4,17 @@ from numpy cimport ndarray
 cimport cython
 cimport numpy as np
 
-from cython.parallel import parallel, prange
+from cython.parallel import prange
 
+cimport
+cython
+cimport
+numpy as np
+import numpy as np
+from cython.parallel import prange
+from numpy cimport
 
+ndarray
 
 DTYPE=np.double
 ctypedef np.double_t DTYPE_t
