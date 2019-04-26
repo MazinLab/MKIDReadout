@@ -17,22 +17,18 @@ roaches: !include roach.yml
 
 dashboard: !configdict
   image_scale: 7 # Show this many^2 monitor screen pixels per MKID pixel
-  average : 1 # Number of images to average for displaynum_images_to_add
   max_count_rate: 2500
   min_count_rate: 0
-  n_darks: 5 # Num images for dark image
-  n_flats: 5
-  flatname: flat
-  darkname: dark
-  fitstime: 60  # minimum number of seconds to package into each stream fits file, may run over by an integration time
-  wavecal: 2018-12-23 051888891e1e27c48f09da56342a914aed89.npz
+  flatname: flat   # a name for the flat, will take form name_flat_itime_wave.fits
+  darkname: dark  # a name for the dark, will take form name_dark_itime_wave.fits
+  fitstime: 60  # minimum number of seconds to package into each stream fits file, may run over
+  wavecal: /home/baileyji/mec/2019-01-13 10529f0c026d91f8361e8d1bbe93699fcccb.npz
   use_wave: True
   wave_start: 700  #wavecal units
   wave_stop: 1500
   inttime: 1
   mininttime: .1
   maxinttime: 300
-
 # Flipper is also controlled with the laser box arduino
 lasercontrol: !configdict
   lasers: [808 nm, 904 nm, 980 nm, 1120 nm, 1310 nm]
