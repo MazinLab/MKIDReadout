@@ -582,7 +582,7 @@ class MKIDDashboard(QMainWindow):
                 if not roach.connect() and not roach.issetup:
                     raise RuntimeError('Roach r{} has not been setup.'.format(roachNum))
                 roach.loadCurTimestamp()
-                roach.setPhotonCapturePort(self.packetmaster.captureport)
+                roach.setPhotonCapturePort(self.config.packetmaster.captureport)
                 self.roachList.append(roach)
             self.turnOnPhotonCapture()
         self.loadBeammap()
