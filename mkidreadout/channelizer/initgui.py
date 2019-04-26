@@ -29,6 +29,7 @@ from PyQt4.QtCore import Qt
 from PyQt4.QtGui import *
 
 import mkidcore.corelog
+import mkidcore.instruments
 import mkidreadout.config
 from mkidcore.corelog import create_log, getLogger
 from mkidreadout.channelizer.InitSettingsWindow import InitSettingsWindow

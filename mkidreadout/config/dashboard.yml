@@ -19,8 +19,8 @@ dashboard: !configdict
   image_scale: 7 # Show this many^2 monitor screen pixels per MKID pixel
   max_count_rate: 2500
   min_count_rate: 0
-  flatname: flat   # a name for the flat, will take form name_flat_itime_wave.fits
-  darkname: dark  # a name for the dark, will take form name_dark_itime_wave.fits
+  flatname: flat   # optional, a flatfile name, if unspecified will take form flat_wave_timestamp.fits
+  darkname: dark  # optional, a darkfile name, if unspecified will take form dark_wave_timestamp.fits
   fitstime: 60  # minimum number of seconds to package into each stream fits file, may run over
   wavecal: /home/baileyji/mec/2019-01-13 10529f0c026d91f8361e8d1bbe93699fcccb.npz
   use_wave: True

@@ -3,9 +3,6 @@
 Author:    Alex Walter
 Date:      Jul 3, 2016
 
-
-#TODO LiveImageFetcher header info needs updateing on a regular basis
-
 This is a GUI class for real time control of the MEC and DARKNESS instruments.
  - show realtime image
  - show realtime pixel timestreams (see guiwindows.PixelTimestreamWindow)
@@ -319,7 +316,7 @@ class MKIDDashboard(QMainWindow):
                                             self.config.lasercontrol.receive_port)
 
         # telscope TCS connection
-        #TODO make the Telescope work with Subaru
+        #TODO make the Telescope work with Subaru, TCS query part is done
         getLogger('Dashboard').info('Setting up telescope connection...')
         if self.config.instrument.lower() == 'mec':
             self.telescopeController = Subaru(ip=self.config.telescope.ip, user=self.config.telescope.user,
@@ -501,7 +498,6 @@ class MKIDDashboard(QMainWindow):
     def addFlatImage(self, photonImage):
         self.flatFactory = CalFactory('flat', images=(photonImage,), dark=self.darkField)
         self.takingFlat = False
-        #TODO develop was use file is specified, generate procedurally if not
         self.flatField = self.flatFactory.generate(fname=self.flatfile, badmask=self.beammapFailed, save=True,
                                                    name=os.path.splitext(os.path.basename(self.flatfile))[0])
         getLogger('Dashboard').info('Finished flat:\n {}'.format(summarize(self.flatField).replace('\n', '\n  ')))
@@ -569,7 +565,7 @@ class MKIDDashboard(QMainWindow):
                 getLogger('Dashboard').warning('Unable to load flat from {}'.format(self.darkfile))
 
 
-        #TODO this really could be moved into the ConvertPhotonsToRGB thread
+        #NB this really could be moved into the ConvertPhotonsToRGB thread
         cf = CalFactory('avg', images=self.imageList[-1:],
                         dark=self.darkField if self.checkbox_darkImage.isChecked() else None,
                         flat=self.flatField if self.checkbox_flatImage.isChecked() else None)
@@ -594,25 +590,20 @@ class MKIDDashboard(QMainWindow):
 
     @property
     def flatfile(self):
-        #TODO fix
-        name = mkidreadout.config.tagstr('flat_{time}')
-        file = mkidreadout.config.tagstr(self.config.dashboard.flatname)
-        file = file if 'fit' in os.path.splitext(file)[1].lower() else file + '.fits'
-
+        file = mkidreadout.config.tagstr(self.config.dashboard.get('flatname', ''))
+        if file:
+            return file if 'fit' in os.path.splitext(file)[1].lower() else file + '.fits'
         wvstr = '_{:.0f}-{:.0f}nm'.format(self.spinbox_minLambda.value(), self.spinbox_maxLambda.value())
-        name = '{}_flat_{:.0f}{}'.format(self.config.dashboard.flatname, time.time(),
-                                         wvstr if self.checkbox_usewave else '')
+        name = mkidreadout.config.tagstr('flat' + wvstr if self.checkbox_usewave else '' + '_{time}')
         return os.path.join(self.config.paths.data, name + '.fits')
 
     @property
     def darkfile(self):
-        #TODO fix
-        file = mkidreadout.config.tagstr(self.config.dashboard.darkname)
-        file = file if 'fit' in os.path.splitext(file)[1].lower() else file + '.fits'
-
-        wvstr = '_{:.0f}-{:.0f}nm'.format(self.spinbox_minLambda.value(),self.spinbox_maxLambda.value())
-        name = '{}_dark_{:.0f}{}'.format(self.config.dashboard.darkname, time.time(),
-                                         wvstr if self.checkbox_usewave else '')
+        file = mkidreadout.config.tagstr(self.config.dashboard.get('darkname', ''))
+        if file:
+            return file if 'fit' in os.path.splitext(file)[1].lower() else file + '.fits'
+        wvstr = '_{:.0f}-{:.0f}nm'.format(self.spinbox_minLambda.value(), self.spinbox_maxLambda.value())
+        name = mkidreadout.config.tagstr('dark' + wvstr if self.checkbox_usewave else '' + '_{time}')
         return os.path.join(self.config.paths.data, name+'.fits')
 
     def updateImage(self, q_image):
@@ -1044,7 +1035,7 @@ class MKIDDashboard(QMainWindow):
                 self.checkbox_flipper.setEnabled(True)
             self.logstate()
 
-    def state(self, force_update=False):
+    def state(self):
         """this is the function that populates the headers and the log, it needs to be prompt enough that it won't
         cause slowdowns"""
 
@@ -1213,7 +1204,6 @@ class MKIDDashboard(QMainWindow):
         self.checkbox_smooth = QCheckBox('Smooth Image')
         self.checkbox_smooth.setChecked(False)
 
-        #TODO Settings for the solution file?
         self.checkbox_usewave = QCheckBox('Apply wavecal')
         if not os.path.exists(self.config.dashboard.wavecal):
             self.config.dashboard.update('use_wave', False)
@@ -1522,23 +1512,11 @@ if __name__ == "__main__":
 
     app = QApplication(sys.argv)
     if args.alla:
-        #TODO fix me before commit
-        roaches = mkidcore.instruments.ROACHES[config.instrument]
+        roaches = mkidcore.instruments.ROACHESA[config.instrument]
     elif args.allb:
-        roaches = mkidcore.instruments.ROACHES[config.instrument]
+        roaches = mkidcore.instruments.ROACHESB[config.instrument]
     elif args.all_roaches:
         roaches = mkidcore.instruments.ROACHES[config.instrument]
-    else:
-        roaches = args.roaches
-
-
-    isroach = lambda s: len(s) == 4 and s[0].lower() == 'r'
-    if args.alla:
-        roaches = [int(c[1:]) for c in config.roaches
-                   if isroach(c) and config.roaches.get(c+'.range').lower()=='a']
-    elif args.allb:
-        roaches = [int(c[1:]) for c in config.roaches
-                   if isroach(c) and config.roaches.get(c + '.range').lower() == 'a']
     else:
         roaches = args.roaches
 
