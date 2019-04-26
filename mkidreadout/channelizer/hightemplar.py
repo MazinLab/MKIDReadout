@@ -34,7 +34,7 @@ from PyQt4.QtGui import *
 from mkidcore.corelog import getLogger, create_log
 import mkidreadout.config
 import mkidcore.corelog
-import mkidreadout.instruments
+import mkidcore.instruments
 from mkidreadout.channelizer.RoachStateMachine import RoachStateMachine
 from mkidreadout.channelizer.RoachSettingsWindow import RoachSettingsWindow
 from mkidreadout.channelizer.RoachPlotWindow import RoachPhaseStreamWindow, RoachSweepWindow
@@ -560,7 +560,7 @@ if __name__ == "__main__":
                level=mkidcore.corelog.INFO)
 
     app = QApplication(sys.argv)
-    roaches = mkidreadout.instruments.ROACHES[config.instrument] if args.all_roaches else args.roaches
+    roaches = mkidcore.instruments.ROACHES[config.instrument] if args.all_roaches else args.roaches
 
     if not roaches:
         getLogger('hightemplar').error('No roaches specified')

@@ -430,7 +430,7 @@ if __name__ == "__main__":
                level=mkidcore.corelog.INFO)
 
     app = QApplication(sys.argv)
-    roaches = mkidreadout.instruments.ROACHES[args.instrument] if args.all_roaches else args.roaches
+    roaches = mkidcore.instruments.ROACHES[args.instrument] if args.all_roaches else args.roaches
     if not roaches:
         getLogger('Init').error('No roaches specified')
         exit()

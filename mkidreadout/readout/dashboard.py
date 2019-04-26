@@ -32,7 +32,7 @@ import threading
 from astropy.io import fits
 
 import mkidreadout.config
-import mkidreadout.instruments
+import mkidcore.instruments
 
 import mkidcore.corelog
 from mkidcore.corelog import getLogger, create_log
@@ -1705,7 +1705,7 @@ if __name__ == "__main__":
                level=mkidcore.corelog.DEBUG)
 
     app = QApplication(sys.argv)
-    roaches = mkidreadout.instruments.ROACHES[config.instrument] if args.all_roaches else args.roaches
+    roaches = mkidcore.instruments.ROACHES[config.instrument] if args.all_roaches else args.roaches
 
     if not roaches:
         getLogger('Dashboard').error('No roaches specified')

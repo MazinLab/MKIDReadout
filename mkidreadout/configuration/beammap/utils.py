@@ -7,7 +7,7 @@ import ConfigParser
 import scipy.optimize as spo
 from mkidreadout.configuration.beammap.flags import beamMapFlags
 import itertools
-from mkidreadout.instruments import MEC_FEEDLINE_INFO, DARKNESS_FEEDLINE_INFO
+from mkidcore.instruments import MEC_FEEDLINE_INFO, DARKNESS_FEEDLINE_INFO
 
 MEC_FL_WIDTH = MEC_FEEDLINE_INFO['width']
 MEC_FL_LENGTH = MEC_FEEDLINE_INFO['length']

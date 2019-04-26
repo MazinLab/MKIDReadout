@@ -3,7 +3,7 @@ import pkg_resources as pkg
 from glob import glob
 import copy
 import glob
-from mkidreadout.instruments import DEFAULT_ARRAY_SIZES
+from mkidcore.instruments import DEFAULT_ARRAY_SIZES
 import mkidcore.config
 import os
 from mkidcore.corelog import getLogger
