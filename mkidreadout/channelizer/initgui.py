@@ -53,6 +53,7 @@ class InitGui(QMainWindow):
         #  for now
         self.settingsWindow.resetRoach.connect(self.resetRoachState)
         self.settingsWindow.initTemplar.connect(self.initTemplar)
+        self.settingsWindow.reinitADCDAC.connect(self.reinitADCDAC)
         QApplication.setStyle(QStyleFactory.create('plastique'))
 
         # Setup RoachStateMachine and threads for each roach
@@ -86,6 +87,12 @@ class InitGui(QMainWindow):
             self.colorCommandButtons(num, colorStatus)  # color the command buttons appropriately
             # QtCore.QMetaObject.invokeMethod(roach, 'executeCommands', Qt.QueuedConnection)
             self.roachThreads[i].start()  # starting the thread automatically invokes the roach's executeCommand function
+
+    def reinitADCDAC(self, roachNum):
+        getLogger('Init').info('reInitADCDACBoard called on {}'.format(roachNum))
+        self.roaches[self.roachNums.index(roachNum)].roachController.reInitADCDACBoard()
+        self.roaches[self.roachNums.index(roachNum)].calZdok()
+        getLogger('Init').info('reInitADCDACBoard done on {}'.format(roachNum))
 
     def test(self, roachNum, state):
         getLogger('Init').info("Roach " + str(roachNum) + ' - ' + str(state))
@@ -392,7 +399,11 @@ class InitGui(QMainWindow):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='MKID Init GUI')
-    parser.add_argument('roaches', nargs='+', type=int, help='Roach numbers')
+    parser.add_argument('instrument', type=str, default='mec',
+                        help='The instrument, required for -a')
+    parser.add_argument('-a', action='store_true', default=False, dest='all_roaches',
+                        help='Run with all roaches for instrument in cfg')
+    parser.add_argument('-r', nargs='+', type=int, help='Roach numbers', dest='roaches')
     parser.add_argument('-c', '--config', default=mkidreadout.config.DEFAULT_INIT_CFGFILE, dest='config',
                         type=str, help='The config file')
     parser.add_argument('--gencfg', default=False, dest='genconfig', action='store_true',
@@ -419,6 +430,10 @@ if __name__ == "__main__":
                level=mkidcore.corelog.INFO)
 
     app = QApplication(sys.argv)
-    form = InitGui(args.roaches, config=args.config)
+    roaches = mkidcore.instruments.ROACHES[args.instrument] if args.all_roaches else args.roaches
+    if not roaches:
+        getLogger('Init').error('No roaches specified')
+        exit()
+    form = InitGui(roaches, config=args.config)
     form.show()
     app.exec_()

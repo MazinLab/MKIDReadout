@@ -4,7 +4,9 @@ Author:    Alex Walter
 Date:      Jul 3, 2016
 
 
-This is a GUI class for real time control of the MEC and DARKNESS instruments. 
+#TODO LiveImageFetcher header info needs updateing on a regular basis
+
+This is a GUI class for real time control of the MEC and DARKNESS instruments.
  - show realtime image
  - show realtime pixel timestreams (see guiwindows.PixelTimestreamWindow)
  - start/end observations
@@ -17,11 +19,10 @@ This is a GUI class for real time control of the MEC and DARKNESS instruments.
     ImageSearcher - searches for new images on ramdisk
     ConvertPhotonsToRGB - converts a 2D list of photon counts to a QImage
  """
-
+from __future__ import print_function
 import argparse, sys, os, time, json
-import numpy as np
-#from __future__ import print_function
 from functools import partial
+import numpy as np
 from astropy.io import fits
 from datetime import datetime
 
@@ -29,57 +30,75 @@ from PyQt4 import QtCore
 from PyQt4.QtCore import Qt
 from PyQt4.QtGui import *
 
+import mkidreadout.config
+import mkidcore.instruments
+
+import mkidcore.corelog
+
+from mkidreadout.hardware.lasercontrol import LaserControl
+from mkidreadout.hardware.telescope import Palomar, Subaru
 from mkidreadout.readout.guiwindows import PixelTimestreamWindow, PixelHistogramWindow, TelescopeWindow, DitherWindow
-from mkidreadout.readout.lasercontrol import LaserControl
 from mkidreadout.readout.packetmaster import Packetmaster
 from mkidreadout.channelizer.Roach2Controls import Roach2Controls
 import mkidreadout.hardware.hsfw
 from mkidreadout.utils.utils import interpolateImage
+
 import mkidreadout.configuration.sweepdata as sweepdata
 import mkidreadout.config
-from mkidreadout.readout.Telescope import *
 
 import mkidcore.corelog
 from mkidcore.corelog import getLogger, create_log
 from mkidcore.objects import Beammap
-from mkidcore.fits import CalFactory, summarize, loadimg, combineHDU
+from mkidcore.fits import CalFactory, summarize, combineHDU
 
 
+def add_actions(target, actions):
+    for action in actions:
+        if action is None:
+            target.addSeparator()
+        else:
+            target.addAction(action)
 
 
+def build_hbox(things, stretch=True):
+    h = QHBoxLayout()
+    for t in things:
+        h.addWidget(t)
+    if stretch:
+        h.addStretch()
+    return h
 
-class ImageSearcher(QtCore.QObject):  # Extends QObject for use with QThreads
+
+class LiveImageFetcher(QtCore.QObject):  # Extends QObject for use with QThreads
     """
-    This class looks for binary '.img' files spit out by the PacketMaster c program on the ramdisk
-    
-    When it finds an image, it grabs the data, parses it into an array, and emits an imageFound signal
-    Optionally, it deletes the data on the ramdisk so it doesn't fill up
-    
+    This class fetches images from PacketMaster for the live view and fits files
+
     SIGNALS
-        imageFound - emits when an image is found
+        newImage - emits when an image is avaialble
         finished - emits when self.search is set to False
     """
-    imageFound = QtCore.pyqtSignal(object)
+    newImage = QtCore.pyqtSignal(object)
     finished = QtCore.pyqtSignal()
 
-    def __init__(self, path, nCols, nRows, parent=None):
+    def __init__(self, sharedim, inttime=0.1, parent=None):
         """
         INPUTS:
-            path - path to the ramdisk where PacketMaster places the image files
-            nCols - Number of columns in image (for DARKNESS its 80)
-            nRows - for DARKNESS its 125
+            sharedim - ImageCube
+            inttime - the integration time interval
             parent - Leave as None so that we can add to new thread
         """
         super(QtCore.QObject, self).__init__(parent)
-        self.path = path
-        self.nCols = nCols
-        self.nRows = nRows
+        self.imagebuffer = sharedim
+        self.inttime = inttime
         self.search = True
 
-    def checkDir(self, removeOldFiles=False):
+    def update_inttime(self, it):
+        self.inttime = float(it)
+
+    def run(self):
         """
         Infinite loop that keeps checking directory for an image file
-        When it finds an image, it parses it and emits imageFound signal
+        When it finds an image, it parses it and emits imageComplete signal
         It only returns files that have timestamps > than the last file's timestamp
         
         Loop will continue until you set self.search to False. Then it will emit finished signal
@@ -88,31 +107,24 @@ class ImageSearcher(QtCore.QObject):  # Extends QObject for use with QThreads
             removeOldFiles - remove .img and .png files after we read them
         """
         self.search = True
-        latestTime = time.time() - .5
         while self.search:
-            flist = []
-            for f in os.listdir(self.path):
-                if f.endswith(".img"):
-                    if float(f.split('.')[0]) > latestTime:
-                        flist.append(f)
-                    elif removeOldFiles:
-                        os.remove(os.path.join(self.path,f))
-                elif removeOldFiles and f.endswith(".png"):
-                    os.remove(os.path.join(self.path,f))
-
-            flist.sort()
-            for f in flist:
-                latestTime = float(f.split('.')[0])
-                file = os.path.join(self.path, f)
-                try:
-                    image = loadimg(file, self.nCols, self.nRows, returntype='hdu')
-                    self.imageFound.emit(image)
-                    # time.sleep(.01)  # Give image time to process before sending next one (not really needed)
-                except Exception:
-                    getLogger('Dashboard').error('Problem on file %s', os.path.join(self.path,f),
-                                                 exc_info=True)
-                if removeOldFiles:
-                    os.remove(file)
+            try:
+                utc = datetime.utcfromtimestamp(time.time()).strftime('%Y-%m-%d %H:%M:%S')
+                self.imagebuffer.startIntegration(integrationTime=self.inttime)
+                time.sleep(self.inttime) #required as recieveImage holds the GIL with a system call
+                data = self.imagebuffer.receiveImage()
+                ret = fits.ImageHDU(data=data)
+                ret.header['utcstart'] = utc
+                ret.header['exptime'] = self.inttime
+                foo = self.imagebuffer.wavecalID.decode('UTF-8', "backslashreplace")
+                ret.header['wavecal'] = foo
+                ret.header['wmin'] = self.imagebuffer.wvlStart
+                ret.header['wmax'] = self.imagebuffer.wvlStop
+                self.newImage.emit(ret)
+            except RuntimeError as e:
+                getLogger('Dashboard').debug('Image stream unavailable: {}'.format(e))
+            except Exception:
+                getLogger('Dashboard').error('Problem', exc_info=True)
         self.finished.emit()
 
 
@@ -176,7 +188,7 @@ class ConvertPhotonsToRGB(QtCore.QObject):
         maxVal = np.amax(self.image)
         minVal = np.amin(self.image)
         maxVal = np.amax([minVal + 1, maxVal])
-        
+
         a=10.
         image2 = 255.*np.log10(a*(self.image-minVal) / (maxVal - minVal) + 1.)/np.log10(a+1.)
         #image2 = 255. / (np.log10(1 + maxVal - minVal)) * np.log10(1 + self.image - minVal)
@@ -282,24 +294,23 @@ class MKIDDashboard(QMainWindow):
         self.clicking = False  # Flag to indicate we've pressed the left mouse button and haven't released it yet
         self.pixelClicked = None  # Holds the pixel clicked when mouse is pressed
         self.pixelCurrent = None  # Holds the pixel the mouse is currently hovering on
-        self.takingDark = -1  # Flag for taking dark image. Indicates number of images we still need for darkField
+        self.takingDark = False  # Flag for taking dark image. Indicates number of images we still need for darkField
         # image.
-        self.takingFlat = -1  # Flag for taking flat image. Indicates number of images we still need for flatField image
+        self.takingFlat = False  # Flag for taking flat image. Indicates number of images we still need for flatField
+        # image
 
         # Initialize PacketMaster8
         getLogger('Dashboard').info('Initializing packetmaster...')
-        #TODO make this hack of a fix clean. len config.roaches returns the list of all the keys, not the roaches
-        self.packetmaster = Packetmaster(len(filter(lambda s: len(s) == 4 and s[0].lower() == 'r',
-                                                    self.config.roaches)),
-                                         ramdisk=self.config.packetmaster.ramdisk,
-                                         nrows=self.config.detector.nrows, ncols=self.config.detector.ncols,
-                                         nuller=self.config.packetmaster.nuller,
-                                         resume=not self.config.dashboard.spawn_packetmaster,
-                                         captureport=self.config.packetmaster.captureport,
-                                         start=self.config.dashboard.spawn_packetmaster and not self.offline)
+        imgcfg = dict(self.config.dashboard)
+        imgcfg['n_wave_bins']=1
+        self.packetmaster = Packetmaster(len(self.config.roaches), self.config.packetmaster.captureport,
+                                         useWriter=not self.offline, sharedImageCfg={'dashboard': imgcfg},
+                                         beammap=self.config.beammap, recreate_images=True)
+        self.liveimage = self.packetmaster.sharedImages['dashboard']
 
-        if not self.packetmaster.is_running:
-            getLogger('Dashboard').info('Packetmaster not started. Start manually...')
+        self.liveimage.startIntegration(integrationTime=1)
+        data = self.liveimage.receiveImage()
+        getLogger('Dahsboard').debug(data)
 
         # Laser Controller
         getLogger('Dashboard').info('Setting up laser control...')
@@ -307,13 +318,36 @@ class MKIDDashboard(QMainWindow):
                                             self.config.lasercontrol.receive_port)
 
         # telscope TCS connection
+        #TODO make the Telescope work with Subaru
         getLogger('Dashboard').info('Setting up telescope connection...')
-        self.telescopeController = Telescope(self.config.telescope.ip, self.config.telescope.port,
-                                             self.config.telescope.receive_port)
+        if self.config.instrument.lower() == 'mec':
+            self.telescopeController = Subaru(ip=self.config.telescope.ip, user=self.config.telescope.user,
+                                              password=self.config.telescope.password)
+        else:
+            self.telescopeController = Palomar(ip=self.config.telescope.ip, port=self.config.telescope.port,
+                                               receivePort=self.config.telescope.receive_port)
+
         self.telescopeWindow = TelescopeWindow(self.telescopeController)
+        self.last_tcs_poll = self.telescopeController.get_header()
+        timer = QtCore.QTimer(self)
+        timer.timeout.connect(self.update_tcs)
+        timer.setInterval(1000)
+        timer.start()
 
         #Dither window
         self.dither_dialog = DitherWindow(self.config.dither.url, parent=self)
+
+        #TODO sort out the two dither logs
+        def logdither(status):
+            if status.offline or status.haserrors:
+                msg = 'Dither completed with errors: "{}", Conex Status="{}"'.format(
+                    status.state, status.conexstatus)
+                getLogger('Dashboard').error(msg)
+            else:
+                dither_result = 'Dither Path: {}\n'.format(str(status.last_dither).replace('\n', '\n   '))
+                getLogger('Dashboard').info(dither_result)
+                getLogger('dither').info(dither_result)
+
         def logdither(d):
             state = d['status']['state'][1]
             if state == 'Stopped':
@@ -322,7 +356,7 @@ class MKIDDashboard(QMainWindow):
                 getLogger('Dashboard').error("Dither aborted from error. Conex State="+state+" Conex Status="+str(d['status']['conexstatus']))
             dither_dict = d['dither']
             msg="Dither Path: ({}, {}) --> ({}, {}), {} steps {} seconds".format(
-                    dither_dict['startx'], dither_dict['starty'], 
+                    dither_dict['startx'], dither_dict['starty'],
                     dither_dict['endx'], dither_dict['endy'],
                     dither_dict['n'], dither_dict['t'])
             if 'subStep' in dither_dict.keys() and dither_dict['subStep']>0 and \
@@ -345,6 +379,7 @@ class MKIDDashboard(QMainWindow):
         self.contextMenu = QMenu(self)  # pops up on right click
         self.create_menu()  # file menu
 
+
         #Connect to Filter wheel
         self.setFilter(-1)
 
@@ -360,26 +395,47 @@ class MKIDDashboard(QMainWindow):
                 if not roach.connect() and not roach.issetup:
                     raise RuntimeError('Roach r{} has not been setup.'.format(roachNum))
                 roach.loadCurTimestamp()
-                roach.setPhotonCapturePort(self.packetmaster.captureport)
+                roach.setPhotonCapturePort(self.config.packetmaster.captureport)
                 self.roachList.append(roach)
             self.turnOnPhotonCapture()
         self.loadBeammap()
 
+        if self.config.dashboard.get('wavecal',''):
+            try:
+                self.packetmaster.applyWvlSol(self.config.dashboard.wavecal, self.beammap)
+            except IOError:
+                getLogger('Dashboard').critical('Unable to load wavecal {}.'.format(self.config.dashboard.wavecal))
+                exit(1)
+
         # Setup search for image files from cuber
         getLogger('Dashboard').info('Setting up image searcher...')
-        darkImageSearcher = ImageSearcher(self.config.packetmaster.ramdisk,
-                                          self.config.detector.ncols,
-                                          self.config.detector.nrows, parent=None)
-        self.workers.append(darkImageSearcher)
+        self.imageFetcher = LiveImageFetcher(self.liveimage, self.config.dashboard.inttime, parent=None)
+        fetcherthread = self.startworker(self.imageFetcher, 'imageFetcher')
+        fetcherthread.started.connect(self.imageFetcher.run)
+        self.imageFetcher.newImage.connect(self.convertImage)
+        self.imageFetcher.finished.connect(fetcherthread.quit)
+
+        # Setup GUI
+        getLogger('Dashboard').info('Setting up GUI...')
+        self.setWindowTitle(self.config.instrument + ' Dashboard')
+        self.create_image_widget()
+        self.create_dock_widget()
+        self.contextMenu = QMenu(self)  # pops up on right click
+        self.create_menu()  # file menu
+
+        QtCore.QTimer.singleShot(10, fetcherthread.start)  # start the thread after a second
+
+    def update_tcs(self):
+        self.last_tcs_poll = self.telescopeController.get_header()
+        getLogger('Dashboard').debug(self.last_tcs_poll)
+
+    def startworker(self, obj, name):
+        self.workers.append(obj)
         thread = QtCore.QThread(parent=self)
         self.threadPool.append(thread)
-        thread.setObjectName("DARKimageSearch")
-        darkImageSearcher.moveToThread(thread)
-        thread.started.connect(darkImageSearcher.checkDir)
-        darkImageSearcher.imageFound.connect(self.convertImage)
-        darkImageSearcher.finished.connect(thread.quit)
-        if not self.offline:
-            QtCore.QTimer.singleShot(10, thread.start)  # start the thread after a second
+        thread.setObjectName(name)
+        obj.moveToThread(thread)
+        return thread
 
     def turnOffPhotonCapture(self):
         """
@@ -387,6 +443,7 @@ class MKIDDashboard(QMainWindow):
         """
         for roach in self.roachList:
             roach.stopSendingPhotons()
+
         getLogger('Dashboard').info('Roaches stopped sending photon packets')
 
     def turnOnPhotonCapture(self):
@@ -409,13 +466,9 @@ class MKIDDashboard(QMainWindow):
         indicating if that pixel is in the beammap or not
         """
         try:
-            self.beammap = Beammap(self.config.paths.beammap,
-                                   xydim=(self.config.detector.ncols, self.config.detector.nrows))
+            self.beammap = self.config.beammap
         except KeyError:
             getLogger('Dashboard').warning("No beammap specified in config, using default")
-            self.beammap = Beammap(default=self.config.instrument)
-        except IOError:
-            getLogger('Dashboard').warning("Could not find beammap %s. Using default", self.config.beammap)
             self.beammap = Beammap(default=self.config.instrument)
 
         self.beammapFailed = self.beammap.failmask
@@ -434,48 +487,33 @@ class MKIDDashboard(QMainWindow):
         getLogger('Dashboard').info('Loaded beammap into roaches')
 
     def addDarkImage(self, photonImage):
-        self.spinbox_darkImage.setEnabled(False)
-        if self.darkFactory is None or self.takingDark == self.spinbox_darkImage.value():
-            self.darkFactory = CalFactory('dark', images=(photonImage,))
-        else:
-            self.darkFactory.add_image(photonImage)
+        self.darkFactory = CalFactory('dark', images=(photonImage,))
+        self.takingDark = False
+        self.darkField = self.darkFactory.generate(fname=self.darkfile, badmask=self.beammapFailed, save=True,
+                                                   name=os.path.splitext(os.path.basename(self.darkfile))[0])
+        getLogger('Dashboard').info('Finished dark:\n {}'.format(summarize(self.darkField).replace('\n', '\n  ')))
+        self.checkbox_darkImage.setChecked(True)
+        self.spinbox_minLambda.setEnabled(True)
+        self.spinbox_maxLambda.setEnabled(True)
+        self.spinbox_integrationTime.setEnabled(True)
 
-        self.takingDark -= 1
-        if self.takingDark == 0:
-            self.takingDark = -1
-            name = mkidreadout.config.tagstr('dark_{time}')
-            self.darkField = self.darkFactory.generate(fname=os.path.join(self.config.paths.data, name+'.fits'),
-                                                       name=name, badmask=self.beammapFailed, save=True)
-            self.config.dashboard.update('darkname', name)
-            getLogger('Dashboard').info('Finished dark:\n {}'.format(summarize(self.darkField).replace('\n', '\n  ')))
-            self.checkbox_darkImage.setChecked(True)
-            self.spinbox_darkImage.setEnabled(True)
-
-    def addFlatImage(self, photonImage, minFlat=1, maxFlat=2500):
-        self.spinbox_flatImage.setEnabled(False)
-
-        if self.flatFactory is None or self.takingFlat == self.spinbox_flatImage.value():
-            self.flatFactory = CalFactory('flat', images=(photonImage,), dark=self.darkField)
-        else:
-            self.flatFactory.add_image(photonImage)
-
-        self.takingFlat -= 1
-        if self.takingFlat == 0:
-            self.takingFlat = -1
-            name = mkidreadout.config.tagstr('flat_{time}')
-            self.flatField = self.flatFactory.generate(fname=os.path.join(self.config.paths.data, name+'.fits'),
-                                                       name=name, badmask=self.beammapFailed, save=True)
-            self.config.dashboard.update('flatname', name)
-            getLogger('Dashboard').info('Finished flat:\n {}'.format(summarize(self.flatField).replace('\n', '\n  ')))
-            self.checkbox_flatImage.setChecked(True)
-            self.spinbox_flatImage.setEnabled(True)
+    def addFlatImage(self, photonImage):
+        self.flatFactory = CalFactory('flat', images=(photonImage,), dark=self.darkField)
+        self.takingFlat = False
+        #TODO develop was use file is specified, generate procedurally if not
+        self.flatField = self.flatFactory.generate(fname=self.flatfile, badmask=self.beammapFailed, save=True,
+                                                   name=os.path.splitext(os.path.basename(self.flatfile))[0])
+        getLogger('Dashboard').info('Finished flat:\n {}'.format(summarize(self.flatField).replace('\n', '\n  ')))
+        self.checkbox_flatImage.setChecked(True)
+        self.spinbox_minLambda.setEnabled(True)
+        self.spinbox_maxLambda.setEnabled(True)
+        self.spinbox_integrationTime.setEnabled(True)
 
     def convertImage(self, photonImage=None):
         """
         This function is automatically called when ImageSearcher object finds a new image file from cuber program
         We also call this function if we change the image processing controls like
             min/max count rate
-            num_images_to_add
         
         Here we set up a converter object to parse the photon counts into an RBG QImage object
         We do this in a separate thread because it might take a while to process
@@ -485,14 +523,17 @@ class MKIDDashboard(QMainWindow):
         """
         # If there's new data, append it
         if photonImage is not None:
-            photonImage.header['exptime'] = self.config.packetmaster.int_time
-            self.imageList.append(photonImage)
-            self.fitsList.append(photonImage)
-            self.imageList = self.imageList[-self.config.dashboard.num_images_to_save:]  #trust the garbage collector
+            for k, v in self.last_tcs_poll.items():
+                photonImage.header[k] = v
 
-            if self.takingDark > 0:
+            self.imageList.append(photonImage)
+            self.fitsList.append(photonImage)  #for the stream
+
+            self.imageList = self.imageList[-1:]  #trust the garbage collector
+
+            if self.takingDark:
                 self.addDarkImage(photonImage)
-            elif self.takingFlat > 0:
+            elif self.takingFlat:
                 self.addFlatImage(photonImage)
             elif self.observing:
                 self.sciFactory.add_image(photonImage)
@@ -501,7 +542,7 @@ class MKIDDashboard(QMainWindow):
 
         # If we've got a full set of data package it as a fits file
         tconv = lambda x: (datetime.strptime(x, '%Y-%m-%d %H:%M:%S') - datetime(1970, 1, 1)).total_seconds()
-        tstart = tconv(self.fitsList[0].header['utc']) if self.fitsList else time.time()
+        tstart = tconv(self.fitsList[0].header['utcstart']) if self.fitsList else time.time()
         tstamp = int(time.time())
         if ((sum([i.header['exptime'] for i in self.fitsList]) >= self.config.dashboard.fitstime) or
             (tstamp - tstart) >= self.config.dashboard.fitstime):
@@ -512,30 +553,26 @@ class MKIDDashboard(QMainWindow):
         # Get the (average) photon count image
         if self.checkbox_flatImage.isChecked() and self.flatField is None:
             try:
-                file = mkidreadout.config.tagstr(self.config.dashboard.flatname)
-                file = file if 'fit' in os.path.splitext(file)[1].lower() else file + '.fits'
-                self.flatField = fits.open(file)
+                self.flatField = fits.open(self.flatfile)
             except IOError:
                 self.flatField = None
                 self.checkbox_flatImage.setChecked(False)
-                getLogger('Dashboard').error('Unable to load flat from {}'.format(file))
+                getLogger('Dashboard').warning('Unable to load flat from {}'.format(self.flatfile))
 
         if self.checkbox_darkImage.isChecked() and self.darkField is None:
             try:
-                file = mkidreadout.config.tagstr(self.config.dashboard.darkname)
-                file = file if 'fit' in os.path.splitext(file)[1].lower() else file + '.fits'
-                self.darkField = fits.open(file)
+                self.darkField = fits.open(self.darkfile)
             except IOError:
                 self.darkField = None
                 self.checkbox_darkImage.setChecked(False)
-                getLogger('Dashboard').error('Unable to load dark from {}'.format(file))
+                getLogger('Dashboard').warning('Unable to load flat from {}'.format(self.darkfile))
+
 
         #TODO this really could be moved into the ConvertPhotonsToRGB thread
-        cf = CalFactory('avg', images=self.imageList[-self.config.dashboard.average:],
+        cf = CalFactory('avg', images=self.imageList[-1:],
                         dark=self.darkField if self.checkbox_darkImage.isChecked() else None,
                         flat=self.flatField if self.checkbox_flatImage.isChecked() else None)
-
-        image = cf.generate(name='Frames', bias=0)
+        image = cf.generate(name='LiveImage', bias=0)
         image.data[self.beammapFailed] = np.nan
 
         # Set up worker object and thread
@@ -544,25 +581,38 @@ class MKIDDashboard(QMainWindow):
                                         self.config.dashboard.max_count_rate,
                                         self.combobox_stretch.currentText(),
                                         self.checkbox_interpolate.isChecked(),
-                                        not self.checkbox_smooth.isChecked()) # if we're smoothing don't make pixels red
-        self.workers.append(converter)  # Need local reference or else signal is lost!
+                                        not self.checkbox_smooth.isChecked())  # no red pixels if smoothing
 
-        thread = QtCore.QThread(parent=self)
-        thread_num = len(self.threadPool)
-        thread.setObjectName("convertImage_" + str(thread_num))
-        self.threadPool.append(thread)  # Need to have local reference to thread or else it will get lost!
-        converter.moveToThread(thread)
+        thread = self.startworker(converter, "convertImage_{}".format(len(self.threadPool)))
         thread.started.connect(converter.stretchImage)
         converter.convertedImage.connect(lambda x: thread.quit())
         converter.convertedImage.connect(self.updateImage)
-        thread.finished.connect(partial(self.threadPool.remove, thread))  # delete these when done so we don't
-        #  have a memory leak
+        thread.finished.connect(partial(self.threadPool.remove, thread))  # delete these when done to avoid mem leak
         thread.finished.connect(partial(self.workers.remove, converter))
+        thread.start()  # When it's done converting the worker will emit a convertedImage Signal
 
-        # When it's done converting the worker will emit a convertedImage Signal
-        converter.convertedImage.connect(lambda x: self.label_numIntegrated.setText(
-            str(self.config.dashboard.average) + '/' + self.label_numIntegrated.text().split('/')[-1]))
-        thread.start()
+    @property
+    def flatfile(self):
+        #TODO fix
+        name = mkidreadout.config.tagstr('flat_{time}')
+        file = mkidreadout.config.tagstr(self.config.dashboard.flatname)
+        file = file if 'fit' in os.path.splitext(file)[1].lower() else file + '.fits'
+
+        wvstr = '_{:.0f}-{:.0f}nm'.format(self.spinbox_minLambda.value(), self.spinbox_maxLambda.value())
+        name = '{}_flat_{:.0f}{}'.format(self.config.dashboard.flatname, time.time(),
+                                         wvstr if self.checkbox_usewave else '')
+        return os.path.join(self.config.paths.data, name + '.fits')
+
+    @property
+    def darkfile(self):
+        #TODO fix
+        file = mkidreadout.config.tagstr(self.config.dashboard.darkname)
+        file = file if 'fit' in os.path.splitext(file)[1].lower() else file + '.fits'
+
+        wvstr = '_{:.0f}-{:.0f}nm'.format(self.spinbox_minLambda.value(),self.spinbox_maxLambda.value())
+        name = '{}_dark_{:.0f}{}'.format(self.config.dashboard.darkname, time.time(),
+                                         wvstr if self.checkbox_usewave else '')
+        return os.path.join(self.config.paths.data, name+'.fits')
 
     def updateImage(self, q_image):
         """
@@ -648,8 +698,8 @@ class MKIDDashboard(QMainWindow):
         y_pos = int(np.floor(event.pos().y() / self.config.dashboard.image_scale))
         if ((x_pos, y_pos) != self.pixelCurrent and
             x_pos >= 0 and y_pos >= 0 and
-            x_pos < self.config.detector.ncols and
-            y_pos < self.config.detector.nrows):
+            x_pos < self.beammap.ncols and
+            y_pos < self.beammap.nrows):
 
             self.pixelCurrent = [x_pos, y_pos]
             self.updateCurrentPixelLabel()
@@ -683,8 +733,8 @@ class MKIDDashboard(QMainWindow):
             y_start, y_end = sorted([y_pos, self.pixelClicked[1]])
             x_start = max(x_start, 0)  # make sure we're still inside the image
             y_start = max(y_start, 0)
-            x_end = min(x_end, self.config.detector.ncols - 1)
-            y_end = min(y_end, self.config.detector.nrows - 1)
+            x_end = min(x_end, self.beammap.ncols - 1)
+            y_end = min(y_end, self.beammap.nrows - 1)
 
             newPixels = set((x, y) for x in range(x_start, x_end + 1) for y in range(y_start, y_end + 1))
             self.selectedPixels = self.selectedPixels | newPixels  # Union of set so there are no repeats
@@ -723,8 +773,8 @@ class MKIDDashboard(QMainWindow):
         y_end = y_end * scale + scale
         x_start = max(x_start, 0)  # make sure we're still inside the image
         y_start = max(y_start, 0)
-        x_end = min(x_end, self.config.detector.ncols * scale)
-        y_end = min(y_end, self.config.detector.nrows * scale)
+        x_end = min(x_end, self.beammap.ncols * scale)
+        y_end = min(y_end, self.beammap.nrows * scale)
         width = x_end - x_start
         height = y_end - y_start
 
@@ -758,7 +808,7 @@ class MKIDDashboard(QMainWindow):
         if not len(pixelList):
             return 0
         if numImages2Sum < 1:
-            numImages2Sum = self.config.dashboard.average
+            numImages2Sum = 1
 
         cf=CalFactory('sum', images=self.imageList[-numImages2Sum:], dark=self.darkField if applyDark else None)
         im = cf.generate(name='pixelcount')
@@ -949,9 +999,9 @@ class MKIDDashboard(QMainWindow):
                 self.combobox_filter.addItems(filternames)
                 self.combobox_filter.setCurrentIndex(self.filter - 1)
         else:
-            if str(self.combobox_filter.itemText(filter_index)).startswith('Connect'): 
+            if str(self.combobox_filter.itemText(filter_index)).startswith('Connect'):
                 return self.setFilter(-1)
-            elif str(self.combobox_filter.itemText(filter_index)).startswith('Error'): 
+            elif str(self.combobox_filter.itemText(filter_index)).startswith('Error'):
                 return
             else:
                 result = mkidreadout.hardware.hsfw.setfilter(filter_index+1, home=False,host=self.config.filter.ip)
@@ -993,16 +1043,20 @@ class MKIDDashboard(QMainWindow):
                 self.checkbox_flipper.setEnabled(True)
             self.logstate()
 
-    def state(self):
-        #TODO this is the crap that populates the headers and the log, it needs to be prompt enough that
-        #it won't cause the GUI to be sluggish so polls should be used with caution
+    def state(self, force_update=False):
+        """this is the function that populates the headers and the log, it needs to be prompt enough that it won't
+        cause slowdowns"""
+
+        d = self.telescopeController.get_header()
+
         targ, cmt = str(self.textbox_target.text()), str(self.textbox_log.toPlainText())
-        # state = InstrumentState(target=targ, comment=cmt, flipper=None, laser)
-        # targetname, telescope params, filter, dither x y ts state, roach info if first log
-        return dict(target=targ, ditherx=str(self.dither_dialog.status['pos'][0]),
-                    dithery=str(self.dither_dialog.status['pos'][1]), 
-                    flipper='image', filter=self.filter, ra='00:00:00.00', dec='00:00:00.00',utc=time.time(),
-                    utc_readable=datetime.utcnow().strftime("%Y%m%d%H%M%S"), roaches='roach.yml', comment=cmt)
+
+        return dict(target=targ, ditherx=str(self.dither_dialog.status.xpos),
+                    dithery=str(self.dither_dialog.status.ypos), laser='TODO',
+                    flipper='image', filter=self.filter, ra=d['RA'], dec=d['DEC'], equinox=d['EQUINOX'],
+                    ha=d['HA'], az=d['AZ'], el=d['EL'], airmass=d['AIRMASS'],
+                    utc_readable=datetime.utcnow().strftime("%Y%m%d%H%M%S"),
+                    tcsutc=d['TCS-UTC'], utc=datetime.utcnow().strftime("%Y%m%d%H%M%S"), comment=cmt)
 
     def logstate(self):
         getLogger('ObsLog').info(json.dumps(self.state()))
@@ -1064,61 +1118,51 @@ class MKIDDashboard(QMainWindow):
         # ==================================
         # Image settings!
         # integration Time
-        integrationTime = self.config.dashboard.average
-        image_int_time = self.config.packetmaster.int_time
-        max_int_time = self.config.dashboard.num_images_to_save
-        label_integrationTime = QLabel('int time:')
-        spinbox_integrationTime = QSpinBox()
-        spinbox_integrationTime.setRange(1, max_int_time)
-        spinbox_integrationTime.setValue(integrationTime)
-        spinbox_integrationTime.setSuffix(' * {} s'.format(image_int_time))
-        spinbox_integrationTime.setWrapping(False)
-        spinbox_integrationTime.setCorrectionMode(QAbstractSpinBox.CorrectToNearestValue)
-        spinbox_integrationTime.valueChanged.connect(partial(self.config.update, 'dashboard.average'))  # change in
-        # config file
+        integrationTime = self.config.dashboard.inttime
+        label_integrationTime = QLabel('Integrate ')
+        self.spinbox_integrationTime = QDoubleSpinBox()
+        self.spinbox_integrationTime.setRange(self.config.dashboard.mininttime, self.config.dashboard.maxinttime)
+        self.spinbox_integrationTime.setSingleStep(self.config.dashboard.mininttime)
+        self.spinbox_integrationTime.setDecimals(1)
+        self.spinbox_integrationTime.setValue(integrationTime)
+        self.spinbox_integrationTime.setSuffix(' s')
+        self.spinbox_integrationTime.setWrapping(False)
+        self.spinbox_integrationTime.setCorrectionMode(QAbstractSpinBox.CorrectToNearestValue)
+        self.spinbox_integrationTime.valueChanged.connect(partial(self.config.update, 'dashboard.inttime'))
+        self.spinbox_integrationTime.valueChanged.connect(self.imageFetcher.update_inttime)
 
         # current num images integrated
-        self.label_numIntegrated = QLabel('0/' + str(integrationTime))
-        spinbox_integrationTime.valueChanged.connect(
-            lambda x: self.label_numIntegrated.setText(self.label_numIntegrated.text().split('/')[0] + '/' + str(x)))
-        spinbox_integrationTime.valueChanged.connect(lambda x: QtCore.QTimer.singleShot(10, self.convertImage))  #
+
+        # self.spinbox_integrationTime.valueChanged.connect(lambda x: QtCore.QTimer.singleShot(10, self.convertImage))  #
         # remake current image after 10 ms
 
         # dark Image
-        darkIntTime = self.config.dashboard.n_darks
-        self.spinbox_darkImage = QSpinBox()
-        self.spinbox_darkImage.setRange(1, max_int_time)
-        self.spinbox_darkImage.setValue(darkIntTime)
-        self.spinbox_darkImage.setSuffix(' * ' + str(image_int_time) + ' s')
-        self.spinbox_darkImage.setWrapping(False)
-        self.spinbox_darkImage.setCorrectionMode(QAbstractSpinBox.CorrectToNearestValue)
-        self.spinbox_darkImage.valueChanged.connect(partial(self.config.update, 'dashboard.n_darks'))  # change in
-        # config file
         button_darkImage = QPushButton('Take Dark')
 
         def takeDark():
             self.darkField = None
-            self.takingDark = self.spinbox_darkImage.value()
+            # self.spinbox_minLambda.setValue(0)
+            # self.spinbox_maxLambda.setValue(10000)
+            self.spinbox_minLambda.setDisabled(True)
+            self.spinbox_maxLambda.setDisabled(True)
+            self.spinbox_integrationTime.setDisabled(True)
+            self.takingDark = True
 
         button_darkImage.clicked.connect(takeDark)
         self.checkbox_darkImage = QCheckBox()
         self.checkbox_darkImage.setChecked(False)
 
-        # flat Image
-        flatIntTime = self.config.dashboard.n_flats
-        self.spinbox_flatImage = QSpinBox()
-        self.spinbox_flatImage.setRange(1, max_int_time)
-        self.spinbox_flatImage.setValue(flatIntTime)
-        self.spinbox_flatImage.setSuffix(' * ' + str(image_int_time) + ' s')
-        self.spinbox_flatImage.setWrapping(False)
-        self.spinbox_flatImage.setCorrectionMode(QAbstractSpinBox.CorrectToNearestValue)
-        self.spinbox_flatImage.valueChanged.connect(partial(self.config.update, 'dashboard.n_flats'))  # change in
         # config file
         button_flatImage = QPushButton('Take Flat')
 
         def takeFlat():
             self.flatField = None
-            self.takingFlat = self.spinbox_flatImage.value()
+            # self.spinbox_minLambda.setValue(0)
+            # self.spinbox_maxLambda.setValue(10000)
+            self.spinbox_minLambda.setDisabled(True)
+            self.spinbox_maxLambda.setDisabled(True)
+            self.spinbox_integrationTime.setDisabled(True)
+            self.takingFlat = True
 
         button_flatImage.clicked.connect(takeFlat)
         self.checkbox_flatImage = QCheckBox()
@@ -1143,12 +1187,10 @@ class MKIDDashboard(QMainWindow):
         spinbox_minCountRate.setWrapping(False)
         spinbox_minCountRate.setCorrectionMode(QAbstractSpinBox.CorrectToNearestValue)
         # connections for max and min count rates
-        spinbox_minCountRate.valueChanged.connect(partial(self.config.update, 'dashboard.min_count_rate'))  # change
-        #  in config file
-        spinbox_maxCountRate.valueChanged.connect(partial(self.config.update, 'dashboard.max_count_rate'))  # change
-        #  in config file
-        spinbox_minCountRate.valueChanged.connect(
-            spinbox_maxCountRate.setMinimum)  # make sure min is always less than max
+        spinbox_minCountRate.valueChanged.connect(partial(self.config.update, 'dashboard.min_count_rate'))  # change cfg
+        spinbox_maxCountRate.valueChanged.connect(partial(self.config.update, 'dashboard.max_count_rate'))  # change cfg
+        # make sure min is always less than max
+        spinbox_minCountRate.valueChanged.connect(spinbox_maxCountRate.setMinimum)
         spinbox_maxCountRate.valueChanged.connect(spinbox_minCountRate.setMaximum)
         convertSS = lambda x: QtCore.QTimer.singleShot(10, self.convertImage)
         spinbox_maxCountRate.valueChanged.connect(convertSS)  # remake current image after 10 ms
@@ -1169,6 +1211,46 @@ class MKIDDashboard(QMainWindow):
         # Checkbox for Smoothing image
         self.checkbox_smooth = QCheckBox('Smooth Image')
         self.checkbox_smooth.setChecked(False)
+
+        #TODO Settings for the solution file?
+        self.checkbox_usewave = QCheckBox('Apply wavecal')
+        if not os.path.exists(self.config.dashboard.wavecal):
+            self.config.dashboard.update('use_wave', False)
+            self.checkbox_usewave.setDisabled(True)
+            self.checkbox_usewave.setChecked(False)
+        else:
+            self.checkbox_usewave.setChecked(self.config.dashboard.use_wave)
+        self.liveimage.useWvl = self.config.dashboard.use_wave
+        self.checkbox_usewave.stateChanged.connect(lambda: self.liveimage.set_useWvl(not self.liveimage.useWvl))
+
+        #wavelength bounds
+        label_lambdaRange = QLabel('<font face="Symbol"><font size="+1">l</font></font><sub>-</sub> - '
+                                   '<font size="+1">l</font></font><sub>+</sub>') #QChar(0xBB, 0x03))
+        self.spinbox_maxLambda = spinbox_maxLambda = QSpinBox()
+        spinbox_maxLambda.setRange(0, 10000)
+        spinbox_maxLambda.setValue(self.config.dashboard.wave_stop)
+        spinbox_maxLambda.setSuffix(' nm')
+        spinbox_maxLambda.setWrapping(False)
+        spinbox_maxLambda.setCorrectionMode(QAbstractSpinBox.CorrectToNearestValue)
+        spinbox_maxLambda.valueChanged.connect(lambda x: self.checkbox_darkImage.setChecked(False))
+        spinbox_maxLambda.valueChanged.connect(lambda x: self.checkbox_flatImage.setChecked(False))
+
+        self.spinbox_minLambda = spinbox_minLambda = QSpinBox()
+        spinbox_minLambda.setRange(0, 10000)
+        spinbox_minLambda.setValue(self.config.dashboard.wave_start)
+        spinbox_minLambda.setSuffix(' nm')
+        spinbox_minLambda.setWrapping(False)
+        spinbox_minLambda.setCorrectionMode(QAbstractSpinBox.CorrectToNearestValue)
+
+        # make sure min is always less than max
+        spinbox_minLambda.valueChanged.connect(spinbox_maxLambda.setMinimum)
+        spinbox_maxLambda.valueChanged.connect(spinbox_minLambda.setMaximum)
+        spinbox_minLambda.valueChanged.connect(self.liveimage.set_wvlStart)
+        spinbox_maxLambda.valueChanged.connect(self.liveimage.set_wvlStop)
+        spinbox_minLambda.valueChanged.connect(lambda x: self.checkbox_darkImage.setChecked(False))
+        spinbox_minLambda.valueChanged.connect(lambda x: self.checkbox_flatImage.setChecked(False))
+        # don't bother remaking the current image because it requires taking a new one for a
+        # difference to be seen
 
         # Checkbox for dithering image
         # self.checkbox_dither = QCheckBox('Dither Image')
@@ -1211,19 +1293,9 @@ class MKIDDashboard(QMainWindow):
 
         vbox = QVBoxLayout()
         vbox.addWidget(label_currentTime)
-
-        hbox_dataDir = QHBoxLayout()
-        hbox_dataDir.addWidget(label_dataDir)
-        hbox_dataDir.addWidget(textbox_dataDir)
-        vbox.addLayout(hbox_dataDir)
-
+        vbox.addLayout(build_hbox((label_dataDir, textbox_dataDir)))
         vbox.addWidget(self.button_obs)
-
-        hbox_target = QHBoxLayout()
-        hbox_target.addWidget(label_target)
-        hbox_target.addWidget(self.textbox_target)
-        vbox.addLayout(hbox_target)
-
+        vbox.addLayout(build_hbox((label_target, self.textbox_target)))
         vbox.addWidget(self.textbox_log)
 
         hbox_filter = QHBoxLayout()
@@ -1235,28 +1307,9 @@ class MKIDDashboard(QMainWindow):
 
         vbox.addStretch()
 
-        hbox_intTime = QHBoxLayout()
-        hbox_intTime.addWidget(label_integrationTime)
-        hbox_intTime.addWidget(spinbox_integrationTime)
-        hbox_intTime.addWidget(self.label_numIntegrated)
-        hbox_intTime.addStretch()
-        vbox.addLayout(hbox_intTime)
-
-        hbox_darkImage = QHBoxLayout()
-        hbox_darkImage.addWidget(self.spinbox_darkImage)
-        hbox_darkImage.addWidget(button_darkImage)
-        hbox_darkImage.addWidget(QLabel('Use'))
-        hbox_darkImage.addWidget(self.checkbox_darkImage)
-        hbox_darkImage.addStretch()
-        vbox.addLayout(hbox_darkImage)
-
-        hbox_flatImage = QHBoxLayout()
-        hbox_flatImage.addWidget(self.spinbox_flatImage)
-        hbox_flatImage.addWidget(button_flatImage)
-        hbox_flatImage.addWidget(QLabel('Use'))
-        hbox_flatImage.addWidget(self.checkbox_flatImage)
-        hbox_flatImage.addStretch()
-        vbox.addLayout(hbox_flatImage)
+        vbox.addLayout(build_hbox((label_integrationTime, self.spinbox_integrationTime)))
+        vbox.addLayout(build_hbox((button_darkImage, QLabel('Use'), self.checkbox_darkImage)))
+        vbox.addLayout(build_hbox((button_flatImage, QLabel('Use'), self.checkbox_flatImage)))
 
         hbox_CountRate = QHBoxLayout()
         hbox_CountRate.addWidget(label_minCountRate)
@@ -1267,11 +1320,10 @@ class MKIDDashboard(QMainWindow):
         hbox_CountRate.addStretch()
         vbox.addLayout(hbox_CountRate)
 
-        hbox_stretch = QHBoxLayout()
-        hbox_stretch.addWidget(label_stretch)
-        hbox_stretch.addWidget(self.combobox_stretch)
-        hbox_stretch.addStretch()
-        vbox.addLayout(hbox_stretch)
+        vbox.addLayout(build_hbox((label_stretch, self.combobox_stretch)))
+
+        vbox.addWidget(self.checkbox_usewave)
+        vbox.addLayout(build_hbox((label_lambdaRange, self.spinbox_minLambda, self.spinbox_maxLambda)))
 
         vbox.addWidget(self.checkbox_showAllPix)
         vbox.addWidget(self.checkbox_interpolate)
@@ -1390,8 +1442,8 @@ class MKIDDashboard(QMainWindow):
         """
         if self.observing:
             self.stopObs()
+
         self.turnOffPhotonCapture()  # stop sending photon packets
-        self.packetmaster.quit() #TODO consider adding a forced kill
 
         self.workers[0].search = False  # stop searching for new images
         del self.grPixMap  # Get segfault if we don't delete this. Something about signals in the queue trying to access deleted objects...
@@ -1408,30 +1460,26 @@ class MKIDDashboard(QMainWindow):
 
         self.hide()
         time.sleep(0.2) #wait a bit so everything finishes exiting nicely
+        self.packetmaster.quit()
+
         QtCore.QCoreApplication.instance().quit()
-
-
-def add_actions(target, actions):
-    for action in actions:
-        if action is None:
-            target.addSeparator()
-        else:
-            target.addAction(action)
 
 
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description='MKID Dashboard')
-    parser.add_argument('roaches', nargs='+', type=int, help='Roach numbers')
+    parser.add_argument('-a', action='store_true', default=False, dest='all_roaches',
+                        help='Run with all roaches for instrument in cfg')
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument('--alla', action='store_true', help='Run with all range A roaches in config')
+    group.add_argument('--allb', action='store_true', help='Run with all range B roaches in config')
+
+    parser.add_argument('-r', nargs='+', type=int, help='Roach numbers', dest='roaches')
     parser.add_argument('-c', '--config', default=mkidreadout.config.DEFAULT_DASHBOARD_CFGFILE, dest='config',
                         type=str, help='The config file')
     parser.add_argument('-o', '--offline', default=False, dest='offline', action='store_true', help='Run offline')
     parser.add_argument('--gencfg', default=False, dest='genconfig', action='store_true',
                         help='generate configs in CWD')
-
-    group = parser.add_mutually_exclusive_group()
-    group.add_argument('--alla', action='store_true', help='Run with all range A roaches in config')
-    group.add_argument('--allb', action='store_true', help='Run with all range B roaches in config')
 
     args = parser.parse_args()
 
@@ -1464,7 +1512,7 @@ if __name__ == "__main__":
     create_log('mkidcore',
                console=True, mpsafe=True, propagate=False,
                fmt='%(asctime)s mkidcore.x.%(funcName)s: %(levelname)s %(message)s',
-               level=mkidcore.corelog.INFO)
+               level='INFO')
     create_log('packetmaster',
                logfile=os.path.join(config.paths.logs, 'packetmaster_{}.log'.format(timestamp)),
                console=True, mpsafe=True, propagate=False,
@@ -1472,6 +1520,17 @@ if __name__ == "__main__":
                level=mkidcore.corelog.DEBUG)
 
     app = QApplication(sys.argv)
+    if args.alla:
+        #TODO fix me before commit
+        roaches = mkidcore.instruments.ROACHES[config.instrument]
+    elif args.allb:
+        roaches = mkidcore.instruments.ROACHES[config.instrument]
+    elif args.all_roaches:
+        roaches = mkidcore.instruments.ROACHES[config.instrument]
+    else:
+        roaches = args.roaches
+
+
     isroach = lambda s: len(s) == 4 and s[0].lower() == 'r'
     if args.alla:
         roaches = [int(c[1:]) for c in config.roaches
@@ -1481,9 +1540,10 @@ if __name__ == "__main__":
                    if isroach(c) and config.roaches.get(c + '.range').lower() == 'a']
     else:
         roaches = args.roaches
-    form = MKIDDashboard(args.roaches, config=config, offline=args.offline)
+
+    if not roaches:
+        getLogger('Dashboard').error('No roaches specified')
+        exit()
+    form = MKIDDashboard(roaches, config=config, offline=args.offline)
     form.show()
     app.exec_()
-
-
-

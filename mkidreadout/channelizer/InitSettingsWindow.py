@@ -28,6 +28,7 @@ class InitSettingsWindow(QTabWidget):
 
     resetRoach = QtCore.pyqtSignal(int, int)
     initTemplar = QtCore.pyqtSignal(int, object)
+    reinitADCDAC = QtCore.pyqtSignal(int)
 
     # nBitsRemovedInFFT = QtCore.pyqtSignal(int)
 
@@ -53,6 +54,7 @@ class InitSettingsWindow(QTabWidget):
             tab = InitSettingsTab(roachNum, self.config)
             tab.resetRoach.connect(partial(self.resetRoach.emit, roachNum))
             tab.initTemplar.connect(partial(self.initTemplar.emit, roachNum))
+            tab.reinitADCDAC.connect(lambda x: self.reinitADCDAC.emit(x))
             # tab.nBitsRemovedInFFT.connect(partial(self.nBitsRemovedInFFT.emit,roachNum))
             self.addTab(tab, ' ' + str(roachNum))
 
@@ -79,6 +81,7 @@ class InitSettingsWindow(QTabWidget):
 class InitSettingsTab(QMainWindow):
     resetRoach = QtCore.pyqtSignal(int)  # Signal emmited when we change a setting so we can reload it into the ROACH2
     initTemplar = QtCore.pyqtSignal(object)
+    reinitADCDAC = QtCore.pyqtSignal(int)
 
     def __init__(self, roachNum, config):
         super(InitSettingsTab, self).__init__()
@@ -137,6 +140,11 @@ class InitSettingsTab(QMainWindow):
         self.checkbox_waitV7.stateChanged.connect(lambda x: self.changedSetting('waitforv7ready',
                                                                                 self.checkbox_waitV7.isChecked()))
         add2layout(vbox, self.checkbox_waitV7)
+
+        self.button_resetADCDAC = QPushButton('ReinitADCDAC')
+        self.button_resetADCDAC.clicked.connect(lambda x: self.reinitADCDAC.emit(self.roachNum))
+
+        add2layout(vbox, self.button_resetADCDAC)
 
         FPGAParamFile = self.config.get('r{}.fpgaparamfile'.format(self.roachNum))
         label_FPGAParamFile = QLabel('FPGAParamFile: ')

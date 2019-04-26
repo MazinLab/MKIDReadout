@@ -74,6 +74,7 @@ List of useful class attributes:
 TODO:
     modify takePhaseSnapshot() to work for nStreams: need register names
     In performIQSweep(), is it skipping every other LO freq???
+
     Changed delays in performIQSweep(), and takeAvgIQData() from 0.1 to 0.01 seconds
 
 BUGS:
@@ -1668,6 +1669,69 @@ class Roach2Controls(object):
                 # firmware only implements stream 0
                 if stream == 0: raise
 
+    def loadWavecal(self, sol, freqListFile=None):
+        """
+        Loads wavecal solution.
+        
+        INPUTS:
+            sol - wavecal solution object
+        """
+        # Do the channel stuff here
+        if not self.freqListFile:
+            if not freqListFile:
+                raise RuntimeError('A freqListFile is required')
+        elif freqListFile:
+            getLogger(__name__).warning('Replaced freqListFile from init with %s', freqListFile)
+
+        if freqListFile:
+            self.freqListFile = freqListFile
+
+        getLogger(__name__).info('Loading frequencies from %s', freqListFile)
+        try:
+            sd = sweepdata.SweepMetadata(file=self.freqListFile)
+            resID_roach, freqs, attens = sd.templar_data(self.LOFreq) #TODO feed in the range for this roach self.range
+        except IOError:
+            getLogger(__name__).error('unable to load freqs {}'.format(os.path.isfile(freqListFile)), exc_info=True)
+            raise
+
+        solResIDs, solCoeffs = sol.getWvlSoln(feedline=sd.feedline)
+
+        freqCh_roach = np.arange(len(resID_roach))
+        freqCh = np.ones(len(solResIDs)) * -2 #channel at each wvl solution
+        for rID, fCh in zip(resID_roach, freqCh_roach):
+            freqCh[solResIDs == rID] = fCh
+
+        self.generateResonatorChannels(freqs)
+        allStreamChannels, allStreams = self.getStreamChannelFromFreqChannel()
+        bitmask = 2**self.params['nBitsWvlCoeff']-1 #1 at each bit that is part of coeffs #TODO: add to params
+
+        for stream in np.unique(allStreams):
+            streamWvlCoeffBits = []
+            for streamChannel in allStreamChannels[allStreams == stream]:
+                freqChannel = self.getFreqChannelFromStreamChannel(streamChannel, stream)
+                indx = np.where(freqCh == freqChannel)[0]
+                if len(indx) == 0:
+                    getLogger(__name__).debug('Frequency channel {} not found in wavecal.'.format(freqChannel))
+                    coeffs = np.array([0, 1, 8]) #b=1, c=2**3; to find (signed) phase just subtract 8 #TODO: add to params
+                else:
+                    coeffs = solCoeffs[indx]
+
+                coeffs = (coeffs*2**self.params['binPtWvlCoeff']).astype(np.int64) #convert to integer for loading in firmware #TODO: add to params
+                
+                #convert to proper twos-complement signed values
+                negInds = coeffs<0
+                if np.any(negInds):
+                    coeffs[negInds] = -coeffs[negInds]
+                    coeffs[negInds] = ((~coeffs[negInds])&bitmask) + 1
+
+                #consolidate into single number
+                chanCoeffVal = (coeffs[0] & bitmask) + ((coeffs[1] & bitmask) << 21) + ((coeffs[2] & bitmask) << 42)
+                streamWvlCoeffBits.append(chanCoeffVal)
+                
+            streamCoordBits = np.array(streamCoordBits)
+            self.writeBram(memName=self.params['wvllut_bram'][stream], valuesToWrite=streamCoordBits, nBytesPerSample=8)
+
+
     def takePhaseSnapshotOfFreqChannel(self, freqChan):
         """
         This function overloads takePhaseSnapshot
@@ -2236,8 +2300,7 @@ class Roach2Controls(object):
             time.sleep(0.001)  # takes nChannelsPerStream/fpgaClockRate seconds to load all the values
             if i % 2 == 1:
                 for stream in range(nStreams):
-                    iqPt[stream] = \
-                    self.fpga.snapshots[self.params['iqSnp_regs'][stream]].read(timeout=10, arm=False)['data']['iq']
+                    iqPt[stream] = self.fpga.snapshots[self.params['iqSnp_regs'][stream]].read(timeout=10, arm=False)['data']['iq']
                 iqData = np.append(iqData, iqPt, 1)
             self.fpga.write_int(self.params['iqSnpStart_reg'], 0)
 
@@ -2246,8 +2309,7 @@ class Roach2Controls(object):
             self.fpga.write_int(self.params['iqSnpStart_reg'], 1)
             time.sleep(0.001)
             for stream in range(nStreams):
-                iqPt[stream] = \
-                self.fpga.snapshots[self.params['iqSnp_regs'][stream]].read(timeout=10, arm=False)['data']['iq']
+                iqPt[stream] = self.fpga.snapshots[self.params['iqSnp_regs'][stream]].read(timeout=10, arm=False)['data']['iq']
             iqData = np.append(iqData, iqPt[:, :self.params['nChannelsPerStream'] * 2], 1)
             self.fpga.write_int(self.params['iqSnpStart_reg'], 0)
 

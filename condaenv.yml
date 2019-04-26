@@ -25,6 +25,9 @@ dependencies:
   - cython
   - flask
   - requests
+  - lmfit
+  - funcsig
+  - pymongo
 #optional
   - mpmath
   - blas
