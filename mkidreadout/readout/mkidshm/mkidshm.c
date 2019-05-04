@@ -202,6 +202,7 @@ void MKIDShmImage_startIntegration(MKID_IMAGE *image, uint64_t startTime, uint64
 void MKIDShmImage_setWvlRange(MKID_IMAGE *image, int wvlStart, int wvlStop){
     image->md->wvlStart = wvlStart;
     image->md->wvlStop = wvlStop;
+    image->md->valid = 0;
 
 }
 
