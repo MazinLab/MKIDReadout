@@ -23,6 +23,8 @@ extern "C" {
 #define N_DONE_SEMS 10
 #define MKIDSHM_VERSION 3
 #define TIMEDWAIT_FUDGE 500 //half ms
+#define STRBUFLEN 80
+#define WVLIDLEN 150
 typedef int image_t; //can mess around with changing this w/o many subsitutions
 typedef float coeff_t;
 
@@ -41,11 +43,11 @@ typedef struct{
     uint64_t startTime; //start timestamp of current integration (same as firmware time)
     uint64_t integrationTime; //integration time in half-ms
     uint32_t takingImage;
-    char name[80];
-    char imageBufferName[80]; //form: /imgbuffername (in /dev/shm)
-    char takeImageSemName[80];
-    char doneImageSemName[80];
-    char wavecalID[150];
+    char name[STRBUFLEN];
+    char imageBufferName[STRBUFLEN]; //form: /imgbuffername (in /dev/shm)
+    char takeImageSemName[STRBUFLEN];
+    char doneImageSemName[STRBUFLEN];
+    char wavecalID[WVLIDLEN];
 
 } MKID_IMAGE_METADATA;
 
