@@ -3,8 +3,8 @@ import os
 
 import numpy as np
 cimport numpy as np
-from libc.stdlib import free, malloc
-from libc.string import memcpy, memset, strcpy
+from libc.stdlib cimport free, malloc
+from libc.string cimport memcpy, memset, strcpy
 from mkidreadout.readout.sharedmem import ImageCube
 
 import mkidpipeline.calibration.wavecal as wvl
