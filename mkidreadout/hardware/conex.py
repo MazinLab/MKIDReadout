@@ -611,6 +611,7 @@ def queryDither(address='http://localhost:50001', timeout=TIMEOUT):
     """
     r = requests.post(address+'/conex', json={'command':'queryDither'}, timeout=timeout)
     return r.json()
+
 def queryMove(address='http://localhost:50001', timeout=TIMEOUT):
     """
     Client side function: Checks if the latest move has completed
