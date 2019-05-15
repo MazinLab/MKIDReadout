@@ -1028,20 +1028,29 @@ class MKIDDashboard(QMainWindow):
     def state(self):
         """this is the function that populates the headers and the log, it needs to be prompt enough that it won't
         cause slowdowns"""
-
-        d = self.telescopeController.get_header()
-
+        #TODO Keep this in sync with mkidcore.objects.DashboardState or use that
         targ, cmt = str(self.textbox_target.text()), str(self.textbox_log.toPlainText())
-
-        return dict(target=targ, ditherx=str(self.dither_dialog.status.xpos),
-                    dithery=str(self.dither_dialog.status.ypos), laser='TODO',
-                    flipper='image', filter=self.filter, ra=d['RA'], dec=d['DEC'], equinox=d['EQUINOX'],
-                    ha=d['HA'], az=d['AZ'], el=d['EL'], airmass=d['AIRMASS'],
-                    utc_readable=datetime.utcnow().strftime("%Y%m%d%H%M%S"),
-                    tcsutc=d['TCS-UTC'], utc=datetime.utcnow().strftime("%Y%m%d%H%M%S"), comment=cmt)
+        telescope_state = self.telescopeController.get_header()
+        now = datetime.utcnow()
+        state = dict(target=targ, ditherx=str(self.dither_dialog.status.xpos),
+                     dithery=str(self.dither_dialog.status.ypos), laser='TODO',
+                     flipper='image', filter=self.filter, observatory='Subaru',
+                     instrument=self.config.instrument,
+                     dither_home=self.config.dashboard.ditherhome,
+                     dither_ref=self.config.dashboard.ditherref,
+                     dither_pos=(self.dither_dialog.status.xpos, self.dither_dialog.status.ypos),
+                     platescale=self.config.dashboard.platescale,
+                     device_orientation=self.config.dashboard.device_orientation,
+                     utc_readable=now.strftime("%Y%m%d%H%M%S"), utc=now.strftime("%Y%m%d%H%M%S"), comment=cmt)
+        for key in telescope_state:
+            k = key.lower()
+            state[k if k not in state else 'tel_'+k] = telescope_state[key]
+        return state
 
     def logstate(self):
-        getLogger('ObsLog').info(json.dumps(self.state()))
+        state = self.state()
+        state.pop('utc_readable')
+        getLogger('ObsLog').info(json.dumps(state))
 
     def create_dock_widget(self):
         """
@@ -1472,7 +1481,7 @@ if __name__ == "__main__":
 
     timestamp = datetime.utcnow().strftime("%Y%m%d%H%M")
     create_log('ObsLog',
-               logfile=os.path.join(config.paths.logs, 'obslog_{}.log'.format(timestamp)),
+               logfile=os.path.join(config.paths.logs, 'obslog_{}.json'.format(timestamp)),
                console=False, mpsafe=True, propagate=False,
                fmt='%(message)s',
                level=mkidcore.corelog.DEBUG)
