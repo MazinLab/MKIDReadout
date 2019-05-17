@@ -24,6 +24,10 @@ class LaserControl(object):
         self.numLasers = 5 + 1  # the first number controls the flipper
         self.lastToggle = '0' * self.numLasers
 
+    @property
+    def status(self):
+        return 'Status Not Implemented'
+
     def toggleLaser(self, toggle):
         """
         Change the laser on or off
