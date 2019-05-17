@@ -298,7 +298,7 @@ class MKIDDashboard(QMainWindow):
         # Initialize PacketMaster8
         getLogger('Dashboard').info('Initializing packetmaster...')
         imgcfg = dict(self.config.dashboard)
-        imgcfg['n_wave_bins']=1
+        imgcfg['n_wave_bins'] = 1
         self.packetmaster = Packetmaster(len(self.config.roaches), self.config.packetmaster.captureport,
                                          useWriter=not self.offline, sharedImageCfg={'dashboard': imgcfg},
                                          beammap=self.config.beammap, recreate_images=True)
@@ -903,14 +903,15 @@ class MKIDDashboard(QMainWindow):
             - write START file to RAM disk for PacketMaster
         """
         if not self.observing:
+            self.logstate()
             self.observing = True
             self.button_obs.setEnabled(False)
             self.button_obs.clicked.disconnect()
             self.textbox_target.setReadOnly(True)
             self.turnOnPhotonCapture()  # NB this does NOT also need to be in stop obs, roaches still send
-            if self.takingDark < 0 and self.takingFlat < 0:
+            if not (self.takingDark or self.takingFlat):
                 self.sciFactory = CalFactory('sum', dark=self.darkField, flat=self.flatField)
-            self.packetmaster.startobs(self.config.paths.data)
+            self.packetmaster.startWriting(self.config.paths.data)
             self.button_obs.setText('Stop Observing')
             self.button_obs.clicked.connect(self.stopObs)
             self.button_obs.setEnabled(True)
@@ -923,10 +924,11 @@ class MKIDDashboard(QMainWindow):
             - Move any log files in the ram disk to the hard disk
         """
         if self.observing:
+            self.logstate()
             self.observing = False
             self.button_obs.setEnabled(False)
             self.button_obs.clicked.disconnect()
-            self.packetmaster.stopobs()
+            self.packetmaster.stopWriting()
             getLogger('Dashboard').info("Stop Obs")
             if self.sciFactory is not None:
                 self.sciFactory.generate(threaded=True,
@@ -965,7 +967,6 @@ class MKIDDashboard(QMainWindow):
             self.checkbox_flipper.setText(str(self.checkbox_flipper.text()).rstrip(' ERROR'))
             if self.checkbox_flipper.isChecked():
                 QtCore.QTimer.singleShot(500 * 1000, flipperoff)
-        self.logstate()
 
     def setFilter(self, filter_index=None):
         error = False
@@ -1017,12 +1018,12 @@ class MKIDDashboard(QMainWindow):
             laserStr = '0'+''.join([str(int(cb.isChecked())) for cb in self.checkbox_laser_list])
 
             if self.laserController.toggleLaser(laserStr):
+                self.logstate()
                 getLogger('Dashboard').info('Starting a {} laser cal for {} s.'.format(laserCalStyle, laserTime))
                 QtCore.QTimer.singleShot(laserTime * 1000, lcaldone)
             else:
                 getLogger('Dashboard').error('Failed to start  a {} laser cal. Lasers may be on.'.format(laserCalStyle))
                 self.checkbox_flipper.setEnabled(True)
-            self.logstate()
 
     def state(self):
         """this is the function that populates the headers and the log, it needs to be prompt enough that it won't
@@ -1031,13 +1032,12 @@ class MKIDDashboard(QMainWindow):
         targ, cmt = str(self.textbox_target.text()), str(self.textbox_log.toPlainText())
         telescope_state = self.telescopeController.get_header()
         now = datetime.utcnow()
-        state = dict(target=targ, ditherx=str(self.dither_dialog.status.xpos),
-                     dithery=str(self.dither_dialog.status.ypos), laser='TODO',
+        state = dict(target=targ, laser=self.laserController.status,
                      flipper='image', filter=self.filter, observatory='Subaru',
                      instrument=self.config.instrument,
-                     dither_home=self.config.dashboard.ditherhome,
-                     dither_ref=self.config.dashboard.ditherref,
-                     dither_pos=(self.dither_dialog.status.xpos, self.dither_dialog.status.ypos),
+                     dither_home=tuple(self.config.dashboard.dither_home),
+                     dither_ref=tuple(self.config.dashboard.dither_ref),
+                     dither_pos=self.dither_dialog.status['pos'],
                      platescale=self.config.dashboard.platescale,
                      device_orientation=self.config.dashboard.device_orientation,
                      utc_readable=now.strftime("%Y%m%d%H%M%S"), utc=now.strftime("%Y%m%d%H%M%S"), comment=cmt)
@@ -1100,10 +1100,10 @@ class MKIDDashboard(QMainWindow):
         label_target = QLabel("Target: ")
         self.textbox_target = QLineEdit()
         self.textbox_log = QTextEdit()
-        autoLogTimer = QtCore.QTimer(self)
-        autoLogTimer.setInterval(5 * 1000 * 60)
-        autoLogTimer.timeout.connect(self.logstate)
-        autoLogTimer.start()
+        # autoLogTimer = QtCore.QTimer(self)
+        # autoLogTimer.setInterval(5 * 1000)  # milliseconds
+        # autoLogTimer.timeout.connect(self.logstate)
+        # autoLogTimer.start()
 
         # ==================================
         # Image settings!
