@@ -18,17 +18,19 @@ from flask_restful import Api, Resource, reqparse
 import mkidcore
 from mkidcore.corelog import create_log, getLogger
 
-TIMEOUT = 2.0               # timeout for request post
+TIMEOUT = 2.0  # timeout for request post
 CONEX_COM_PORT = "COM9"
 CONEX_SERVER_PORT = 50001
+
 
 class Conex():
     """
     This class actually talks with the conex mount over the pyserial connection
     """
+
     def __init__(self, port="COM9", baudrate=912600, bytesize=serial.EIGHTBITS,
                  stopbits=serial.STOPBITS_ONE, timeout=1., xonxoff=True, controllerNum=1):
-      
+
         self._rlock = RLock()
         # Generally 1. This is for when you daisy chain multiple conex stages together
         self.ctrlN = controllerNum
@@ -46,11 +48,12 @@ class Conex():
 
         self._started = 0
         try:
-            self._device = serial.Serial(port=self.port, baudrate=self.baudrate, bytesize=self.bytesize,stopbits=self.stopbits, timeout=self.timeout, xonxoff=self.xonxoff)
-            #self._started = 1
+            self._device = serial.Serial(port=self.port, baudrate=self.baudrate, bytesize=self.bytesize,
+                                         stopbits=self.stopbits, timeout=self.timeout, xonxoff=self.xonxoff)
+            # self._started = 1
             time.sleep(0.1)  # wait for port to open
 
-            q = [self.query(q) for q in ('SLU?','SLV?','SRU?','SRV?')]
+            q = [self.query(q) for q in ('SLU?', 'SLV?', 'SRU?', 'SRV?')]
             f = lambda x: float(x[4:-2])
             self.u_lowerLimit = f(q[0])
             self.v_lowerLimit = f(q[1])
@@ -66,7 +69,8 @@ class Conex():
         try:
             getLogger('conex').debug("Disconnecting Serial port")
             self._device.close()
-        except: pass
+        except:
+            pass
 
     @property
     def status(self):
@@ -118,11 +122,12 @@ class Conex():
             bufferSize = abs(bufferSize)
             if not bufferSize:
                 return ''
-            ret = self._device.read(bufferSize).decode()    #blocks until at least buffersize bytes in receive buffer (or timeout)
+            ret = self._device.read(
+                bufferSize).decode()  # blocks until at least buffersize bytes in receive buffer (or timeout)
             if not ret:
                 return ret
-            while ret[-2:]  != '\r\n':  # reads until end of line
-                #getLogger('conex').debug('Got "{}"'.format(new))
+            while ret[-2:] != '\r\n':  # reads until end of line
+                # getLogger('conex').debug('Got "{}"'.format(new))
                 new = self._device.read(self._device.in_waiting).decode()
                 ret += new
             return ret
@@ -155,7 +160,7 @@ class Conex():
         """
         return dict(umin=self.u_lowerLimit, vmin=self.v_lowerLimit,
                     umax=self.u_upperLimit, vmax=self.v_upperLimit)
-    
+
     def ready(self):
         """
         Checks the status of the conex
@@ -198,7 +203,7 @@ class Conex():
             self._device.flush()  # wait until write command finishes sending
             self.write('PAV' + str(pos[1]))  # Conex is capable of moving both axes at once!
             if blocking: self._device.flush()
-        if blocking:    #don't lock the resource while waiting for move to finish. This allows the stop() command
+        if blocking:  # don't lock the resource while waiting for move to finish. This allows the stop() command
             t = time.time()
             while not self.ready():
                 if time.time() - t > timeout:
@@ -223,8 +228,8 @@ class Conex():
         return (self.u_lowerLimit <= target[0] <= self.u_upperLimit and
                 self.v_lowerLimit <= target[1] <= self.v_upperLimit)
 
-    def home(self,blocking=False):
-        self.move((0, 0),blocking=blocking)
+    def home(self, blocking=False):
+        self.move((0, 0), blocking=blocking)
 
     def position(self):
         """ Returns the pos [U,V] in degrees """
@@ -244,23 +249,22 @@ class ConexManager():
     Posible states:
         'Unknown', 'Offline', 'Idle', 'Stopped', 'Moving ...', 'Dither ...', 'Error ...'
     """
+
     def __init__(self, port):
         self.conex = Conex(port=port)
-        self._completed_dithers = []    # list of completed dithers
-        self._movement_thread = None    #thread for moving/dithering
+        self._completed_dithers = []  # list of completed dithers
+        self._movement_thread = None  # thread for moving/dithering
         self._halt_dither = True
         self._rlock = RLock()
-        self._startedMove = 0           # number of times start_move was called (not dither). Reset in queryMove and start_dither
-        self._completedMoves = 0        # number of moves completed (not dither)
+        self._startedMove = 0  # number of times start_move was called (not dither). Reset in queryMove and start_dither
+        self._completedMoves = 0  # number of moves completed (not dither)
 
-        self.state=('Unknown','Unknown')
+        self.state = ('Unknown', 'Unknown')
         try:
             if self.conex.ready(): self._updateState('Idle')
-        except: pass
+        except:
+            pass
         self.cur_status = self.status()
-        
-
-
 
     def queryMove(self):
         """
@@ -271,14 +275,14 @@ class ConexManager():
         OUTPUTS:
             dictionary {'completed':True/False, 'status':self.cur_status}
         """
-        if self._completedMoves>0:  # don't lock if no moves completed. Reading is thread safe
-            with self._rlock:       # if at least one move completed then lock
-                if self._completedMoves>0:      # need to check again for thread safety (maybe started two moves but only 1 completed)
-                    self._completedMoves-=1
-                    self._startedMove-=1
+        if self._completedMoves > 0:  # don't lock if no moves completed. Reading is thread safe
+            with self._rlock:  # if at least one move completed then lock
+                if self._completedMoves > 0:  # need to check again for thread safety (maybe started two moves but only 1 completed)
+                    self._completedMoves -= 1
+                    self._startedMove -= 1
                     self._startedMove = max(0, self._startedMove)
-                    return {'completed':True, 'status':self.cur_status}
-        return {'completed':False, 'status':self.cur_status}
+                    return {'completed': True, 'status': self.cur_status}
+        return {'completed': False, 'status': self.cur_status}
 
     def queryDither(self):
         """
@@ -292,18 +296,19 @@ class ConexManager():
                      If no completed dithers then None
             completed - True or False
         """
-        dith=None
-        estTime=0
-        completed=False
-        if len(self._completed_dithers)>0:  # Reading is thread safe
-            with self._rlock:   # only lock if at least one dither completed
+        dith = None
+        estTime = 0
+        completed = False
+        if len(self._completed_dithers) > 0:  # Reading is thread safe
+            with self._rlock:  # only lock if at least one dither completed
                 try:
                     dith = self._completed_dithers.pop(0)
-                    completed=True
-                except IndexError: pass
-        if dith is None:    # check if a dither was popped
-            estTime = time.time()+1 #estimated unix time of when dither will complete
-        return {'status':self.cur_status, 'estTime': estTime, 'dither':dith, 'completed':completed}
+                    completed = True
+                except IndexError:
+                    pass
+        if dith is None:  # check if a dither was popped
+            estTime = time.time() + 1  # estimated unix time of when dither will complete
+        return {'status': self.cur_status, 'estTime': estTime, 'dither': dith, 'completed': completed}
 
     def _updateState(self, newState):
         with self._rlock:
@@ -311,17 +316,16 @@ class ConexManager():
 
     def status(self):
         pos = (np.NaN, np.NaN)
-        status=''
+        status = ''
         try:
             status = self.conex.status
             pos = self.conex.position()
-            #getLogger('ConexManager').debug("Conex: {} @ pos {}".format(status,pos))
+            # getLogger('ConexManager').debug("Conex: {} @ pos {}".format(status,pos))
         except (IOError, serial.SerialException):
             getLogger('ConexManager').error('Unable to get conex status', exc_info=True)
             self._halt_dither = True
             self._updateState('Offline')
-        return {'state':self.state, 'pos':pos, 'conexstatus':status, 'limits':self.conex.limits}
-
+        return {'state': self.state, 'pos': pos, 'conexstatus': status, 'limits': self.conex.limits}
 
     def stop(self, wait=False):
         """
@@ -332,30 +336,30 @@ class ConexManager():
         after that it waits for the movement thread to finish
         """
         getLogger('ConexManager').debug('stopping conex')
-        
+
         if self._movement_thread is not None and self._movement_thread.is_alive():
             with self._rlock:
                 self._halt_dither = True
                 if not wait:
                     self.conex.stop()  # puts conex in ready state so that _movement thread will finish
                 self._updateState('Stopped')
-                self.cur_status=self.status()
-            self._movement_thread.join()    # not in rlock
+                self.cur_status = self.status()
+            self._movement_thread.join()  # not in rlock
             with self._rlock:
-                self.cur_status=self.status()   # could change in other thread
+                self.cur_status = self.status()  # could change in other thread
         else:
             with self._rlock:
                 self.cur_status = self.status()
         return self.cur_status
 
-    def start_dither(self,dither_dict):
+    def start_dither(self, dither_dict):
         """
         Starts dither in a new thread
         """
         getLogger('ConexManager').debug('starting dither')
-        self.stop(wait=False)   # stop whatever we were doing before (including a previous dither)
+        self.stop(wait=False)  # stop whatever we were doing before (including a previous dither)
         with self._rlock:
-            self.cur_status =self.status()
+            self.cur_status = self.status()
             if self.cur_status['state'] == 'Offline': return False
             self._halt_dither = False
             self._startedMove = 0
@@ -365,7 +369,7 @@ class ConexManager():
         self._movement_thread.start()
         return True
 
-    def dither(self,dither_dict):
+    def dither(self, dither_dict):
         """
         INPUTS:
             dither_dict - dictionary with keys:
@@ -387,9 +391,9 @@ class ConexManager():
         """
         x_list = np.linspace(dither_dict['startx'], dither_dict['endx'], dither_dict['n'])
         y_list = np.linspace(dither_dict['starty'], dither_dict['endy'], dither_dict['n'])
-        
-        subDither = 'subStep' in dither_dict.keys() and dither_dict['subStep']>0 and \
-                    'subT' in dither_dict.keys() and dither_dict['subT']>0
+
+        subDither = 'subStep' in dither_dict.keys() and dither_dict['subStep'] > 0 and \
+                    'subT' in dither_dict.keys() and dither_dict['subT'] > 0
 
         x_locs = []
         y_locs = []
@@ -397,7 +401,7 @@ class ConexManager():
         endTimes = []
         for x in x_list:
             for y in y_list:
-                startTime, endTime = self._dither_move(x,y,dither_dict['t'])
+                startTime, endTime = self._dither_move(x, y, dither_dict['t'])
                 if startTime is not None:
                     x_locs.append(self.cur_status['pos'][0])
                     y_locs.append(self.cur_status['pos'][1])
@@ -405,13 +409,13 @@ class ConexManager():
                     endTimes.append(endTime)
                 if self._halt_dither: break
 
-                #do sub dither if neccessary
+                # do sub dither if neccessary
                 if subDither:
                     x_sub = [-dither_dict['subStep'], 0, dither_dict['subStep'], 0]
                     y_sub = [0, dither_dict['subStep'], 0, -dither_dict['subStep']]
                     for i in range(len(x_sub)):
-                        if self.conex.inBounds((x+x_sub[i], y+y_sub[i])):
-                            startTime, endTime = self._dither_move(x+x_sub[i],y+y_sub[i],dither_dict['subT'])
+                        if self.conex.inBounds((x + x_sub[i], y + y_sub[i])):
+                            startTime, endTime = self._dither_move(x + x_sub[i], y + y_sub[i], dither_dict['subT'])
                             if startTime is not None:
                                 x_locs.append(self.cur_status['pos'][0])
                                 y_locs.append(self.cur_status['pos'][1])
@@ -421,23 +425,23 @@ class ConexManager():
                 if self._halt_dither: break
             if self._halt_dither: break
 
-        #Dither has completed (or was stopped prematurely)
-        if not self._halt_dither:       #no errors and not stopped
+        # Dither has completed (or was stopped prematurely)
+        if not self._halt_dither:  # no errors and not stopped
             self.move(*self._preDitherPos)
             with self._rlock:
-                if not self._halt_dither:       # still no errors nor stopped
+                if not self._halt_dither:  # still no errors nor stopped
                     self._updateState("Idle")
-                self.cur_status=self.status()
+                self.cur_status = self.status()
 
         dith = dither_dict.copy()
-        dith['xlocs'] = x_locs  #could be empty if errored out or stopped too soon
+        dith['xlocs'] = x_locs  # could be empty if errored out or stopped too soon
         dith['ylocs'] = y_locs
         dith['startTimes'] = startTimes
         dith['endTimes'] = endTimes
         with self._rlock:
             self._completed_dithers.append(dith)
-            
-    def _dither_move(self,x,y,t):
+
+    def _dither_move(self, x, y, t):
         """
             Helper function for dither()
 
@@ -445,37 +449,38 @@ class ConexManager():
                 "error: ..." - If there there was an error during the move
                 "processing" - If everything worked
         """
-        polltime=0.1    #wait for dwell time but have to check if stop was pressed periodically
-        self.move(x,y)
-        if self._halt_dither: return None, None    # Stopped or error during move
+        polltime = 0.1  # wait for dwell time but have to check if stop was pressed periodically
+        self.move(x, y)
+        if self._halt_dither: return None, None  # Stopped or error during move
         self._updateState("Dither dwell for {:.1f} seconds".format(t))
-        #dwell at position
-        startTime=time.time()
-        dwell_until = startTime+t
-        endTime=time.time()
+        # dwell at position
+        startTime = time.time()
+        dwell_until = startTime + t
+        endTime = time.time()
         with self._rlock:
             self.cur_status = self.status()
-        while self._halt_dither == False and endTime<dwell_until:
-            sleep = min(polltime, dwell_until-endTime)
-            time.sleep(max(sleep,0))
-            endTime=time.time()
+        while self._halt_dither == False and endTime < dwell_until:
+            sleep = min(polltime, dwell_until - endTime)
+            time.sleep(max(sleep, 0))
+            endTime = time.time()
         return startTime, endTime
 
     def start_move(self, x, y):
         """
         Starts move in new thread
         """
-        self.stop(wait=False)    # If the user wants to move, then forcibly stop whatever we were doing before (indcluding dithers)
+        self.stop(
+            wait=False)  # If the user wants to move, then forcibly stop whatever we were doing before (indcluding dithers)
         with self._rlock:
-            self.cur_status =self.status()
+            self.cur_status = self.status()
             if self.cur_status['state'] == 'Offline': return False
-            self._startedMove+=1
-        #getLogger('ConexManager').error("Starting move to {:.2f}, {:.2f}".format(x,y))
+            self._startedMove += 1
+        # getLogger('ConexManager').error("Starting move to {:.2f}, {:.2f}".format(x,y))
         self._movement_thread = Thread(target=self.move, args=(x, y,),
-                                       name='Move to ({}, {})'.format(x,y))
+                                       name='Move to ({}, {})'.format(x, y))
         self._movement_thread.daemon = True
         self._movement_thread.start()
-        
+
         return True
 
     def move(self, x, y):
@@ -484,22 +489,22 @@ class ConexManager():
         """
         self._updateState('Moving to {:.2f}, {:.2f}'.format(x, y))
         try:
-            self.conex.move((x, y),blocking=True)   #block until conex is done moving (or stopped)
-            if self._startedMove>0: self._updateState('Idle')
-            getLogger('ConexManager').debug('moved to ({}, {})'.format(x,y))
-        except (IOError, serial.SerialException) as e:              # on timeout it raise IOError
+            self.conex.move((x, y), blocking=True)  # block until conex is done moving (or stopped)
+            if self._startedMove > 0: self._updateState('Idle')
+            getLogger('ConexManager').debug('moved to ({}, {})'.format(x, y))
+        except (IOError, serial.SerialException) as e:  # on timeout it raise IOError
             self._updateState('Error: move to {:.2f}, {:.2f} failed'.format(x, y))
             self._halt_dither = True
             getLogger('ConexManager').error('Error on move', exc_info=True)
-        except:                                                     # I dont think this should happen??
+        except:  # I dont think this should happen??
             self._updateState('Error: move to {:.2f}, {:.2f} failed'.format(x, y))
             self._halt_dither = True
             getLogger('ConexManager').error('Unexpected error on move', exc_info=True)
-        if self._startedMove>0:
+        if self._startedMove > 0:
             with self._rlock:
-                self.cur_status=self.status()
-                self._completedMoves+=1
-                
+                self.cur_status = self.status()
+                self._completedMoves += 1
+
 
 class ConexAPI(Resource):
     """
@@ -515,44 +520,45 @@ class ConexAPI(Resource):
         Additional arguments are passed to the function as required
         """
         parser = reqparse.RequestParser()
-        choices=('status', 'move', 'dither', 'stop', 'queryMove', 'queryDither')
+        choices = ('status', 'move', 'dither', 'stop', 'queryMove', 'queryDither')
         parser.add_argument('command', type=str, required=True, choices=choices,
-                                   help='Action', location='json')      
-        args=parser.parse_args()
+                            help='Action', location='json')
+        args = parser.parse_args()
 
         if args.command == 'stop':
             getLogger('ConexManager').info('Stopping')
-            ret=conex_manager.stop()
+            ret = conex_manager.stop()
         elif args.command == 'status':
             getLogger('ConexManager').info('Status')
-            ret=conex_manager.status()
+            ret = conex_manager.status()
         elif args.command == 'move':
             getLogger('ConexManager').info('Moving')
             parser.add_argument('x', type=float, required=True,
-                                   help='X angle', location='json')
+                                help='X angle', location='json')
             parser.add_argument('y', type=float, required=True,
-                                   help='Y angle', location='json')
-            args=parser.parse_args()
+                                help='Y angle', location='json')
+            args = parser.parse_args()
             ret = conex_manager.start_move(args.x, args.y)
         elif args.command == 'dither':
             parser.add_argument('dither_dict', type=dict, required=True,
-                                   help='dither dict', location='json')
-            args=parser.parse_args()
+                                help='dither dict', location='json')
+            args = parser.parse_args()
             getLogger('ConexManager').info('Dithering')
             ret = conex_manager.start_dither(args.dither_dict)
         elif args.command == 'queryDither':
-            #getLogger('ConexManager').info('Query Dither')
+            # getLogger('ConexManager').info('Query Dither')
             ret = conex_manager.queryDither()
         elif args.command == 'queryMove':
-            #getLogger('ConexManager').info('Query Move')
+            # getLogger('ConexManager').info('Query Move')
             ret = conex_manager.queryMove()
         if args.command in choices:
             return ret, 200
         else:
-            getLogger('ConexManager').error('Unknown command: '+str(args.command))
+            getLogger('ConexManager').error('Unknown command: ' + str(args.command))
             return None, 400
 
-def dither(dither_dict,address='http://localhost:50001', timeout=TIMEOUT):
+
+def dither(dither_dict, address='http://localhost:50001', timeout=TIMEOUT):
     """
     Client side function: Tells conex mount to start a dither
 
@@ -562,20 +568,22 @@ def dither(dither_dict,address='http://localhost:50001', timeout=TIMEOUT):
     Returns:
         HTTP status code
     """
-    req = {'command':'dither','dither_dict':dither_dict}
-    r=requests.post(address+'/conex', json=req, timeout=timeout)
+    req = {'command': 'dither', 'dither_dict': dither_dict}
+    r = requests.post(address + '/conex', json=req, timeout=timeout)
     return r.json()
 
-def move(x,y,address='http://localhost:50001', timeout=TIMEOUT):
+
+def move(x, y, address='http://localhost:50001', timeout=TIMEOUT):
     """
     Client side function: Tells conex mount to move to position x,y (in degrees)
 
     Returns:
         HTTP status code
     """
-    req={'command':'move', 'x':x, 'y':y}
-    r=requests.post(address+'/conex', json=req, timeout=timeout)
+    req = {'command': 'move', 'x': x, 'y': y}
+    r = requests.post(address + '/conex', json=req, timeout=timeout)
     return r.json()
+
 
 def stop(address='http://localhost:50001', timeout=TIMEOUT):
     """
@@ -585,8 +593,9 @@ def stop(address='http://localhost:50001', timeout=TIMEOUT):
         dictionary: {'state':self.state, 'pos':pos, 'conexstatus':status, 'limits':self.conex.limits}
         HTTP status code
     """
-    r=requests.post(address+'/conex', json={'command':'stop'}, timeout=timeout)
+    r = requests.post(address + '/conex', json={'command': 'stop'}, timeout=timeout)
     return r.json()
+
 
 def status(address='http://localhost:50001', timeout=TIMEOUT):
     """
@@ -596,8 +605,9 @@ def status(address='http://localhost:50001', timeout=TIMEOUT):
         dictionary: {'state':self.state, 'pos':pos, 'conexstatus':status, 'limits':self.conex.limits}
         HTTP status code
     """
-    r = requests.post(address+'/conex', json={'command':'status'}, timeout=timeout)
+    r = requests.post(address + '/conex', json={'command': 'status'}, timeout=timeout)
     return r.json()
+
 
 def queryDither(address='http://localhost:50001', timeout=TIMEOUT):
     """
@@ -609,8 +619,9 @@ def queryDither(address='http://localhost:50001', timeout=TIMEOUT):
                     status is a dictionary like {'state':self.state, 'pos':pos, 'conexstatus':status, 'limits':self.conex.limits}
         HTTP status code
     """
-    r = requests.post(address+'/conex', json={'command':'queryDither'}, timeout=timeout)
+    r = requests.post(address + '/conex', json={'command': 'queryDither'}, timeout=timeout)
     return r.json()
+
 
 def queryMove(address='http://localhost:50001', timeout=TIMEOUT):
     """
@@ -621,21 +632,21 @@ def queryMove(address='http://localhost:50001', timeout=TIMEOUT):
                     status is a dictionary like {'state':self.state, 'pos':pos, 'conexstatus':status, 'limits':self.conex.limits}
         HTTP status code
     """
-    r = requests.post(address+'/conex', json={'command':'queryMove'}, timeout=timeout)
+    r = requests.post(address + '/conex', json={'command': 'queryMove'}, timeout=timeout)
     return r.json()
 
 
-if __name__=='__main__':
+if __name__ == '__main__':
     from flask import Flask
 
     create_log('ConexManager',
-                console=True, mpsafe=True, propagate=False,
-                fmt='%(asctime)s %(levelname)s %(message)s',
-                level=mkidcore.corelog.DEBUG)
+               console=True, mpsafe=True, propagate=False,
+               fmt='%(asctime)s %(levelname)s %(message)s',
+               level=mkidcore.corelog.DEBUG)
     create_log('conex',
-                console=True, mpsafe=True, propagate=False,
-                fmt='%(asctime)s %(levelname)s %(message)s',
-                level=mkidcore.corelog.DEBUG)
+               console=True, mpsafe=True, propagate=False,
+               fmt='%(asctime)s %(levelname)s %(message)s',
+               level=mkidcore.corelog.DEBUG)
 
     app = Flask(__name__, static_url_path="")
     flasklog = getLogger('werkzeug')
@@ -646,7 +657,4 @@ if __name__=='__main__':
     conex_manager = ConexManager(port=CONEX_COM_PORT)
     app.run(host='0.0.0.0', debug=False, port=CONEX_SERVER_PORT)
     conex_manager.conex.close()
-    time.sleep(0.1) # wait for conex to close
-
-
-
+    time.sleep(0.1)  # wait for conex to close
