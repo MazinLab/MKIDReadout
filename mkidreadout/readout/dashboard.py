@@ -997,7 +997,6 @@ class MKIDDashboard(QMainWindow):
             self.combobox_filter.addItems(['Connect', 'Error'])
             self.combobox_filter.setCurrentIndex(1)
 
-
         self.logstate()
 
     def laserCalClicked(self, _, laserCalStyle = "simultaneous"):
