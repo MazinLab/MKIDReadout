@@ -108,6 +108,7 @@ setuptools.setup(
     scripts=['mkidreadout/channelizer/initgui.py',
              'mkidreadout/channelizer/hightemplar.py',
              'mkidreadout/readout/dashboard.py',
+             'mkidreadout/channelizer/reinitADCDAC.py',
              'mkidreadout/configuration/powersweep/clickthrough_hell.py'],
     ext_modules=cythonize(extensions),
     classifiers=(
