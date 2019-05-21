@@ -180,7 +180,7 @@ void *shmImageWriter(void *prms)
                   //printf("Shared Image %d: %d\n", sharedImages[imgIdx]);
                   if(sem_trywait(sharedImages[imgIdx].takeImageSem)==0)
                   {
-                      printf("SharedImageWriter: taking image %s\n", params->sharedImageNames[imgIdx]);
+                      //printf("SharedImageWriter: taking image %s\n", params->sharedImageNames[imgIdx]);
                       sharedImages[imgIdx].md->takingImage = 1;
                       doneIntegrating[imgIdx] = 0;   
                       strcpy(sharedImages[imgIdx].md->wavecalID, params->wavecal->solutionFile);
