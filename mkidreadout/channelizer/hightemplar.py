@@ -531,7 +531,11 @@ class HighTemplar(QMainWindow):
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description='MKID High Templar GUI')
-    parser.add_argument('-a', action='store_true', default=False, dest='all_roaches',
+    parser.add_argument('--all', action='store_true', default=False, dest='all_roaches',
+                        help='Run with all roaches for instrument in cfg')
+    parser.add_argument('--low', action='store_true', default=False, dest='low_roaches',
+                        help='Run with all a roaches for instrument in cfg')
+    parser.add_argument('--high', action='store_true', default=False, dest='high_roaches',
                         help='Run with all roaches for instrument in cfg')
     parser.add_argument('-r', nargs='+', type=int, help='Roach numbers', dest='roaches')
     parser.add_argument('-c', '--config', default=mkidreadout.config.DEFAULT_TEMPLAR_CFGFILE, dest='config',
@@ -562,12 +566,21 @@ if __name__ == "__main__":
                fmt='%(asctime)s %(name)s %(funcName)s: %(levelname)s %(message)s ',
                level=mkidcore.corelog.INFO)
 
-    app = QApplication(sys.argv)
-    roaches = mkidcore.instruments.ROACHES[config.instrument] if args.all_roaches else args.roaches
+
+    if args.all_roaches:
+        roaches = mkidcore.instruments.ROACHES[config.instrument]
+    elif args.low_roaches:
+        roaches = mkidcore.instruments.ROACHESA[config.instrument]
+    elif args.high_roaches:
+        roaches = mkidcore.instruments.ROACHESB[config.instrument]
+    else:
+        roaches = args.roaches
 
     if not roaches:
         getLogger('hightemplar').error('No roaches specified')
         exit()
+
+    app = QApplication(sys.argv)
     form = HighTemplar(roaches, args.config)
     form.show()
     app.exec_()
