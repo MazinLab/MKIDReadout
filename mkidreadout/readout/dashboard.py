@@ -415,7 +415,7 @@ class MKIDDashboard(QMainWindow):
 
     def update_tcs(self):
         self.last_tcs_poll = self.telescopeController.get_header()
-        getLogger('Dashboard').debug(self.last_tcs_poll)
+        # getLogger('Dashboard').debug(self.last_tcs_poll)
 
     def startworker(self, obj, name):
         self.workers.append(obj)

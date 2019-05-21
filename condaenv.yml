@@ -50,6 +50,7 @@ dependencies:
     - katcp>=0.6.0
     - git+http://github.com/MazinLab/casperfpga.git@v0.4.3.1#egg=casperfpga
     #others
+    - git+http://github.com/naojsoft/g2cam.git@master#egg=g2cam
     - crlibm==1.0.3
     - image-registration==0.2.4
     - pyinterval==1.2.0

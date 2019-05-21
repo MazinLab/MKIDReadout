@@ -457,7 +457,7 @@ class RoachStateMachine(QtCore.QObject):  # Extends QObject for use with QThread
         # channels, streams = self.roachController.freqChannelToStreamChannel()
         channels, streams = self.roachController.getStreamChannelFromFreqChannel()
         for i in range(len(channels)):
-            if not i%5:
+            if i%5:
                 getLogger(__name__).info("ch{} str{}".format(channels[i], streams[i]))
                 #getLogger(__name__).info("phaseList shape: {}".format(phaseList.shape))
             phaseList[channels[i], streams[i]] = phaseList[channels[i], streams[i]] + rotation_phases[i]
