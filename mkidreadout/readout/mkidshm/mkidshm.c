@@ -76,14 +76,14 @@ int MKIDShmImage_create(MKID_IMAGE_METADATA *imageMetadata, const char *imgName,
     outputImage->image = imgPtr;
 
     // OPEN SEMAPHORES
-    outputImage->takeImageSem = sem_open(mdPtr->takeImageSemName, O_CREAT, S_IRUSR | S_IWUSR, 0);
+    outputImage->takeImageSem = sem_open(mdPtr->takeImageSemName, O_CREAT, S_IRUSR|S_IWUSR|S_IRGRP|S_IWGRP, 0);
     if(outputImage->takeImageSem==SEM_FAILED)
         printf("Semaphore creation failed %s\n", strerror(errno));
 
     outputImage->doneImageSemList = (sem_t**)malloc(N_DONE_SEMS*sizeof(sem_t*));
     for(i=0; i<N_DONE_SEMS; i++){ 
         snprintf(doneSemName, STRBUFLEN+11, "%s%d", mdPtr->doneImageSemName, i);
-        outputImage->doneImageSemList[i] = sem_open(doneSemName, O_CREAT, S_IRUSR | S_IWUSR, 0);
+        outputImage->doneImageSemList[i] = sem_open(doneSemName, O_CREAT, S_IRUSR|S_IWUSR|S_IRGRP|S_IWGRP, 0);
         if(outputImage->doneImageSemList[i] == SEM_FAILED)
             printf("Done img semaphore creation failed %s\n", strerror(errno));
 
