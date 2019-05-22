@@ -135,6 +135,9 @@ void *shmImageWriter(void *prms)
         memset(sharedImages[imgIdx].image, 0, sizeof(*(sharedImages[imgIdx].image)) * sharedImages[imgIdx].md->nCols * sharedImages[imgIdx].md->nRows); 
         printf("zeroing block w/ size %lu\n" ,sizeof(*(sharedImages[imgIdx].image)) * sharedImages[imgIdx].md->nCols * sharedImages[imgIdx].md->nRows);
 
+        MKIDShmImage_resetSems(sharedImages+imgIdx);
+
+
     }
 
     prevTs = 0;
@@ -646,12 +649,12 @@ float getWavelength(PHOTON_WORD *photon, WAVECAL_BUFFER *wavecal){
 
 }
 
-void resetQuitSem(const char *quitSemName){
-    sem_t *quitSem;
+void resetSem(const char *semName){
+    sem_t *sem;
     char name[80];
-    snprintf(name, 80, "%s", quitSemName);
-    quitSem = sem_open(name, 0);
-    while(sem_trywait(quitSem) == 0);
+    snprintf(name, 80, "%s", semName);
+    sem = sem_open(name, 0);
+    while(sem_trywait(sem) == 0);
 
 }
 

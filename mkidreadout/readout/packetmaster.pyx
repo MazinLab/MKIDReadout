@@ -92,7 +92,7 @@ cdef extern from "pmthreads.h":
     cdef int startReaderThread(READER_PARAMS *rparams, THREAD_PARAMS *tparams);
     cdef int startBinWriterThread(BIN_WRITER_PARAMS *rparams, THREAD_PARAMS *tparams);
     cdef int startShmImageWriterThread(SHM_IMAGE_WRITER_PARAMS *rparams, THREAD_PARAMS *tparams);
-    cdef void resetQuitSem(const char *quitSemName);
+    cdef void resetSem(const char *semName);
     cdef void quitAllThreads(const char *quitSemName, int nThreads);
 
 cdef class Packetmaster(object): 
@@ -239,7 +239,7 @@ cdef class Packetmaster(object):
         self.nThreads = self.nStreams + 1
         self.threads = <THREAD_PARAMS*>malloc((self.nThreads)*sizeof(THREAD_PARAMS))
 
-        resetQuitSem(QUIT_SEM_NAME.encode('UTF-8'))
+        resetSem(QUIT_SEM_NAME.encode('UTF-8'))
         startReaderThread(&(self.readerParams), &(self.threads[0]))
         threadNum = 1
         if self.sharedImages:

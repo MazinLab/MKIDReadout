@@ -149,5 +149,6 @@ int startReaderThread(READER_PARAMS *rparams, THREAD_PARAMS *tparams);
 int startBinWriterThread(BIN_WRITER_PARAMS *rparams, THREAD_PARAMS *tparams);
 int startShmImageWriterThread(SHM_IMAGE_WRITER_PARAMS *rparams, THREAD_PARAMS *tparams);
 void quitAllThreads(const char *quitSemName, int nThreads);
+void resetSem(const char *quitSemName);
 float getWavelength(PHOTON_WORD *photon, WAVECAL_BUFFER *wavecal);
 void diep(char *s);

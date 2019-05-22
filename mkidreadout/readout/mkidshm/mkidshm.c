@@ -268,3 +268,12 @@ void MKIDShmImage_copy(MKID_IMAGE *image, image_t *outputBuffer){
 
 }
 
+void MKIDShmImage_resetSems(MKID_IMAGE *image){
+    while(sem_trywait(image->takeImageSem)==0);
+
+    int i;
+    for(i=0; i<N_DONE_SEMS; i++)
+        while(sem_trywait(image->doneImageSemList[i])==0);
+
+}
+
