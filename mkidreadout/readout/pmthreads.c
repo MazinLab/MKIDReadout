@@ -198,6 +198,7 @@ void *shmImageWriter(void *prms)
                       memset(sharedImages[imgIdx].image, 0, sizeof(*(sharedImages[imgIdx].image)) * sharedImages[imgIdx].md->nCols * sharedImages[imgIdx].md->nRows); 
                       if(sharedImages[imgIdx].md->startTime==0)
                           sharedImages[imgIdx].md->startTime = curTs;
+                      printf("SharedImageWriter: starting image at %lu, roach: %d\n", curTs, boardNums[curRoachInd]);
                    
                   }
 
@@ -242,8 +243,8 @@ void *shmImageWriter(void *prms)
 
                 }
 
-                if(curTs < prevTs)
-                    printf("Packet out of order. dt = %lu, curRoach = %d, prevRoach=%d \n", prevTs-curTs, boardNums[curRoachInd], boardNums[prevRoachInd]);
+                if(curTs < prevTs);
+                    //printf("Packet out of order. dt = %lu, curRoach = %d, prevRoach=%d \n", prevTs-curTs, boardNums[curRoachInd], boardNums[prevRoachInd]);
                 
                 for(imgIdx=0; imgIdx<params->nSharedImages; imgIdx++)
                 {
