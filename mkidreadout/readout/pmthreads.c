@@ -98,6 +98,7 @@ void *shmImageWriter(void *prms)
     uint64_t prevTs;
     uint16_t *boardNums;
     uint16_t curRoachInd;
+    uint16_t prevRoachInd;
     uint32_t *doneIntegrating; //Array of bitmasks (one for each image, bits are roaches)
     uint32_t doneIntMask; //constant - each place value corresponds to a roach board
     SHM_IMAGE_WRITER_PARAMS *params;
@@ -139,6 +140,8 @@ void *shmImageWriter(void *prms)
     prevTs = 0;
 
     printf("SharedImageWriter done initializing\n");
+    curRoachInd = 0;
+    prevRoachInd = 0;
 
     while (sem_trywait(quitSem) == -1)
     {
@@ -204,13 +207,12 @@ void *shmImageWriter(void *prms)
              if (hdr->start == 0b11111111) {        // found new packet header!
                 // fill packet and parse
                 memmove(packet,&olddata[pstart],i*8 - pstart);
+                prevRoachInd = curRoachInd;
                 curRoachInd = 0;
 
                 prevTs = curTs;
                 curTs = (uint64_t)hdr->timestamp;
                
-                if(curTs < prevTs)
-                    printf("Packet out of order check 0");
                 //gettimeofday(&tv, NULL);
                 //sysTs = (unsigned long long)(tv.tv_sec)*1000 + (unsigned long long)(tv.tv_usec)/1000 - (unsigned long long)TSOFFS*1000;
                 //sysTs = sysTs*2;
@@ -236,6 +238,9 @@ void *shmImageWriter(void *prms)
                     }
 
                 }
+
+                if(curTs < prevTs)
+                    printf("Packet out of order. dt = %lu, curRoach = %d, prevRoach=%d \n", prevTs-curTs, boardNums[curRoachInd], boardNums[prevRoachInd]);
                 
                 for(imgIdx=0; imgIdx<params->nSharedImages; imgIdx++)
                 {
@@ -245,7 +250,7 @@ void *shmImageWriter(void *prms)
                        if((curTs>sharedImages[imgIdx].md->startTime)&&(curTs<=(sharedImages[imgIdx].md->startTime+sharedImages[imgIdx].md->integrationTime))){
                            addPacketToImage(sharedImages+imgIdx,packet,i*8 - pstart, params->wavecal);
                            if((doneIntegrating[imgIdx] & (1<<curRoachInd)) == (1<<curRoachInd))
-                               printf("Packet out of order!\n");
+                               printf("Packet out of order! roach: %d\n", boardNums[curRoachInd]);
 
                        }
 
