@@ -235,8 +235,13 @@ void *shmImageWriter(void *prms)
                    if(sharedImages[imgIdx].md->takingImage)
                    {
                        //printf("curRoachTs: %lld\n", curTs);
-                       if((curTs>sharedImages[imgIdx].md->startTime)&&(curTs<=(sharedImages[imgIdx].md->startTime+sharedImages[imgIdx].md->integrationTime)))
+                       if((curTs>sharedImages[imgIdx].md->startTime)&&(curTs<=(sharedImages[imgIdx].md->startTime+sharedImages[imgIdx].md->integrationTime))){
                            addPacketToImage(sharedImages+imgIdx,packet,i*8 - pstart, params->wavecal);
+                           if((doneIntegrating[imgIdx] & (1<<curRoachInd)) == (1<<curRoachInd))
+                               printf("Packet out of order!\n");
+
+                       }
+
                        else if(curTs>(sharedImages[imgIdx].md->startTime+sharedImages[imgIdx].md->integrationTime))
                        {
                            doneIntegrating[imgIdx] |= (1<<curRoachInd);
