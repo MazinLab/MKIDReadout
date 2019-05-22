@@ -95,6 +95,7 @@ void *shmImageWriter(void *prms)
     uint64_t pstart;
 
     uint64_t curTs;
+    uint64_t prevTs;
     uint16_t *boardNums;
     uint16_t curRoachInd;
     uint32_t *doneIntegrating; //Array of bitmasks (one for each image, bits are roaches)
@@ -134,6 +135,8 @@ void *shmImageWriter(void *prms)
         printf("zeroing block w/ size %lu\n" ,sizeof(*(sharedImages[imgIdx].image)) * sharedImages[imgIdx].md->nCols * sharedImages[imgIdx].md->nRows);
 
     }
+
+    prevTs = 0;
 
     printf("SharedImageWriter done initializing\n");
 
@@ -203,7 +206,11 @@ void *shmImageWriter(void *prms)
                 memmove(packet,&olddata[pstart],i*8 - pstart);
                 curRoachInd = 0;
 
+                prevTs = curTs;
                 curTs = (uint64_t)hdr->timestamp;
+               
+                if(curTs < prevTs)
+                    printf("Packet out of order check 0");
                 //gettimeofday(&tv, NULL);
                 //sysTs = (unsigned long long)(tv.tv_sec)*1000 + (unsigned long long)(tv.tv_usec)/1000 - (unsigned long long)TSOFFS*1000;
                 //sysTs = sysTs*2;
