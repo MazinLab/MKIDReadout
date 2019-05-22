@@ -79,14 +79,14 @@ extensions = [Extension(name="mkidreadout.channelizer.roach2utils",
                         extra_compile_args=['-shared', '-fPIC'],
                         library_dirs=['mkidreadout/readout/mkidshm'],
                         runtime_library_dirs=[os.path.abspath('mkidreadout/readout/mkidshm')],
-                        extra_link_args=['-lmkidshm', '-lrt', '-lpthread']),# '-Wl,-rpath=mkidreadout/readout/mkidshm']),
+                        extra_link_args=['-O3', '-lmkidshm', '-lrt', '-lpthread']),# '-Wl,-rpath=mkidreadout/readout/mkidshm']),
               Extension(name="mkidreadout.readout.packetmaster",
                         sources=['mkidreadout/readout/pmthreads.c', 'mkidreadout/readout/packetmaster.pyx'],
                         include_dirs=[numpy.get_include(), 'mkidreadout/readout/packetmaster',
                                       'mkidreadout/readout/mkidshm'],
                         library_dirs=['mkidreadout/readout/mkidshm'],
                         runtime_library_dirs=[os.path.abspath('mkidreadout/readout/mkidshm')],
-                        extra_compile_args=['-shared', '-fPIC'],
+                        extra_compile_args=['-O3', '-shared', '-fPIC'],
                         extra_link_args=['-lmkidshm', '-lrt', '-lpthread'])
              ]
 
