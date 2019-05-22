@@ -245,7 +245,6 @@ class ConvertPhotonsToRGB(QtCore.QObject):
         self.convertedImage.emit(q_im)
 
 
-
 class MKIDDashboard(QMainWindow):
     """
     Dashboard for seeing realtime images
@@ -1119,12 +1118,8 @@ class MKIDDashboard(QMainWindow):
         self.spinbox_integrationTime.setWrapping(False)
         self.spinbox_integrationTime.setCorrectionMode(QAbstractSpinBox.CorrectToNearestValue)
         self.spinbox_integrationTime.valueChanged.connect(partial(self.config.update, 'dashboard.inttime'))
-        self.spinbox_integrationTime.valueChanged.connect(self.imageFetcher.update_inttime)
-
-        # current num images integrated
-
-        # self.spinbox_integrationTime.valueChanged.connect(lambda x: QtCore.QTimer.singleShot(10, self.convertImage))  #
-        # remake current image after 10 ms
+        #NB this is a hack and I've not clue why it is needed
+        self.spinbox_integrationTime.valueChanged.connect(lambda x: self.imageFetcher.update_inttime(x))
 
         # dark Image
         button_darkImage = QPushButton('Take Dark')
