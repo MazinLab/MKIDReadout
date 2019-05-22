@@ -4,9 +4,7 @@ paths: !configdict
   logs: ./logs/
   data: ./data/
 
-packetmaster: !configdict
-  ip: 10.0.0.51
-  captureport: 50000
+templar_host_ip: 10.0.0.51
 
 instrument : DARKNESS
 

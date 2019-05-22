@@ -676,7 +676,7 @@ class RoachStateMachine(QtCore.QObject):  # Extends QObject for use with QThread
         #    print "Need to load freqs first!"
         #    self.finished.emit()
         #    return
-        hostip = self.config.packetmaster.ip
+        hostip = self.config.templar_host_ip
         port = self.config.roaches.get('r{}.phaseport'.format(self.num))
         # ch = ch+stream*self.roachController.params['nChannelsPerStream']
         # data=self.roachController.takePhaseStreamData(selChanIndex=ch, duration=duration, hostIP=hostip)
