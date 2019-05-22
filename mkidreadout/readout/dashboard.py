@@ -477,7 +477,8 @@ class MKIDDashboard(QMainWindow):
         self.darkFactory = CalFactory('dark', images=(photonImage,))
         self.takingDark = False
         self.darkField = self.darkFactory.generate(fname=self.darkfile, badmask=self.beammapFailed, save=True,
-                                                   name=os.path.splitext(os.path.basename(self.darkfile))[0])
+                                                   name=os.path.splitext(os.path.basename(self.darkfile))[0],
+                                                   header=self.state(), overwrite=True)
         getLogger('Dashboard').info('Finished dark:\n {}'.format(summarize(self.darkField).replace('\n', '\n  ')))
         self.checkbox_darkImage.setChecked(True)
         self.spinbox_minLambda.setEnabled(True)
@@ -488,7 +489,8 @@ class MKIDDashboard(QMainWindow):
         self.flatFactory = CalFactory('flat', images=(photonImage,), dark=self.darkField)
         self.takingFlat = False
         self.flatField = self.flatFactory.generate(fname=self.flatfile, badmask=self.beammapFailed, save=True,
-                                                   name=os.path.splitext(os.path.basename(self.flatfile))[0])
+                                                   name=os.path.splitext(os.path.basename(self.flatfile))[0],
+                                                   header=self.state(), overwrite=True)
         getLogger('Dashboard').info('Finished flat:\n {}'.format(summarize(self.flatField).replace('\n', '\n  ')))
         self.checkbox_flatImage.setChecked(True)
         self.spinbox_minLambda.setEnabled(True)
