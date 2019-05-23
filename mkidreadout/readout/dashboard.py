@@ -298,7 +298,7 @@ class MKIDDashboard(QMainWindow):
         getLogger('Dashboard').info('Initializing packetmaster...')
         imgcfg = dict(self.config.dashboard)
         imgcfg['n_wave_bins'] = 1
-        self.packetmaster = Packetmaster(len(self.config.roaches), self.config.packetmaster.captureport,
+        self.packetmaster = Packetmaster(len(roachNums), self.config.packetmaster.captureport,
                                          useWriter=not self.offline, sharedImageCfg={'dashboard': imgcfg},
                                          beammap=self.config.beammap, recreate_images=True)
         self.liveimage = self.packetmaster.sharedImages['dashboard']
