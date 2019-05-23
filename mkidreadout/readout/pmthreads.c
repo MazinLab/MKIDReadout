@@ -86,7 +86,7 @@ void *shmImageWriter(void *prms)
     struct timespec stopSpec;
     struct timeval tv;
     unsigned long long sysTs;
-    uint64_t nsElapsed;
+    long nsElapsed;
     uint64_t oldbr = 0;     // number of bytes of unparsed data sitting in olddata
     uint64_t pcount = 0;
     STREAM_HEADER *hdr;
@@ -113,6 +113,8 @@ void *shmImageWriter(void *prms)
     printf("SharedImageWriter online.\n");
 
     doneIntMask = (1<<(params->nRoach))-1;
+    printf("DONE INT MASK: %x\n", doneIntMask);
+    printf("NROACH: %x\n", params->nRoach);
     rptr = params->roachStream;
 
     quitSem = sem_open(params->quitSemName, O_CREAT, S_IRUSR | S_IWUSR, 0);
@@ -141,6 +143,10 @@ void *shmImageWriter(void *prms)
     }
 
     prevTs = 0;
+
+    #ifdef _TIMING_TEST
+    FILE *timeFile = fopen("timetest.txt", "w");
+    #endif
 
     printf("SharedImageWriter done initializing\n");
     curRoachInd = 0;
@@ -190,6 +196,9 @@ void *shmImageWriter(void *prms)
                   if(sem_trywait(sharedImages[imgIdx].takeImageSem)==0)
                   {
                       //printf("SharedImageWriter: taking image %s\n", params->sharedImageNames[imgIdx]);
+                      #ifdef _DEBUG_OUTPUT
+                      clock_gettime(CLOCK_REALTIME, &startSpec);
+                      #endif
                       sharedImages[imgIdx].md->takingImage = 1;
                       doneIntegrating[imgIdx] = 0;   
                       strcpy(sharedImages[imgIdx].md->wavecalID, params->wavecal->solutionFile);
@@ -198,7 +207,10 @@ void *shmImageWriter(void *prms)
                       memset(sharedImages[imgIdx].image, 0, sizeof(*(sharedImages[imgIdx].image)) * sharedImages[imgIdx].md->nCols * sharedImages[imgIdx].md->nRows); 
                       if(sharedImages[imgIdx].md->startTime==0)
                           sharedImages[imgIdx].md->startTime = curTs;
+                      #ifdef _DEBUG_OUTPUT
                       printf("SharedImageWriter: starting image at %lu, roach: %d\n", curTs, boardNums[curRoachInd]);
+                      printf("                   startTime: %lu, int time: %lu\n", sharedImages[imgIdx].md->startTime, sharedImages[imgIdx].md->integrationTime);
+                      #endif
                    
                   }
 
@@ -216,12 +228,13 @@ void *shmImageWriter(void *prms)
 
                 prevTs = curTs;
                 curTs = (uint64_t)hdr->timestamp;
-               
-                //gettimeofday(&tv, NULL);
-                //sysTs = (unsigned long long)(tv.tv_sec)*1000 + (unsigned long long)(tv.tv_usec)/1000 - (unsigned long long)TSOFFS*1000;
-                //sysTs = sysTs*2;
 
-                //fprintf(timeFile, "%llu %llu\n", curTs, sysTs);
+                #ifdef _TIMING_TEST
+                gettimeofday(&tv, NULL);
+                sysTs = (unsigned long long)(tv.tv_sec)*1000 + (unsigned long long)(tv.tv_usec)/1000 - (unsigned long long)TSOFFS*1000;
+                sysTs = sysTs*2;
+                #endif
+               
                 
                 //Figure out index corresponding to roach number (index of roachNum in boardNums)
                 //If this doesn't exist, assign it
@@ -242,6 +255,11 @@ void *shmImageWriter(void *prms)
                     }
 
                 }
+
+
+                #ifdef _TIMING_TEST
+                fprintf(timeFile, "%llu %llu %d\n", curTs, sysTs, boardNums[curRoachInd]);
+                #endif
 
                 if(curTs < prevTs);
                     //printf("Packet out of order. dt = %lu, curRoach = %d, prevRoach=%d \n", prevTs-curTs, boardNums[curRoachInd], boardNums[prevRoachInd]);
@@ -271,16 +289,19 @@ void *shmImageWriter(void *prms)
                        if(doneIntegrating[imgIdx]==doneIntMask) //check to see if all boards are done integrating
                        {
                            sharedImages[imgIdx].md->takingImage = 0;
-                           clock_gettime(CLOCK_REALTIME, &stopSpec);
-                           //nsElapsed = stopSpec.tv_nsec - startSpec.tv_nsec;
                            MKIDShmImage_postDoneSem(sharedImages + imgIdx, -1);
+                           #ifdef _DEBUG_OUTPUT
+                           clock_gettime(CLOCK_REALTIME, &stopSpec);
+                           nsElapsed = 1000000000*(stopSpec.tv_sec - startSpec.tv_sec);
+                           nsElapsed += (long)stopSpec.tv_nsec - startSpec.tv_nsec;
                            printf("SharedImageWriter: done image at %lu\n", curTs);
                            printf("SharedImageWriter: int time %lu\n", curTs-sharedImages[imgIdx].md->integrationTime);
-                           //printf("SharedImageWriter: real time %d ms\n", (nsElapsed)/1000000);
+                           printf("SharedImageWriter: real time %ld ms\n", (nsElapsed)/1000000);
                            printf("SharedImageWriter: Parse rate = %lu pkts/img. Data in buffer = %lu\n",pcount,oldbr); fflush(stdout);
                            //printf("SharedImageWriter: forLoopIters %d\n", forLoopIters);
                            //printf("SharedImageWriter: whileLoopIters %d\n", whileLoopIters);
-                           printf("SharedImageWriter: oldbr: %lu\n", oldbr);
+                           printf("SharedImageWriter: oldbr: %lu\n\n", oldbr);
+                           #endif
                            pcount = 0;
 
                        }
@@ -309,7 +330,9 @@ void *shmImageWriter(void *prms)
     sem_close(streamSem);
     sem_close(quitSem);
 
-    //fclose(timeFile);
+    #ifdef _TIMING_TEST
+    fclose(timeFile);
+    #endif
     printf("SharedImageWriter: Closing\n");
     return NULL;
 }

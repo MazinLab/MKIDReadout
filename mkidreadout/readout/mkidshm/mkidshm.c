@@ -223,7 +223,9 @@ void MKIDShmImage_wait(MKID_IMAGE *image, int semInd){
 int MKIDShmImage_timedwait(MKID_IMAGE *image, int semInd, int time, int stopImage){
     struct timespec tspec;
     int retval;
-    //char error[200];
+    #ifdef _SHM_DEBUG
+    char error[200];
+    #endif 
 
     time += TIMEDWAIT_FUDGE;
     clock_gettime(CLOCK_REALTIME, &tspec);
@@ -234,11 +236,13 @@ int MKIDShmImage_timedwait(MKID_IMAGE *image, int semInd, int time, int stopImag
 
     retval = sem_timedwait(image->doneImageSemList[semInd], &tspec);
 
-    //if(retval == -1){
-    //    snprintf(error, 200, "Timedwait error %ld", tspec.tv_nsec);
-    //    perror(error);
+    #ifdef _SHM_DEBUG
+    if(retval == -1){
+        snprintf(error, 200, "Timedwait error %ld", tspec.tv_nsec);
+        perror(error);
 
-    //}
+    }
+    #endif
 
     if((retval == -1) && (stopImage)){
         image->md->takingImage = 0;

@@ -15,6 +15,8 @@
 #ifndef MKIDSHM_H
 #define MKIDSHM_H
 
+//#define _SHM_DEBUG //turns on debug output
+
 #ifdef __cplusplus
 extern "C" {
 
@@ -22,7 +24,7 @@ extern "C" {
 
 #define N_DONE_SEMS 10
 #define MKIDSHM_VERSION 3
-#define TIMEDWAIT_FUDGE 500 //half ms
+#define TIMEDWAIT_FUDGE 5000 //half ms
 #define STRBUFLEN 80
 #define WVLIDLEN 150
 typedef int image_t; //can mess around with changing this w/o many subsitutions

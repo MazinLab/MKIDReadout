@@ -31,7 +31,7 @@
 #define BUFLEN 1500
 #define DEFAULT_PORT 50000
 #define SHAREDBUF 536870912
-#define TSOFFS 1514764800
+#define TSOFFS 1546300800 //Jan 1 2019 UTC
 #define STRBUF 80
 #define SHM_NAME_LEN 80
 #define ENERGY_BIN_PT 16384 //2^14
@@ -41,6 +41,9 @@
 #define BIN_WRITER_THREAD 1
 #define SHM_IMAGE_WRITER_THREAD 2
 #define CIRC_BUFF_WRITER_THREAD 3
+
+//#define _TIMING_TEST //turn on when you want a ts discrepancy file
+//#define _DEBUG_OUTPUT //turns on (fairly obtrusive) debugging output
 
 #define handle_error_en(en, msg) \
         do { errno = en; perror(msg); exit(EXIT_FAILURE); } while (0)
