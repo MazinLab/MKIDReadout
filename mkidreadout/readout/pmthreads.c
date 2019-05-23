@@ -261,8 +261,9 @@ void *shmImageWriter(void *prms)
                 fprintf(timeFile, "%llu %llu %d\n", curTs, sysTs, boardNums[curRoachInd]);
                 #endif
 
-                if(curTs < prevTs);
-                    //printf("Packet out of order. dt = %lu, curRoach = %d, prevRoach=%d \n", prevTs-curTs, boardNums[curRoachInd], boardNums[prevRoachInd]);
+                //if(curTs < prevTs)
+                //    printf("Packet out of order. dt = %lu, curRoach = %d, prevRoach=%d \n", 
+                //          prevTs-curTs, boardNums[curRoachInd], boardNums[prevRoachInd]);
                 
                 for(imgIdx=0; imgIdx<params->nSharedImages; imgIdx++)
                 {
