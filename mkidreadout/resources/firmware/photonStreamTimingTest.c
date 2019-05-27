@@ -1,11 +1,11 @@
 /*
- * File:      recv_64b.c
- * Author:    Matt Strader
+ * File:      photonStreamTimingTest.c
+ * Author:    Matt Strader, Neelay Fruitwala
  * Date:      Jan 12, 2016
  * Firmware:  ctr_64b_gbe_2016_Jan_12_1653.fpg
  *
  * Compile with
- * cc recv_64b.c -o recv64
+ * cc photonStreamTimingTest.c -o recv64
  * 
  * Mostly taken from https://www.abc.se/~m6695/udp.html
  * This receives udp packets.  It assumes that the packets each have
@@ -33,7 +33,7 @@
 #define BUFLEN 51200
 #define NPACK 10000
 #define PORT 50000
-#define TSOFFS 1514764800
+#define TSOFFS 1546300800 //Jan 1 2019 UTC
 
 void diep(char *s)
 {
@@ -118,8 +118,9 @@ int main(void)
   struct hdrpacket *hdr;
   FILE *timeFile = fopen("timetest.txt", "w");
   printf("sizof(ull) %d\n", sizeof(unsigned long long));
+  int needToStop = 0;
 
-  while (need_to_stop() == 0)
+  while (needToStop == 0)
   {
     if (nFrames % 10000 == 0)
     {
@@ -132,6 +133,7 @@ int main(void)
       if (errno == EAGAIN || errno == EWOULDBLOCK)
       {// recv timed out, clear the error and check again
         errno = 0;
+        needToStop = need_to_stop();
         continue;
       }
       else
