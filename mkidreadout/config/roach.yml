@@ -1,7 +1,7 @@
 !configdict
 minFramePeriod: 125000 # min sec between sending photon data. 2kHz = 125000 clock cycles is good
 
-fpgpath: darkquad29_2018_Feb_08_1046.fpg
+fpgpath: darkquad31_2019_May_24_1525.fpg
 fpgaparamfile: ''  #leave blank for the default
 
 #fircoefffile: unity50.txt
