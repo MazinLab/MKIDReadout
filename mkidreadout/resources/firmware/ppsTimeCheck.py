@@ -2,17 +2,23 @@ from mkidreadout.channelizer.Roach2Controls import Roach2Controls
 import numpy as np
 import time
 import sys
+import argparse
 import matplotlib.pyplot as plt
 import mkidreadout.channelizer.binTools as bt
 
 if __name__=='__main__':
-    roachNum = str(sys.argv[1])
-    ip = '10.0.0.'+roachNum
+    parser = argparse.ArgumentParser(description='Realtime PPS monitoring for debugging purposes')
+    parser.add_argument('roachNum', type=int, help='Roach number (last 3 digits of IP)')
+    parser.add_argument('-n', '--n-iters', type=int, default=500, help='Number of PPS status register samples to take')
+    parser.add_argument('-s', '--sample-rate', type=float, default=0.05, help='Sample rate in seconds')
+    parser.add_argument('-m', '--mode', type=str, default='full', help='full or quiet')
+    args = parser.parse_args()
+    ip = '10.0.0.'+str(args.roachNum)
     roach = Roach2Controls(ip)
     roach.connect()
 
-    nIters = 5000
-    sampRate = 0.05
+    nIters = args.n_iters
+    sampRate = args.sample_rate
 
     tsFig = plt.figure()
     tsPlt = tsFig.add_subplot(111)
@@ -39,6 +45,8 @@ if __name__=='__main__':
 
     shortGapList = np.zeros(nIters)
 
+    nSkips = 0
+
     for i in range(nIters):
         startIterTime = time.time()
         ts3 = roach.fpga.read_int('adc_in_ts3')
@@ -60,10 +68,19 @@ if __name__=='__main__':
         timeGap32 = bt.castBin(ts3-ts2, 32, 0)
         timeGap21 = bt.castBin(ts2-ts1, 32, 0)
         timeGap10 = bt.castBin(ts1-ts0, 32, 0)
-        print 'timegap21', timeGap21
-        print 'timegap32', timeGap32
-        print 'nMissPPS', nMissPPSList[i]
-        print ''
+        if timeGap32 < 220.e6:
+            print 'Early PPS. nClocks: ', timeGap32
+            print '           ts2: ', ts2
+            print '           ts3: ', ts3
+            print '           nSkips: ', nSkips
+            nSkips += 1
+        else:
+            nSkips = 0
+        if args.mode == 'full':
+            print 'timegap21', timeGap21
+            print 'timegap32', timeGap32
+            print 'nMissPPS', nMissPPSList[i]
+            print ''
         shortGapList[i] = timeGap32
         # print 'ts3', ts3
         # print 'ts2', ts2
@@ -80,15 +97,16 @@ if __name__=='__main__':
         if(iterTime<sampRate):
             time.sleep(sampRate-iterTime)
     
-    tsPlt.plot(ts0List, label='ts0')
-    tsPlt.plot(ts1List, label='ts1')
-    tsPlt.plot(ts2List, label='ts2')
-    tsPlt.plot(ts3List, label='ts3')
-    tsPlt.legend()
+    if args.mode=='full':
+        tsPlt.plot(ts0List, label='ts0')
+        tsPlt.plot(ts1List, label='ts1')
+        tsPlt.plot(ts2List, label='ts2')
+        tsPlt.plot(ts3List, label='ts3')
+        tsPlt.legend()
 
-    rawPPSPlt.plot(rawPPSList)
-    nMissPPSPlt.plot(nMissPPSList)
-    shortGapPlt.plot(shortGapList)
-    plt.show()
+        rawPPSPlt.plot(rawPPSList)
+        nMissPPSPlt.plot(nMissPPSList)
+        shortGapPlt.plot(shortGapList)
+        plt.show()
 
             
