@@ -231,8 +231,7 @@ void *shmImageWriter(void *prms)
 
                 #ifdef _TIMING_TEST
                 gettimeofday(&tv, NULL);
-                sysTs = (unsigned long long)(tv.tv_sec)*1000 + (unsigned long long)(tv.tv_usec)/1000 - (unsigned long long)TSOFFS*1000;
-                sysTs = sysTs*2;
+                sysTs = (unsigned long long)(tv.tv_sec)*2000 + (unsigned long long)(tv.tv_usec)/500 - (unsigned long long)TSOFFS*2000;
                 #endif
                
                 
