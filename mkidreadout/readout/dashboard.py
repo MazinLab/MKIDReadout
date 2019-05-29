@@ -107,15 +107,17 @@ class LiveImageFetcher(QtCore.QObject):  # Extends QObject for use with QThreads
             try:
                 utc = datetime.utcfromtimestamp(time.time()).strftime('%Y-%m-%d %H:%M:%S')
                 self.imagebuffer.startIntegration(integrationTime=self.inttime)
-                #time.sleep(self.inttime) #required as recieveImage holds the GIL with a system call
                 data = self.imagebuffer.receiveImage()
                 ret = fits.ImageHDU(data=data)
                 ret.header['utcstart'] = utc
                 ret.header['exptime'] = self.inttime
-                foo = self.imagebuffer.wavecalID.decode('UTF-8', "backslashreplace")
-                ret.header['wavecal'] = foo
-                ret.header['wmin'] = self.imagebuffer.wvlStart
-                ret.header['wmax'] = self.imagebuffer.wvlStop
+                ret.header['wavecal'] = self.imagebuffer.wavecalID.decode('UTF-8', "backslashreplace")
+                if ret.header['wavecal']:
+                    ret.header['wmin'] = self.imagebuffer.wvlStart
+                    ret.header['wmax'] = self.imagebuffer.wvlStop
+                else:
+                    ret.header['wmin'] = 'NaN'
+                    ret.header['wmax'] = 'NaN'
                 self.newImage.emit(ret)
             except RuntimeError as e:
                 getLogger('Dashboard').debug('Image stream unavailable: {}'.format(e))
@@ -515,9 +517,9 @@ class MKIDDashboard(QMainWindow):
                 photonImage.header[k] = v
 
             self.imageList.append(photonImage)
-            self.fitsList.append(photonImage)  #for the stream
+            self.fitsList.append(photonImage)  # for the stream
 
-            self.imageList = self.imageList[-1:]  #trust the garbage collector
+            self.imageList = self.imageList[-1:]  # trust the garbage collector
 
             if self.takingDark:
                 self.addDarkImage(photonImage)
@@ -1028,8 +1030,12 @@ class MKIDDashboard(QMainWindow):
 
     def state(self):
         """this is the function that populates the headers and the log, it needs to be prompt enough that it won't
-        cause slowdowns"""
-        #TODO Keep this in sync with mkidcore.objects.DashboardState or use that
+        cause slowdowns
+
+        Do not use
+        utcstart, exptime, wmin, wmax they would lead to overwriting photonimage keys
+
+        """
         targ, cmt = str(self.textbox_target.text()), str(self.textbox_log.toPlainText())
         telescope_state = self.telescopeController.get_header()
         now = datetime.utcnow()
