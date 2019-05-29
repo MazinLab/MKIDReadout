@@ -676,7 +676,7 @@ void resetSem(const char *semName){
     sem_t *sem;
     char name[80];
     snprintf(name, 80, "%s", semName);
-    sem = sem_open(name, 0);
+    sem = sem_open(name, O_CREAT, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP, 0);
     while(sem_trywait(sem) == 0);
 
 }
