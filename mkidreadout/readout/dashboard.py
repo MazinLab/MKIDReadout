@@ -31,9 +31,12 @@ from PyQt4 import QtCore
 from PyQt4.QtCore import Qt
 from PyQt4.QtGui import *
 from astropy.io import fits
+from astropy.coordinates import SkyCoord
+from astropy import wcs
 
 import mkidcore.corelog
 import mkidcore.instruments
+from mkidcore.instruments import compute_wcs_ref_pixel
 import mkidreadout.config
 import mkidreadout.configuration.sweepdata as sweepdata
 import mkidreadout.hardware.hsfw
@@ -480,7 +483,7 @@ class MKIDDashboard(QMainWindow):
         self.takingDark = False
         self.darkField = self.darkFactory.generate(fname=self.darkfile, badmask=self.beammapFailed, save=True,
                                                    name=os.path.splitext(os.path.basename(self.darkfile))[0],
-                                                   header=self.state(), overwrite=True)
+                                                   overwrite=True)
         getLogger('Dashboard').info('Finished dark:\n {}'.format(summarize(self.darkField).replace('\n', '\n  ')))
         self.checkbox_darkImage.setChecked(True)
         self.spinbox_minLambda.setEnabled(True)
@@ -492,7 +495,7 @@ class MKIDDashboard(QMainWindow):
         self.takingFlat = False
         self.flatField = self.flatFactory.generate(fname=self.flatfile, badmask=self.beammapFailed, save=True,
                                                    name=os.path.splitext(os.path.basename(self.flatfile))[0],
-                                                   header=self.state(), overwrite=True)
+                                                   overwrite=True)
         getLogger('Dashboard').info('Finished flat:\n {}'.format(summarize(self.flatField).replace('\n', '\n  ')))
         self.checkbox_flatImage.setChecked(True)
         self.spinbox_minLambda.setEnabled(True)
@@ -513,8 +516,30 @@ class MKIDDashboard(QMainWindow):
         """
         # If there's new data, append it
         if photonImage is not None:
-            for k, v in self.last_tcs_poll.items():
-                photonImage.header[k] = v
+
+            state = self.state()
+            for k in state:
+                try:
+                    len(state[k])
+                    state[k] = str(state[k])  # header values must be scalar
+                except TypeError:
+                    pass
+            photonImage.header.update(state)
+
+            w = wcs.WCS(naxis=2)
+            w.wcs.ctype = ["RA--TAN", "DEC-TAN"]
+            w._naxis1, w._naxis2 = photonImage.shape  # these may get set to 0 during pickling so also store to non _
+            c = SkyCoord(photonImage.header['ra'], photonImage.header['dec'])
+            w.wcs.crval = np.array([c.ra.deg, c.dec.deg])
+
+            w.wcs.crpix = compute_wcs_ref_pixel(photonImage.header['dither_pos'], self.config.dashboard.dither_home,
+                                                self.config.dashboard.dither_ref)
+            do_rad = np.deg2rad(self.config.dashboard.device_orientation)
+            w.wcs.pc = np.array([[np.cos(do_rad), -np.sin(do_rad)],
+                                 [np.sin(do_rad), np.cos(do_rad)]])
+            w.wcs.cdelt = [self.config.dashboard.platescale/3600.0, self.config.dashboard.platescale/3600.0]
+            w.wcs.cunit = ["deg", "deg"]
+            photonImage.header.update(w.to_header())
 
             self.imageList.append(photonImage)
             self.fitsList.append(photonImage)  # for the stream
@@ -937,8 +962,7 @@ class MKIDDashboard(QMainWindow):
                 self.sciFactory.generate(threaded=True,
                                          fname=os.path.join(self.config.paths.data,
                                                             't{}.fits'.format(int(time.time()))),
-                                         name=str(self.textbox_target.text()),
-                                         save=True, header=self.state())
+                                         name=str(self.textbox_target.text()), save=True)
             else:
                 getLogger('Dashboard').critical('sciFactory is None')
             self.textbox_target.setReadOnly(False)
