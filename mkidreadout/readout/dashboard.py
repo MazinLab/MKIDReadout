@@ -521,8 +521,8 @@ class MKIDDashboard(QMainWindow):
             state = self.state()
             for k in state:
                 try:
-                    len(state[k])
-                    state[k] = json.dumps(state[k])  # header values must be scalar
+                    if len(state[k])>1 and not type(state[k], str):
+                        state[k] = json.dumps(state[k])  # header values must be scalar
                 except TypeError:
                     pass
             photonImage.header.update(state)
