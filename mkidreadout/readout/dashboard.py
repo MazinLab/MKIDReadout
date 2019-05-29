@@ -531,7 +531,7 @@ class MKIDDashboard(QMainWindow):
             w.wcs.ctype = ["RA--TAN", "DEC-TAN"]
             w._naxis1, w._naxis2 = photonImage.shape
             c = SkyCoord(photonImage.header['ra'], photonImage.header['dec'], unit=(units.hourangle, units.deg),
-                         obstime='J' + photonImage.header['equinox'])
+                         obstime='J' + str(photonImage.header['equinox']))
             w.wcs.crval = np.array([c.ra.deg, c.dec.deg])
             w.wcs.crpix = compute_wcs_ref_pixel(json.loads(photonImage.header['dither_pos']),
                                                 self.config.dashboard.dither_home,
