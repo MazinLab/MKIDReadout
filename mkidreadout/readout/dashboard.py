@@ -33,6 +33,7 @@ from PyQt4.QtGui import *
 from astropy.io import fits
 from astropy.coordinates import SkyCoord
 from astropy import wcs
+import astropy.units as units
 
 import mkidcore.corelog
 import mkidcore.instruments
@@ -521,18 +522,19 @@ class MKIDDashboard(QMainWindow):
             for k in state:
                 try:
                     len(state[k])
-                    state[k] = str(state[k])  # header values must be scalar
+                    state[k] = json.dumps(state[k])  # header values must be scalar
                 except TypeError:
                     pass
             photonImage.header.update(state)
 
             w = wcs.WCS(naxis=2)
             w.wcs.ctype = ["RA--TAN", "DEC-TAN"]
-            w._naxis1, w._naxis2 = photonImage.shape  # these may get set to 0 during pickling so also store to non _
-            c = SkyCoord(photonImage.header['ra'], photonImage.header['dec'])
+            w._naxis1, w._naxis2 = photonImage.shape
+            c = SkyCoord(photonImage.header['ra'], photonImage.header['dec'], unit=(units.hourangle, units.deg),
+                         obstime='J' + photonImage.header['equinox'])
             w.wcs.crval = np.array([c.ra.deg, c.dec.deg])
-
-            w.wcs.crpix = compute_wcs_ref_pixel(photonImage.header['dither_pos'], self.config.dashboard.dither_home,
+            w.wcs.crpix = compute_wcs_ref_pixel(json.loads(photonImage.header['dither_pos']),
+                                                self.config.dashboard.dither_home,
                                                 self.config.dashboard.dither_ref)
             do_rad = np.deg2rad(self.config.dashboard.device_orientation)
             w.wcs.pc = np.array([[np.cos(do_rad), -np.sin(do_rad)],
