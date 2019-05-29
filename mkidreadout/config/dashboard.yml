@@ -1,34 +1,42 @@
 !configdict
 paths: !configdict
-  logs: ./logs/
-  data: ./data/
-
-beammap: !bmap
-  default: DARKNESS
+  logs: /home/data/ScienceData/Subaru/20190529/
+  data: /home/data/ScienceData/Subaru/20190529/
 
 packetmaster: !configdict
-  ip: 10.0.0.51
+  ip: 10.0.0.52
   captureport: 50000
   use_writer: True
 
-instrument : DARKNESS
+instrument : MEC
 
-roaches: !include roach.yml
+beammap: !bmap
+  file: /home/data/MEC/20181220/finalMap_20181218.bmap
+  freqfiles: ''#/mnt/data0/baileyji/mec/psfreq_dec/ps_freqs_FL*_clip.txt
+  nrows: 146
+  ncols: 140
+
+roaches: !include /home/data/MEC/20190521/roach.yml
 
 dashboard: !configdict
-  image_scale: 7 # Show this many^2 monitor screen pixels per MKID pixel
+  image_scale: 6 # Show this many^2 monitor screen pixels per MKID pixel
   max_count_rate: 2500
   min_count_rate: 0
-  flatname: flat   # optional, a flatfile name, if unspecified will take form flat_wave_timestamp.fits
-  darkname: dark  # optional, a darkfile name, if unspecified will take form dark_wave_timestamp.fits
+  #flatname: dashboard   # a name for the flat, will take form name_flat_itime_wave.fits
+  #darkname: dashboard  # a name for the dark, will take form name_dark_itime_wave.fits
   fitstime: 60  # minimum number of seconds to package into each stream fits file, may run over
   wavecal: /home/baileyji/mec/2019-01-13 10529f0c026d91f8361e8d1bbe93699fcccb.npz
-  use_wave: True
+  use_wave: False
   wave_start: 700  #wavecal units
   wave_stop: 1500
-  inttime: 1
+  inttime: .5
   mininttime: .1
   maxinttime: 300
+  dither_home: [0.0, 0.0]
+  dither_ref: [52, 18]
+  device_orientation: -48.0
+  platescale: 0.01
+
 # Flipper is also controlled with the laser box arduino
 lasercontrol: !configdict
   lasers: [808 nm, 904 nm, 980 nm, 1120 nm, 1310 nm]
@@ -37,20 +45,17 @@ lasercontrol: !configdict
   receive_port: 4096
 
 dither: !configdict
-  url: http://localhost:50001
+  url: http://133.40.162.201:50001
   pattern: 0
   user: conexuser
   pass: <password>
 
 filter: !configdict
-  ip: localhost:50000
+  ip: 133.40.162.201:50000
 
 telescope: !configdict
-  ip: g2db.sum.subaru.nao.ac.jp #Gen2 host for subaru
+  ip: g2db.sum.subaru.nao.ac.jp
   port:
   receive_port:
   user: ''
   password: ''
-
-
-

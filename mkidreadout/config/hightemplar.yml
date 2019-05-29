@@ -1,15 +1,10 @@
 !configdict
 paths: !configdict
-  beammap: ./darkness.bmap
   logs: ./logs/
   data: ./data/
 
 templar_host_ip: 10.0.0.51
 
-instrument : DARKNESS
+instrument : MEC
 
-detector: !configdict
-  ncols: 80
-  nrows: 125
-
-roaches: !include roach.yml
+roaches: !include ./roach.yml
