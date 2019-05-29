@@ -217,6 +217,7 @@ def _setfilter(num, home=False):
         getLogger(__name__).error('Caught error', exc_info=True)
         return 'Error: '+error
 
+
 def _getfilternames():
     from win32com.client import Dispatch
     import pythoncom, pywintypes
@@ -234,6 +235,7 @@ def _getfilternames():
         error = traceback.format_exc()
         getLogger(__name__).error('Caught error', exc_info=True)
         return 'Error: '+error
+
 
 def _getfilter():
     from win32com.client import Dispatch
@@ -278,6 +280,7 @@ def getfilternames(host='localhost:50000', timeout=TIMEOUT):
         except Exception as e:
             getLogger(__name__).error('error:', exc_info=True)
         return 'Error: '+str(e)
+
 
 def getfilter(host='localhost:50000', timeout=TIMEOUT):
     host, port = host.split(':')
