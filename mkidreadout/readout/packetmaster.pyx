@@ -276,11 +276,11 @@ cdef class Packetmaster(object):
             self.sharedImages[image].invalidate()
 
         try:
-
             with open('cache_{}.pickle'.format(os.path.basename(wvlSol_file))) as f:
                 a,b,c = pickle.load(f)
             getLogger(__name__).info('Using cache '+'cache_{}.pickle'.format(os.path.basename(wvlSol_file)))
         except IOError:
+            getLogger(__name__).info('No cache file found, please wait ~3 min.')
             calCoeffs, calResIDs = wvlSol.find_calibrations()
             a = np.zeros((self.nRows, self.nCols))
             b = np.zeros((self.nRows, self.nCols))
