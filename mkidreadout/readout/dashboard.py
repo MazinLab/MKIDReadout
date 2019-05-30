@@ -521,7 +521,7 @@ class MKIDDashboard(QMainWindow):
             state = self.state()
             for k in state:
                 try:
-                    if len(state[k])>1 and not type(state[k], str):
+                    if len(state[k]) > 1 and not type(state[k]) in (str, unicode):
                         state[k] = json.dumps(state[k])  # header values must be scalar
                 except TypeError:
                     pass
