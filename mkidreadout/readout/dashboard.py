@@ -31,9 +31,13 @@ from PyQt4 import QtCore
 from PyQt4.QtCore import Qt
 from PyQt4.QtGui import *
 from astropy.io import fits
+from astropy.coordinates import SkyCoord
+from astropy import wcs
+import astropy.units as units
 
 import mkidcore.corelog
 import mkidcore.instruments
+from mkidcore.instruments import compute_wcs_ref_pixel
 import mkidreadout.config
 import mkidreadout.configuration.sweepdata as sweepdata
 import mkidreadout.hardware.hsfw
@@ -107,15 +111,17 @@ class LiveImageFetcher(QtCore.QObject):  # Extends QObject for use with QThreads
             try:
                 utc = datetime.utcfromtimestamp(time.time()).strftime('%Y-%m-%d %H:%M:%S')
                 self.imagebuffer.startIntegration(integrationTime=self.inttime)
-                #time.sleep(self.inttime) #required as recieveImage holds the GIL with a system call
                 data = self.imagebuffer.receiveImage()
                 ret = fits.ImageHDU(data=data)
                 ret.header['utcstart'] = utc
                 ret.header['exptime'] = self.inttime
-                foo = self.imagebuffer.wavecalID.decode('UTF-8', "backslashreplace")
-                ret.header['wavecal'] = foo
-                ret.header['wmin'] = self.imagebuffer.wvlStart
-                ret.header['wmax'] = self.imagebuffer.wvlStop
+                ret.header['wavecal'] = self.imagebuffer.wavecalID.decode('UTF-8', "backslashreplace")
+                if ret.header['wavecal']:
+                    ret.header['wmin'] = self.imagebuffer.wvlStart
+                    ret.header['wmax'] = self.imagebuffer.wvlStop
+                else:
+                    ret.header['wmin'] = 'NaN'
+                    ret.header['wmax'] = 'NaN'
                 self.newImage.emit(ret)
             except RuntimeError as e:
                 getLogger('Dashboard').debug('Image stream unavailable: {}'.format(e))
@@ -478,7 +484,7 @@ class MKIDDashboard(QMainWindow):
         self.takingDark = False
         self.darkField = self.darkFactory.generate(fname=self.darkfile, badmask=self.beammapFailed, save=True,
                                                    name=os.path.splitext(os.path.basename(self.darkfile))[0],
-                                                   header=self.state(), overwrite=True)
+                                                   overwrite=True)
         getLogger('Dashboard').info('Finished dark:\n {}'.format(summarize(self.darkField).replace('\n', '\n  ')))
         self.checkbox_darkImage.setChecked(True)
         self.spinbox_minLambda.setEnabled(True)
@@ -490,7 +496,7 @@ class MKIDDashboard(QMainWindow):
         self.takingFlat = False
         self.flatField = self.flatFactory.generate(fname=self.flatfile, badmask=self.beammapFailed, save=True,
                                                    name=os.path.splitext(os.path.basename(self.flatfile))[0],
-                                                   header=self.state(), overwrite=True)
+                                                   overwrite=True)
         getLogger('Dashboard').info('Finished flat:\n {}'.format(summarize(self.flatField).replace('\n', '\n  ')))
         self.checkbox_flatImage.setChecked(True)
         self.spinbox_minLambda.setEnabled(True)
@@ -511,13 +517,36 @@ class MKIDDashboard(QMainWindow):
         """
         # If there's new data, append it
         if photonImage is not None:
-            for k, v in self.last_tcs_poll.items():
-                photonImage.header[k] = v
+
+            state = self.state()
+            for k in state:
+                try:
+                    if len(state[k]) > 1 and not type(state[k]) in (str, unicode):
+                        state[k] = json.dumps(state[k])  # header values must be scalar
+                except TypeError:
+                    pass
+            photonImage.header.update(state)
+
+            w = wcs.WCS(naxis=2)
+            w.wcs.ctype = ["RA--TAN", "DEC-TAN"]
+            w._naxis1, w._naxis2 = photonImage.shape
+            c = SkyCoord(photonImage.header['ra'], photonImage.header['dec'], unit=(units.hourangle, units.deg),
+                         obstime='J' + str(photonImage.header['equinox']))
+            w.wcs.crval = np.array([c.ra.deg, c.dec.deg])
+            w.wcs.crpix = compute_wcs_ref_pixel(json.loads(photonImage.header['dither_pos']),
+                                                self.config.dashboard.dither_home,
+                                                self.config.dashboard.dither_ref)
+            do_rad = np.deg2rad(self.config.dashboard.device_orientation)
+            w.wcs.pc = np.array([[np.cos(do_rad), -np.sin(do_rad)],
+                                 [np.sin(do_rad), np.cos(do_rad)]])
+            w.wcs.cdelt = [self.config.dashboard.platescale/3600.0, self.config.dashboard.platescale/3600.0]
+            w.wcs.cunit = ["deg", "deg"]
+            photonImage.header.update(w.to_header())
 
             self.imageList.append(photonImage)
-            self.fitsList.append(photonImage)  #for the stream
+            self.fitsList.append(photonImage)  # for the stream
 
-            self.imageList = self.imageList[-1:]  #trust the garbage collector
+            self.imageList = self.imageList[-1:]  # trust the garbage collector
 
             if self.takingDark:
                 self.addDarkImage(photonImage)
@@ -935,8 +964,7 @@ class MKIDDashboard(QMainWindow):
                 self.sciFactory.generate(threaded=True,
                                          fname=os.path.join(self.config.paths.data,
                                                             't{}.fits'.format(int(time.time()))),
-                                         name=str(self.textbox_target.text()),
-                                         save=True, header=self.state())
+                                         name=str(self.textbox_target.text()), save=True)
             else:
                 getLogger('Dashboard').critical('sciFactory is None')
             self.textbox_target.setReadOnly(False)
@@ -1028,8 +1056,12 @@ class MKIDDashboard(QMainWindow):
 
     def state(self):
         """this is the function that populates the headers and the log, it needs to be prompt enough that it won't
-        cause slowdowns"""
-        #TODO Keep this in sync with mkidcore.objects.DashboardState or use that
+        cause slowdowns
+
+        Do not use
+        utcstart, exptime, wmin, wmax they would lead to overwriting photonimage keys
+
+        """
         targ, cmt = str(self.textbox_target.text()), str(self.textbox_log.toPlainText())
         telescope_state = self.telescopeController.get_header()
         now = datetime.utcnow()

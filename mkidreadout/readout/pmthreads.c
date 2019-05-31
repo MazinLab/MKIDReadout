@@ -231,8 +231,7 @@ void *shmImageWriter(void *prms)
 
                 #ifdef _TIMING_TEST
                 gettimeofday(&tv, NULL);
-                sysTs = (unsigned long long)(tv.tv_sec)*1000 + (unsigned long long)(tv.tv_usec)/1000 - (unsigned long long)TSOFFS*1000;
-                sysTs = sysTs*2;
+                sysTs = (unsigned long long)(tv.tv_sec)*2000 + (unsigned long long)(tv.tv_usec)/500 - (unsigned long long)TSOFFS*2000;
                 #endif
                
                 
@@ -678,7 +677,7 @@ void resetSem(const char *semName){
     sem_t *sem;
     char name[80];
     snprintf(name, 80, "%s", semName);
-    sem = sem_open(name, 0);
+    sem = sem_open(name, O_CREAT, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP, 0);
     while(sem_trywait(sem) == 0);
 
 }
