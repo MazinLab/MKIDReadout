@@ -40,7 +40,7 @@
 #define READER_THREAD 0
 #define BIN_WRITER_THREAD 1
 #define SHM_IMAGE_WRITER_THREAD 2
-#define CIRC_BUFF_WRITER_THREAD 3
+#define EVENT_BUFF_WRITER_THREAD 3
 
 //#define _TIMING_TEST //turn on when you want a ts discrepancy file
 //#define _DEBUG_OUTPUT //turns on (fairly obtrusive) debugging output
@@ -130,7 +130,7 @@ typedef struct{
 
     int cpu; //if cpu=-1 then don't maximize priority
 
-} CIRC_BUFF_WRITER_PARAMS;
+} EVENT_BUFF_WRITER_PARAMS;
 
 typedef struct{
     pthread_attr_t attr;
@@ -143,9 +143,11 @@ int maximizePriority(int cpu);
 void *shmImageWriter(void *prms);
 void *binWriter(void *prms);
 void *reader(void *prms);
-void *circBuffWriter(void *prms);
+void *eventBuffWriter(void *prms);
 
 void addPacketToImage(MKID_IMAGE *sharedImage, char *photonWord, 
+        unsigned int l, WAVECAL_BUFFER *wavecal);
+void addPacketToEventBuffer(MKID_EVENT_BUFFER *buffer, char *photonWord, 
         unsigned int l, WAVECAL_BUFFER *wavecal);
 
 int startReaderThread(READER_PARAMS *rparams, THREAD_PARAMS *tparams);
