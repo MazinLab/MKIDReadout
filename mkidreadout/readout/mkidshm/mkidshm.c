@@ -281,3 +281,116 @@ void MKIDShmImage_resetSems(MKID_IMAGE *image){
 
 }
 
+int MKIDShmEventBuffer_open(MKID_EVENT_BUFFER *bufferStruct, const char *bufferName){
+    MKID_EVENT_BUFFER_METADATA *mdPtr;
+    MKID_PHOTON_EVENT *bufferPtr;
+    char newPhotonSemName[STRBUFLEN + 11];
+    int i;
+    int depth;
+
+    // OPEN METADATA BUFFER
+    mdPtr = (MKID_EVENT_BUFFER_METADATA*)openShmFile(bufferName, sizeof(MKID_EVENT_BUFFER_METADATA), 0);
+    if(mdPtr == NULL)
+        return -1;
+
+
+    if(mdPtr->version != MKIDSHM_VERSION){
+        printf("ERROR: Version mismatch between libmkidshm and shared memory file");
+        return -1;
+
+    }
+
+    bufferStruct->md = mdPtr;
+
+    // OPEN IMAGE BUFFER 
+    bufferPtr = (MKID_PHOTON_EVENT*)openShmFile(bufferStruct->md->eventBufferName, bufferStruct->md->bufferSize*sizeof(MKID_PHOTON_EVENT), 0);
+    if(bufferPtr == NULL)
+        return -1;
+ 
+    bufferStruct->eventBuffer = bufferPtr;
+
+    // OPEN SEMAPHORES
+    bufferStruct->newPhotonSemList = (sem_t**)malloc(N_DONE_SEMS*sizeof(sem_t*));
+    for(i=0; i<N_DONE_SEMS; i++){ 
+        snprintf(newPhotonSemName, STRBUFLEN+11, "%s%d", mdPtr->newPhotonSemName, i);
+        bufferStruct->newPhotonSemList[i] = sem_open(newPhotonSemName, O_CREAT, S_IRUSR | S_IWUSR, 0);
+        if(bufferStruct->newPhotonSemList[i] == SEM_FAILED)
+            printf("New photon semaphore creation failed %s\n", strerror(errno));
+
+    }
+
+    return 0;
+
+}
+
+int MKIDShmEventBuffer_create(MKID_EVENT_BUFFER_METADATA *bufferMetadata, const char *bufferName, MKID_EVENT_BUFFER *outputBuffer){
+    MKID_EVENT_BUFFER_METADATA *mdPtr;
+    char newPhotonSemName[STRBUFLEN + 11];
+    MKID_PHOTON_EVENT *bufferPtr;
+    int i;
+
+    mdPtr = (MKID_EVENT_BUFFER_METADATA*)openShmFile(bufferName, sizeof(MKID_EVENT_BUFFER_METADATA), 1);
+
+    if(mdPtr==NULL)
+        return -1;
+
+    memcpy(mdPtr, bufferMetadata, sizeof(MKID_EVENT_BUFFER_METADATA)); //copy contents of imageMetadata into shared memory buffer
+    outputBuffer->md = mdPtr;
+
+    // CREATE IMAGE DATA BUFFER
+    bufferPtr = (MKID_PHOTON_EVENT*)openShmFile(mdPtr->eventBufferName, sizeof(MKID_PHOTON_EVENT)*mdPtr->bufferSize, 1);
+    if(bufferPtr==NULL)
+        return -1;
+
+    outputBuffer->eventBuffer = bufferPtr;
+
+    // OPEN SEMAPHORES
+    outputBuffer->newPhotonSemList = (sem_t**)malloc(N_DONE_SEMS*sizeof(sem_t*));
+    for(i=0; i<N_DONE_SEMS; i++){ 
+        snprintf(newPhotonSemName, STRBUFLEN+11, "%s%d", mdPtr->newPhotonSemName, i);
+        outputBuffer->newPhotonSemList[i] = sem_open(newPhotonSemName, O_CREAT, S_IRUSR|S_IWUSR|S_IRGRP|S_IWGRP, 0);
+        if(outputBuffer->newPhotonSemList[i] == SEM_FAILED){
+            printf("New photon semaphore creation failed %s\n", strerror(errno));
+            return -1;
+
+        }
+
+    }
+
+    return 0;
+    
+
+}
+
+int MKIDShmEventBuffer_populateMD(MKID_EVENT_BUFFER_METADATA *metadata, const char *name, int size, int useWvl){
+    metadata->version = MKIDSHM_VERSION;
+    metadata->useWvl = useWvl;
+    metadata->writing = 0;
+    metadata->nCycles = 0;
+    metadata->endInd = -1;
+    snprintf(metadata->name, STRBUFLEN, "%s", name);
+    snprintf(metadata->wavecalID, WVLIDLEN, "%s", "none");
+    snprintf(metadata->eventBufferName, STRBUFLEN, "%s.buf", name);
+    snprintf(metadata->newPhotonSemName, STRBUFLEN, "%s.newPhot", name);
+    return 0;
+
+}
+
+int MKIDShmEventBuffer_addEvent(MKID_EVENT_BUFFER *buffer, MKID_PHOTON_EVENT *photon){
+    buffer->md->writing = 1;
+    int writeInd = buffer->md->endInd + 1;
+    if(writeInd == buffer->md->bufferSize){ //we've reached the end of the buffer
+        writeInd = 0;
+        buffer->md->nCycles += 1;
+
+    }
+
+    buffer->eventBuffer[writeInd] = *photon; 
+    buffer->md->endInd = writeInd;
+
+    buffer->md->writing = 0;
+    MKIDShmEventBuffer_postDoneSem(buffer, -1);
+
+    return 0;
+
+}

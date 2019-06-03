@@ -362,7 +362,7 @@ void *eventBuffWriter(void *prms)
     uint32_t *doneIntegrating; //Array of bitmasks (one for each image, bits are roaches)
     uint32_t doneIntMask; //constant - each place value corresponds to a roach board
     EVENT_BUFF_WRITER_PARAMS *params;
-    MKID_EVENT_BUFFER *eventBuffer;
+    MKID_EVENT_BUFFER eventBuffer;
     sem_t *quitSem;
     sem_t *streamSem;
 
@@ -388,6 +388,8 @@ void *eventBuffWriter(void *prms)
     #ifdef _TIMING_TEST
     FILE *timeFile = fopen("timetestcb.txt", "w");
     #endif
+
+    MKIDShmEventBuffer_open(&eventBuffer, params->bufferName);
 
     printf("SharedImageWriter done initializing\n");
     curRoachInd = 0;
@@ -449,7 +451,7 @@ void *eventBuffWriter(void *prms)
                    fprintf(timeFile, "%llu %llu %d\n", curTs, sysTs, hdr->roach);
                    #endif
 
-                   addPacketToEventBuffer(eventBuffer, packet,i*8 - pstart, params->wavecal);
+                   addPacketToEventBuffer(&eventBuffer, packet,i*8 - pstart, hdr->timestamp, params->wavecal, params->nRows, params->nCols);
 		           pstart = i*8;   // move start location for next packet	                      
 
               }
@@ -462,7 +464,7 @@ void *eventBuffWriter(void *prms)
        }                           
     }
 
-    printf("SharedImageWriter: Freeing stuff\n");
+    printf("EventBufferWriter: Freeing stuff\n");
     free(olddata);
     sem_close(streamSem);
     sem_close(quitSem);
@@ -470,7 +472,7 @@ void *eventBuffWriter(void *prms)
     #ifdef _TIMING_TEST
     fclose(timeFile);
     #endif
-    printf("SharedImageWriter: Closing\n");
+    printf("EventBufferWriter: Closing\n");
     return NULL;
 }
 
@@ -802,10 +804,11 @@ void addPacketToImage(MKID_IMAGE *sharedImage, char *photonWord,
 }
 
 void addPacketToEventBuffer(MKID_EVENT_BUFFER *buffer, char *photonWord, 
-        unsigned int l, WAVECAL_BUFFER *wavecal)
+        unsigned int l, uint64_t headerTS, WAVECAL_BUFFER *wavecal, int nRows, int nCols)
 {
     uint64_t i;
     PHOTON_WORD *data;
+    MKID_PHOTON_EVENT photon;
     uint64_t swp,swp1;
     float wvl, wvlBinSpacing;
     int wvlBinInd;
@@ -816,10 +819,10 @@ void addPacketToEventBuffer(MKID_EVENT_BUFFER *buffer, char *photonWord,
         swp1 = __bswap_64(swp);
         data = (PHOTON_WORD *) (&swp1);
         
-        if( data->xcoord >= sharedImage->md->nCols || data->ycoord >= sharedImage->md->nRows ) 
+        if( data->xcoord >= nCols || data->ycoord >= nRows ) 
             continue;
 
-        if((sharedImage->md->useWvl)){
+        if((buffer->md->useWvl)){
             if(wavecal == NULL){
                 perror("ERROR: No wavecal buffer specified!");
                 continue;
@@ -827,39 +830,20 @@ void addPacketToEventBuffer(MKID_EVENT_BUFFER *buffer, char *photonWord,
             }
             wvl = getWavelength(data, wavecal);
 
-            if(sharedImage->md->useEdgeBins){
-                if(wvl < sharedImage->md->wvlStart)
-                    wvlBinInd = 0;
-                else if(wvl >= sharedImage->md->wvlStop)
-                    wvlBinInd = sharedImage->md->nWvlBins + 1;
-                else{
-                    wvlBinSpacing = (double)(sharedImage->md->wvlStop - sharedImage->md->wvlStart)/sharedImage->md->nWvlBins;
-                    wvlBinInd = (int)(wvl - sharedImage->md->wvlStart)/wvlBinSpacing + 1;
-
-                }
-            }
-
-            else{
-                if((wvl < sharedImage->md->wvlStart) || (wvl >= sharedImage->md->wvlStop))
-                    continue;
-                else{
-                    wvlBinSpacing = (double)(sharedImage->md->wvlStop - sharedImage->md->wvlStart)/sharedImage->md->nWvlBins;
-                    wvlBinInd = (int)(wvl - sharedImage->md->wvlStart)/wvlBinSpacing;
-
-                }
-
-            }
-
-            if(sharedImage->md->takingImage)
-                sharedImage->image[(sharedImage->md->nCols)*(sharedImage->md->nRows)*wvlBinInd + (sharedImage->md->nCols)*(data->ycoord) + data->xcoord]++;
-
         }
-        
+            
         else
-            if(sharedImage->md->takingImage)
-                sharedImage->image[(sharedImage->md->nCols)*(data->ycoord) + data->xcoord]++;
-      
+            wvl = (float)data->phase/PHASE_BIN_PT; //phase in radians
+
+        photon.time = 500*((uint64_t)2000*TSOFFS + headerTS) + data->timestamp;
+        photon.x = data->xcoord;
+        photon.y = data->ycoord;
+        photon.wvl = (wvl_t)wvl;
+
+        MKIDShmEventBuffer_addEvent(buffer, &photon);
+
     }
+
 
 }
 

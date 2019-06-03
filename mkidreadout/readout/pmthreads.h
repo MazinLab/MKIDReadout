@@ -128,6 +128,9 @@ typedef struct{
     char quitSemName[STRBUF];
     char streamSemName[STRBUF];
 
+    int nRows;
+    int nCols;
+
     int cpu; //if cpu=-1 then don't maximize priority
 
 } EVENT_BUFF_WRITER_PARAMS;
@@ -148,7 +151,7 @@ void *eventBuffWriter(void *prms);
 void addPacketToImage(MKID_IMAGE *sharedImage, char *photonWord, 
         unsigned int l, WAVECAL_BUFFER *wavecal);
 void addPacketToEventBuffer(MKID_EVENT_BUFFER *buffer, char *photonWord, 
-        unsigned int l, WAVECAL_BUFFER *wavecal);
+        unsigned int l, uint64_t headerTS, WAVECAL_BUFFER *wavecal, int nRows, int nCosl);
 
 int startReaderThread(READER_PARAMS *rparams, THREAD_PARAMS *tparams);
 int startBinWriterThread(BIN_WRITER_PARAMS *rparams, THREAD_PARAMS *tparams);

@@ -29,6 +29,7 @@ extern "C" {
 #define WVLIDLEN 150
 typedef int image_t; //can mess around with changing this w/o many subsitutions
 typedef float coeff_t;
+typedef float wvl_t;
 
 typedef struct{
     //metadata
@@ -73,22 +74,30 @@ typedef struct{
     uint8_t y;
 
     uint64_t time; //arrival time (could also shorten and make relative)
-    coeff_t wvl; //wavelength
+    wvl_t wvl; //wavelength
 
 } MKID_PHOTON_EVENT;
 
 typedef struct{
+    uint32_t version;
+
     uint32_t bufferSize; //Size of circular buffer
-    uint32_t endInd; //index of last write
+    int endInd; //index of last write
     int writing; //1 if currently writing event
     int nCycles; //increment on each complete cycle of buffer
-    sem_t **newPhotonSemList;
+    int useWvl; //1 if using wavecal (otherwise use phase)
+
+    char name[STRBUFLEN]; //form: /imgbuffername (in /dev/shm)
+    char eventBufferName[STRBUFLEN]; //form: /imgbuffername (in /dev/shm)
+    char newPhotonSemName[STRBUFLEN];
+    char wavecalID[WVLIDLEN];
 
 } MKID_EVENT_BUFFER_METADATA;
 
 typedef struct{
     MKID_EVENT_BUFFER_METADATA *md;
     MKID_PHOTON_EVENT *eventBuffer;
+    sem_t **newPhotonSemList;
 
 } MKID_EVENT_BUFFER;
 
@@ -115,6 +124,7 @@ int MKIDShmEventBuffer_create(MKID_EVENT_BUFFER_METADATA *bufferMetadata, const 
 void MKIDShmEventBuffer_postDoneSem(MKID_EVENT_BUFFER *buffer, int semInd);
 void MKIDShmEventBuffer_resetSems(MKID_EVENT_BUFFER *buffer);
 int MKIDShmEventBuffer_addEvent(MKID_EVENT_BUFFER *buffer, MKID_PHOTON_EVENT *photon);
+//int MKIDShmEventBuffer_addEvent(MKID_EVENT_BUFFER *buffer, int x, int y, uint64_t time, coeff_t wvl);
 
 
 void *openShmFile(const char *shmName, size_t size, int create);
