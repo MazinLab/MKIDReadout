@@ -13,6 +13,7 @@ int main(){
     int photonInd=0;
 
     MKIDShmEventBuffer_open(&eventBuffer, "/EventBufferTest0");
+    MKIDShmEventBuffer_reset(&eventBuffer);
 
     while(1){
         sem_wait(eventBuffer.newPhotonSemList[0]);

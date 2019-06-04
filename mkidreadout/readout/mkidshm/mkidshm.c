@@ -406,3 +406,13 @@ void MKIDShmEventBuffer_postDoneSem(MKID_EVENT_BUFFER *buffer, int semInd){
 
 }
 
+void MKIDShmEventBuffer_reset(MKID_EVENT_BUFFER *eventBuffer){
+    int i;
+    eventBuffer->md->endInd = -1;
+    eventBuffer->md->nCycles = 0;
+
+    for(i=0; i<N_DONE_SEMS; i++)
+        while(sem_trywait(eventBuffer->newPhotonSemList[i])==0);
+
+}
+

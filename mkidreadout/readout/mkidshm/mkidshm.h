@@ -125,6 +125,7 @@ int MKIDShmEventBuffer_populateMD(MKID_EVENT_BUFFER_METADATA *metadata, const ch
 void MKIDShmEventBuffer_postDoneSem(MKID_EVENT_BUFFER *buffer, int semInd);
 void MKIDShmEventBuffer_resetSems(MKID_EVENT_BUFFER *buffer);
 int MKIDShmEventBuffer_addEvent(MKID_EVENT_BUFFER *buffer, MKID_PHOTON_EVENT *photon);
+void MKIDShmEventBuffer_reset(MKID_EVENT_BUFFER *eventBuffer);
 //int MKIDShmEventBuffer_addEvent(MKID_EVENT_BUFFER *buffer, int x, int y, uint64_t time, coeff_t wvl);
 
 
