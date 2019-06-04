@@ -130,8 +130,8 @@ void *shmImageWriter(void *prms)
     printf("NROACH: %x\n", params->nRoach);
     rptr = params->roachStream;
 
-    quitSem = sem_open(params->quitSemName, O_CREAT, S_IRUSR | S_IWUSR, 0);
-    streamSem = sem_open(params->streamSemName, O_CREAT, S_IRUSR | S_IWUSR, 0);
+    quitSem = sem_open(params->quitSemName, O_CREAT, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP, 0);
+    streamSem = sem_open(params->streamSemName, O_CREAT, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP, 0);
     sem_post(streamSem);
         
     olddata = (char *) malloc(sizeof(char)*SHAREDBUF);
@@ -383,11 +383,12 @@ void *eventBuffWriter(void *prms)
 
     if(params->cpu != -1)
         ret = MaximizePriority(params->cpu);
-    printf("SharedImageWriter online.\n");
+    printf("EventBuffWriter online.\n");
 
 
-    quitSem = sem_open(params->quitSemName, O_CREAT, S_IRUSR | S_IWUSR, 0);
-    streamSem = sem_open(params->streamSemName, O_CREAT, S_IRUSR | S_IWUSR, 0);
+    quitSem = sem_open(params->quitSemName, O_CREAT, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP, 0);
+    streamSem = sem_open(params->streamSemName, O_CREAT, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP, 0);
+    rptr = params->roachStream;
     sem_post(streamSem);
         
     olddata = (char *) malloc(sizeof(char)*SHAREDBUF);
@@ -404,7 +405,7 @@ void *eventBuffWriter(void *prms)
 
     MKIDShmEventBuffer_open(&eventBuffer, params->bufferName);
 
-    printf("SharedImageWriter done initializing\n");
+    printf("EventBuffer done initializing\n");
     curRoachInd = 0;
     prevRoachInd = 0;
 
@@ -512,11 +513,11 @@ void* reader(void *prms){
     rptrs = params->roachStreamList; //pointer to list of stream buffers, assume this is allocated
 
     //open semaphores
-    quitSem = sem_open(params->quitSemName, O_CREAT, S_IRUSR | S_IWUSR, 0);
+    quitSem = sem_open(params->quitSemName, O_CREAT, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP, 0);
     streamSems = (sem_t**) malloc(params->nRoachStreams * sizeof(sem_t*));
     for(i=0; i<params->nRoachStreams; i++){
         snprintf(streamSemName, 80, "%s%d", params->streamSemBaseName, i);
-        streamSems[i] = sem_open(streamSemName, O_CREAT, S_IRUSR | S_IWUSR, 0);
+        streamSems[i] = sem_open(streamSemName, O_CREAT, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP, 0);
     
     }
         
@@ -649,8 +650,8 @@ void* binWriter(void *prms)
 
     printf("Rev up the RAID array, WRITER is active!\n");
 
-    quitSem = sem_open(params->quitSemName, O_CREAT, S_IRUSR | S_IWUSR, 0);
-    streamSem = sem_open(params->streamSemName, O_CREAT, S_IRUSR | S_IWUSR, 0);
+    quitSem = sem_open(params->quitSemName, O_CREAT, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP, 0);
+    streamSem = sem_open(params->streamSemName, O_CREAT, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP, 0);
     sem_post(streamSem);
 
     

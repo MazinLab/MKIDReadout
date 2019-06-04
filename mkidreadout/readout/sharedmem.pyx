@@ -307,3 +307,7 @@ cdef class EventBuffer:
         if rval != 0:
             raise Exception('Error opening shared memory file')
 
+    @property
+    def size(self):
+        return self.eventBuffer.md.bufferSize
+

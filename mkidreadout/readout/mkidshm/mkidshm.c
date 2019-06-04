@@ -365,6 +365,7 @@ int MKIDShmEventBuffer_create(MKID_EVENT_BUFFER_METADATA *bufferMetadata, const 
 int MKIDShmEventBuffer_populateMD(MKID_EVENT_BUFFER_METADATA *metadata, const char *name, int size, int useWvl){
     metadata->version = MKIDSHM_VERSION;
     metadata->useWvl = useWvl;
+    metadata->bufferSize = size;
     metadata->writing = 0;
     metadata->nCycles = 0;
     metadata->endInd = -1;
@@ -394,3 +395,14 @@ int MKIDShmEventBuffer_addEvent(MKID_EVENT_BUFFER *buffer, MKID_PHOTON_EVENT *ph
     return 0;
 
 }
+
+void MKIDShmEventBuffer_postDoneSem(MKID_EVENT_BUFFER *buffer, int semInd){
+    int i;
+    if(semInd==-1)
+        for(i=0; i<N_DONE_SEMS; i++)
+            sem_post(buffer->newPhotonSemList[i]);
+    else
+        sem_post(buffer->newPhotonSemList[semInd]);
+
+}
+
