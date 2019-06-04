@@ -81,7 +81,7 @@ typedef struct{
 typedef struct{
     uint32_t version;
 
-    uint32_t bufferSize; //Size of circular buffer
+    uint32_t size; //Size of circular buffer
     int endInd; //index of last write
     int writing; //1 if currently writing event
     int nCycles; //increment on each complete cycle of buffer
@@ -96,7 +96,7 @@ typedef struct{
 
 typedef struct{
     MKID_EVENT_BUFFER_METADATA *md;
-    MKID_PHOTON_EVENT *eventBuffer;
+    MKID_PHOTON_EVENT *buffer;
     sem_t **newPhotonSemList;
 
 } MKID_EVENT_BUFFER;

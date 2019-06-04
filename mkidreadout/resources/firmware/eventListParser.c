@@ -18,9 +18,9 @@ int main(){
         sem_wait(eventBuffer.newPhotonSemList[0]);
         //photonInd = eventBuffer.md->endInd;
         photonInd += 1;
-        photonInd = photonInd%eventBuffer.md->bufferSize;
+        photonInd = photonInd%eventBuffer.md->size;
         printf("Photon #%d\n", photonInd);
-        photon = eventBuffer.eventBuffer[photonInd];
+        photon = eventBuffer.buffer[photonInd];
         printf("    x: %d\n", photon.x);
         printf("    y: %d\n", photon.y);
         printf("   ts: %lu\n", photon.time);

@@ -42,7 +42,7 @@ cdef extern from "mkidshm.h":
 
     #PARTIAL DEFINITION, only exposing necessary attributes
     ctypedef struct MKID_EVENT_BUFFER_METADATA:
-        uint32_t bufferSize
+        uint32_t size
         int endInd
         int writing
         int nCycles
@@ -287,7 +287,7 @@ cdef class EventBuffer:
         if os.path.isfile(os.path.join('/dev/shm', name[1:])):
             self._open(name)
             if size is not None:
-                if size != self.eventBuffer.md.bufferSize:
+                if size != self.eventBuffer.md.size:
                     raise Exception('Buffer already exists, and provided size does not match.')
 
         else:
@@ -309,5 +309,5 @@ cdef class EventBuffer:
 
     @property
     def size(self):
-        return self.eventBuffer.md.bufferSize
+        return self.eventBuffer.md.size
 

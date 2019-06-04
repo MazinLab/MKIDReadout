@@ -303,11 +303,11 @@ int MKIDShmEventBuffer_open(MKID_EVENT_BUFFER *bufferStruct, const char *bufferN
     bufferStruct->md = mdPtr;
 
     // OPEN IMAGE BUFFER 
-    bufferPtr = (MKID_PHOTON_EVENT*)openShmFile(bufferStruct->md->eventBufferName, bufferStruct->md->bufferSize*sizeof(MKID_PHOTON_EVENT), 0);
+    bufferPtr = (MKID_PHOTON_EVENT*)openShmFile(bufferStruct->md->eventBufferName, bufferStruct->md->size*sizeof(MKID_PHOTON_EVENT), 0);
     if(bufferPtr == NULL)
         return -1;
  
-    bufferStruct->eventBuffer = bufferPtr;
+    bufferStruct->buffer = bufferPtr;
 
     // OPEN SEMAPHORES
     bufferStruct->newPhotonSemList = (sem_t**)malloc(N_DONE_SEMS*sizeof(sem_t*));
@@ -338,11 +338,11 @@ int MKIDShmEventBuffer_create(MKID_EVENT_BUFFER_METADATA *bufferMetadata, const 
     outputBuffer->md = mdPtr;
 
     // CREATE IMAGE DATA BUFFER
-    bufferPtr = (MKID_PHOTON_EVENT*)openShmFile(mdPtr->eventBufferName, sizeof(MKID_PHOTON_EVENT)*mdPtr->bufferSize, 1);
+    bufferPtr = (MKID_PHOTON_EVENT*)openShmFile(mdPtr->eventBufferName, sizeof(MKID_PHOTON_EVENT)*mdPtr->size, 1);
     if(bufferPtr==NULL)
         return -1;
 
-    outputBuffer->eventBuffer = bufferPtr;
+    outputBuffer->buffer = bufferPtr;
 
     // OPEN SEMAPHORES
     outputBuffer->newPhotonSemList = (sem_t**)malloc(N_DONE_SEMS*sizeof(sem_t*));
@@ -365,7 +365,7 @@ int MKIDShmEventBuffer_create(MKID_EVENT_BUFFER_METADATA *bufferMetadata, const 
 int MKIDShmEventBuffer_populateMD(MKID_EVENT_BUFFER_METADATA *metadata, const char *name, int size, int useWvl){
     metadata->version = MKIDSHM_VERSION;
     metadata->useWvl = useWvl;
-    metadata->bufferSize = size;
+    metadata->size = size;
     metadata->writing = 0;
     metadata->nCycles = 0;
     metadata->endInd = -1;
@@ -380,13 +380,13 @@ int MKIDShmEventBuffer_populateMD(MKID_EVENT_BUFFER_METADATA *metadata, const ch
 int MKIDShmEventBuffer_addEvent(MKID_EVENT_BUFFER *buffer, MKID_PHOTON_EVENT *photon){
     buffer->md->writing = 1;
     int writeInd = buffer->md->endInd + 1;
-    if(writeInd == buffer->md->bufferSize){ //we've reached the end of the buffer
+    if(writeInd == buffer->md->size){ //we've reached the end of the buffer
         writeInd = 0;
         buffer->md->nCycles += 1;
 
     }
 
-    buffer->eventBuffer[writeInd] = *photon; 
+    buffer->buffer[writeInd] = *photon; 
     buffer->md->endInd = writeInd;
 
     buffer->md->writing = 0;
