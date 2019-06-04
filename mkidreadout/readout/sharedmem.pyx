@@ -8,6 +8,8 @@ from mkidcore.corelog import getLogger
 import os
 from libc.string cimport strcpy
 
+DEFAULT_EVENT_BUFFER_SIZE = 200000
+
 cdef extern from "<stdint.h>":
     ctypedef unsigned int uint32_t
     ctypedef unsigned long long uint64_t
@@ -38,14 +40,23 @@ cdef extern from "mkidshm.h":
     ctypedef struct MKID_IMAGE:
         MKID_IMAGE_METADATA *md
 
-    ctypedef struct MKID_WAVECAL_METADATA:
-        uint32_t nCols
-        uint32_t nRows
-
-    ctypedef struct MKID_WAVECAL:
-        MKID_WAVECAL_METADATA *md
-        coeff_t *data
-
+    #PARTIAL DEFINITION, only exposing necessary attributes
+    ctypedef struct MKID_EVENT_BUFFER_METADATA:
+        uint32_t bufferSize
+        int endInd
+        int writing
+        int nCycles
+        int useWvl
+    
+        char name[80]
+        char eventBufferName[80]
+        char newPhotonSemName[80]
+        char wavecalID[150]
+    
+    #PARTIAL DEFINITION, only exposing necessary attributes
+    ctypedef struct MKID_EVENT_BUFFER:
+        MKID_EVENT_BUFFER_METADATA *md
+    
     cdef int MKIDShmImage_open(MKID_IMAGE *imageStruct, char *imgName)
     cdef int MKIDShmImage_close(MKID_IMAGE *imageStruct)
     cdef int MKIDShmImage_create(MKID_IMAGE_METADATA *imageMetadata, char *imgName, MKID_IMAGE *outputImage)
@@ -55,6 +66,10 @@ cdef extern from "mkidshm.h":
     cdef int MKIDShmImage_timedwait(MKID_IMAGE *image, int semInd, int time, int stopImage) nogil
     cdef int MKIDShmImage_checkIfDone(MKID_IMAGE *image, int semInd)
     cdef void MKIDShmImage_copy(MKID_IMAGE *image, image_t *outputBuffer)
+
+    cdef int MKIDShmEventBuffer_open(MKID_EVENT_BUFFER *bufferStruct, const char *bufferName)
+    cdef int MKIDShmEventBuffer_create(MKID_EVENT_BUFFER_METADATA *bufferMetadata, const char *bufferName, MKID_EVENT_BUFFER *outputBuffer)
+    cdef int MKIDShmEventBuffer_populateMD(MKID_EVENT_BUFFER_METADATA *metadata, const char *name, int size, int useWvl)
 
 
 cdef class ImageCube(object):
@@ -263,5 +278,32 @@ cdef class ImageCube(object):
     def valid(self):
         return bool(self.image.md.valid)
     
-        
+cdef class EventBuffer:
+    cdef MKID_EVENT_BUFFER eventBuffer;
+
+    def __init__(self, name, size=None):
+        if not name.startswith('/'):
+            name = '/'+name
+        if os.path.isfile(os.path.join('/dev/shm', name[1:])):
+            self._open(name)
+            if size is not None:
+                if size != self.eventBuffer.md.bufferSize:
+                    raise Exception('Buffer already exists, and provided size does not match.')
+
+        else:
+            if size is None:
+                size = DEFAULT_EVENT_BUFFER_SIZE
+            self._create(name, size)
+
+    def _create(self, name, size):
+        cdef MKID_EVENT_BUFFER_METADATA md
+        MKIDShmEventBuffer_populateMD(&md, name.encode('UTF-8'), size, 0)
+        rval = MKIDShmEventBuffer_create(&md, name.encode('UTF-8'), &(self.eventBuffer));
+        if rval != 0:
+            raise Exception('Error opening shared memory file')
+
+    def _open(self, name):
+        rval = MKIDShmEventBuffer_open(&(self.eventBuffer), name.encode('UTF-8'))
+        if rval != 0:
+            raise Exception('Error opening shared memory file')
 

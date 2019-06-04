@@ -121,6 +121,7 @@ void MKIDShmImage_resetSems(MKID_IMAGE *image);
 
 int MKIDShmEventBuffer_open(MKID_EVENT_BUFFER *bufferStruct, const char *bufferName);
 int MKIDShmEventBuffer_create(MKID_EVENT_BUFFER_METADATA *bufferMetadata, const char *bufferName, MKID_EVENT_BUFFER *outputBuffer);
+int MKIDShmEventBuffer_populateMD(MKID_EVENT_BUFFER_METADATA *metadata, const char *name, int size, int useWvl);
 void MKIDShmEventBuffer_postDoneSem(MKID_EVENT_BUFFER *buffer, int semInd);
 void MKIDShmEventBuffer_resetSems(MKID_EVENT_BUFFER *buffer);
 int MKIDShmEventBuffer_addEvent(MKID_EVENT_BUFFER *buffer, MKID_PHOTON_EVENT *photon);

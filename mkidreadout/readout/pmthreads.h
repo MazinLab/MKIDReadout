@@ -156,6 +156,7 @@ void addPacketToEventBuffer(MKID_EVENT_BUFFER *buffer, char *photonWord,
 int startReaderThread(READER_PARAMS *rparams, THREAD_PARAMS *tparams);
 int startBinWriterThread(BIN_WRITER_PARAMS *rparams, THREAD_PARAMS *tparams);
 int startShmImageWriterThread(SHM_IMAGE_WRITER_PARAMS *rparams, THREAD_PARAMS *tparams);
+int startEventBuffWriterThread(EVENT_BUFF_WRITER_PARAMS *rparams, THREAD_PARAMS *tparams);
 void quitAllThreads(const char *quitSemName, int nThreads);
 void resetSem(const char *quitSemName);
 float getWavelength(PHOTON_WORD *photon, WAVECAL_BUFFER *wavecal);

@@ -5,7 +5,7 @@ import numpy as np
 cimport numpy as np
 from libc.stdlib cimport free, malloc
 from libc.string cimport memcpy, memset, strcpy
-from mkidreadout.readout.sharedmem import ImageCube
+from mkidreadout.readout.sharedmem import ImageCube, EventBuffer
 
 import mkidpipeline.calibration.wavecal as wvl
 from mkidcore.corelog import getLogger
@@ -63,13 +63,16 @@ cdef extern from "pmthreads.h":
 
         int cpu; #if cpu=-1 then don't maximize priority
     
-    ctypedef struct CIRC_BUFF_WRITER_PARAMS:
+    ctypedef struct EVENT_BUFF_WRITER_PARAMS:
         READOUT_STREAM *roachStream;
         char bufferName[80];
         WAVECAL_BUFFER *wavecal; #if NULL don't use wavecal
 
         char quitSemName[80];
         char streamSemName[80];
+
+        int nRows;
+        int nCols;
 
         int cpu; #if cpu=-1 then don't maximize priority
 
@@ -92,6 +95,7 @@ cdef extern from "pmthreads.h":
     cdef int startReaderThread(READER_PARAMS *rparams, THREAD_PARAMS *tparams);
     cdef int startBinWriterThread(BIN_WRITER_PARAMS *rparams, THREAD_PARAMS *tparams);
     cdef int startShmImageWriterThread(SHM_IMAGE_WRITER_PARAMS *rparams, THREAD_PARAMS *tparams);
+    cdef int startEventBuffWriterThread(EVENT_BUFF_WRITER_PARAMS *rparams, THREAD_PARAMS *tparams);
     cdef void resetSem(const char *semName);
     cdef void quitAllThreads(const char *quitSemName, int nThreads);
 
@@ -102,6 +106,7 @@ cdef class Packetmaster(object):
     """
     cdef BIN_WRITER_PARAMS writerParams
     cdef SHM_IMAGE_WRITER_PARAMS imageParams
+    cdef EVENT_BUFF_WRITER_PARAMS eventBuffParams
     cdef READER_PARAMS readerParams
     cdef WAVECAL_BUFFER wavecal
     cdef READOUT_STREAM *streams
@@ -112,10 +117,11 @@ cdef class Packetmaster(object):
     cdef int nThreads
     cdef int nSharedImages
     cdef readonly object sharedImages
+    cdef readonly object eventBuffer
 
     #TODO useWriter->savebinfiles, ramdiskPath->ramdisk ?use '' as default?
     def __init__(self, nRoaches, port, nRows=None, nCols=None, useWriter=True, wvlSol=None,
-                 beammap=None, sharedImageCfg=None, maximizePriority=False, recreate_images=False):
+                 beammap=None, sharedImageCfg=None, eventBuffCfg=None, maximizePriority=False, recreate_images=False):
         """
         Starts the reader (packet receiving) thread along with the appropriate number of parsing 
         threads according to the specified configuration.
@@ -145,10 +151,13 @@ cdef class Packetmaster(object):
                 ImageCube objects for each image.
                 Object must have keys corresponding to the names of the images, and values must have a get method for
                 valid for the attributes n_wave_bins, use_wave, wave_start, wave_stop (i.e. a ConfigThing or a dict)
+            eventBuffCfg: yaml config object (or dict)
+                Config dict specifying name and size of event buffer. If None no event buffer is created/used.
             recreate_images: bool
                 Remove and recreate the shared images if true
         """
 
+        #TODO: modify to include circular buffer
         if recreate_images and sharedImageCfg is not None:
             for k in sharedImageCfg:
                 f = '/dev/shm/{}'.format(k)
@@ -193,6 +202,15 @@ cdef class Packetmaster(object):
                 self.imageParams.sharedImageNames[i] = <char*>malloc(STRBUF*sizeof(char*))
                 strcpy(self.imageParams.sharedImageNames[i], image.encode('UTF-8'))
 
+        #INITIALIZE EVENT BUFFER
+        self.eventBuffer = None
+        if eventBuffCfg is not None:
+            self.eventBuffParams.nRows = self.nRows
+            self.eventBuffParams.nCols = self.nCols
+            self.eventBuffParams.wavecal = &(self.wavecal)
+            self.eventBuffer = EventBuffer(eventBuffCfg['name'], eventBuffCfg['size'])
+            strcpy(self.eventBuffParams.bufferName, eventBuffCfg['name'].encode('UTF8'))
+
         #INITIALIZE WAVECAL
         self.wavecal.data = <wvlcoeff_t*>malloc(N_WVL_COEFFS*sizeof(wvlcoeff_t)*npix)
         memset(self.wavecal.data, 0, N_WVL_COEFFS*sizeof(wvlcoeff_t)*npix)
@@ -207,6 +225,8 @@ cdef class Packetmaster(object):
             self.nStreams += 1
         if useWriter:
             self.nStreams += 1
+        if self.eventBuffer:
+            self.nStreams += 1
         self.streams = <READOUT_STREAM*>malloc(self.nStreams*sizeof(READOUT_STREAM))
         self.readerParams.roachStreamList = self.streams
         self.readerParams.nRoachStreams = self.nStreams
@@ -215,6 +235,11 @@ cdef class Packetmaster(object):
         if self.sharedImages:
             self.imageParams.roachStream = &self.streams[streamNum]
             strcpy(self.imageParams.streamSemName, (STREAM_SEM_BASENAME + str(streamNum)).encode('UTF-8'))
+            streamNum += 1
+
+        if self.eventBuffer:
+            self.eventBuffParams.roachStream = &self.streams[streamNum]
+            strcpy(self.eventBuffParams.streamSemName, (STREAM_SEM_BASENAME + str(streamNum)).encode('UTF-8'))
             streamNum += 1
 
         if useWriter:
@@ -226,7 +251,7 @@ cdef class Packetmaster(object):
 
         #INITIALIZE QUIT SEM
         strcpy(self.imageParams.quitSemName, QUIT_SEM_NAME.encode('UTF-8'))
-        strcpy(self.imageParams.quitSemName, QUIT_SEM_NAME.encode('UTF-8'))
+        strcpy(self.eventBuffParams.quitSemName, QUIT_SEM_NAME.encode('UTF-8'))
         strcpy(self.writerParams.quitSemName, QUIT_SEM_NAME.encode('UTF-8'))
         strcpy(self.readerParams.quitSemName, QUIT_SEM_NAME.encode('UTF-8'))
 
@@ -244,6 +269,9 @@ cdef class Packetmaster(object):
         threadNum = 1
         if self.sharedImages:
             startShmImageWriterThread(&(self.imageParams), &(self.threads[threadNum]))
+            threadNum += 1
+        if self.eventBuffer:
+            startEventBuffWriterThread(&(self.eventBuffParams), &(self.threads[threadNum]))
             threadNum += 1
         if useWriter:
             startBinWriterThread(&(self.writerParams), &(self.threads[threadNum]))

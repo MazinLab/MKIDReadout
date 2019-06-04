@@ -76,6 +76,19 @@ int startShmImageWriterThread(SHM_IMAGE_WRITER_PARAMS *rparams, THREAD_PARAMS *t
 
 }
 
+int startEventBuffWriterThread(EVENT_BUFF_WRITER_PARAMS *rparams, THREAD_PARAMS *tparams){
+    int rc; 
+    pthread_attr_init(&(tparams->attr));
+    rc = pthread_create(&(tparams->thread), &(tparams->attr), eventBuffWriter, rparams);
+    if (rc){
+        printf("ERROR creating eventBuffWriter(); return code from pthread_create() is %d\n", rc);
+        //exit(-1);
+    } 
+
+    return rc;
+
+}
+
 void *shmImageWriter(void *prms)
 {
     int64_t br,i,j,ret,imgIdx;
