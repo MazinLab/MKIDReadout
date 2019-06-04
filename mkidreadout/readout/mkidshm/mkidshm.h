@@ -23,7 +23,7 @@ extern "C" {
 #endif
 
 #define N_DONE_SEMS 10
-#define MKIDSHM_VERSION 3
+#define MKIDSHM_VERSION 4
 #define TIMEDWAIT_FUDGE 5000 //half ms
 #define STRBUFLEN 80
 #define WVLIDLEN 150

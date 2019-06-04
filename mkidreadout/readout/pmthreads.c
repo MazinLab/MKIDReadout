@@ -404,6 +404,7 @@ void *eventBuffWriter(void *prms)
     #endif
 
     MKIDShmEventBuffer_open(&eventBuffer, params->bufferName);
+    MKIDShmEventBuffer_reset(&eventBuffer);
 
     printf("EventBuffer done initializing\n");
     curRoachInd = 0;
