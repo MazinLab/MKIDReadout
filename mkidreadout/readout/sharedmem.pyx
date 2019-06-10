@@ -8,7 +8,7 @@ from mkidcore.corelog import getLogger
 import os
 from libc.string cimport strcpy
 
-DEFAULT_EVENT_BUFFER_SIZE = 200000
+DEFAULT_EVENT_BUFFER_SIZE = 200000 #total number of events
 
 cdef extern from "<stdint.h>":
     ctypedef unsigned int uint32_t
@@ -282,6 +282,20 @@ cdef class EventBuffer:
     cdef MKID_EVENT_BUFFER eventBuffer;
 
     def __init__(self, name, size=None):
+        """
+        Opens a photon event buffer given by name (file in /dev/shm).
+        Creates it if it doesn't exist.
+
+        Parameters
+        ----------
+            name: string
+                name of event buffer (in /dev/shm)
+            size: int
+                Number of photon events stored in buffer.
+                default: 200000
+
+        """
+        
         if not name.startswith('/'):
             name = '/'+name
         if os.path.isfile(os.path.join('/dev/shm', name[1:])):
