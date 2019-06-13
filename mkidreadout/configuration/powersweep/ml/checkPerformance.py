@@ -8,8 +8,13 @@ parser = argparse.ArgumentParser(description='Check score triage performance')
 parser.add_argument('mlFiles', nargs='+')
 parser.add_argument('-m', '--manualFiles', nargs='+')
 parser.add_argument('-c', '--cut', type=float)
+parser.add_argument('-l', '--lower', default=2.5, type=float)
+parser.add_argument('-u', '--upper', default=2.5, type=float)
 parser.add_argument('-p', '--plotConfusion', action='store_true')
 args = parser.parse_args()
+
+args.lower = np.abs(args.lower)
+args.upper = np.abs(args.upper)
 
 if args.manualFiles is None:
     args.manualFiles = args.mlFiles
@@ -44,6 +49,7 @@ for i in range(nFiles):
     resID = np.append(resID, mlMetadataList[i].resIDs[goodMask])
 
     badResMask = manualMetadataList[i].atten == np.nanmax(manualMetadataList[i].atten) #bad res were set to max atten
+    badResMask |= manualMetadataList[i].atten == -1
     badAttenDiff = np.append(badAttenDiff, mlMetadataList[i].mlatten[badResMask] - manualMetadataList[i].atten[badResMask])
     badGoodScore = np.append(badGoodScore, mlMetadataList[i].ml_isgood_score[badResMask])
 
@@ -52,11 +58,11 @@ for i in range(nFiles):
     dbMask = dbMask | np.roll(dbMask, 1)
     doubleMask = np.append(doubleMask, dbMask[goodMask])
 
-dbThresh = 2.5
 cutMask = goodScore >= args.cut
 stdCut = np.std(attenDiff[cutMask])
 clickStd = np.std(attenDiff[~cutMask])
-nBadClassCut = np.sum(np.abs(attenDiff[cutMask])>=dbThresh)
+nBadLowerClassCut = np.sum(attenDiff[cutMask]<=-args.lower)
+nBadUpperClassCut = np.sum(attenDiff[cutMask]>=args.upper)
 
 worstResIDs = resID[np.argsort(np.abs(attenDiff))[::-1]]
 attenDiffSorted = attenDiff[np.argsort(np.abs(attenDiff))[::-1]]
@@ -66,8 +72,10 @@ worstResIDsCut = (resID[cutMask])[np.argsort(np.abs(attenDiffCut))[::-1]]
 
 stdDoubles = np.std(attenDiff[doubleMask])
 stdNotDoubles = np.std(attenDiff[~doubleMask])
-nBadNotDoubles = np.sum(np.abs(attenDiff[~doubleMask])>=dbThresh)
-nBadDoubles = np.sum(np.abs(attenDiff[doubleMask])>=dbThresh)
+nBadLowerNotDoubles = np.sum(attenDiff[~doubleMask]<=-args.lower)
+nBadUpperNotDoubles = np.sum(attenDiff[~doubleMask]>=args.upper)
+nBadLowerDoubles = np.sum(attenDiff[doubleMask]<=-args.lower)
+nBadUpperDoubles = np.sum(attenDiff[doubleMask]>=args.upper)
 
 badResCutMask = badGoodScore >= args.cut
 
@@ -75,20 +83,23 @@ remainMask = goodScore < args.cut
 print np.sum(cutMask), '(', 100.*np.sum(cutMask)/len(goodScore), '%)', 'resonators cut, requiring', np.sum(remainMask), 'for clickthrough.'
 print 'cut std:', stdCut
 print 'click std:', clickStd
-print nBadClassCut, '(', 100.*nBadClassCut/np.sum(cutMask), '%)', 'cut resonators misclassified by', dbThresh, 'dB.'
+print nBadLowerClassCut, '(', 100.*nBadLowerClassCut/np.sum(cutMask), '%)', 'cut resonators overpowered by', -args.lower, 'dB.'
+print nBadUpperClassCut, '(', 100.*nBadUpperClassCut/np.sum(cutMask), '%)', 'cut resonators underpowered by', args.upper, 'dB.'
 print len(badAttenDiff), 'bad resonators (set to max in clickthrough).', np.sum(badResCutMask), 'cut from clickthrough'
 print ''
 print np.sum(doubleMask), ' doubles.'
 print 'double std:', stdDoubles
 print 'not double std:', stdNotDoubles
-print nBadNotDoubles, '(', 100.*nBadNotDoubles/np.sum(~doubleMask), '%)', 'cut singles misclassified by', dbThresh, 'dB.'
-print nBadDoubles, '(', 100.*nBadDoubles/np.sum(doubleMask), '%)', 'doubles misclassified by', dbThresh, 'dB.'
-print 'Worst offenders:'
-for i in range(20):
-    print worstResIDs[i], attenDiffSorted[i]
-print 'Worst cut offenders:'
-for i in range(30):
-    print worstResIDsCut[i], attenDiffCutSorted[i]
+print nBadLowerNotDoubles, '(', 100.*nBadLowerNotDoubles/np.sum(~doubleMask), '%)', 'cut singles overpowered by', -args.lower, 'dB.'
+print nBadUpperNotDoubles, '(', 100.*nBadUpperNotDoubles/np.sum(~doubleMask), '%)', 'cut singles underpowered by', args.upper, 'dB.'
+print nBadLowerDoubles, '(', 100.*nBadLowerDoubles/np.sum(~doubleMask), '%)', 'cut doubles overpowered by', -args.lower, 'dB.'
+print nBadUpperDoubles, '(', 100.*nBadUpperDoubles/np.sum(~doubleMask), '%)', 'cut doubles underpowered by', args.upper, 'dB.'
+#print 'Worst offenders:'
+#for i in range(20):
+#    print worstResIDs[i], attenDiffSorted[i]
+#print 'Worst cut offenders:'
+#for i in range(30):
+#    print worstResIDsCut[i], attenDiffCutSorted[i]
 
 #fig0 = plt.figure()
 #fig1 = plt.figure()
