@@ -41,6 +41,7 @@ void *openShmFile(const char *shmName, size_t size, int create){
     }
 
 
+    close(fd);
     return shmPtr;
 
 }
