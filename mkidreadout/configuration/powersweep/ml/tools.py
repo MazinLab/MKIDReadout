@@ -5,6 +5,92 @@ import os, sys, glob
 from PSFitMLData import *
 from mkidreadout.configuration.powersweep.psmldata import *
 
+def makeWPSImage(freqSweep, centerFreq, centerAtten, nFreqs, nAttens, useIQV, useVectIQV):
+    """
+    dataObj: FreqSweep object
+    """
+    winCenters = freqSweep.freqs[:, freqSweep.nlostep/2]
+    toneInd = np.argmin(np.abs(centerFreq - winCenters)) #index of resonator tone to use
+    toneFreqs = freqSweep.freqs[toneInd, :]
+    assert toneFreqs[0] < centerFreq < toneFreqs[-1], 'centerFreq out of range'
+
+    centerFreqInd = np.argmin(np.abs(toneFreqs - centerFreq))
+    startFreqInd = centerFreqInd - int(np.floor(nFreqs/2.))
+    endFreqInd = centerFreqInd + int(np.ceil(nFreqs/2.))
+
+    if startFreqInd < 0:
+        startFreqPads = 0 - startFreqInd
+        startFreqInd = 0
+    else:
+        startFreqPads = 0
+    if endFreqInd > len(toneFreqs):
+        endFreqPads = endFreqInd - len(toneFreqs)
+        endFreqInd = len(toneFreqs)
+    else:
+        endFreqPads = 0
+
+    assert freqSweep.atten[0] <= centerAtten < freqSweep.atten[-1], 'centerAtten out of range'
+    centerAttenInd = np.argmin(np.abs(freqSweep.atten - centerAtten))
+    startAttenInd = centerAttenInd - int(np.floor(nAttens/2.))
+    endAttenInd = centerAttenInd + int(np.ceil(nAttens/2.))
+
+    if startAttenInd < 0:
+        startAttenPads = 0 - startAttenInd
+        startAttenInd = 0
+    else:
+        startAttenPads = 0
+    if endAttenInd > len(freqSweep.atten):
+        endAttenPads = endAttenInd - len(freqSweep.atten)
+        endAttenInd = len(freqSweep.atten)
+    else:
+        endAttenPads = 0
+
+    freqs = toneFreqs[startFreqInd:endFreqInd]
+    attens = freqSweep.atten[startAttenInd:endAttenInd]
+    iVals = freqSweep.i[startAttenInd:endAttenInd, toneInd, startFreqInd:endFreqInd]
+    qVals = freqSweep.q[startAttenInd:endAttenInd, toneInd, startFreqInd:endFreqInd]
+    iqVels = np.sqrt(np.diff(iVals, axis=1)**2 + np.diff(qVals, axis=1)**2)
+    iVels = np.diff(iVals, axis=1)
+    qVels = np.diff(qVals, axis=1)
+
+    freqs = np.pad(freqs, (startFreqPads, endFreqPads), 'edge')
+    attens = np.pad(attens, (startAttenPads, endAttenPads), 'edge')
+    iVals = np.pad(iVals, ((startAttenPads, endAttenPads), (startFreqPads, endFreqPads)), 'edge')
+    qVals = np.pad(qVals, ((startAttenPads, endAttenPads), (startFreqPads, endFreqPads)), 'edge')
+    iqVels = np.pad(iqVels, ((startAttenPads, endAttenPads), (startFreqPads, endFreqPads+1)), 'edge')
+    iVels = np.pad(iVels, ((startAttenPads, endAttenPads), (startFreqPads, endFreqPads+1)), 'edge')
+    qVels = np.pad(qVels, ((startAttenPads, endAttenPads), (startFreqPads, endFreqPads+1)), 'edge')
+
+    iVals = np.transpose(np.transpose(iVals) - np.mean(iVals, axis=1))
+    qVals = np.transpose(np.transpose(qVals) - np.mean(qVals, axis=1))
+    res_mag = np.sqrt(np.mean(iVals**2 + qVals**2, axis=1))
+    iVals = np.transpose(np.transpose(iVals)/res_mag)
+    qVals = np.transpose(np.transpose(qVals)/res_mag)
+
+    iqVels = np.transpose(np.transpose(iqVels) - np.mean(iqVels, axis=1))
+    iqVels = np.transpose(np.transpose(iqVels)/res_mag)
+    iqVels /= np.sqrt(np.mean(iqVels**2))
+
+    iVels = np.transpose(np.transpose(iVels) - np.mean(iVels, axis=1))
+    iVels = np.transpose(np.transpose(iVels)/res_mag)
+    iVels /= np.sqrt(np.mean(iVels**2))
+
+    qVels = np.transpose(np.transpose(qVels) - np.mean(qVels, axis=1))
+    qVels = np.transpose(np.transpose(qVels)/res_mag)
+    qVels /= np.sqrt(np.mean(qVels**2))
+
+
+    image = np.dstack((iVals, qVals))
+    if useIQV:
+        image = np.dstack((image, iqVels))
+    if useVectIQV:
+        image = np.dstack((image, iVels))
+        image = np.dstack((image, qVels))
+
+    return image, attens, freqs
+
+
+
 
 def makeResImage(res_num, dataObj, wsAttenInd, xWidth, resWidth, 
             pad_res_win, useIQV, useMag, centerLoop, nAttensModel, useVectIQV=False, collisionRange=100.e3):
