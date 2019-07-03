@@ -4,6 +4,7 @@ import os, sys, glob
 import argparse
 import logging
 import matplotlib.pyplot as plt
+import skimage.feature as skf
 import mkidreadout.configuration.sweepdata as sd
 import mkidreadout.configuration.powersweep.ml.tools as mlt
 from mkidcore.corelog import getLogger
@@ -43,13 +44,31 @@ def makeWPSMap(modelDir, freqSweep, freqStep=None, attenClip=5):
         print 'atten:', attens[attenInd]
 
 
-    return wpsImage
+    return wpsImage, freqs, attens
+
+def findResonators(wpsMap, freqs, attens, peakThresh=0.5, minPeakDist=5):
+    resCoords = skf.peak_local_max(wpsim[:,:,0], min_distance=minPeakDist, threshold_abs=peakThresh, exclude_border=False)
+    resFreqs = freqs[resCoords[:,1]]
+    resAttens = attens[resCoords[:,0]]
+
+    scores = np.zeros(len(resFreqs))
+    for i in range(len(resFreqs)):
+        scores[i] = wpsMap[resCoords[i,0], resCoords[i,1], 0]
+
+    sortedInds = np.argsort(resFreqs)
+    resFreqs = resFreqs[sortedInds]
+    resAttens = resAttens[sortedInds]
+    scores = scores[sortedInds]
+
+    return resFreqs, resAttens, scores
+    
+
 
 if __name__=='__main__':
     modelDir = '/home/neelay/data/20190702/wpstest0'
     freqSweepFile = '/home/neelay/data/20180108/psData_221.npz'
     freqSweep = sd.FreqSweep(freqSweepFile)
-    image = makeWPSMap(modelDir, freqSweep)
-    np.savez('wpsimage.npz', image=image)
+    image, freqs, attens = makeWPSMap(modelDir, freqSweep)
+    np.savez('wpsimage.npz', image=image, freqs=freqs, attens=attens)
     plt.imshow(image)
     plt.show()
