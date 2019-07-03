@@ -1,4 +1,5 @@
 import numpy as np
+import random
 import tensorflow as tf
 import logging
 import os, sys, glob
@@ -29,7 +30,7 @@ def makeWPSImage(freqSweep, centerFreq, centerAtten, nFreqs, nAttens, useIQV, us
     else:
         endFreqPads = 0
 
-    assert freqSweep.atten[0] <= centerAtten < freqSweep.atten[-1], 'centerAtten out of range'
+    assert freqSweep.atten[0] <= centerAtten <= freqSweep.atten[-1], 'centerAtten out of range'
     centerAttenInd = np.argmin(np.abs(freqSweep.atten - centerAtten))
     startAttenInd = centerAttenInd - int(np.floor(nAttens/2.))
     endAttenInd = centerAttenInd + int(np.ceil(nAttens/2.))
@@ -379,3 +380,13 @@ def get_peak_idx(res_num, iAtten, dataObj, smooth=False, cutType=None, padInd=No
     if smooth:
         iq_vels = np.correlate(iq_vels, np.ones(5), mode='same')
     return np.argmax(iq_vels)
+
+def next_batch(trainImages, trainLabels, batch_size):
+    '''selects a random batch of batch_size from trainImages and trainLabels'''
+    perm = random.sample(range(len(trainImages)), batch_size)
+    trainImagesBatch = trainImages[perm]
+    trainLabelsBatch = trainLabels[perm]
+    #print 'next_batch trImshape', np.shape(trainImages)
+    return trainImagesBatch, trainLabelsBatch
+
+
