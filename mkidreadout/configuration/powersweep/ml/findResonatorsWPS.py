@@ -13,13 +13,17 @@ import mkidcore.instruments as inst
 
 N_RES_PER_BOARD = 1024
 
-def makeWPSMap(modelDir, freqSweep, freqStep=None, attenClip=5):
+def makeWPSMap(modelDir, freqSweep, freqStep=None, attenClip=0):
     mlDict, sess, graph, x_input, y_output, keep_prob, is_training = mlt.get_ml_model(modelDir)
     
     if freqStep is None:
         freqStep = freqSweep.freqStep
 
-    attens = freqSweep.atten[attenClip:-attenClip]
+    if attenClip > 0:
+        attens = freqSweep.atten[attenClip:-attenClip]
+    else:
+        attens = freqSweep.atten
+
     freqStart = freqSweep.freqs[0, 0] + freqSweep.freqStep*mlDict['freqWinSize']
     freqEnd = freqSweep.freqs[-1, -1] - freqSweep.freqStep*mlDict['freqWinSize']
     freqs = np.arange(freqStart, freqEnd, freqStep)
@@ -101,7 +105,7 @@ if __name__=='__main__':
     elif not os.path.isabs(args.metadata):
         args.metadata = os.path.join(os.path.dirname(args.inferenceData), args.metadata)
 
-    wpsmapFile = os.path.join(os.path.dirname(args.inferenceData), os.path.basename(args.inferenceData).split('.')[0] \
+    wpsmapFile = os.path.join(os.path.dirname(args.metadata), os.path.basename(args.inferenceData).split('.')[0] \
             + '_' + os.path.basename(args.model) + '.npz')
 
     if not os.path.isfile(wpsmapFile) or args.remake_wpsmap:
