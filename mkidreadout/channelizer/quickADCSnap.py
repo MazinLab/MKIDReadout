@@ -1,6 +1,8 @@
 
 #TODO merge this functionality into __main__ of Roach2Controls
 import argparse
+import matplotlib.pyplot as plt
+import numpy as np
 
 from Roach2Controls import Roach2Controls
 from adcTools import *
