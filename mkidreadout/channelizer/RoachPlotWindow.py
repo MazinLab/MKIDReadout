@@ -154,7 +154,7 @@ class RoachPhaseStreamWindow(QMainWindow):
         # self.spinbox_channel.setEnabled(True)
 
     def appendPhaseNoiseData(self, ch, data):
-        fftlen = self.config.get('r{}.nLongsnapFftSamples'.format(self.roachNum))
+        fftlen = self.config.get('r{}.nlongsnapfftsamples'.format(self.roachNum))
         nFftAvg = int(np.floor(len(data) / fftlen))
         dt = 1. * (self.roach.roachController.params['nChannelsPerStream'] /
                    self.roach.roachController.params['fpgaClockRate'])
@@ -177,7 +177,7 @@ class RoachPhaseStreamWindow(QMainWindow):
     def makePhaseNoisePlot(self, **kwargs):
         ch = self.spinbox_channel.value()
 
-        fftlen = self.config.get('r{}.nLongsnapFftSamples'.format(self.roachNum))
+        fftlen = self.config.get('r{}.nlongsnapfftsamples'.format(self.roachNum))
         if self.oldPhaseNoiseDataList[ch] is not None:
             ydata = np.copy(self.oldPhaseNoiseDataList[ch])
             dt = 1. * (self.roach.roachController.params['nChannelsPerStream'] /

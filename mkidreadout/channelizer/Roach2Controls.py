@@ -1938,7 +1938,7 @@ class Roach2Controls(object):
                 frameData += frame[0]
                 iFrame += 1
                 if iFrame % 1000 == 0:
-                    getLogger(__name__).ebug(iFrame)
+                    getLogger(__name__).debug(iFrame)
 
         except KeyboardInterrupt:
             getLogger(__name__).info('Exiting on KeyboardInterrupt')
