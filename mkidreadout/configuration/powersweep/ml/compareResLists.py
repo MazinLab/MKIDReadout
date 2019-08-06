@@ -12,6 +12,7 @@ def retrieveManResList(metadata):
     goodMask = goodMask & (~collMask) #humans are unreliable!
     goodMask = goodMask & (metadata.atten != np.nanmax(metadata.atten))
     goodMask = goodMask & (metadata.atten != -1)
+    goodMask = goodMask & ((metadata.flag & ISGOOD) == ISGOOD)
 
     resIDs = metadata.resIDs
     freqs = metadata.freq
@@ -22,6 +23,7 @@ def retrieveManResList(metadata):
 def retrieveMLResList(metadata, threshold=0):
     goodMask = ((metadata.flag & ISGOOD) == ISGOOD)
     goodMask = goodMask & (metadata.ml_isgood_score >= args.threshold)
+    goodMask = goodMask & (metadata.mlatten != np.nanmax(metadata.atten))
 
     resIDs = metadata.resIDs
     freqs = metadata.mlfreq
@@ -46,36 +48,44 @@ if __name__=='__main__':
     if int(args.ml_metadata is not None) + len(args.manMDFiles) > 2:
         raise Exception('Can only have 2 files total (combined man and ml)')
 
-    aFileName = args.manMDFiles[0]
-    mdA = SweepMetadata(file=aFileName)
+    mdA = SweepMetadata(file=args.manMDFiles[0])
+    aFileName = os.path.basename(args.manMDFiles[0]).split('.')[0] + '_manual'
     resIDA, freqA, attenA, goodMaskA = retrieveManResList(mdA) #first file, assumed to be manual
 
     if len(args.manMDFiles) > 1:
-        bFileName = args.manMDFiles[1]
-        mdB = SweepMetadata(file=bFileName) 
+        mdB = SweepMetadata(file=args.manMDFiles[1]) 
+        bFileName = os.path.basename(args.manMDFiles[1]).split('.')[0] + '_manual'
         resIDB, freqB, attenB, goodMaskB = retrieveManResList(mdB) #compare two manual files
     elif args.ml_metadata is not None:
-        bFileName = args.manMDFiles[1]
-        mdB = SweepMetadata(file=bFileName) 
+        bFileName = os.path.basename(args.ml_metadata).split('.')[0] + '_ml'
+        mdB = SweepMetadata(file=args.ml_metadata)
         resIDB, freqB, attenB, goodMaskB = retrieveMLResList(mdB, args.threshold) #use ML inference from provided ML file
     else: 
         aFileName = 'manual'
         bFileName = 'ml'
-        resIDB = mdA.resIDs[goodMaskA]
-        freqB = mdA.mlfreq[goodMaskA]
-        attenB = mdA.mlatten[goodMaskA]
+        resIDB, freqB, attenB, goodMaskB = retrieveMLResList(mdA, args.threshold) #use ML inference from provided ML file
+
+    print np.sum(goodMaskA), 'resonators in', aFileName
+    print np.sum(goodMaskB), 'resonators in', bFileName
 
     if args.match_res:
+        resIDA = resIDA[goodMaskA]
+        freqA = freqA[goodMaskA]
+        attenA = attenA[goodMaskA]
+        resIDB = resIDB[goodMaskB]
+        freqB = freqB[goodMaskB]
+        attenB = attenB[goodMaskB]
+
         atob = matchResonators(resIDA, resIDB, freqA, freqB, args.max_df)
         bNotInA = np.empty((0, 2))
 
-        for i, resID in enumerate(mlResIDs):
-            if not np.any(i == manToML[:, 0]):
-                bNotInA = np.vstack((bNotInA, np.array([resID, mlScores[i]])))
+        for i, resID in enumerate(resIDB):
+            if not np.any(i == atob[:, 0]):
+                bNotInA = np.vstack((bNotInA, np.array([resID, 0])))
 
         print np.sum(~np.isnan(atob[:,0])), 'resonators matched between files'
-        print np.sum(np.isnan(atob[:,0])), 'resonators in', aFileName, 'not found in bFileName'
-        print len(bNotInA), 'resonators in', aFileName, 'not found in bFileName'
+        print np.sum(np.isnan(atob[:,0])), 'resonators in', aFileName, 'not found in', bFileName
+        print len(bNotInA), 'resonators in', bFileName, 'not found in', aFileName
 
         if args.verbose:
             print 'A not in B ResIDs', resIDA[np.isnan(atob[:, 0])]
@@ -85,8 +95,17 @@ if __name__=='__main__':
 
     else:
         matchedMask = goodMaskA & goodMaskB
-        attenAMatched = attenA
-        attenBMatched = attenB
+        aNotInBMask = goodMaskA & (~matchedMask)
+        bNotInAMask = goodMaskB & (~matchedMask)
+        attenAMatched = attenA[matchedMask]
+        attenBMatched = attenB[matchedMask]
+        print np.sum(matchedMask), 'resonators matched between files'
+        print np.sum(aNotInBMask), 'resonators in', aFileName, 'not found in', bFileName
+        print np.sum(bNotInAMask), 'resonators in', bFileName, 'not found in', aFileName
+
+        if args.verbose:
+            print 'A not in B ResIDs', resIDA[aNotInBMask]
+            print 'B not in A ResIDs', resIDB[bNotInAMask]
 
     attenDiff = attenBMatched - attenAMatched
 
