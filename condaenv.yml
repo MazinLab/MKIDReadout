@@ -26,7 +26,7 @@ dependencies:
   - flask
   - requests
   - lmfit
-  - funcsig
+  - funcsigs
   - pymongo
 #optional
   - mpmath
