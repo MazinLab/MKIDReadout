@@ -92,6 +92,7 @@ if __name__=='__main__':
             print 'B not in A ResIDs', bNotInA
 
         attenAMatched, attenBMatched = matchAttens(attenA, attenB, atob)
+        freqAMatched, freqBMatched = matchAttens(freqA, freqB, atob)
 
     else:
         matchedMask = goodMaskA & goodMaskB
@@ -99,6 +100,8 @@ if __name__=='__main__':
         bNotInAMask = goodMaskB & (~matchedMask)
         attenAMatched = attenA[matchedMask]
         attenBMatched = attenB[matchedMask]
+        freqAMatched = freqA[matchedMask]
+        freqBMatched = freqB[matchedMask]
         print np.sum(matchedMask), 'resonators matched between files'
         print np.sum(aNotInBMask), 'resonators in', aFileName, 'not found in', bFileName
         print np.sum(bNotInAMask), 'resonators in', bFileName, 'not found in', aFileName
@@ -108,8 +111,12 @@ if __name__=='__main__':
             print 'B not in A ResIDs', resIDB[bNotInAMask]
 
     attenDiff = attenBMatched - attenAMatched
+    freqDiff = freqBMatched - freqAMatched
 
     plt.hist(attenDiff, bins=10, range=(-5,5))
+    plt.show()
+
+    plt.hist(freqDiff, bins=20)
     plt.show()
 
 
