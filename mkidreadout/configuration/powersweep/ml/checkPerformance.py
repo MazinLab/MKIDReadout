@@ -34,7 +34,7 @@ resID = np.array([])
 badAttenDiff = np.array([])
 badGoodScore = np.array([])
 
-doubleThresh = 500.e3
+doubleThresh = 200.e3
 doubleMask = np.array([], dtype=bool)
 
 for i in range(nFiles):
@@ -106,6 +106,7 @@ print nBadUpperDoubles, '(', 100.*nBadUpperDoubles/np.sum(~doubleMask), '%)', 'c
 
 if args.plotConfusion:
     manualAttens[manualAttens==-1] = max(manualAttens)
+    mlAttens[mlAttens==-1] = max(mlAttens)
     attenStart = min(manualAttens)
     manualAttens -= attenStart
     mlAttens -= attenStart
@@ -127,6 +128,6 @@ if args.plotConfusion:
 
 #plt.hist(goodScore[cutMask], alpha=0.5, bins=20)
 #plt.hist(goodScore[~cutMask], alpha=0.5, bins=20)
-plt.hist(attenDiff[cutMask], bins=10, alpha=0.5, range=(-5,5))
+plt.hist(attenDiff[cutMask], bins=20, alpha=0.5, range=(-10,10))
 plt.hist(attenDiff[~cutMask], bins=10, alpha=0.5, range=(-5,5))
 plt.show()

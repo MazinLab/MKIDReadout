@@ -24,7 +24,7 @@ def matchResonators(manResIDs, mlResIDs, manFreqs, mlFreqs, maxdf=250.e3):
             manToML[ind + toDelete, 0] = np.nan
 
     foundMLIDs = manToML[~np.isnan(manToML[:, 0]), 0]
-    assert np.all(foundMLIDs == np.unique(foundMLIDs))
+    assert len(foundMLIDs) == len(np.unique(foundMLIDs))
 
     tooFarMask = np.abs(manToML[:, 1]) > maxdf
     manToML[tooFarMask, 0] = np.nan
@@ -50,6 +50,7 @@ if __name__=='__main__':
     parser.add_argument('-l', '--lower', default=2.5, type=float)
     parser.add_argument('-u', '--upper', default=2.5, type=float)
     parser.add_argument('-p', '--plotConfusion', action='store_true')
+    parser.add_argument('-v', '--verbose', action='store_true')
     args = parser.parse_args()
     
     manualMD = SweepMetadata(file=args.manualFile)
@@ -59,7 +60,7 @@ if __name__=='__main__':
     goodMaskManual = goodMaskManual & (manualMD.atten != np.nanmax(manualMD.atten))
 
     mlMD = SweepMetadata(file=args.mlFile)
-    goodMaskML = mlMD.flag == ISGOOD
+    goodMaskML = ((mlMD.flag & ISGOOD) == ISGOOD)
     goodMaskML = goodMaskML & (mlMD.ml_isgood_score >= args.threshold)
 
     manResIDs = manualMD.resIDs[goodMaskManual]
@@ -88,9 +89,9 @@ if __name__=='__main__':
     print 'ML found', np.sum(~np.isnan(manToML[:,0])), 'out of', len(manResIDs), \
             'resonators (', 100*float(np.sum(~np.isnan(manToML[:,0])))/len(manResIDs), '%).'
     
-    print 'Not found ResIDs: ', manResIDs[np.isnan(manToML[:, 0])]
-
-    print 'False positive ML ResIDs: ', falsePositives
+    if args.verbose:
+        print 'Not found ResIDs: ', manResIDs[np.isnan(manToML[:, 0])]
+        print 'False positive ML ResIDs: ', falsePositives
 
     manAttens, mlAttens = matchAttens(manAttens, mlAttens, manToML)
     attenDiff = mlAttens - manAttens
@@ -127,7 +128,7 @@ if __name__=='__main__':
         mlAttens -= attenStart
         manAttens = np.round(manAttens).astype(int)
         mlAttens = np.round(mlAttens).astype(int)
-        confImage = np.zeros((max(manAttens) - min(manAttens) + 1, max(manAttens) - min(manAttens) + 1))
+        confImage = np.zeros((max(manAttens) - min(manAttens) + 1, max(mlAttens) - min(mlAttens) + 1))
         for i in range(len(manAttens)):
             confImage[manAttens[i], mlAttens[i]] += 1
     
