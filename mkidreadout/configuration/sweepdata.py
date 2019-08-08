@@ -267,6 +267,8 @@ class SweepMetadata(object):
 
     def _load(self):
         d = np.loadtxt(self.file.format(feedline=self.feedline), unpack=True)
+        if d.ndim == 1: #allows files with single res
+            d = np.expand_dims(d, axis=1)
         # TODO convert to load metadata from file
         try:
             if d.shape[0] == 9:
