@@ -1078,6 +1078,11 @@ class Roach2Controls(object):
         self.loadDelayLut(delayLut2)
         self.loadDelayLut(delayLut3)
 
+    def incrementMmcmPhase(self, stepSize=2):
+        for i in range(stepSize):
+            self.fpga.write_int('adc_in_inc_phs', 1)
+            self.fpga.write_int('adc_in_inc_phs', 0)
+
     def setAttenList(self, resAttenList):
         """ This function sets the attribute self.attenList """
         self.attenList=resAttenList
