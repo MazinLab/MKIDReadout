@@ -921,17 +921,23 @@ class Roach2Controls(object):
 
         snapshotNames = self.fpga.snapshots.names()
 
-        # self.fpga.write_int('trig_qdr',0)#initialize trigger
-        self.fpga.write_int('adc_in_trig', 0)
+        if 'adc_in_trig' in self.fpga.listdev():
+            trigReg = 'adc_in_trig'
+        elif 'trig_qdr' in self.fpga.listdev():
+            trigReg = 'trig_qdr'
+        else:
+            raise Exception(str(self.num) + ' unknown firmware version!')
+
+        self.fpga.write_int(trigReg, 0)
         for name in snapshotNames:
             self.fpga.snapshots[name].arm(man_valid=False, man_trig=False)
 
         time.sleep(.1)
         # self.fpga.write_int('trig_qdr',1)#trigger snapshots
-        self.fpga.write_int('adc_in_trig', 1)
+        self.fpga.write_int(trigReg, 1)
         time.sleep(.1)  # wait for other trigger conditions to be met, and fill buffers
         # self.fpga.write_int('trig_qdr',0)#release trigger
-        self.fpga.write_int('adc_in_trig', 0)
+        self.fpga.write_int(trigReg, 0)
 
         adcData0 = self.fpga.snapshots['adc_in_snp_cal0_ss'].read(timeout=5, arm=False)['data']
         adcData1 = self.fpga.snapshots['adc_in_snp_cal1_ss'].read(timeout=5, arm=False)['data']
@@ -2403,7 +2409,7 @@ class Roach2Controls(object):
         return True
 
     def tagfile(self, root, dir='', epilog=''):
-        root, ext = os.path.splitext(root)
+        root, ext = os.path.splitext(str(root))
         el = '_' + epilog if epilog else epilog
         tagroach = '{roach}' not in root and ('{feedline}' not in root or '{range}' not in root)
         tag = '{}{}'.format('_{roach}' if tagroach else '', '_FL{feedline}_{range}' if '{feedline}' not in root else '')

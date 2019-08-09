@@ -21,18 +21,25 @@ def incrementMmcmPhase(fpga, stepSize=2):
         fpga.write_int('adc_in_inc_phs', 0)
 
 
-def snapZdok(fpga, nRolls=0):
+def snapZdok(fpga, nRolls=0, qdrLoop=False):
     snapshotNames = fpga.snapshots.names()
+    
+    if qdrLoop:
+        trigReg = 'trig_qdr'
+    else:
+        trigReg = 'adc_in_trig'
 
-    fpga.write_int('adc_in_trig', 0)  # initialize trigger
+    fpga.write_int(trigReg, 0)  # initialize trigger
+
     for name in snapshotNames:
         fpga.snapshots[name].arm(man_valid=False, man_trig=False)
 
     time.sleep(.01)
-    fpga.write_int('adc_in_trig', 1)  # trigger snapshots
-    time.sleep(.01)  # wait for other trigger conditions to be met, and fill buffers
-    fpga.write_int('adc_in_trig', 0)  # release trigger
 
+    fpga.write_int(trigReg, 1)  # trigger snapshots
+    time.sleep(.01)  # wait for other trigger conditions to be met, and fill buffers
+    fpga.write_int(trigReg, 0)  # release trigger
+    
     adcData0 = fpga.snapshots['adc_in_snp_cal0_ss'].read(timeout=5, arm=False)['data']
     adcData1 = fpga.snapshots['adc_in_snp_cal1_ss'].read(timeout=5, arm=False)['data']
     adcData2 = fpga.snapshots['adc_in_snp_cal2_ss'].read(timeout=5, arm=False)['data']
@@ -92,8 +99,8 @@ def loadDelayCal(fpga, delayLut):
         fpga.write_int('adc_in_load_dly', notLoadVal)
 
 
-def findCal(fpga, bPlot=False):
-    snapDict = snapZdok(fpga)
+def findCal(fpga, bPlot=False, qdrLoop=False):
+    snapDict = snapZdok(fpga, qdrLoop=qdrLoop)
     errorInI = checkRamp(snapDict['iVals'], bPlot=bPlot)
     errorInQ = checkRamp(snapDict['qVals'], bPlot=bPlot)
     initialError = errorInI | errorInQ
@@ -104,7 +111,7 @@ def findCal(fpga, bPlot=False):
     else:
         nSteps = 60
         stepSize = 4
-        failPattern = findCalPattern(fpga, nSteps=nSteps, stepSize=stepSize)['failPattern']
+        failPattern = findCalPattern(fpga, nSteps=nSteps, stepSize=stepSize, qdrLoop=qdrLoop)['failPattern']
         getLogger(__name__).info('fail pat %s', failPattern)
         passPattern = (failPattern == 0.)
         getLogger(__name__).info('pass pat %s', passPattern)
@@ -122,7 +129,7 @@ def findCal(fpga, bPlot=False):
             return {'solutionFound': False}
 
 
-def findCalPattern(fpga, bPlot=False, nSteps=60, stepSize=4):
+def findCalPattern(fpga, bPlot=False, nSteps=60, stepSize=4, qdrLoop=False):
     failPattern = np.zeros(nSteps)
     stepIndices = np.arange(0, nSteps * stepSize, stepSize)
 
@@ -131,7 +138,7 @@ def findCalPattern(fpga, bPlot=False, nSteps=60, stepSize=4):
         incrementMmcmPhase(fpga, stepSize=stepSize)
         totalChange += stepSize
 
-        snapDict = snapZdok(fpga)
+        snapDict = snapZdok(fpga, qdrLoop=qdrLoop)
         errorInI = checkRamp(snapDict['iVals'], bPlot=bPlot)
         errorInQ = checkRamp(snapDict['qVals'], bPlot=bPlot)
         failPattern[iStep] = errorInI | errorInQ

@@ -76,6 +76,7 @@ class InitStateMachine(QtCore.QObject):  # Extends QObject for use with QThreads
         self.num = int(roachNumber)
         self.commandQueue = Queue()
         self.config = config
+        self.qdrMode = False
         self.roachController = Roach2Controls(self.config.get('r{}.ip'.format(self.num)),
                                               self.config.get('r{}.fpgaparamfile'.format(self.num)),
                                               num=self.num, verbose=True, debug=False)
@@ -200,7 +201,10 @@ class InitStateMachine(QtCore.QObject):  # Extends QObject for use with QThreads
         return True
 
     def programV6(self):
-        fpgPath = self.config.get('r{}.fpgpath'.format(self.num))
+        fpgPath = str(self.config.get('r{}.fpgpath'.format(self.num)))
+        if 'qdrloop' in fpgPath:
+            self.qdrMode = True
+            getLogger(__name__).info('Roach ' + str(self.num) + ': QDR Loop firmware detected')
         if not os.path.isfile(fpgPath):
             fpgPath = resource_filename('mkidreadout', os.path.join('resources', 'firmware', fpgPath))
         self.roachController.fpga.upload_to_ram_and_program(fpgPath)
@@ -208,8 +212,9 @@ class InitStateMachine(QtCore.QObject):  # Extends QObject for use with QThreads
         getLogger(__name__).info('Fpga Clock Rate: %s', fpgaClockRate)
         if fpgaClockRate < 245 or fpgaClockRate > 255:
             raise Exception('V6 clock rate incorrect. Possible boot issue for ADC/DAC board')
-        self.roachController.loadBoardNum(self.num)
-        self.roachController.loadCurTimestamp()
+        if not self.qdrMode:
+            self.roachController.loadBoardNum(self.num)
+            self.roachController.loadCurTimestamp()
         return True
 
     def initV7(self):
@@ -233,7 +238,10 @@ class InitStateMachine(QtCore.QObject):  # Extends QObject for use with QThreads
         getLogger(__name__).info('switched on ADC ZDOK Cal ramp')
         time.sleep(.1)
 
-        self.roachController.fpga.write_int('adc_in_i_scale', 2 ** 7)  # set relative IQ scaling to 1
+        if self.qdrMode:
+            self.roachController.fpga.write_int('adc_in_scale', 0b10000)
+        else:
+            self.roachController.fpga.write_int('adc_in_i_scale', 2 ** 7)  # set relative IQ scaling to 1
         # nBitsRemovedInFFT = self.config.get('r{}.nBitsRemovedInFFT'.format(self.num))
         # if(nBitsRemovedInFFT == 0):
         #     self.roachController.setAdcScale(0.9375) #Max ADC scale value
@@ -250,7 +258,7 @@ class InitStateMachine(QtCore.QObject):  # Extends QObject for use with QThreads
             loadDelayCal(self.roachController.fpga, delayLut)
 
         # calDict = findCal(self.roachController.fpga,nBitsRemovedInFFT)
-        calDict = findCal(self.roachController.fpga)
+        calDict = findCal(self.roachController.fpga, qdrLoop=self.qdrMode)
         getLogger(__name__).info("Caldict: {}".format(calDict))
 
         self.roachController.sendUARTCommand(0x5)
