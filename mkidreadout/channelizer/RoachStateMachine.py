@@ -252,7 +252,7 @@ class RoachStateMachine(QtCore.QObject):  # Extends QObject for use with QThread
         #fn = self.roachController.tagfile(self.config.roaches.get('r{}.freqfileroot'.format(self.num)),
         #                                  dir=self.config.paths.data)
         fn = str(self.config.roaches.get('r{}.freqfileroot'.format(self.num)))
-        fn = os.path.join(dir, fn.format(roach=self.num, feedline=self.roachController.feedline, range=self.roachController.range))
+        fn = os.path.join(self.config.paths.data, fn.format(roach=self.num, feedline=self.roachController.feedline, range=self.roachController.range))
         fn2 = '{0}_new.{1}'.format(*fn.rpartition('.')[::2])
         if os.path.isfile(fn2):
             fn = fn2

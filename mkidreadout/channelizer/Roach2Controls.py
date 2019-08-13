@@ -1085,6 +1085,15 @@ class Roach2Controls(object):
             self.fpga.write_int('adc_in_inc_phs', 1)
             self.fpga.write_int('adc_in_inc_phs', 0)
 
+
+    def setADCScale(self):
+        if 'adc_in_scale' in self.fpga.listdev():
+            self.fpga.write_int('adc_in_scale', 2**4)
+        elif 'adc_in_i_scale' in self.fpga.listdev():
+            self.fpga.write_int('adc_in_i_scale', 2**7)
+        else:
+            raise Exception('Unknown firmware version')
+            
     def setAttenList(self, resAttenList):
         """ This function sets the attribute self.attenList """
         self.attenList=resAttenList

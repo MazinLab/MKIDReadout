@@ -238,10 +238,8 @@ class InitStateMachine(QtCore.QObject):  # Extends QObject for use with QThreads
         getLogger(__name__).info('switched on ADC ZDOK Cal ramp')
         time.sleep(.1)
 
-        if self.qdrMode:
-            self.roachController.fpga.write_int('adc_in_scale', 0b10000)
-        else:
-            self.roachController.fpga.write_int('adc_in_i_scale', 2 ** 7)  # set relative IQ scaling to 1
+        self.roachController.setADCScale()
+
         # nBitsRemovedInFFT = self.config.get('r{}.nBitsRemovedInFFT'.format(self.num))
         # if(nBitsRemovedInFFT == 0):
         #     self.roachController.setAdcScale(0.9375) #Max ADC scale value
