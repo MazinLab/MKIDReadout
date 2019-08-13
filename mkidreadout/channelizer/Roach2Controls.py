@@ -860,20 +860,6 @@ class Roach2Controls(object):
         if self.v7_ready == self.params['v7Err']:
             raise Exception('MicroBlaze failed to set LO!')
 
-    def setAdcScale(self, scale=.25):
-        """
-        Change the scale factor applied to adc data values before 
-        sending to fft, to hopefully avoid overflowing the fft.  
-        There are 4 bits in the scale with 4 bits after the binary point 
-        (as of darkquad17_2016_Jul_17_2216).
-        INPUTS:
-            scale - scale factor applied to all ADC values.  Between 0 and 0.9375, in increments of 0.0625
-        """
-        scaleInt = scale * (2 ** self.params['adcScaleBinPt'])
-        scaleInt = int(scaleInt)
-        getLogger(__name__).debug('setting adc scale to %s', scaleInt / 2. ** self.params['adcScaleBinPt'])
-        self.fpga.write_int(self.params['adcScale_reg'], scaleInt)
-
     def changeAtten(self, attenID, attenVal):
         """
         Change the attenuation on IF Board attenuators
