@@ -634,8 +634,6 @@ class Roach2Controls(object):
         getLogger(__name__).debug('num lut dumps ' + str(num_lut_dumps))
         # getLogger(__name__).info('len(memVals) ' + str(len(memVals)))
 
-        sending_data = 1  # indicates that ROACH2 is still sending LUT
-
         for i in range(num_lut_dumps):
             if len(memVals) > self.lut_dump_buffer_size / 2 * (i + 1):
                 iqList = memVals[self.lut_dump_buffer_size / 2 * i:self.lut_dump_buffer_size / 2 * (i + 1)]
@@ -648,8 +646,6 @@ class Roach2Controls(object):
             # getLogger(__name__).info(iqList.dtype)
             # getLogger(__name__).info(iqList)
             getLogger(__name__).debug('bram dump #' + str(i))
-            while sending_data:
-                sending_data = self.fpga.read_int(self.params['lutDumpBusy_reg'])
             self.fpga.blindwrite(self.params['lutBramAddr_reg'], toWriteStr)
             #time.sleep(0.01)
             self.fpga.write_int(self.params['lutBufferSize_reg'], len(toWriteStr))
@@ -657,6 +653,7 @@ class Roach2Controls(object):
 
             while not self.v7_ready:
                 self.v7_ready = self.fpga.read_int(self.params['v7Ready_reg'])
+                time.sleep(0.01)
 
             if self.v7_ready != self.params['v7LUTReady']:
                 raise Exception('Microblaze not ready to recieve LUT!')
@@ -665,8 +662,13 @@ class Roach2Controls(object):
             # getLogger(__name__).info('enable write')
             time.sleep(0.01)
             self.fpga.write_int(self.params['txEnUART_reg'], 0, blindwrite=True)
-            sending_data = 1
+
+            sending_data = 1 # 1 if roach is still sending LUT
             self.v7_ready = 0
+
+            while sending_data:
+                sending_data = self.fpga.read_int(self.params['lutDumpBusy_reg'])
+                time.sleep(0.01)
 
         self.fpga.write_int(self.params['enBRAMDump_reg'], 0, blindwrite=True)
 
