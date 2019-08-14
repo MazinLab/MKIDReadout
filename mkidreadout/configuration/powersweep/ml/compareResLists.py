@@ -76,6 +76,17 @@ if __name__=='__main__':
         freqB = freqB[goodMaskB]
         attenB = attenB[goodMaskB]
 
+        sortedIndA = np.argsort(freqA)
+        resIDA = resIDA[sortedIndA]
+        freqA = freqA[sortedIndA]
+        attenA = attenA[sortedIndA]
+
+        sortedIndB = np.argsort(freqB)
+        resIDB = resIDB[sortedIndB]
+        freqB = freqB[sortedIndB]
+        attenB = attenB[sortedIndB]
+    
+
         atob = matchResonators(resIDA, resIDB, freqA, freqB, args.max_df)
         bNotInA = np.empty((0, 2))
 
@@ -116,7 +127,7 @@ if __name__=='__main__':
     plt.hist(attenDiff, bins=10, range=(-5,5))
     plt.show()
 
-    plt.hist(freqDiff, bins=20)
+    plt.hist(freqDiff, bins=20, range=(-100.e3, 100.e3))
     plt.show()
 
 

@@ -6,6 +6,8 @@ from mkidreadout.configuration.sweepdata import SweepMetadata, ISGOOD
 from wpsnn import COLLISION_FREQ_RANGE
 
 def matchResonators(manResIDs, mlResIDs, manFreqs, mlFreqs, maxdf=250.e3):
+    assert np.all(manFreqs == np.sort(manFreqs))
+    assert np.all(mlFreqs == np.sort(mlFreqs))
     manToML = np.zeros((len(manResIDs), 2))
     manToML[:, 0] = np.nan #index of corresponding ML resonator
     manToML[:, 1] = np.inf #df between this and ML resonator
@@ -15,19 +17,39 @@ def matchResonators(manResIDs, mlResIDs, manFreqs, mlFreqs, maxdf=250.e3):
         manToML[i, 0] = closestMLResInd
         manToML[i, 1] = mlFreqs[closestMLResInd] - manFreqs[i]
 
+    tooFarMask = np.abs(manToML[:, 1]) > maxdf
+    manToML[tooFarMask, 0] = np.nan
+
     duplicateMask = np.diff(manToML[:, 0])==0
     print 'Found', np.sum(duplicateMask), 'duplicates'
+    unresolvedCtr = 0
     if np.any(duplicateMask):
         duplicateInds = np.where(duplicateMask)[0]
         for ind in duplicateInds:
-            toDelete = np.argmax([np.abs(manToML[ind, 1]), np.abs(manToML[ind+1, 1])])
-            manToML[ind + toDelete, 0] = np.nan
+            duplicateMLInd = int(manToML[ind, 0])
+            mlNNInds = []
+            distMat = np.empty((0, 2))
+            if ~np.any(manToML[:, 0] == duplicateMLInd - 1): #check if adjacent ML res has been assigned
+                mlNNInds.append(duplicateMLInd - 1)
+                np.vstack((distMat, [mlFreqs[duplicateMLInd - 1] - manFreqs[ind], mlFreqs[duplicateMLInd - 1] - manFreqs[ind + 1]]))
+            if ~np.any(manToML[:, 0] == duplicateMLInd + 1): #check if adjacent ML res has been assigned
+                mlNNInds.append(duplicateMLInd + 1)
+                np.vstack((distMat, [mlFreqs[duplicateMLInd + 1] - manFreqs[ind], mlFreqs[duplicateMLInd + 1] - manFreqs[ind + 1]]))
 
+            if len(distMat) > 0:
+                minDistInd = np.unravel_index(np.argmin(distMat), distMat.shape)
+                manToML[ind + minDistInd[1]] = mlNNInds[minDistInd[0]]
+
+            else:
+                toDelete = np.argmax([np.abs(manToML[ind, 1]), np.abs(manToML[ind+1, 1])])
+                manToML[ind + toDelete, 0] = np.nan
+                unresolvedCtr += 1
+
+
+    print unresolvedCtr, 'duplicates remain unresolved'
     foundMLIDs = manToML[~np.isnan(manToML[:, 0]), 0]
     assert len(foundMLIDs) == len(np.unique(foundMLIDs))
 
-    tooFarMask = np.abs(manToML[:, 1]) > maxdf
-    manToML[tooFarMask, 0] = np.nan
 
     return manToML
 
