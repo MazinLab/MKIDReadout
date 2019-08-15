@@ -13,39 +13,19 @@ Author: Neelay Fruitwala
 
 """
 
-#TODO modernize to use Roach2Controls instead of functionality from adcSnapCheck imported as adcSnap
-from __future__ import print_function
-# TODO modernize to use Roach2Controls instead of functionality from adcSnapCheck imported as adcSnap
 from __future__ import print_function
 
-import ConfigParser
+import matplotlib.pyplot as plt
+import numpy as np
+import scipy.optimize as spo
+
 import os
 import sys
 import threading
 import time
 
-import SDR.Projects.FirmwareTests.darkDebug.adcSnapCheck as adcSnap
-import matplotlib.pyplot as plt
-import numpy as np
-import scipy.optimize as spo
-
 from mkidreadout.channelizer.Roach2Controls import Roach2Controls
-# TODO modernize to use Roach2Controls instead of functionality from adcSnapCheck imported as adcSnap
-# TODO modernize to use Roach2Controls instead of functionality from adcSnapCheck imported as adcSnap
-from __future__ import print_function, print_function
-
-import ConfigParser
-import os
-import sys
-import threading
-import time
-
-import SDR.Projects.FirmwareTests.darkDebug.adcSnapCheck as adcSnap
-import matplotlib.pyplot as plt
-import numpy as np
-import scipy.optimize as spo
-
-from mkidreadout.channelizer.Roach2Controls import Roach2Controls
+from mkidreadout.configuration.sweepdata import SweepMetadata
 
 
 class SBOptimizer:
@@ -63,9 +43,7 @@ class SBOptimizer:
 
     """
             
-    def __init__(self, ip='10.0.0.112',
-                 params='/mnt/data0/neelay/MkidDigitalReadout/mkidreadout/channelizer/darknessfpga.param',
-                 freqList=None, toneAttenList=None, resIDList=None, loFreq=5.e9, adcAtten=31.75, globalDacAtten=9):
+    def __init__(self, ip, metadata, loFreq, adcAtten=None, globalDacAtten=None):
         """
         INPUTS:
             ip: ROACH2 IP Address
@@ -73,23 +51,15 @@ class SBOptimizer:
             loFreq: LO Frequency in Hz
             adcAtten: attenuation value (dB) of IF board ADC attenuator
             global Dac Atten: physical DAC attenuation
-            freqList: list of tone frequencies in frequency comb to optimize (should be entire comb; no need to divide into separate sidebands
+            freqList: list of tone frequencies in frequency comb to optimize 
+                        (should be entire comb; no need to divide into separate sidebands
             resIDList: list of corresponding resonator IDs
             toneAttenList: list of corresponding resonator attenuation values
         """
-        if freqList is None or toneAttenList is None:
-            raise Exception('Must specify frequencies and attenuations')
-
-        if len(freqList)!=len(toneAttenList):
-            raise ValueError('Frequency and attenuation lists must be the same length!')
-
         self.roach = Roach2Controls(ip, params, True, False)
         self.loFreq = loFreq
-        self.adcAtten = adcAtten
         self.toneAttenList = toneAttenList
-        self.globalDacAtten = globalDacAtten
-        self.freqList = freqList
-        self.resIDList = resIDList
+        self.resIDList, self.freqList, toneAttenList = metadata.templar_data(loFreq)
 
         aboveLOInds = np.where(freqList>=loFreq)[0]
         belowLOInds = np.where(freqList<loFreq)[0]
@@ -101,8 +71,9 @@ class SBOptimizer:
         self.finalPhaseListHigh = np.zeros(len(self.freqListHigh))
         self.finalIQRatioListLow = np.ones(len(self.freqListLow))
         self.finalIQRatioListHigh = np.ones(len(self.freqListHigh))
+        self._initRoach(globalDacAtten, adcAtten)
 
-    def initRoach(self):
+    def _initRoach(self, globalDacAtten, adcAtten):
         """
         Initializes the ROACH2: connects, initializes the UART, loads the LO and physical attenuations
         """
@@ -110,13 +81,24 @@ class SBOptimizer:
         self.roach.setLOFreq(self.loFreq)
         self.roach.initializeV7UART(waitForV7Ready=False)
         self.roach.loadLOFreq()
-        self.roach.changeAtten(1,np.floor(self.globalDacAtten/31.75)*31.75)
-        self.roach.changeAtten(2,self.globalDacAtten%31.75)
-        self.roach.changeAtten(3,np.floor(self.adcAtten*2)/4.)
-        self.roach.changeAtten(4,np.ceil(self.adcAtten*2)/4.)
-        self.loadDelayLUT()
+        self.roach.loadFullDelayCal()
 
-    def loadLUT(self, sideband='all', phaseList=None, iqRatioList=None):
+        if globalDacAtten is None or adcAtten is None:
+            atten = self.loadLUT(globalDacAtten=globalDacAtten)
+            globalDacAtten = atten
+
+        if adcAtten is None:
+            self.adcAtten = self.roach.getOptimalADCAtten()
+
+        else:
+            self.adcAtten = adcAtten
+            self.roach.changeAtten(3,np.floor(self.adcAtten*2)/4.)
+            self.roach.changeAtten(4,np.ceil(self.adcAtten*2)/4.)
+
+        #self.roach.changeAtten(1,np.floor(self.globalDacAtten/31.75)*31.75)
+        #self.roach.changeAtten(2,self.globalDacAtten%31.75)
+
+    def loadLUT(self, sideband='all', phaseList=None, iqRatioList=None, globalDacAtten=None):
         """
         Loads DAC LUT
         INPUTS:
@@ -146,11 +128,13 @@ class SBOptimizer:
         print('Generating DDS Tones...')
         self.roach.generateDdsTones()
         self.roach.debug=False
-        self.roach.generateDacComb(freqList=freqList, resAttenList=attenList, globalDacAtten=self.globalDacAtten, iqRatioList=iqRatioList, 
-            iqPhaseOffsList=phaseList)
+        globalDacAtten = self.roach.generateDacComb(freqList=freqList, resAttenList=attenList, 
+                                    iqRatioList=iqRatioList, iqPhaseOffsList=phaseList, 
+                                    globalDacAtten=globalDacAtten)['dacAtten']
         self.roach.loadDacLUT()
         self.roach.fpga.write_int('run',1)#send ready signals
         time.sleep(1)
+        return globalDacAtten
     
     def takeAdcSnap(self):
         """
@@ -159,21 +143,12 @@ class SBOptimizer:
             snapDict: Dictionary w/ I and Q values (see adcSnapCheck.py)
         """
 
-        snapDict = adcSnap.snapZdok(self.roach.fpga,nRolls=0)
+        snapDict = self.roach.snapZdok()
         
         return snapDict
-
-    def loadDelayLUT(self):
-        delayLut0 = zip(np.arange(0,12),np.ones(12)*14)
-        delayLut1 = zip(np.arange(14,26),np.ones(12)*18)
-        delayLut2 = zip(np.arange(28,40),np.ones(12)*14)
-        delayLut3 = zip(np.arange(42,54),np.ones(12)*13)
-        adcSnap.loadDelayCal(self.roach.fpga,delayLut0)
-        adcSnap.loadDelayCal(self.roach.fpga,delayLut1)
-        adcSnap.loadDelayCal(self.roach.fpga,delayLut2)
-        adcSnap.loadDelayCal(self.roach.fpga,delayLut3)
-        
-    def gridSearchOptimizerFit(self, phases=np.arange(-25, 25), iqRatios=np.arange(0.8, 1.75, 0.02), sideband='upper', threshold=38, weightDecayDist=1, nAvgs=5, saveNPZ=False):
+ 
+    def gridSearchOptimizerFit(self, phases=np.arange(-25, 25), iqRatios=np.arange(0.8, 1.75, 0.02), sideband='upper', 
+                                threshold=38, weightDecayDist=1, nAvgs=5, saveNPZ=False):
         """
         Determines optimal phase/iq offsets for each tone in comb simultaneosly. Treats all tones as independent. For each tone,
         samples the SB suppression at a few random points in phase/iq offset search space, then fits a 2D exponential decay. Takes
@@ -393,9 +368,10 @@ class SBOptimizer:
             
 
         if saveNPZ:
-            np.savez('grid_search_opt_vals_'+'r'+self.roach.ip[-3:]+'_'+str(len(freqList))+'_freqs_'+sideband+'_'+time.strftime("%Y%m%d-%H%M%S",time.localtime()), freqs=freqList,
-                            optPhases=finalPhaseList, optIQRatios=finalIQRatioList, maxSBSuppressions=finalSBSupList, toneAttenList=attenList, loFreq=self.loFreq,
-                                            globalDacAtten=self.globalDacAtten, adcAtten=self.adcAtten, initialSpectrum=initialSpectrum, finalSpectrum=finalSpectrum)
+            np.savez('grid_search_opt_vals_'+'r'+self.roach.ip[-3:]+'_'+str(len(freqList))+'_freqs_'+sideband+'_' \
+                        +time.strftime("%Y%m%d-%H%M%S",time.localtime()), freqs=freqList, optPhases=finalPhaseList, 
+                        optIQRatios=finalIQRatioList, maxSBSuppressions=finalSBSupList, toneAttenList=attenList, loFreq=self.loFreq,
+                        globalDacAtten=self.globalDacAtten, adcAtten=self.adcAtten, initialSpectrum=initialSpectrum, finalSpectrum=finalSpectrum)
 
         
     def saveGridSearchOptFreqList(self, filename, useResID=True):
@@ -408,22 +384,13 @@ class SBOptimizer:
             useResID: should be true if resIDs were initially supplied
 
         """
-        if useResID:
-           data = np.zeros((len(self.freqList), 5))
-           data[:, 0] = self.resIDList
-           data[:, 1] = self.freqList
-           data[:, 2] = self.toneAttenList
-           data[:, 3] = np.concatenate((self.finalPhaseListLow, self.finalPhaseListHigh))
-           data[:, 4] = np.concatenate((self.finalIQRatioListLow, self.finalIQRatioListHigh))
-           np.savetxt(filename, data, fmt='%4i %10.9e %4i %4i %4f')
-
-        else:
-           data = np.zeros((len(self.freqList), 4))
-           data[:, 0] = self.freqList
-           data[:, 1] = self.toneAttenList
-           data[:, 2] = np.concatenate((self.finalPhaseListLow, self.finalPhaseListHigh))
-           data[:, 3] = np.concatenate((self.finalIQRatioListLow, self.finalIQRatioListHigh))
-           np.savetxt(filename, data, fmt='%10.9e %4i %4i %4f')
+        data = np.zeros((len(self.freqList), 5))
+        data[:, 0] = self.resIDList
+        data[:, 1] = self.freqList
+        data[:, 2] = self.toneAttenList
+        data[:, 3] = np.concatenate((self.finalPhaseListLow, self.finalPhaseListHigh))
+        data[:, 4] = np.concatenate((self.finalIQRatioListLow, self.finalIQRatioListHigh))
+        np.savetxt(filename, data, fmt='%4i %10.9e %4i %4i %4f')
 
 
     def ampScalePlotter(self, freq, phase, scaleRange=np.arange(0.5,1.5,0.02)):
@@ -447,12 +414,7 @@ class SBOptimizer:
         plt.plot(scaleRange, sbSuppressions)
         plt.show()
         return sbSuppressions
-
-    def setGlobalDacAtten(self, globalDacAtten):
-        self.globalDacAtten=globalDacAtten 
-        self.roach.changeAtten(1,np.floor(self.globalDacAtten/31.75)*31.75)
-        self.roach.changeAtten(2,self.globalDacAtten%31.75)
-
+    
     def checkSBSuppression(self, sideband):        
         nSamples = 4096.
         sampleRate = 2000. #MHz
@@ -709,23 +671,12 @@ class sbOptThread(threading.Thread):
 
 
 if __name__=='__main__': 
-    args = sys.argv[1:]
-    defaultValues=None
-    if '-c' in args:
-        indx = args.index('-c')
-        defaultValues=args[indx+1]
-        try: args = args[:indx]+args[indx+2:]
-        except IndexError:args = args[:indx]
-    else: raise Exception('Must specify config file using -c <templarconfig>')
+    parser = argparse.ArgumentParser(description='Optimize frequency and power specific sideband suppression')
+    parser.add_argument('roaches', nargs='+', help='Roach numbers')
+    parser.add_argument('-c', '--config', default=mkidreadout.config.DEFAULT_ROACH_CFGFILE, help='roach.yml config file')
+    args = parser.parse_args()
 
-    roachNums = np.asarray(args, dtype=np.int)
-
-    templarConf = ConfigParser.ConfigParser()
-    templarConf.read(defaultValues)
-
-    threadpool = []
-
-    for roachNum in roachNums:
+    for roachNum in args.roaches:
         ip = templarConf.get('Roach '+str(roachNum), 'ipaddress')
         globalDacAtten = templarConf.getfloat('Roach '+str(roachNum), 'dacatten_start')
         adcAtten = templarConf.getfloat('Roach '+str(roachNum), 'adcatten')
