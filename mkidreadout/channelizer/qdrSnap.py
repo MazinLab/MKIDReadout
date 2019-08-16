@@ -9,13 +9,13 @@ from mkidreadout.channelizer.Roach2Controls import Roach2Controls
 from mkidreadout.configuration.sweepdata import SweepMetadata
 
 def loadDACLUT(roach, metadata, lofreq):
-    resIDs, freqs, attens = metadata.templar_data(lofreq)
+    resIDs, freqs, attens, phases, iqRatios = metadata.templar_data(lofreq)
     roach.generateResonatorChannels(freqs)
     roach.setAttenList(attens)
     roach.setLOFreq(lofreq)
     roach.resIDs = resIDs
-    roach.phaseOffsList = np.zeros_like(attens)
-    roach.iqRatioList = np.ones_like(attens)
+    roach.phaseOffsList = phases
+    roach.iqRatioList = iqRatios
 
     roach.generateFftChanSelection()
     roach.loadLOFreq()
@@ -26,6 +26,17 @@ def loadDACLUT(roach, metadata, lofreq):
     roach.loadDacLUT()
     newADCAtten = roach.getOptimalADCAtten(15)
     getLogger(__name__).info("Auto Setting ADC Atten to " + str(newADCAtten))
+
+def measureSidebands(ifFreqList, fftFreqs, spectrumDB):
+    assert np.all(np.abs(ifFreqList) < 1.e9)
+    freqLocs = np.zeros(len(ifFreqList), dtype=np.int)
+    sbLocs = np.zeros(len(ifFreqList), dtype=np.int)
+    for i, freq in enumerate(ifFreqList):
+        freqLocs[i] = np.argmin(np.abs(freq - fftFreqs))
+        sbLocs[i] = np.argmin(np.abs(freq + fftFreqs))
+
+    return spectrumDB[freqLocs] - spectrumDB[sbLocs]
+    
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Script for taking QDR longsnaps')

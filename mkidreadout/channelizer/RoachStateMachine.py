@@ -261,10 +261,7 @@ class RoachStateMachine(QtCore.QObject):  # Extends QObject for use with QThread
 
         sd = sweepdata.SweepMetadata(file=fn)
 
-        resIDs, freqs, attens = sd.templar_data(self.config.roaches.get('r{}.lo_freq'.format(self.num)))
-        #TODO Neelay, alex what about phaseOffsList and iqRatioList in the metadatafile
-        phaseOffsList = np.zeros_like(attens)
-        iqRatioList = np.ones_like(attens)
+        resIDs, freqs, attens, phaseOffsList, iqRatioList = sd.templar_data(self.config.roaches.get('r{}.lo_freq'.format(self.num)))
 
         assert(len(resIDs) == len(np.unique(resIDs))), "Resonator IDs in "+fn+" need to be unique."
 

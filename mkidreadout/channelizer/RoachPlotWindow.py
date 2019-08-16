@@ -868,9 +868,8 @@ class RoachSweepWindow(QMainWindow):
             attens = np.copy(self.roach.roachController.attenList)
 
         resIDs = np.copy(self.roach.roachController.resIDs)
-
-        freqFile = self.roach.roachController.tagfile(self.config.roaches.get('r{}.freqfileroot'.format(self.roachNum)),
-                                                      dir=self.config.paths.data)
+        freqfile = str(self.config.roaches.get('r{}.freqfileroot'.format(self.num)))
+        freqfile = os.path.join(self.config.paths.data, freqfile.format(roach=self.num, feedline=self.roachController.feedline, range=self.roachController.range))
         legacyFile = self.roach.roachController.tagfile(self.config.roaches.get('r{}.freqfileroot'.format(self.roachNum)),
                                                       dir=self.config.paths.data, epilog='legacy')
         sd = sweepdata.SweepMetadata(file=freqFile)

@@ -1085,7 +1085,7 @@ class Roach2Controls(object):
         self.attenList=resAttenList
 
     def generateDacComb(self, freqList=None, resAttenList=None,  phaseList=None, iqRatioList=None,
-                        iqPhaseOffsList=None, avoidSpikes=True):
+                        iqPhaseOffsList=None, avoidSpikes=True, globalDacAtten=None):
         """
         Creates DAC frequency comb by adding many complex frequencies together with specified amplitudes and phases.
         
@@ -1159,7 +1159,11 @@ class Roach2Controls(object):
 
         getLogger(__name__).debug('Generating DAC comb...')
 
-        globalDacAtten=np.amin(resAttenList)
+        if globalDacAtten is None:
+            globalDacAtten=np.amin(resAttenList)
+            autoDacAtten = True
+        else:
+            autoDacAtten = False
         
         # Calculate relative amplitudes for DAC LUT
         nBitsPerSampleComponent = self.params['nBitsPerSamplePair'] / 2
@@ -1219,28 +1223,36 @@ class Roach2Controls(object):
         self.dacQuantizedFreqList = (toneDict['quantizedFreqList'])[args_inv]
         self.dacPhaseList = (toneDict['phaseList'])[args_inv]
 
-        highestVal = np.max((np.abs(iValues).max(),np.abs(qValues).max()))
-        dBexcess = 20.*np.log10(1.0*highestVal/maxAmp)
-        dBexcess = np.ceil(4.*dBexcess)/4.  #rounded up to nearest 1/4 dB
-        iValues_new=np.round(iValues/10.**(dBexcess/20.)).astype(np.int)    #reduce to fit into DAC dynamic range and quantize to integer
-        qValues_new=np.round(qValues/10.**(dBexcess/20.)).astype(np.int)
-        if np.max((np.abs(iValues).max(),np.abs(qValues).max()))>maxAmp:
-            dBexcess+=0.25      # Since there's some rounding there's a small chance we need to decrease by another atten step
-            iValues_new=np.round(iValues/10.**(dBexcess/20.)).astype(np.int)
+        if autoDacAtten:
+            highestVal = np.max((np.abs(iValues).max(),np.abs(qValues).max()))
+            dBexcess = 20.*np.log10(1.0*highestVal/maxAmp)
+            dBexcess = np.ceil(4.*dBexcess)/4.  #rounded up to nearest 1/4 dB
+            iValues_new=np.round(iValues/10.**(dBexcess/20.)).astype(np.int)    #reduce to fit into DAC dynamic range and quantize to integer
             qValues_new=np.round(qValues/10.**(dBexcess/20.)).astype(np.int)
+            if np.max((np.abs(iValues).max(),np.abs(qValues).max()))>maxAmp:
+                dBexcess+=0.25      # Since there's some rounding there's a small chance we need to decrease by another atten step
+                iValues_new=np.round(iValues/10.**(dBexcess/20.)).astype(np.int)
+                qValues_new=np.round(qValues/10.**(dBexcess/20.)).astype(np.int)
 
-        globalDacAtten-=dBexcess
-        if globalDacAtten>31.75*2.:
-            dB_reduce = globalDacAtten-31.75*2.
-            getLogger(__name__).warning("Unable to fully utilize DAC dynamic range by "+str(dB_reduce)+"dB")
-            warnings.warn("Unable to fully utilize DAC dynamic range by "+str(dB_reduce)+"dB")
-            globalDacAtten-=dB_reduce
-            dBexcess+=dB_reduce
-            iValues_new=np.round(iValues/10.**(dBexcess/20.)).astype(np.int)
-            qValues_new=np.round(qValues/10.**(dBexcess/20.)).astype(np.int)
+            globalDacAtten-=dBexcess
+            if globalDacAtten>31.75*2.:
+                dB_reduce = globalDacAtten-31.75*2.
+                getLogger(__name__).warning("Unable to fully utilize DAC dynamic range by "+str(dB_reduce)+"dB")
+                warnings.warn("Unable to fully utilize DAC dynamic range by "+str(dB_reduce)+"dB")
+                globalDacAtten-=dB_reduce
+                dBexcess+=dB_reduce
+                iValues_new=np.round(iValues/10.**(dBexcess/20.)).astype(np.int)
+                qValues_new=np.round(qValues/10.**(dBexcess/20.)).astype(np.int)
 
-        iValues = iValues_new
-        qValues = qValues_new
+            iValues = iValues_new
+            qValues = qValues_new
+
+        else:
+            highestVal = np.max((np.abs(iValues).max(),np.abs(qValues).max()))
+            iValues = np.round(iValues).astype(np.int)
+            qValues = np.round(qValues).astype(np.int)
+            
+
         self.dacFreqComb = iValues + 1j*qValues
 
         highestVal = np.max((np.abs(iValues).max(), np.abs(qValues).max()))
