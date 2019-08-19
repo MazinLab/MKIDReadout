@@ -156,7 +156,7 @@ class SBOptimizer:
         return snapDict
  
     def gridSearchOptimizerFit(self, phases=np.arange(-25, 25), iqRatios=np.arange(0.8, 1.75, 0.02), sideband='upper', 
-                                threshold=38, weightDecayDist=1, nAvgs=5, saveNPZ=False):
+                                threshold=38, weightDecayDist=1, nAvgs=5, useQDR=False, saveNPZ=False):
         """
         Determines optimal phase/iq offsets for each tone in comb simultaneosly. Treats all tones as independent. For each tone,
         samples the SB suppression at a few random points in phase/iq offset search space, then fits a 2D exponential decay. Takes
@@ -666,8 +666,8 @@ class sbOptThread(threading.Thread):
         print('Starting optimization for ROACH ' + self.ip)
         resIDList, freqList, toneAttenList, _, _ = metadata.templar_data(self.loFreq)
         sbo = SBOptimizer(ip=self.ip, resIDList=resIDList, freqList=freqList, toneAttenList=toneAttenList, adcAtten=self.adcAtten, globalDacAtten=self.globalDacAtten, loFreq=self.loFreq)
-        sbo.gridSearchOptimizerFit(sideband='upper', saveNPZ=True)
-        sbo.gridSearchOptimizerFit(sideband='lower', saveNPZ=True)
+        sbo.gridSearchOptimizerFit(sideband='upper', saveNPZ=True, nAvgs=20)
+        sbo.gridSearchOptimizerFit(sideband='lower', saveNPZ=True, nAvgs=20)
         sbo.saveGridSearchOptFreqList(self.metadata.file.split('.')[0] + '_sbOpt_v3.txt')
 
 

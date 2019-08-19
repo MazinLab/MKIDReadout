@@ -1,6 +1,6 @@
 import numpy as np
 
-def streamSpectrum(iVals,qVals):
+def streamSpectrum(iVals,qVals,nBins=None):
     #TODO break out into library module
     sampleRate = 2.e9 # 2GHz
     MHz = 1.e6
@@ -8,12 +8,26 @@ def streamSpectrum(iVals,qVals):
 
     signal = iVals+1.j*qVals
     signal = signal / adcFullScale
-
     nSamples = len(signal)
-    spectrum = np.fft.fft(signal)
-    spectrum = 1.*spectrum / nSamples
 
-    freqsMHz = np.fft.fftfreq(nSamples)*sampleRate/MHz
+    if not (nBins is None):
+        nAvgs = nSamples // nBins
+        nSamplesToUse = nBins*nAvgs
+        nSamplesPerFft = nBins
+        foldedSignal = np.reshape(signal[:nSamplesToUse],(nAvgs,nBins))
+    else:
+        nAvgs = 1
+        nSamplesToUse = nSamples
+        nBins = nSamples
+        nSamplesPerFft = nSamples
+        foldedSignal = signal
+
+    spectrum = np.fft.fft(foldedSignal)
+    spectrum = 1.*spectrum / nSamplesPerFft
+    if nAvgs > 1:
+        spectrum = np.average(spectrum, axis=0)
+
+    freqsMHz = np.fft.fftfreq(nSamplesPerFft)*sampleRate/MHz
 
     freqsMHz = np.fft.fftshift(freqsMHz)
     spectrum = np.fft.fftshift(spectrum)
@@ -24,7 +38,7 @@ def streamSpectrum(iVals,qVals):
     peakFreqPower = spectrumDb[np.argmax(spectrumDb)]
     times = np.arange(nSamples)/sampleRate * MHz
     #print 'peak at',peakFreq,'MHz',peakFreqPower,'dB'
-    return {'spectrumDb':spectrumDb,'freqsMHz':freqsMHz,'spectrum':spectrum,'peakFreq':peakFreq,'times':times,'signal':signal,'nSamples':nSamples}
+    return {'spectrumDb':spectrumDb,'freqsMHz':freqsMHz,'spectrum':spectrum,'peakFreq':peakFreq,'times':times,'signal':signal,'nSamples':nSamplesPerFft}
 
 def checkSpectrumForSpikes(specDict):
     # TODO Merge with roach2controls as helper
