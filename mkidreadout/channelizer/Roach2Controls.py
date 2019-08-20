@@ -165,6 +165,16 @@ class Roach2Controls(object):
             return True
             # getLogger(__name__).info(self.fpga.snapshots)
 
+    @property
+    def firmwareVersion(self):
+        #TODO: add firmware version register
+        if 'adc_in_trig' in self.fpga.listdev():
+            return 'darkquad'
+        elif 'trig_qdr' in self.fpga.listdev():
+            return 'qdrloop'
+        else:
+            return ''
+
     def checkDdsShift(self):
         """
         This function checks the delay between the dds channels and the fft.
@@ -909,9 +919,9 @@ class Roach2Controls(object):
 
         snapshotNames = self.fpga.snapshots.names()
 
-        if 'adc_in_trig' in self.fpga.listdev():
+        if 'darkquad' in self.firmwareVersion:
             trigReg = 'adc_in_trig'
-        elif 'trig_qdr' in self.fpga.listdev():
+        elif 'qdrloop' in self.firmwareVersion:
             trigReg = 'trig_qdr'
         else:
             raise Exception(str(self.num) + ' unknown firmware version!')
@@ -1073,9 +1083,9 @@ class Roach2Controls(object):
 
 
     def setADCScale(self):
-        if 'adc_in_scale' in self.fpga.listdev():
+        if 'qdrloop' in self.firmwareVersion:
             self.fpga.write_int('adc_in_scale', 2**4)
-        elif 'adc_in_i_scale' in self.fpga.listdev():
+        elif 'darkquad' in self.firmwareVersion:
             self.fpga.write_int('adc_in_i_scale', 2**7)
         else:
             raise Exception('Unknown firmware version')

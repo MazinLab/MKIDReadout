@@ -31,8 +31,14 @@ def loadDACLUT(roach, metadata, lofreq):
     getLogger(__name__).info("Auto Setting ADC Atten to " + str(newADCAtten))
 
     
-def readQdrSnap(fpga):
-    #(roach,memName,nSamples,nBytesPerSample=4,bQdrFlip=False)
+def takeQdrSnap(fpga):
+    assert 'trig_qdr' in fpga.listdev(), 'Must load qdrloop firmware!'
+    fpga.write_int('trig_qdr',0)#release trigger
+    time.sleep(.1)  # wait for other trigger conditions to be met, and fill buffers
+    fpga.write_int('trig_qdr',1)#trigger snapshots
+    time.sleep(.1)  # wait for other trigger conditions to be met, and fill buffers
+    fpga.write_int('trig_qdr',0)#release trigger
+
     nQdrSamples = 2**20
     nBytesPerQdrSample = 8
     nBitsPerQdrSample = nBytesPerQdrSample*8
@@ -107,7 +113,11 @@ def readMemory(fpga,memName,nSamples,nBytesPerSample=4,bQdrFlip=False):
         memValues = np.roll(memValues,1)
     return list(memValues)
 
-def measureSidebands(ifFreqList, fftFreqs, spectrumDB):
+def measureSidebands(ifFreqList, fftFreqs, spectrumDB, dacSampleRate=2.e9, nDacSamples=262144):
+    freqQuantization = dacSampleRate/nDacSamples
+    ifFreqList = np.round(ifFreqList/freqQuantization)*freqQuantization
+    getLogger(__name__).info('DAC freq quantization {}'.format(freqQuantization))
+    print 'DAC freq quantization {}'.format(freqQuantization)
     assert np.all(np.abs(ifFreqList) < 1.e9)
     freqLocs = np.zeros(len(ifFreqList), dtype=np.int)
     sbLocs = np.zeros(len(ifFreqList), dtype=np.int)
@@ -115,7 +125,7 @@ def measureSidebands(ifFreqList, fftFreqs, spectrumDB):
         freqLocs[i] = np.argmin(np.abs(freq - fftFreqs))
         sbLocs[i] = np.argmin(np.abs(freq + fftFreqs))
 
-    return spectrumDB[freqLocs] - spectrumDB[sbLocs]
+    return spectrumDB[freqLocs] - spectrumDB[sbLocs], freqLocs, sbLocs
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Script for taking QDR longsnaps')
@@ -160,8 +170,7 @@ if __name__ == '__main__':
 
 
     roach.loadFullDelayCal()
-    roach.snapZdok()
-    snapDict = readQdrSnap(roach.fpga)
+    snapDict = takeQdrSnap(roach.fpga)
     nBins = 2**21 #out of 2**23
     specDict = streamSpectrum(iVals=snapDict['iVals'],qVals=snapDict['qVals'],nBins=nBins)
     snapDict.update(specDict)
@@ -176,11 +185,9 @@ if __name__ == '__main__':
         _, freqs, _, _, _ = metadata.templar_data(loFreq)        
         ifFreqs = freqs - loFreq
         nSamples = roach.params['nDacSamplesPerCycle'] * roach.params['nLutRowsToUse']
-        sampleRate = roach.params['dacSampleRate']
-        freqQuantization = sampleRate/nSamples
-        ifFreqs = np.round(ifFreqs/freqQuantization)*freqQuantization
-        sbPowers = measureSidebands(ifFreqs, 1.e6*snapDict['freqsMHz'], snapDict['spectrumDb'])
-        snapDict.update({'sidebandPowers':sbPowers})
+        sbPowers, freqLocs, sbLocs = measureSidebands(ifFreqs, 1.e6*snapDict['freqsMHz'], 
+                          snapDict['spectrumDb'], roach.params['dacSampleRate'], nSamples)
+        snapDict.update({'sidebandPowers':sbPowers, 'freqLocs':freqLocs, 'sbLocs':sbLocs})
         plt.plot(ifFreqs, sbPowers)
         plt.show()
 

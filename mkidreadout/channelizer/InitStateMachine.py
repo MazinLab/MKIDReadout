@@ -76,7 +76,6 @@ class InitStateMachine(QtCore.QObject):  # Extends QObject for use with QThreads
         self.num = int(roachNumber)
         self.commandQueue = Queue()
         self.config = config
-        self.qdrMode = False
         self.roachController = Roach2Controls(self.config.get('r{}.ip'.format(self.num)),
                                               self.config.get('r{}.fpgaparamfile'.format(self.num)),
                                               num=self.num, verbose=True, debug=False)
@@ -202,17 +201,15 @@ class InitStateMachine(QtCore.QObject):  # Extends QObject for use with QThreads
 
     def programV6(self):
         fpgPath = str(self.config.get('r{}.fpgpath'.format(self.num)))
-        if 'qdrloop' in fpgPath:
-            self.qdrMode = True
-            getLogger(__name__).info('Roach ' + str(self.num) + ': QDR Loop firmware detected')
         if not os.path.isfile(fpgPath):
             fpgPath = resource_filename('mkidreadout', os.path.join('resources', 'firmware', fpgPath))
         self.roachController.fpga.upload_to_ram_and_program(fpgPath)
         fpgaClockRate = self.roachController.fpga.estimate_fpga_clock()
+        getLogger(__name__).info('{} firmware detected.'.format(self.roachController.firmwareVersion))
         getLogger(__name__).info('Fpga Clock Rate: %s', fpgaClockRate)
         if fpgaClockRate < 245 or fpgaClockRate > 255:
             raise Exception('V6 clock rate incorrect. Possible boot issue for ADC/DAC board')
-        if not self.qdrMode:
+        if 'darkquad' in self.roachController.firmwareVersion:
             self.roachController.loadBoardNum(self.num)
             self.roachController.loadCurTimestamp()
         return True
