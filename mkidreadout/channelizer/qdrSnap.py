@@ -127,6 +127,29 @@ def measureSidebands(ifFreqList, fftFreqs, spectrumDB, dacSampleRate=2.e9, nDacS
 
     return spectrumDB[freqLocs] - spectrumDB[sbLocs], freqLocs, sbLocs
 
+def plotSBSuppression(ifFreqList, fftFreqs, spectrumDB, freqLocs, sbLocs):
+    fig = plt.figure()
+    ax1 = fig.add_subplot(211)
+    ax2 = fig.add_subplot(212)
+
+    ax1.plot(fftFreqs[freqLocs], spectrumDB[freqLocs], '.', label='tones')
+    ax1.plot(fftFreqs[freqLocs], spectrumDB[sbLocs], '.', label='sidebands')
+    ax1.vlines(fftFreqs[freqLocs], spectrumDB[sbLocs], spectrumDB[freqLocs] , alpha=0.3, color='#d62728')
+    ax1.legend()
+    ax1.set_ylabel('dBFS')
+    ax1.set_ylim((-110, -35))
+    ax1.set_title('Sideband Suppression')
+
+    ax2.plot(fftFreqs[freqLocs], spectrumDB[freqLocs] - spectrumDB[sbLocs], label='total suppression')
+    ax2.set_ylabel('dBFS')
+    ax2.set_xlabel('IF Band Frequency')
+    ax2.set_ylim((-10,60))
+    ax2.legend()
+
+    plt.show()
+
+    
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Script for taking QDR longsnaps')
     parser.add_argument('roach', type=int, help='Roach number')
