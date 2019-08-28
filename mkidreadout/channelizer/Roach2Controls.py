@@ -2279,7 +2279,7 @@ class Roach2Controls(object):
         getLogger(__name__).info('Loading frequencies from %s', freqListFile)
         try:
             sd = sweepdata.SweepMetadata(file=self.freqListFile)
-            resID_roach, freqs, attens = sd.templar_data(self.LOFreq) #TODO feed in the range for this roach self.range
+            resID_roach, freqs, attens, _, _ = sd.templar_data(self.LOFreq) #TODO feed in the range for this roach self.range
         except IOError:
             getLogger(__name__).error('unable to load freqs {}'.format(os.path.isfile(freqListFile)), exc_info=True)
             raise
