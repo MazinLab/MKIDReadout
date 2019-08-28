@@ -81,6 +81,9 @@ if __name__=='__main__':
             print 'timegap32', timeGap32
             print 'nMissPPS', nMissPPSList[i]
             print ''
+        else:
+            if nMissPPSList[i] > nMissPPSList[max(i-1, 0)]:
+                print 'Missed PPS on iter ', i, ' after ', i*sampRate, ' seconds'
         shortGapList[i] = timeGap32
         # print 'ts3', ts3
         # print 'ts2', ts2

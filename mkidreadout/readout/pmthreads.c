@@ -406,12 +406,13 @@ void* reader(void *prms){
 
     while(sem_trywait(quitSem)==-1) //(access( "/home/ramdisk/QUIT", F_OK ) == -1)
     {
-        /*
-        if (nFrames % 100 == 0)
+        #ifdef _DEBUG_OUTPUT
+        if (nFrames % 1000 == 0)
         {
             printf("Frame %d\n",nFrames);  fflush(stdout);
         }
-        */
+        #endif
+
         nBytesReceived = recv(s, buf, BUFLEN, 0);
         //printf("read from socket %d %d!\n",nFrames, nBytesReceived); fflush(stdout);
         if (nBytesReceived == -1)
