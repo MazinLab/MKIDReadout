@@ -43,6 +43,8 @@ if __name__=='__main__':
     parser.add_argument('-p', '--plotConfusion', action='store_true')
     parser.add_argument('-v', '--verbose', action='store_true')
     parser.add_argument('-m', '--match-res', action='store_true', help='If true, resIDs are assumed to not correspond')
+    parser.add_argument('-o', '--output-flag', default=None, 
+                    help='Outputs the average of the two provided files, named using provided flag')
     args = parser.parse_args()
 
     if int(args.ml_metadata is not None) + len(args.manMDFiles) > 2:
