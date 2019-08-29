@@ -1,5 +1,6 @@
 import cPickle as pickle
 import os
+import subprocess
 
 import numpy as np
 cimport numpy as np
@@ -16,6 +17,8 @@ SHM_IMAGE_WRITER_CPU = 3
 CIRC_BUFF_WRITER_CPU = 4
 
 N_WVL_COEFFS = 3
+
+LO_IP = '127.0.0.1'
 
 #WARNING: DO NOT USE IF THERE MAY BE MULTIPLE INSTANCES OF PACKETMASTER;
 #         THESE ARE SYSTEM WIDE SEMAPHORES
@@ -118,10 +121,12 @@ cdef class Packetmaster(object):
     cdef int nSharedImages
     cdef readonly object sharedImages
     cdef readonly object eventBuffer
+    cdef readonly object samplicatorProcess
 
     #TODO useWriter->savebinfiles, ramdiskPath->ramdisk ?use '' as default?
     def __init__(self, nRoaches, port, nRows=None, nCols=None, useWriter=True, wvlSol=None,
-                 beammap=None, sharedImageCfg=None, eventBuffCfg=None, maximizePriority=False, recreate_images=False):
+                 beammap=None, sharedImageCfg=None, eventBuffCfg=None, maximizePriority=False, 
+                 recreate_images=False, forwarding=None):
         """
         Starts the reader (packet receiving) thread along with the appropriate number of parsing 
         threads according to the specified configuration.
@@ -155,6 +160,12 @@ cdef class Packetmaster(object):
                 Config dict specifying name and size of event buffer. If None no event buffer is created/used.
             recreate_images: bool
                 Remove and recreate the shared images if true
+            forwarding: dict or yaml config object
+                Use if you want to forward photon packets to another machine (i.e. RTC). keys:
+                    localport: port that packetmaster listens to on local machine ('port'
+                        is the port that samplicator will bind to; localport must be different)
+                    destIP: IP address to forward packets to
+                    destport: port to use for forwarded IP
         """
 
         #TODO: modify to include circular buffer
@@ -259,6 +270,16 @@ cdef class Packetmaster(object):
         strcpy(self.writerParams.quitSemName, QUIT_SEM_NAME.encode('UTF-8'))
         strcpy(self.readerParams.quitSemName, QUIT_SEM_NAME.encode('UTF-8'))
 
+        #SETUP IP FORWARDING
+        self.samplicatorProcess = None
+        if forwarding is not None:
+            if port == forwarding['localport']:
+                raise Exception('forwarding["localport"] and "port" must be different!')
+            argstring = ['samplicate', '-p', str(port), LO_IP+'/'+str(forwarding['localport']), 
+                            forwarding['destIP']+'/'+str(forwarding['destport'])]
+            self.samplicatorProcess = subprocess.Popen(argstring)
+            port = forwarding['localport']
+            
         #INITIALIZE REMAINING PARAMS
         self.readerParams.port = port
         if useWriter:
@@ -349,6 +370,8 @@ cdef class Packetmaster(object):
     def quit(self):
         """ Exit all threads """
         quitAllThreads(QUIT_SEM_NAME.encode('UTF-8'), self.nThreads)
+        if self.samplicatorProcess is not None:
+            self.samplicatorProcess.terminate()
 
     def __dealloc__(self):
         free(self.streams)
