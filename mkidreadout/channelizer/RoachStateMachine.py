@@ -249,8 +249,10 @@ class RoachStateMachine(QtCore.QObject):  # Extends QObject for use with QThread
             getLogger(__name__).info('old Freq: {}'.format(self.roachController.freqList))
         except:
             pass
-        fn = self.roachController.tagfile(self.config.roaches.get('r{}.freqfileroot'.format(self.num)),
-                                          dir=self.config.paths.data)
+        #fn = self.roachController.tagfile(self.config.roaches.get('r{}.freqfileroot'.format(self.num)),
+        #                                  dir=self.config.paths.data)
+        fn = str(self.config.roaches.get('r{}.freqfileroot'.format(self.num)))
+        fn = os.path.join(self.config.paths.data, fn.format(roach=self.num, feedline=self.roachController.feedline, range=self.roachController.range))
         fn2 = '{0}_new.{1}'.format(*fn.rpartition('.')[::2])
         if os.path.isfile(fn2):
             fn = fn2
@@ -259,10 +261,7 @@ class RoachStateMachine(QtCore.QObject):  # Extends QObject for use with QThread
 
         sd = sweepdata.SweepMetadata(file=fn)
 
-        resIDs, freqs, attens = sd.templar_data(self.config.roaches.get('r{}.lo_freq'.format(self.num)))
-        #TODO Neelay, alex what about phaseOffsList and iqRatioList in the metadatafile
-        phaseOffsList = np.zeros_like(attens)
-        iqRatioList = np.ones_like(attens)
+        resIDs, freqs, attens, phaseOffsList, iqRatioList = sd.templar_data(self.config.roaches.get('r{}.lo_freq'.format(self.num)))
 
         assert(len(resIDs) == len(np.unique(resIDs))), "Resonator IDs in "+fn+" need to be unique."
 

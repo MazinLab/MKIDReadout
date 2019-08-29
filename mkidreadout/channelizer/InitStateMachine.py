@@ -16,7 +16,7 @@ from pkg_resources import resource_filename
 from mkidcore.corelog import getLogger
 from mkidreadout.channelizer.Roach2Controls import Roach2Controls
 from mkidreadout.channelizer.qdr import Qdr as myQdr
-from mkidreadout.channelizer.zdokcal import findCal, loadDelayCal
+from mkidreadout.channelizer.zdokcal import findCal
 
 
 class InitStateMachine(QtCore.QObject):  # Extends QObject for use with QThreads
@@ -200,16 +200,18 @@ class InitStateMachine(QtCore.QObject):  # Extends QObject for use with QThreads
         return True
 
     def programV6(self):
-        fpgPath = self.config.get('r{}.fpgpath'.format(self.num))
+        fpgPath = str(self.config.get('r{}.fpgpath'.format(self.num)))
         if not os.path.isfile(fpgPath):
             fpgPath = resource_filename('mkidreadout', os.path.join('resources', 'firmware', fpgPath))
         self.roachController.fpga.upload_to_ram_and_program(fpgPath)
         fpgaClockRate = self.roachController.fpga.estimate_fpga_clock()
+        getLogger(__name__).info('{} firmware detected.'.format(self.roachController.firmwareVersion))
         getLogger(__name__).info('Fpga Clock Rate: %s', fpgaClockRate)
         if fpgaClockRate < 245 or fpgaClockRate > 255:
             raise Exception('V6 clock rate incorrect. Possible boot issue for ADC/DAC board')
-        self.roachController.loadBoardNum(self.num)
-        self.roachController.loadCurTimestamp()
+        if 'darkquad' in self.roachController.firmwareVersion:
+            self.roachController.loadBoardNum(self.num)
+            self.roachController.loadCurTimestamp()
         return True
 
     def initV7(self):
@@ -233,7 +235,8 @@ class InitStateMachine(QtCore.QObject):  # Extends QObject for use with QThreads
         getLogger(__name__).info('switched on ADC ZDOK Cal ramp')
         time.sleep(.1)
 
-        self.roachController.fpga.write_int('adc_in_i_scale', 2 ** 7)  # set relative IQ scaling to 1
+        self.roachController.setADCScale()
+
         # nBitsRemovedInFFT = self.config.get('r{}.nBitsRemovedInFFT'.format(self.num))
         # if(nBitsRemovedInFFT == 0):
         #     self.roachController.setAdcScale(0.9375) #Max ADC scale value
@@ -241,16 +244,9 @@ class InitStateMachine(QtCore.QObject):  # Extends QObject for use with QThreads
         #     self.roachController.setAdcScale(1./(2**nBitsRemovedInFFT))
 
         self.roachController.fpga.write_int('run', 1)
-        busDelays = [14, 18, 14, 13]
-        busStarts = [0, 14, 28, 42]
-        busBitLength = 12
-        for iBus in xrange(len(busDelays)):
-            delayLut = zip(np.arange(busStarts[iBus], busStarts[iBus] + busBitLength),
-                           busDelays[iBus] * np.ones(busBitLength))
-            loadDelayCal(self.roachController.fpga, delayLut)
+        self.roachController.loadFullDelayCal()
 
-        # calDict = findCal(self.roachController.fpga,nBitsRemovedInFFT)
-        calDict = findCal(self.roachController.fpga)
+        calDict = findCal(self.roachController)
         getLogger(__name__).info("Caldict: {}".format(calDict))
 
         self.roachController.sendUARTCommand(0x5)

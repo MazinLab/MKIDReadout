@@ -165,6 +165,16 @@ class Roach2Controls(object):
             return True
             # getLogger(__name__).info(self.fpga.snapshots)
 
+    @property
+    def firmwareVersion(self):
+        #TODO: add firmware version register
+        if 'adc_in_trig' in self.fpga.listdev():
+            return 'darkquad'
+        elif 'trig_qdr' in self.fpga.listdev():
+            return 'qdrloop'
+        else:
+            return ''
+
     def checkDdsShift(self):
         """
         This function checks the delay between the dds channels and the fft.
@@ -634,8 +644,6 @@ class Roach2Controls(object):
         getLogger(__name__).debug('num lut dumps ' + str(num_lut_dumps))
         # getLogger(__name__).info('len(memVals) ' + str(len(memVals)))
 
-        sending_data = 1  # indicates that ROACH2 is still sending LUT
-
         for i in range(num_lut_dumps):
             if len(memVals) > self.lut_dump_buffer_size / 2 * (i + 1):
                 iqList = memVals[self.lut_dump_buffer_size / 2 * i:self.lut_dump_buffer_size / 2 * (i + 1)]
@@ -648,8 +656,6 @@ class Roach2Controls(object):
             # getLogger(__name__).info(iqList.dtype)
             # getLogger(__name__).info(iqList)
             getLogger(__name__).debug('bram dump #' + str(i))
-            while sending_data:
-                sending_data = self.fpga.read_int(self.params['lutDumpBusy_reg'])
             self.fpga.blindwrite(self.params['lutBramAddr_reg'], toWriteStr)
             #time.sleep(0.01)
             self.fpga.write_int(self.params['lutBufferSize_reg'], len(toWriteStr))
@@ -657,6 +663,7 @@ class Roach2Controls(object):
 
             while not self.v7_ready:
                 self.v7_ready = self.fpga.read_int(self.params['v7Ready_reg'])
+                time.sleep(0.01)
 
             if self.v7_ready != self.params['v7LUTReady']:
                 raise Exception('Microblaze not ready to recieve LUT!')
@@ -665,8 +672,13 @@ class Roach2Controls(object):
             # getLogger(__name__).info('enable write')
             time.sleep(0.01)
             self.fpga.write_int(self.params['txEnUART_reg'], 0, blindwrite=True)
-            sending_data = 1
+
+            sending_data = 1 # 1 if roach is still sending LUT
             self.v7_ready = 0
+
+            while sending_data:
+                sending_data = self.fpga.read_int(self.params['lutDumpBusy_reg'])
+                time.sleep(0.01)
 
         self.fpga.write_int(self.params['enBRAMDump_reg'], 0, blindwrite=True)
 
@@ -858,20 +870,6 @@ class Roach2Controls(object):
         if self.v7_ready == self.params['v7Err']:
             raise Exception('MicroBlaze failed to set LO!')
 
-    def setAdcScale(self, scale=.25):
-        """
-        Change the scale factor applied to adc data values before 
-        sending to fft, to hopefully avoid overflowing the fft.  
-        There are 4 bits in the scale with 4 bits after the binary point 
-        (as of darkquad17_2016_Jul_17_2216).
-        INPUTS:
-            scale - scale factor applied to all ADC values.  Between 0 and 0.9375, in increments of 0.0625
-        """
-        scaleInt = scale * (2 ** self.params['adcScaleBinPt'])
-        scaleInt = int(scaleInt)
-        getLogger(__name__).debug('setting adc scale to %s', scaleInt / 2. ** self.params['adcScaleBinPt'])
-        self.fpga.write_int(self.params['adcScale_reg'], scaleInt)
-
     def changeAtten(self, attenID, attenVal):
         """
         Change the attenuation on IF Board attenuators
@@ -921,17 +919,23 @@ class Roach2Controls(object):
 
         snapshotNames = self.fpga.snapshots.names()
 
-        # self.fpga.write_int('trig_qdr',0)#initialize trigger
-        self.fpga.write_int('adc_in_trig', 0)
+        if 'darkquad' in self.firmwareVersion:
+            trigReg = 'adc_in_trig'
+        elif 'qdrloop' in self.firmwareVersion:
+            trigReg = 'trig_qdr'
+        else:
+            raise Exception(str(self.num) + ' unknown firmware version!')
+
+        self.fpga.write_int(trigReg, 0)
         for name in snapshotNames:
             self.fpga.snapshots[name].arm(man_valid=False, man_trig=False)
 
         time.sleep(.1)
         # self.fpga.write_int('trig_qdr',1)#trigger snapshots
-        self.fpga.write_int('adc_in_trig', 1)
+        self.fpga.write_int(trigReg, 1)
         time.sleep(.1)  # wait for other trigger conditions to be met, and fill buffers
         # self.fpga.write_int('trig_qdr',0)#release trigger
-        self.fpga.write_int('adc_in_trig', 0)
+        self.fpga.write_int(trigReg, 0)
 
         adcData0 = self.fpga.snapshots['adc_in_snp_cal0_ss'].read(timeout=5, arm=False)['data']
         adcData1 = self.fpga.snapshots['adc_in_snp_cal1_ss'].read(timeout=5, arm=False)['data']
@@ -1072,12 +1076,26 @@ class Roach2Controls(object):
         self.loadDelayLut(delayLut2)
         self.loadDelayLut(delayLut3)
 
+    def incrementMmcmPhase(self, stepSize=2):
+        for i in range(stepSize):
+            self.fpga.write_int('adc_in_inc_phs', 1)
+            self.fpga.write_int('adc_in_inc_phs', 0)
+
+
+    def setADCScale(self):
+        if 'qdrloop' in self.firmwareVersion:
+            self.fpga.write_int('adc_in_scale', 2**4)
+        elif 'darkquad' in self.firmwareVersion:
+            self.fpga.write_int('adc_in_i_scale', 2**7)
+        else:
+            raise Exception('Unknown firmware version')
+            
     def setAttenList(self, resAttenList):
         """ This function sets the attribute self.attenList """
         self.attenList=resAttenList
 
     def generateDacComb(self, freqList=None, resAttenList=None,  phaseList=None, iqRatioList=None,
-                        iqPhaseOffsList=None, avoidSpikes=True):
+                        iqPhaseOffsList=None, avoidSpikes=True, globalDacAtten=None):
         """
         Creates DAC frequency comb by adding many complex frequencies together with specified amplitudes and phases.
         
@@ -1151,7 +1169,11 @@ class Roach2Controls(object):
 
         getLogger(__name__).debug('Generating DAC comb...')
 
-        globalDacAtten=np.amin(resAttenList)
+        if globalDacAtten is None:
+            globalDacAtten=np.amin(resAttenList)
+            autoDacAtten = True
+        else:
+            autoDacAtten = False
         
         # Calculate relative amplitudes for DAC LUT
         nBitsPerSampleComponent = self.params['nBitsPerSamplePair'] / 2
@@ -1211,28 +1233,36 @@ class Roach2Controls(object):
         self.dacQuantizedFreqList = (toneDict['quantizedFreqList'])[args_inv]
         self.dacPhaseList = (toneDict['phaseList'])[args_inv]
 
-        highestVal = np.max((np.abs(iValues).max(),np.abs(qValues).max()))
-        dBexcess = 20.*np.log10(1.0*highestVal/maxAmp)
-        dBexcess = np.ceil(4.*dBexcess)/4.  #rounded up to nearest 1/4 dB
-        iValues_new=np.round(iValues/10.**(dBexcess/20.)).astype(np.int)    #reduce to fit into DAC dynamic range and quantize to integer
-        qValues_new=np.round(qValues/10.**(dBexcess/20.)).astype(np.int)
-        if np.max((np.abs(iValues).max(),np.abs(qValues).max()))>maxAmp:
-            dBexcess+=0.25      # Since there's some rounding there's a small chance we need to decrease by another atten step
-            iValues_new=np.round(iValues/10.**(dBexcess/20.)).astype(np.int)
+        if autoDacAtten:
+            highestVal = np.max((np.abs(iValues).max(),np.abs(qValues).max()))
+            dBexcess = 20.*np.log10(1.0*highestVal/maxAmp)
+            dBexcess = np.ceil(4.*dBexcess)/4.  #rounded up to nearest 1/4 dB
+            iValues_new=np.round(iValues/10.**(dBexcess/20.)).astype(np.int)    #reduce to fit into DAC dynamic range and quantize to integer
             qValues_new=np.round(qValues/10.**(dBexcess/20.)).astype(np.int)
+            if np.max((np.abs(iValues).max(),np.abs(qValues).max()))>maxAmp:
+                dBexcess+=0.25      # Since there's some rounding there's a small chance we need to decrease by another atten step
+                iValues_new=np.round(iValues/10.**(dBexcess/20.)).astype(np.int)
+                qValues_new=np.round(qValues/10.**(dBexcess/20.)).astype(np.int)
 
-        globalDacAtten-=dBexcess
-        if globalDacAtten>31.75*2.:
-            dB_reduce = globalDacAtten-31.75*2.
-            getLogger(__name__).warning("Unable to fully utilize DAC dynamic range by "+str(dB_reduce)+"dB")
-            warnings.warn("Unable to fully utilize DAC dynamic range by "+str(dB_reduce)+"dB")
-            globalDacAtten-=dB_reduce
-            dBexcess+=dB_reduce
-            iValues_new=np.round(iValues/10.**(dBexcess/20.)).astype(np.int)
-            qValues_new=np.round(qValues/10.**(dBexcess/20.)).astype(np.int)
+            globalDacAtten-=dBexcess
+            if globalDacAtten>31.75*2.:
+                dB_reduce = globalDacAtten-31.75*2.
+                getLogger(__name__).warning("Unable to fully utilize DAC dynamic range by "+str(dB_reduce)+"dB")
+                warnings.warn("Unable to fully utilize DAC dynamic range by "+str(dB_reduce)+"dB")
+                globalDacAtten-=dB_reduce
+                dBexcess+=dB_reduce
+                iValues_new=np.round(iValues/10.**(dBexcess/20.)).astype(np.int)
+                qValues_new=np.round(qValues/10.**(dBexcess/20.)).astype(np.int)
 
-        iValues = iValues_new
-        qValues = qValues_new
+            iValues = iValues_new
+            qValues = qValues_new
+
+        else:
+            highestVal = np.max((np.abs(iValues).max(),np.abs(qValues).max()))
+            iValues = np.round(iValues).astype(np.int)
+            qValues = np.round(qValues).astype(np.int)
+            
+
         self.dacFreqComb = iValues + 1j*qValues
 
         highestVal = np.max((np.abs(iValues).max(), np.abs(qValues).max()))
@@ -1938,7 +1968,7 @@ class Roach2Controls(object):
                 frameData += frame[0]
                 iFrame += 1
                 if iFrame % 1000 == 0:
-                    getLogger(__name__).ebug(iFrame)
+                    getLogger(__name__).debug(iFrame)
 
         except KeyboardInterrupt:
             getLogger(__name__).info('Exiting on KeyboardInterrupt')
@@ -2249,7 +2279,7 @@ class Roach2Controls(object):
         getLogger(__name__).info('Loading frequencies from %s', freqListFile)
         try:
             sd = sweepdata.SweepMetadata(file=self.freqListFile)
-            resID_roach, freqs, attens = sd.templar_data(self.LOFreq) #TODO feed in the range for this roach self.range
+            resID_roach, freqs, attens, _, _ = sd.templar_data(self.LOFreq) #TODO feed in the range for this roach self.range
         except IOError:
             getLogger(__name__).error('unable to load freqs {}'.format(os.path.isfile(freqListFile)), exc_info=True)
             raise
@@ -2403,7 +2433,7 @@ class Roach2Controls(object):
         return True
 
     def tagfile(self, root, dir='', epilog=''):
-        root, ext = os.path.splitext(root)
+        root, ext = os.path.splitext(str(root))
         el = '_' + epilog if epilog else epilog
         tagroach = '{roach}' not in root and ('{feedline}' not in root or '{range}' not in root)
         tag = '{}{}'.format('_{roach}' if tagroach else '', '_FL{feedline}_{range}' if '{feedline}' not in root else '')

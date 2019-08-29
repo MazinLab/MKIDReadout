@@ -107,7 +107,7 @@ class FreqSweep(object):
 class SweepMetadata(object):
     def __init__(self, resid=None, wsfreq=None, flag=None, mlfreq=None, mlatten=None,
                  ml_isgood_score=None, ml_isbad_score=None, file='',
-                 wsatten=np.nan):
+                 wsatten=np.nan, phases=None, iqRatios=None):
 
         #TODO add channel, range (a|b)
         self.file = file
@@ -123,6 +123,9 @@ class SweepMetadata(object):
         self.ml_isgood_score = ml_isgood_score
         self.ml_isbad_score = ml_isbad_score
 
+        self.phases = phases
+        self.iqRatios = iqRatios
+
         if mlatten is None:
             self.mlatten = np.full_like(self.resIDs, np.nan, dtype=float)
         if mlfreq is None:
@@ -131,6 +134,10 @@ class SweepMetadata(object):
             self.ml_isgood_score = np.full_like(self.resIDs, np.nan, dtype=float)
         if ml_isbad_score is None:
             self.ml_isbad_score = np.full_like(self.resIDs, np.nan, dtype=float)
+        if phases is None:
+            self.phases = np.full_like(self.resIDs, np.nan, dtype=float)
+        if iqRatios is None:
+            self.iqRatios = np.full_like(self.resIDs, np.nan, dtype=float) 
 
         self.freq = self.mlfreq.copy()
         self.atten = self.mlatten.copy()
@@ -196,7 +203,7 @@ class SweepMetadata(object):
 
     def toarray(self):
         return np.array([self.resIDs, self.flag, self.wsfreq, self.mlfreq, self.mlatten, self.freq,
-                         self.atten, self.ml_isgood_score, self.ml_isbad_score])
+                         self.atten, self.ml_isgood_score, self.ml_isbad_score, self.phases, self.iqRatios])
 
     def update_from_roach(self, resIDs, freqs=None, attens=None):
         if attens is not None:
@@ -244,7 +251,7 @@ class SweepMetadata(object):
         aResMask = slice(None,None) #self.lomask(lo)  #TODO URGENT add range assignment to each resonator
         freq = self.freq[aResMask]
         # Do not sort or force things to be unique, doing so would break the implicity channel order
-        return self.resIDs[aResMask], freq, self.atten[aResMask]
+        return self.resIDs[aResMask], freq, self.atten[aResMask], self.phases[aResMask], self.iqRatios[aResMask]
 
     def legacy_save(self, file=''):
         sf = file.format(feedline=self.feedline) if file else self.file.format(feedline=self.feedline)
@@ -267,16 +274,37 @@ class SweepMetadata(object):
 
     def _load(self):
         d = np.loadtxt(self.file.format(feedline=self.feedline), unpack=True)
+        if d.ndim == 1: #allows files with single res
+            d = np.expand_dims(d, axis=1)
         # TODO convert to load metadata from file
         try:
+            if d.shape[0] == 11:
+                self.resIDs, self.flag, self.wsfreq, self.mlfreq, self.mlatten, \
+                self.freq, self.atten, self.ml_isgood_score, self.ml_isbad_score, self.phases, self.iqRatios = d
             if d.shape[0] == 9:
                 self.resIDs, self.flag, self.wsfreq, self.mlfreq, self.mlatten, \
                 self.freq, self.atten, self.ml_isgood_score, self.ml_isbad_score = d
+                self.phases = np.full_like(self.resIDs, 0, dtype=float)
+                self.iqRatios = np.full_like(self.resIDs, 1, dtype=float)
             elif d.shape[0] == 7:
                 self.resIDs, self.flag, self.wsfreq, self.mlfreq, self.mlatten, \
                 self.ml_isgood_score, self.ml_isbad_score = d
                 self.freq = self.mlfreq.copy()
                 self.atten = self.mlatten.copy()
+                self.phases = np.full_like(self.resIDs, 0, dtype=float)
+                self.iqRatios = np.full_like(self.resIDs, 1, dtype=float)
+            elif d.shape[0] == 5:
+                self.resIDs, self.freq, self.atten, self.phases, self.iqRatios = d
+                #_, u = np.unique(self.freq, return_index=True)
+                #self.resIDs = self.resIDs[u]
+                #self.freq = self.freq[u]
+                #self.atten = self.atten[u]
+                self.wsfreq = self.freq.copy()
+                self.mlfreq = self.freq.copy()
+                self.mlatten = self.atten.copy()
+                self.flag = np.full_like(self.resIDs, ISGOOD, dtype=int)
+                self.ml_isgood_score = np.full_like(self.resIDs, np.nan, dtype=float)
+                self.ml_isbad_score = np.full_like(self.resIDs, np.nan, dtype=float)
             else:
                 self.resIDs, self.freq, self.atten = d
                 #_, u = np.unique(self.freq, return_index=True)
@@ -289,6 +317,8 @@ class SweepMetadata(object):
                 self.flag = np.full_like(self.resIDs, ISGOOD, dtype=int)
                 self.ml_isgood_score = np.full_like(self.resIDs, np.nan, dtype=float)
                 self.ml_isbad_score = np.full_like(self.resIDs, np.nan, dtype=float)
+                self.phases = np.full_like(self.resIDs, 0, dtype=float)
+                self.iqRatios = np.full_like(self.resIDs, 1, dtype=float)
         except:
             raise ValueError('Unknown number of columns')
 
