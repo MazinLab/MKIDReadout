@@ -304,9 +304,13 @@ class MKIDDashboard(QMainWindow):
         getLogger('Dashboard').info('Initializing packetmaster...')
         imgcfg = dict(self.config.dashboard)
         imgcfg['n_wave_bins'] = 1
+        if 'forwarding' in self.config:
+            forwarding = dict(self.config.forwarding)
+        else:
+            forwarding = None
         self.packetmaster = Packetmaster(len(roachNums), self.config.packetmaster.captureport,
                                          useWriter=not self.offline, sharedImageCfg={'dashboard': imgcfg},
-                                         beammap=self.config.beammap, recreate_images=True)
+                                         beammap=self.config.beammap, forwarding=forwarding, recreate_images=True)
         self.liveimage = self.packetmaster.sharedImages['dashboard']
 
         self.liveimage.startIntegration(integrationTime=1)
