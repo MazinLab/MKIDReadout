@@ -162,7 +162,7 @@ class RoachPhaseStreamWindow(QMainWindow):
         data = np.reshape(data[:nFftAvg * fftlen], (nFftAvg, fftlen))
         noiseData = np.fft.rfft(data)
         noiseData = np.abs(noiseData) ** 2  # power spectrum
-        noiseData = dt * np.average(noiseData, axis=0) / fftlen  # normalize
+        noiseData = 2 * dt * np.average(noiseData, axis=0) / fftlen  # normalize
         noiseData = 10. * np.log10(noiseData)  # convert to dBc/Hz
 
         if not np.all(noiseData == 0):
