@@ -558,13 +558,13 @@ void* reader(void *prms){
     //printf("READER: clearing buffer.\n"); fflush(stdout);
     //while ( recv(s, buf, BUFLEN, 0) > 0 );
     //printf("READER: buffer clear!\n"); fflush(stdout);
-    #ifdef _DEBUG_OUTPUT
+    #ifdef _DEBUG_READER_OUTPUT
     printf("DEBUG OUTPUT ON, listening for packets...\n");
     #endif
 
     while(sem_trywait(quitSem)==-1) //(access( "/home/ramdisk/QUIT", F_OK ) == -1)
     {
-        #ifdef _DEBUG_OUTPUT
+        #ifdef _DEBUG_READER_OUTPUT
         if (nFrames % 1000 == 0)
         {
             printf("Frame %d\n",nFrames);  fflush(stdout);
