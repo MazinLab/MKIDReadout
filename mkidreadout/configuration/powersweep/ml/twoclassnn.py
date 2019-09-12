@@ -1,18 +1,14 @@
 ''' 
 Author Rupert Dodkins, Neelay Fruitwala
 
-A script to automate the identification of resonator attenuations normally performed by PSFit.py. This is accomplished 
-using Google's Tensor Flow machine learning package which implements a pattern recognition convolution neural network 
-algorithm and classification algorithm on power and frequency sweep data saved in h5 format.
+Neural net for resonator identification + tuning. Operates in a sliding window fashion
+on freqency x attenuation sweep data set. Every point in freq x atten space gets a score 
+in one of four classes: (good res, saturated res, underpowered res, no res). Local maxima
+in "good res" class are flagged and added to output frequency list. 
 
-Usage: train using cfg file specifying model parameters and training data (see FlemingLFV1.cfg), with trainModel.py.
-For inference, use findPowers.py.
+The code here (neural net class) only generates the ouput (scored) image; flagging maxima 
+and generating freq list are done in findResonatorsWPS.py.
 
-How it works:
-For every resonator an "image" of it's power sweep is made, with axes of frequency and attenuation. The image has three 
-"color" channels, corresponding to I, Q, and IQ Velocity. This image is used by the CNN to find the optimal attenuation.
-
-mlClassification defines the graph structure, trains the model, and saves it so it can be used for inference.
 
 '''
 
