@@ -28,6 +28,15 @@ def worker(rNum, config):
     print("r" + str(rNum) + " Done")
     del roach
 
+def reinitADCDAC(rNums, config):
+    threads = []
+    for n in rNums:
+        t = threading.Thread(target=worker, args=(n, config))
+        threads.append(t)
+        t.start()
+    for t in threads:
+        t.join()  # block until they complete
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='MKID Reinit ADCDAC')
@@ -46,12 +55,4 @@ if __name__ == "__main__":
         t.start()
     for t in threads:
         t.join()  # block until they complete
-
-    
-
-    
-
-
-
-
 

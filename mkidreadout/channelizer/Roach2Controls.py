@@ -682,7 +682,7 @@ class Roach2Controls(object):
 
         self.fpga.write_int(self.params['enBRAMDump_reg'], 0, blindwrite=True)
 
-    def setLOFreq(self, lofreq):
+    def setLOFreq(self, lofreq, force=False):
         """  Sets the attribute LOFreq (in Hz) """
         lo = round(lofreq / (2.0 ** -16) / 1e6) * (2.0 ** -16) * 1e6
 
@@ -698,7 +698,8 @@ class Roach2Controls(object):
             getLogger(__name__).warning('All frequencies more than half a sample rate from '
                                         'the LO. Unable to set. LO: {} Delta min: {} Halfsamp: {} )'.format(lo, delta.min(),
                                             self.params['dacSampleRate'] / 2))
-            raise ValueError('LO out of bounds')
+            if not force:
+                raise ValueError('LO out of bounds')
         elif tofar.any():
             getLogger(__name__).warning('Frequencies more than half a sample rate from the LO')
         self.LOFreq = lo
@@ -1278,6 +1279,8 @@ class Roach2Controls(object):
 
         if globalDacAtten<0.:
             raise ValueError("Desired resonator powers are unacheivable. Increase resonator attens by "+str(-1*globalDacAtten)+"dB")
+
+        #self.globalDacAtten = globalDacAtten
 
         return {'I':iValues,'Q':qValues,'quantizedFreqList':self.dacQuantizedFreqList,'dacAtten':globalDacAtten}
 

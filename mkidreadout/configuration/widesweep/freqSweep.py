@@ -21,12 +21,14 @@ import sys
 import threading
 import traceback
 import warnings
+import time
 from functools import partial
 from multiprocessing import Pool
 
 import matplotlib.pyplot as plt
 import numpy as np
 from mkidreadout.utils.readDict import readDict
+import mkidreadout.config
 
 from mkidreadout.channelizer.Roach2Controls import Roach2Controls
 from mkidreadout.channelizer.maxAttens import maxAttens
@@ -77,9 +79,8 @@ def setupRoach4FreqSweep(roachNum, freqFN='rfFreqs.txt', defineLUTs=False):
         returns None if there's an error
     """
     try: 
-        FPGAParamFile = '/home/mecvnc/MKIDReadout/mkidreadout/channelizer/darknessfpga.param'
         ip = '10.0.0.'+str(roachNum)
-        roachController = Roach2Controls(ip,FPGAParamFile,True,False)
+        roachController = Roach2Controls(ip)
 
         #connect
         roachController.connect()
@@ -228,10 +229,10 @@ def makeRandomFreqSideband(startFreq, endFreq, nChannels, toneBandwidth, freqRes
 
 
 def mecSlowPowerSweeps(freqList='rfFreqs.txt', defineLUTs=False, outputFN='psData.npz', startDacAtten=11.5, endDacAtten=41.5,attenStep=1):
-    rNums=[236, 237, 238, 239, 220, 221, 222, 223, 232, 233, 228, 229, 224, 225]
-    maxAttens(rNums,'/home/mecvnc/MKIDReadout/mkidreadout/channelizer/darknessfpga.param')
+    rNums=[236, 237, 238, 239, 222, 223, 232, 233, 228, 229, 224, 225]
+    maxAttens(rNums)
     #reinitADCDAC(rNums, '/home/mecvnc/MKIDReadout/mkidreadout/channelizer/initgui.cfg')
-    rNums=[236, 220, 222, 232, 228, 224]
+    rNums=[236, 238, 222, 232, 228, 224]
     rNums2=np.roll(np.asarray(rNums)+1,int(len(rNums)/2))
     #rNums=[236]
     #rNums2=[237]
@@ -240,12 +241,12 @@ def mecSlowPowerSweeps(freqList='rfFreqs.txt', defineLUTs=False, outputFN='psDat
     #startDacAtten=11.5
     #endDacAtten=41.5
 
-    k_dict={'startFreq':startFreq,'endFreq':endFreq,'startDacAtten':startDacAtten, 'endDacAtten':endDacAtten, 'attenStep':attenStep, 'loStepQ':2, 'nOverlap':7, 'freqList':freqList, 'defineLUTs':defineLUTs, 'outputFN':outputFN}
+    k_dict={'startFreq':startFreq,'endFreq':endFreq,'startDacAtten':startDacAtten, 'endDacAtten':endDacAtten, 'attenStep':attenStep, 'loStepQ':1, 'nOverlap':14, 'freqList':freqList, 'defineLUTs':defineLUTs, 'outputFN':outputFN}
     k_dict2=k_dict.copy()
     k_dict2['startFreq']=k_dict2['startFreq']+2.02E9
     k_dict2['endFreq']=k_dict2['endFreq']+2.02E9
     for i, rNum in enumerate(rNums):
-        reinitADCDAC(np.asarray([rNum,rNums2[i]]), '/home/mecvnc/MKIDReadout/mkidreadout/channelizer/initgui.cfg')
+        reinitADCDAC(np.asarray([rNum,rNums2[i]]), mkidreadout.config.load('/home/data/MEC/20190911/roach.yml'))
 
         t1=threading.Thread(target=takePowerSweep, args=(rNum,),kwargs=k_dict)   
         t1.start()
@@ -257,7 +258,7 @@ def mecSlowPowerSweeps(freqList='rfFreqs.txt', defineLUTs=False, outputFN='psDat
         t2.join()   #wait until they both finish
         del t1, t2
         
-        maxAttens(np.asarray([rNum,rNums2[i]]),'/home/mecvnc/MKIDReadout/mkidreadout/channelizer/darknessfpga.param')
+        maxAttens(np.asarray([rNum,rNums2[i]]))
 
 
 
@@ -383,7 +384,7 @@ def takePowerSweep(rNum, startFreq=3.5E9, endFreq=6.E9, startDacAtten=1, endDacA
                 #loStart = startFreq + (endFreq-startFreq)*(j+1.)/(nSweeps+1.) - sweepSpan/2. - toneSpan_low
                 loStart = min(endFreq,startFreq) - toneSpan_low
                 if j>0: loStart+= 1.0*j/(nSweeps -1.)*(freqSpan - sweepSpan)
-                roachController.setLOFreq(loStart)
+                roachController.setLOFreq(loStart, force=True)
                 loEnd = loStart+loSpan
                 iqData = roachController.performIQSweep(loStart/1.e6, loEnd/1.e6, loStep/1.e6)
                 #iqData = roachController.performIQSweep(loStart/1.e6, (loStart+5*loStep)/1.e6, loStep/1.e6)
@@ -526,7 +527,8 @@ if __name__ == "__main__":
 
     #args = sys.argv[1:]
     #rNums = np.atleast_1d(args).astype(dtype=np.int)
-    #setupMultRoaches4FreqSweep(rNums, freqFN=freqFN, defineLUTs=True)
+    rNums=[236, 237, 238, 239, 222, 223, 232, 233, 228, 229, 224, 225]
+    setupMultRoaches4FreqSweep(rNums, freqFN=freqFN, defineLUTs=True)
 
 
     #setupRoach4FreqSweep(237,defineLUTs=True)
@@ -537,10 +539,10 @@ if __name__ == "__main__":
 
     #takeMultPowerSweeps(rNums,startFreqs=None, endFreqs=None, startDacAtten=7, endDacAtten=9, attenStep=1., loStepQ=1, nOverlap=10, freqList=freqFN, defineLUTs=False, outputFN='psData.npz')
 
-    #startTime=time.time()
-    #mecSlowPowerSweeps(freqList= freqFN, defineLUTs=False, outputFN='/home/data/MEC/20181213/psData',startDacAtten=3.75, endDacAtten=33.75,attenStep=1)
-    #t1=time.time()-startTime
-    #print t1
+    startTime=time.time()
+    mecSlowPowerSweeps(freqList= freqFN, defineLUTs=False, outputFN='/home/data/MEC/20190911/psData',startDacAtten=3.75, endDacAtten=33.75,attenStep=1)
+    t1=time.time()-startTime
+    print t1
     
 
     #startTime=time.time()
@@ -549,9 +551,9 @@ if __name__ == "__main__":
     #print 'Time1: '+str(t1)
     #print 'Time2: '+str(t2)
 
-    f=FreqSweep()
-    f.loadPowerSweep('/home/data/MEC/20181213/psData_221.npz')
-    f.plotTransmissionData(show=True)
+    #f=FreqSweep()
+    #f.loadPowerSweep('/home/data/MEC/20181213/psData_221.npz')
+    #f.plotTransmissionData(show=True)
     #f.loadPowerSweep('psData_225.npz')
     #f.plotTransmissionData(show=True)
 
