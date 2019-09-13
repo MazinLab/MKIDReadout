@@ -401,7 +401,7 @@ class Roach2Controls(object):
         nDdsSamples = self.params['nDdsSamplesPerCycle'] * self.params['nQdrRows'] / self.params['nCyclesToLoopToSameChannel']
         ddsFreqResolution = float(ddsSampleRate) / nDdsSamples
         ddsQuantizedFreqList = np.round(ddsFreqList / ddsFreqResolution) * ddsFreqResolution
-        ddsQuantizedFreqList[freqChannels < 0] = self.ddsFreqPadValue  # Pad excess frequencies with -1
+        ddsQuantizedFreqList[freqChannels==self.freqPadValue] = self.ddsFreqPadValue  # Pad excess frequencies with -1
         self.ddsQuantizedFreqList = ddsQuantizedFreqList
 
         # For each Stream, generate tones and interweave time streams for the dds time multiplexed multiplier
