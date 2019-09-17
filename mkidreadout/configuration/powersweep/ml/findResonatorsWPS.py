@@ -53,8 +53,9 @@ def makeWPSMap(modelDir, freqSweep, freqStep=None, attenClip=0):
 
     return wpsImage, freqs, attens
 
-def findResonators(wpsmap, freqs, attens, peakThresh=0.5, minPeakDist=5):
-    resCoords = skf.peak_local_max(wpsmap[:,:,0], min_distance=minPeakDist, threshold_abs=peakThresh, exclude_border=False)
+def findResonators(wpsmap, freqs, attens, peakThresh=0.5, minPeakDist=120.e3, nRes=1500):
+    minPeakDist /= np.diff(freqs)[0]
+    resCoords = skf.peak_local_max(wpsmap[:,:,0], min_distance=minPeakDist, threshold_abs=peakThresh, num_peaks=nRes, exclude_border=False)
     resFreqs = freqs[resCoords[:,1]]
     resAttens = attens[resCoords[:,0]]
 
@@ -97,6 +98,8 @@ if __name__=='__main__':
     parser.add_argument('-o', '--metadata', default=None, help='Output metadata file')
     parser.add_argument('-s', '--save-wpsmap', action='store_true', help='Save npz file containing raw ML convolution output')
     parser.add_argument('-r', '--remake-wpsmap', action='store_true', help='Regenerate wps map file')
+    parser.add_argument('-t', '--peak-thresh', type=float, default=0.5, help='Minimum res value in WPS map (between 0 and 1)')
+    parser.add_argument('-n', '--n-res', type=int, default=None, help='Target number of resonators')
     args = parser.parse_args()
 
     if args.metadata is None:
@@ -123,7 +126,10 @@ if __name__=='__main__':
         freqs = f['freqs']
         attens = f['attens']
 
-    resFreqs, resAttens, scores = findResonators(wpsmap, freqs, attens)
+    if args.n_res is None:
+        resFreqs, resAttens, scores = findResonators(wpsmap, freqs, attens, peakThresh=args.peak_thresh)
+    else: 
+        resFreqs, resAttens, scores = findResonators(wpsmap, freqs, attens, peakThresh=args.peak_thresh, nRes=args.n_res)
 
     if resFreqs[0] < 4.7e9:
         band = 'a'
