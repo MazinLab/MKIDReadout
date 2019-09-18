@@ -53,8 +53,11 @@ def makeWPSMap(modelDir, freqSweep, freqStep=None, attenClip=0):
 
     return wpsImage, freqs, attens
 
-def findResonators(wpsmap, freqs, attens, peakThresh=0.5, minPeakDist=120.e3, nRes=1500):
+def findResonators(wpsmap, freqs, attens, peakThresh=0.5, minPeakDist=120.e3, nRes=1500, attenGrad=0):
     minPeakDist /= np.diff(freqs)[0]
+    if attenGrad > 0:
+        attenBias = np.linspace(0, -(len(attens)-1)*attenGrad, len(attens))
+        wpsmap = (wpsmap.T + attenBias).T
     resCoords = skf.peak_local_max(wpsmap[:,:,0], min_distance=minPeakDist, threshold_abs=peakThresh, num_peaks=nRes, exclude_border=False)
     resFreqs = freqs[resCoords[:,1]]
     resAttens = attens[resCoords[:,0]]
@@ -100,6 +103,7 @@ if __name__=='__main__':
     parser.add_argument('-r', '--remake-wpsmap', action='store_true', help='Regenerate wps map file')
     parser.add_argument('-t', '--peak-thresh', type=float, default=0.5, help='Minimum res value in WPS map (between 0 and 1)')
     parser.add_argument('-n', '--n-res', type=int, default=None, help='Target number of resonators')
+    parser.add_argument('-b', '--atten-bias', type=float, default=0., help='Apply linear bias to atten dim of wpsmap')
     args = parser.parse_args()
 
     if args.metadata is None:
@@ -127,9 +131,11 @@ if __name__=='__main__':
         attens = f['attens']
 
     if args.n_res is None:
-        resFreqs, resAttens, scores = findResonators(wpsmap, freqs, attens, peakThresh=args.peak_thresh)
+        resFreqs, resAttens, scores = findResonators(wpsmap, freqs, attens, peakThresh=args.peak_thresh, 
+                attenGrad=args.atten_bias)
     else: 
-        resFreqs, resAttens, scores = findResonators(wpsmap, freqs, attens, peakThresh=args.peak_thresh, nRes=args.n_res)
+        resFreqs, resAttens, scores = findResonators(wpsmap, freqs, attens, peakThresh=args.peak_thresh, 
+                nRes=args.n_res, attenGrad=args.atten_bias)
 
     if resFreqs[0] < 4.7e9:
         band = 'a'

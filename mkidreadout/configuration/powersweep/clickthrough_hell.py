@@ -187,7 +187,7 @@ class StartQt4(QMainWindow):
         guess_atten_idx = guess_atten_idx[guess_atten_idx > self.res1_max_ratio.argmax()]
         if guess_atten_idx.size >= 1:
             guess_atten_idx += rule_of_thumb_offset
-            guesses['ROT'] = self.Res1.atten1s[guess_atten_idx.clip(max=self.Res1.atten1s.size)[0]]
+            guesses['ROT'] = self.Res1.atten1s[guess_atten_idx.clip(max=self.Res1.atten1s.size-1)[0]]
         else:
             guesses['ROT'] = None
 
