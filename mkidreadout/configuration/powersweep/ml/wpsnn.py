@@ -2,6 +2,9 @@ N_CLASSES = 4 #good, saturated, underpowered, bad/no res
 COLLISION_FREQ_RANGE = 200.e3
 MAX_IMAGES = 10000
 
+ACC_INTERVAL = 500
+SAVER_INTERVAL = 2500
+
 import numpy as np
 import math
 import sys, os
@@ -70,27 +73,37 @@ class WPSNeuralNet(object):
 
             imgCtr = 0
             for i in range(np.sum(goodResMask)):
+                satResMask = np.ones(len(trainSweep.atten), dtype=bool)
+                satResMask[optAttenInds[i] - self.mlDict['trainSatThresh']:] = 0
+                satResAttens = trainSweep.atten[satResMask]
+
+                upResMask = np.ones(len(trainSweep.atten), dtype=bool)
+                upResMask[:optAttenInds[i] + self.mlDict['trainUPThresh']] = 0
+                upResMask[-self.mlDict['attenWinAbove']:] = 0
+                upResAttens = trainSweep.atten[upResMask]
+
                 for j in range(self.mlDict['nImagesPerRes']):
                     images[imgCtr], _, _ = mlt.makeWPSImage(trainSweep, optFreqs[i], optAttens[i], self.imageShape[1], 
                         self.imageShape[0], self.mlDict['useIQV'], self.mlDict['useVectIQV']) #good image
                     labels[imgCtr] = np.array([1, 0, 0, 0])
                     imgCtr += 1
-                    satResMask = np.ones(len(trainSweep.atten), dtype=bool)
-                    satResMask[optAttenInds[i] - self.mlDict['trainSatThresh']:] = 0
                     if np.any(satResMask):
-                        satResAttens = trainSweep.atten[satResMask]
-                        satResAtten = np.random.choice(satResAttens)
+                        try:
+                            satResAtten = satResAttens[-1] #go down in atten from lowest-power sat res
+                            satResAttens = np.delete(satResAttens, -1) #pick without replacement
+                        except IndexError:
+                            satResAtten = np.random.choice(trainSweep.atten[satResMask]) #pick a random one if out of attens
                         images[imgCtr], _, _ = mlt.makeWPSImage(trainSweep, optFreqs[i], satResAtten, self.imageShape[1], 
                             self.imageShape[0], self.mlDict['useIQV'], self.mlDict['useVectIQV']) #saturated image
                         labels[imgCtr] = np.array([0, 1, 0, 0])
                         imgCtr += 1
 
-                    upResMask = np.ones(len(trainSweep.atten), dtype=bool)
-                    upResMask[:optAttenInds[i] + self.mlDict['trainUPThresh']] = 0
-                    upResMask[-self.mlDict['attenWinAbove']:] = 0
                     if np.any(upResMask):
-                        upResAttens = trainSweep.atten[upResMask]
-                        upResAtten = np.random.choice(upResAttens)
+                        try:
+                            upResAtten = upResAttens[0] #go up in atten from highest-power UP res
+                            upResAttens = np.delete(upResAttens, 0) #pick without replacement
+                        except IndexError:
+                            upResAtten = np.random.choice(trainSweep.atten[upResMask])
                         images[imgCtr], _, _ = mlt.makeWPSImage(trainSweep, optFreqs[i], upResAtten, self.imageShape[1], 
                             self.imageShape[0], self.mlDict['useIQV'], self.mlDict['useVectIQV']) #upurated image
                         labels[imgCtr] = np.array([0, 0, 1, 0])
@@ -331,8 +344,8 @@ class WPSNeuralNet(object):
         trainReps = nTrainEpochs*trainLabels.shape[0]/batchSize
         if np.shape(trainLabels)[0]< batchSize:
             batchSize = np.shape(trainLabels)[0]/2
-        ce_log = []
-        acc_log=[]
+        ce_log = np.zeros(trainReps/SAVER_INTERVAL + 1)
+        acc_log=np.zeros(trainReps/ACC_INTERVAL + 1)
         print 'Performing', trainReps, 'training repeats, using batches of', batchSize
 
         for i in range(trainReps):  #perform the training step using random batches of images and according labels
@@ -340,10 +353,10 @@ class WPSNeuralNet(object):
             sys.stdout.write('\rbatch: %i ' % (i))
             sys.stdout.flush()
 
-            if i % 500 == 0:
-                ce_log.append(self.sess.run(cross_entropy, feed_dict={self.x: batch_xs, y_: batch_ys, self.keep_prob: 1, self.is_training: False}))
+            if i % SAVER_INTERVAL == 0:
+                ce_log[i/SAVER_INTERVAL] = self.sess.run(cross_entropy, feed_dict={self.x: batch_xs, y_: batch_ys, self.keep_prob: 1, self.is_training: False})
                 summary, acc = self.sess.run([merged, accuracy], feed_dict={self.x: testImages, y_: testLabels, self.keep_prob: 1, self.is_training: False})
-                acc_log.append(acc*100)
+                acc_log[i/ACC_INTERVAL] = acc*100
                 test_writer.add_summary(summary, i)
                 if saveGraph:
                     graph_writer.add_summary(summary, i)
@@ -352,10 +365,10 @@ class WPSNeuralNet(object):
                 summary, _ = self.sess.run([merged, train_step], feed_dict={self.x: batch_xs, y_: batch_ys, self.keep_prob: self.mlDict['keep_prob'], self.is_training: True}) #calculate train_step using feed_dict
                 train_writer.add_summary(summary, i)
 
-            elif i % 100 == 0:
+            elif i % ACC_INTERVAL == 0:
                 acc = self.sess.run(accuracy, feed_dict={self.x: testImages, y_: testLabels, self.keep_prob: 1, self.is_training: False})
                 print acc*100
-                acc_log.append(acc*100)
+                acc_log[i/ACC_INTERVAL] = acc*100
                 self.sess.run(train_step, feed_dict={self.x: batch_xs, y_: batch_ys, self.keep_prob: self.mlDict['keep_prob'], self.is_training: True}) #calculate train_step using feed_dict
 
             else:  
