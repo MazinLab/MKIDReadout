@@ -1,8 +1,6 @@
 import numpy as np
-import matplotlib.pyplot as plt
 
 from mkidreadout.configuration.sweepdata import SweepMetadata
-from mkidcore.objects import Beammap
 
 
 class Correlator(object):
@@ -11,7 +9,6 @@ class Correlator(object):
         self.new = SweepMetadata(file=newPath)
         # self.beammap = Beammap(file=beammapPath)
         self._cleanData()
-        self.fitData()
 
     def _cleanData(self):
         oldmask = (~np.isnan(self.old.atten)) & (self.old.flag == 1)
@@ -22,21 +19,36 @@ class Correlator(object):
         self.newFreq = self.new.freq[newmask]
         self.newRes = self.new.resIDs[newmask]
 
-    def fitData(self):
-        o = np.polyfit(self.oldFreq, self.oldRes, deg=4)
-        n = np.polyfit(self.newFreq, self.newRes, deg=4)
-        self.oFunc = np.poly1d(o)
-        self.nFunc = np.poly1d(n)
+    def findFrequencyShift(self):
+        self.shifts = np.arange(-1e9, (1e9+1000), 1e6)
+        avgResidual = []
+        stdResidual = []
+        for i in self.shifts:
+            if abs(i) % 1e8 == 0:
+                print(i)
+            match = self.matchFrequencies(i)
+            residuals = match[0]-match[1]
+            avgResidual.append(np.mean(residuals))
+            stdResidual.append(np.std(residuals))
+        self.avgResidual = abs(np.array(avgResidual))
+        self.stdResidual = np.array(stdResidual)
 
-    def plot(self):
-        plt.figure(1)
-        plt.plot(self.oldFreq, self.oldRes, '.', label="Old Data")
-        plt.plot(self.newFreq, self.newRes, '.', label="New Data")
-        plt.legend()
-        plt.savefig('data.png')
+    def matchFrequencies(self, shift):
+        if len(self.newFreq) > len(self.oldFreq):
+            longer = self.newFreq+shift
+            shorter = self.oldFreq
+        else:
+            longer = self.oldFreq+shift
+            shorter = self.newFreq
 
-        plt.figure(2)
-        plt.plot(self.newFreq, self.oFunc(self.newFreq), '-', label="Old Interpolation")
-        plt.plot(self.newFreq, self.nFunc(self.newFreq), '-', label="New Interpolation")
-        plt.legend()
-        plt.savefig('interpolation.png')
+        matches = np.zeros((2, len(longer)))
+        matches[0] = longer
+        for i in range(len(longer)):
+            residual = abs(shorter-longer[i])
+            mask = residual == min(residual)
+            matches[1][i] = shorter[mask][0]
+
+        return matches
+
+
+
