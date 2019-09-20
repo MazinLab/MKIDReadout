@@ -16,6 +16,8 @@ log.addHandler(sh)
 
 class Correlator(object):
     def __init__(self, oldPath='', newPath='', beammapPath=''):
+        start = time.time()
+        log.info("Initializing correlation")
         self.old = SweepMetadata(file=oldPath)
         self.new = SweepMetadata(file=newPath)
         # self.beammap = Beammap(file=beammapPath)
@@ -25,9 +27,19 @@ class Correlator(object):
         self.shifts = [np.linspace(-5e6, 5e6, 2001), np.linspace(-1e3, 1e3, 2001)]
         self.resIDMatches = None
 
-        # self.findBestFreqShift()
-        # self.applyBestShift()
+        self.correlateLists()
+        end = time.time()
+        log.debug("ID correlation took {} seconds".format(end - start))
 
+    def correlateLists(self):
+        log.info("Finding best frequency shifts")
+        self.findBestFreqShift()
+        log.info("Applying a shift of {} MHz".format(self.bestShift/1.e6))
+        self.applyBestShift()
+        log.info("Matching resonator IDs to shifted data")
+        self.matchResIDs()
+        log.info("Resolving resonator IDs assigned multiple times in matched ID lists")
+        self.cleanResIDMatches()
 
     def cleanData(self):
         oldmask = (~np.isnan(self.old.atten)) & (self.old.flag == 1)
@@ -45,7 +57,6 @@ class Correlator(object):
         self.newRes = self.newRes[shortmaskN]
 
     def findBestFreqShift(self):
-        start = time.time()
         self.avgResidual = []
         self.newAvgResidual = []
         for i in self.shifts[0]:
@@ -63,8 +74,6 @@ class Correlator(object):
         newmask = self.newAvgResidual == np.min(self.newAvgResidual)
         self.bestShift = self.shifts[1][newmask][0]
         log.info("The best shift is {} MHz".format(self.bestShift/1.e6))
-        end = time.time()
-        log.debug("Process took {} seconds".format(end - start))
 
     def matchFrequencies(self, list1, list2, shift=0):
         if len(list1) > len(list2):
@@ -94,20 +103,42 @@ class Correlator(object):
 
     def matchResIDs(self):
         self.bestMatches = self.matchFrequencies(list1=self.shiftedFreq, list2=self.oldFreq)
-        self.resIDMatches = np.full_like(self.bestMatches, np.nan)  # Should it be int since ResIDs?
-        self.resIDMatches[0] = self.matchIDtoFreq(self.bestMatches[0], self.shiftedFreq, self.newRes)
-        self.resIDMatches[1] = self.matchIDtoFreq(self.bestMatches[1], self.oldFreq, self.oldRes)
+        self.resIDMatches = np.full_like(self.bestMatches, np.nan, dtype=float)
+        self.resIDMatches[0] = self._matchIDtoFreq(self.bestMatches[0], self.shiftedFreq, self.newRes)
+        self.resIDMatches[1] = self._matchIDtoFreq(self.bestMatches[1], self.oldFreq, self.oldRes)
 
-
-    def matchIDtoFreq(self, freqList, freqListFromData, resIDList):
+    def _matchIDtoFreq(self, freqList, freqListFromData, resIDList):
         matchedList = np.full_like(freqList, np.nan)
         for i in range(len(matchedList)):
             index = np.where(freqListFromData == freqList[i])[0]
-            print(index)
             if len(index) > 1:
                 index = index[0]
             matchedList[i] = resIDList[index]
         return matchedList
+
+    def cleanResIDMatches(self):
+        doubleList = []
+        for i in range(len(self.resIDMatches)):
+            for j in self.resIDMatches[i]:
+                mask = self.resIDMatches[i] == j
+                r = self.resIDMatches[i][mask]
+                if len(r) > 1:
+                    doubleList.append(r[0])
+            doubleList = list(set(doubleList))
+            for k in doubleList:
+                self._resolveDoubleIDs(k, i)
+
+
+    def _resolveDoubleIDs(self, ID, arraySide):
+        idx = np.where(self.resIDMatches[arraySide] == ID)[0]
+        toResolveIDs = self.resIDMatches[:, idx[0]:idx[1]+1]
+        toResolveFreqs = self.bestMatches[:, idx[0]:idx[1]+1]
+        freqResids = abs(toResolveFreqs[0] - toResolveFreqs[1])
+        bestFreqMatch = freqResids == min(freqResids)
+        for i in range(len(bestFreqMatch)):
+            if not bestFreqMatch[i]:
+                toResolveIDs[arraySide][i] = np.nan
+        self.resIDMatches[:, idx[0]:idx[1]+1] = toResolveIDs
 
     def plotResults(self):
         plt.plot(self.newFreq, np.zeros(len(self.newFreq)), 'r.', label="New Data")
