@@ -1197,7 +1197,7 @@ class MKIDDashboard(QMainWindow):
         minCountRate = self.config.dashboard.min_count_rate
         label_maxCountRate = QLabel('max:')
         spinbox_maxCountRate = QSpinBox()
-        spinbox_maxCountRate.setRange(minCountRate, 2500)
+        spinbox_maxCountRate.setRange(minCountRate, self.config.dashboard.cpslim)
         spinbox_maxCountRate.setValue(maxCountRate)
         spinbox_maxCountRate.setSuffix(' #/s')
         spinbox_maxCountRate.setWrapping(False)
