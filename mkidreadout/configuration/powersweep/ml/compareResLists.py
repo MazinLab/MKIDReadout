@@ -126,7 +126,7 @@ if __name__=='__main__':
     attenDiff = attenBMatched - attenAMatched
     freqDiff = freqBMatched - freqAMatched
 
-    plt.hist(attenDiff, bins=10, range=(-10,10))
+    plt.hist(attenDiff, bins=30, range=(-10,10))
     plt.show()
 
     plt.hist(freqDiff, bins=20, range=(-100.e3, 100.e3))

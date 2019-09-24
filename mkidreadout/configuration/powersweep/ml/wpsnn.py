@@ -3,7 +3,7 @@ COLLISION_FREQ_RANGE = 200.e3
 MAX_IMAGES = 10000
 
 ACC_INTERVAL = 500
-SAVER_INTERVAL = 2500
+SAVER_INTERVAL = 10000
 
 import numpy as np
 import math
@@ -344,7 +344,7 @@ class WPSNeuralNet(object):
         trainReps = nTrainEpochs*trainLabels.shape[0]/batchSize
         if np.shape(trainLabels)[0]< batchSize:
             batchSize = np.shape(trainLabels)[0]/2
-        ce_log = np.zeros(trainReps/SAVER_INTERVAL + 1)
+        ce_log = np.zeros(trainReps/ACC_INTERVAL + 1)
         acc_log=np.zeros(trainReps/ACC_INTERVAL + 1)
         print 'Performing', trainReps, 'training repeats, using batches of', batchSize
 
@@ -354,7 +354,7 @@ class WPSNeuralNet(object):
             sys.stdout.flush()
 
             if i % SAVER_INTERVAL == 0:
-                ce_log[i/SAVER_INTERVAL] = self.sess.run(cross_entropy, feed_dict={self.x: batch_xs, y_: batch_ys, self.keep_prob: 1, self.is_training: False})
+                ce_log[i/ACC_INTERVAL] = self.sess.run(cross_entropy, feed_dict={self.x: batch_xs, y_: batch_ys, self.keep_prob: 1, self.is_training: False})
                 summary, acc = self.sess.run([merged, accuracy], feed_dict={self.x: testImages, y_: testLabels, self.keep_prob: 1, self.is_training: False})
                 acc_log[i/ACC_INTERVAL] = acc*100
                 test_writer.add_summary(summary, i)
@@ -366,6 +366,7 @@ class WPSNeuralNet(object):
                 train_writer.add_summary(summary, i)
 
             elif i % ACC_INTERVAL == 0:
+                ce_log[i/ACC_INTERVAL] = self.sess.run(cross_entropy, feed_dict={self.x: batch_xs, y_: batch_ys, self.keep_prob: 1, self.is_training: False})
                 acc = self.sess.run(accuracy, feed_dict={self.x: testImages, y_: testLabels, self.keep_prob: 1, self.is_training: False})
                 print acc*100
                 acc_log[i/ACC_INTERVAL] = acc*100
