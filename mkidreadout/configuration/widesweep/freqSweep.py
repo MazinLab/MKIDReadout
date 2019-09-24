@@ -29,6 +29,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 from mkidreadout.utils.readDict import readDict
 import mkidreadout.config
+import mkidcore.corelog
+from mkidcore.corelog import getLogger
 
 from mkidreadout.channelizer.Roach2Controls import Roach2Controls
 from mkidreadout.channelizer.maxAttens import maxAttens
@@ -232,8 +234,10 @@ def mecSlowPowerSweeps(freqList='rfFreqs.txt', defineLUTs=False, outputFN='psDat
     rNums=[236, 237, 238, 239, 222, 223, 232, 233, 228, 229, 224, 225]
     maxAttens(rNums)
     #reinitADCDAC(rNums, '/home/mecvnc/MKIDReadout/mkidreadout/channelizer/initgui.cfg')
-    rNums=[236, 238, 222, 232, 228, 224]
-    rNums2=np.roll(np.asarray(rNums)+1,int(len(rNums)/2))
+    #rNums=[238, 222, 232, 228, 224]
+    #rNums2=np.roll(np.asarray(rNums)+1,int(len(rNums)/2))
+    rNums = [223]#, 224]
+    #rNums2 = [228, 233]
     #rNums=[236]
     #rNums2=[237]
     startFreq=3.43E9
@@ -246,19 +250,20 @@ def mecSlowPowerSweeps(freqList='rfFreqs.txt', defineLUTs=False, outputFN='psDat
     k_dict2['startFreq']=k_dict2['startFreq']+2.02E9
     k_dict2['endFreq']=k_dict2['endFreq']+2.02E9
     for i, rNum in enumerate(rNums):
-        reinitADCDAC(np.asarray([rNum,rNums2[i]]), mkidreadout.config.load('/home/data/MEC/20190911/roach.yml'))
+        #reinitADCDAC(np.asarray([rNum,rNums2[i]]), mkidreadout.config.load('/home/data/MEC/20190911/roach.yml'))
+        reinitADCDAC(np.asarray([rNum]), mkidreadout.config.load('/home/data/MEC/20190911/roach.yml'))
 
         t1=threading.Thread(target=takePowerSweep, args=(rNum,),kwargs=k_dict)   
         t1.start()
         
-        t2=threading.Thread(target=takePowerSweep, args=(rNums2[i],),kwargs=k_dict2)   
-        t2.start()
+        #t2=threading.Thread(target=takePowerSweep, args=(rNums2[i],),kwargs=k_dict2)   
+        #t2.start()
 
         t1.join()
-        t2.join()   #wait until they both finish
-        del t1, t2
+        #t2.join()   #wait until they both finish
+        del t1#, t2
         
-        maxAttens(np.asarray([rNum,rNums2[i]]))
+        #maxAttens(np.asarray([rNum,rNums2[i]]))
 
 
 
@@ -520,15 +525,21 @@ class FreqSweep:
 
 
 if __name__ == "__main__":
+    getLogger(__name__, setup=True)
+    getLogger('mkidreadout.channelizer.Roach2Controls').setLevel(mkidcore.corelog.DEBUG)
+    getLogger('casperfpga').setLevel(mkidcore.corelog.INFO)
     
     freqFN='/home/data/MEC/20181213/rfFreqs_full.txt'
     #generateWidesweepFreqList('/home/mecvnc/MKIDReadout/mkidreadout/channelizer/darknessfpga.param', outputFN=freqFN, alias_BW=2.E9)
+
     
 
     #args = sys.argv[1:]
     #rNums = np.atleast_1d(args).astype(dtype=np.int)
-    rNums=[236, 237, 238, 239, 222, 223, 232, 233, 228, 229, 224, 225]
+    #rNums=[236, 237, 238, 239, 222, 223, 232, 233, 228, 229, 224, 225]
+    rNums=[223]
     setupMultRoaches4FreqSweep(rNums, freqFN=freqFN, defineLUTs=True)
+    #maxAttens(rNums)
 
 
     #setupRoach4FreqSweep(237,defineLUTs=True)
