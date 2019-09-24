@@ -76,6 +76,19 @@ int startShmImageWriterThread(SHM_IMAGE_WRITER_PARAMS *rparams, THREAD_PARAMS *t
 
 }
 
+int startEventBuffWriterThread(EVENT_BUFF_WRITER_PARAMS *rparams, THREAD_PARAMS *tparams){
+    int rc; 
+    pthread_attr_init(&(tparams->attr));
+    rc = pthread_create(&(tparams->thread), &(tparams->attr), eventBuffWriter, rparams);
+    if (rc){
+        printf("ERROR creating eventBuffWriter(); return code from pthread_create() is %d\n", rc);
+        //exit(-1);
+    } 
+
+    return rc;
+
+}
+
 void *shmImageWriter(void *prms)
 {
     int64_t br,i,j,ret,imgIdx;
@@ -117,8 +130,8 @@ void *shmImageWriter(void *prms)
     printf("NROACH: %x\n", params->nRoach);
     rptr = params->roachStream;
 
-    quitSem = sem_open(params->quitSemName, O_CREAT, S_IRUSR | S_IWUSR, 0);
-    streamSem = sem_open(params->streamSemName, O_CREAT, S_IRUSR | S_IWUSR, 0);
+    quitSem = sem_open(params->quitSemName, O_CREAT, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP, 0);
+    streamSem = sem_open(params->streamSemName, O_CREAT, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP, 0);
     sem_post(streamSem);
         
     olddata = (char *) malloc(sizeof(char)*SHAREDBUF);
@@ -260,8 +273,9 @@ void *shmImageWriter(void *prms)
                 fprintf(timeFile, "%llu %llu %d\n", curTs, sysTs, boardNums[curRoachInd]);
                 #endif
 
-                if(curTs < prevTs);
-                    //printf("Packet out of order. dt = %lu, curRoach = %d, prevRoach=%d \n", prevTs-curTs, boardNums[curRoachInd], boardNums[prevRoachInd]);
+                //if(curTs < prevTs)
+                //    printf("Packet out of order. dt = %lu, curRoach = %d, prevRoach=%d \n", 
+                //          prevTs-curTs, boardNums[curRoachInd], boardNums[prevRoachInd]);
                 
                 for(imgIdx=0; imgIdx<params->nSharedImages; imgIdx++)
                 {
@@ -308,7 +322,7 @@ void *shmImageWriter(void *prms)
                    }
 
                }
-		pstart = i*8;   // move start location for next packet	                      
+		       pstart = i*8;   // move start location for next packet	                      
              }
           }
 
@@ -336,6 +350,147 @@ void *shmImageWriter(void *prms)
     return NULL;
 }
 
+void *eventBuffWriter(void *prms)
+{
+    int64_t br,i,j,ret,imgIdx;
+    char data[1024];
+    char *olddata;
+    char packet[808*16];
+    struct timespec startSpec;
+    struct timespec stopSpec;
+    struct timeval tv;
+    unsigned long long sysTs;
+    long nsElapsed;
+    uint64_t oldbr = 0;     // number of bytes of unparsed data sitting in olddata
+    uint64_t pcount = 0;
+    STREAM_HEADER *hdr;
+    uint64_t swp,swp1;
+    READOUT_STREAM *rptr;
+    uint64_t pstart;
+
+    uint64_t curTs;
+    uint64_t prevTs;
+    uint16_t curRoachInd;
+    uint16_t prevRoachInd;
+    uint32_t *doneIntegrating; //Array of bitmasks (one for each image, bits are roaches)
+    uint32_t doneIntMask; //constant - each place value corresponds to a roach board
+    EVENT_BUFF_WRITER_PARAMS *params;
+    MKID_EVENT_BUFFER eventBuffer;
+    sem_t *quitSem;
+    sem_t *streamSem;
+
+    params = (EVENT_BUFF_WRITER_PARAMS*)prms; //cast param struct
+
+    if(params->cpu != -1)
+        ret = MaximizePriority(params->cpu);
+    printf("EventBuffWriter online.\n");
+
+
+    quitSem = sem_open(params->quitSemName, O_CREAT, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP, 0);
+    streamSem = sem_open(params->streamSemName, O_CREAT, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP, 0);
+    rptr = params->roachStream;
+    sem_post(streamSem);
+        
+    olddata = (char *) malloc(sizeof(char)*SHAREDBUF);
+    
+    memset(olddata, 0, sizeof(olddata[0])*2048);    // zero out array
+    memset(data, 0, sizeof(data[0]) * 1024);    // zero out array
+    memset(packet, 0, sizeof(packet[0]) * 808 * 2);    // zero out array
+
+    prevTs = 0;
+
+    #ifdef _TIMING_TEST
+    FILE *timeFile = fopen("timetestcb.txt", "w");
+    #endif
+
+    MKIDShmEventBuffer_open(&eventBuffer, params->bufferName);
+    MKIDShmEventBuffer_reset(&eventBuffer);
+
+    printf("EventBuffer done initializing\n");
+    curRoachInd = 0;
+    prevRoachInd = 0;
+
+    while (sem_trywait(quitSem) == -1)
+    {
+       // read in new data and parse it
+       sem_wait(streamSem);        
+       br = rptr->unread;
+       if( br%8 != 0 ) printf("Misalign in SharedImageWriter - %d\n",(int)br); 
+	   	    
+       if( br > 0) {               
+          // we may be in the middle of a packet so put together a full packet from old data and new data
+          // and only parse when the packet is complete
+
+          // append current data to existing data if old data is present
+          // NOTE !!!  olddata must start with a packet header
+          if( oldbr > 0 ) {
+             memmove(&olddata[oldbr],rptr->data,br);
+             oldbr+=br;
+             rptr->unread = 0;
+             if (oldbr > SHAREDBUF-2000) {
+                printf("oldbr = %d!  Dumping data!\n",(int)oldbr); fflush(stdout);
+                br = 0;
+                oldbr=0;          
+             }
+          } 
+          else {
+             memmove(olddata,rptr->data,br);
+             oldbr=br;          
+             rptr->unread = 0;     
+          }
+       }
+       sem_post(streamSem);  
+
+
+       // if there is data waiting, process it
+       pstart = 0;
+       if( oldbr >= 808 ) {       
+           // search the available data for a packet boundary
+           for( i=1; (uint64_t)i<oldbr/8; i++) {  
+               swp = *((uint64_t *) (&olddata[i*8]));
+               swp1 = __bswap_64(swp);
+               hdr = (STREAM_HEADER *) (&swp1);             
+
+               if (hdr->start == 0b11111111) {        // found new packet header!
+                   // fill packet and parse
+                   memmove(packet,&olddata[pstart],i*8 - pstart);
+                   prevRoachInd = curRoachInd;
+                   curRoachInd = 0;
+
+                   prevTs = curTs;
+                   curTs = (uint64_t)hdr->timestamp;
+
+                   #ifdef _TIMING_TEST
+                   gettimeofday(&tv, NULL);
+                   sysTs = (unsigned long long)(tv.tv_sec)*2000 + (unsigned long long)(tv.tv_usec)/500 - (unsigned long long)TSOFFS*2000;
+                   fprintf(timeFile, "%llu %llu %d\n", curTs, sysTs, hdr->roach);
+                   #endif
+
+                   addPacketToEventBuffer(&eventBuffer, packet,i*8 - pstart, hdr->timestamp, params->wavecal, params->nRows, params->nCols);
+		           pstart = i*8;   // move start location for next packet	                      
+
+              }
+          }
+
+	  // if there is data remaining save it for next run through
+          memmove(olddata,&olddata[pstart],oldbr-pstart);
+          oldbr = oldbr-pstart;          
+
+       }                           
+    }
+
+    printf("EventBufferWriter: Freeing stuff\n");
+    free(olddata);
+    sem_close(streamSem);
+    sem_close(quitSem);
+
+    #ifdef _TIMING_TEST
+    fclose(timeFile);
+    #endif
+    printf("EventBufferWriter: Closing\n");
+    return NULL;
+}
+
 void* reader(void *prms){
     //set up a socket connection
     struct sockaddr_in si_me, si_other;
@@ -359,11 +514,11 @@ void* reader(void *prms){
     rptrs = params->roachStreamList; //pointer to list of stream buffers, assume this is allocated
 
     //open semaphores
-    quitSem = sem_open(params->quitSemName, O_CREAT, S_IRUSR | S_IWUSR, 0);
+    quitSem = sem_open(params->quitSemName, O_CREAT, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP, 0);
     streamSems = (sem_t**) malloc(params->nRoachStreams * sizeof(sem_t*));
     for(i=0; i<params->nRoachStreams; i++){
         snprintf(streamSemName, 80, "%s%d", params->streamSemBaseName, i);
-        streamSems[i] = sem_open(streamSemName, O_CREAT, S_IRUSR | S_IWUSR, 0);
+        streamSems[i] = sem_open(streamSemName, O_CREAT, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP, 0);
     
     }
         
@@ -403,13 +558,13 @@ void* reader(void *prms){
     //printf("READER: clearing buffer.\n"); fflush(stdout);
     //while ( recv(s, buf, BUFLEN, 0) > 0 );
     //printf("READER: buffer clear!\n"); fflush(stdout);
-    #ifdef _DEBUG_OUTPUT
+    #ifdef _DEBUG_READER_OUTPUT
     printf("DEBUG OUTPUT ON, listening for packets...\n");
     #endif
 
     while(sem_trywait(quitSem)==-1) //(access( "/home/ramdisk/QUIT", F_OK ) == -1)
     {
-        #ifdef _DEBUG_OUTPUT
+        #ifdef _DEBUG_READER_OUTPUT
         if (nFrames % 1000 == 0)
         {
             printf("Frame %d\n",nFrames);  fflush(stdout);
@@ -500,8 +655,8 @@ void* binWriter(void *prms)
 
     printf("Rev up the RAID array, WRITER is active!\n");
 
-    quitSem = sem_open(params->quitSemName, O_CREAT, S_IRUSR | S_IWUSR, 0);
-    streamSem = sem_open(params->streamSemName, O_CREAT, S_IRUSR | S_IWUSR, 0);
+    quitSem = sem_open(params->quitSemName, O_CREAT, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP, 0);
+    streamSem = sem_open(params->streamSemName, O_CREAT, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP, 0);
     sem_post(streamSem);
 
     
@@ -664,6 +819,50 @@ void addPacketToImage(MKID_IMAGE *sharedImage, char *photonWord,
                 sharedImage->image[(sharedImage->md->nCols)*(data->ycoord) + data->xcoord]++;
       
     }
+
+}
+
+void addPacketToEventBuffer(MKID_EVENT_BUFFER *buffer, char *photonWord, 
+        unsigned int l, uint64_t headerTS, WAVECAL_BUFFER *wavecal, int nRows, int nCols)
+{
+    uint64_t i;
+    PHOTON_WORD *data;
+    MKID_PHOTON_EVENT photon;
+    uint64_t swp,swp1;
+    float wvl, wvlBinSpacing;
+    int wvlBinInd;
+
+    for(i=1;i<l/8;i++) {
+       
+        swp = *((uint64_t *) (&photonWord[i*8]));
+        swp1 = __bswap_64(swp);
+        data = (PHOTON_WORD *) (&swp1);
+        
+        if( data->xcoord >= nCols || data->ycoord >= nRows ) 
+            continue;
+
+        if((buffer->md->useWvl)){
+            if(wavecal == NULL){
+                perror("ERROR: No wavecal buffer specified!");
+                continue;
+
+            }
+            wvl = getWavelength(data, wavecal);
+
+        }
+            
+        else
+            wvl = (float)data->phase/PHASE_BIN_PT; //phase in radians
+
+        photon.time = 500*((uint64_t)2000*TSOFFS + headerTS) + data->timestamp;
+        photon.x = data->xcoord;
+        photon.y = data->ycoord;
+        photon.wvl = (wvl_t)wvl;
+
+        MKIDShmEventBuffer_addEvent(buffer, &photon);
+
+    }
+
 
 }
 
