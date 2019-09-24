@@ -4,10 +4,9 @@ beammapped resonators from the original sweep to resonators in the new sweep. Th
 beammapping.
 Author: Noah Swimmer - 20 September 2019.
 
-TODO: Implement switching the old resIDs in the old beammap with new resIDs.
-TODO: Figure out a deterministic way to place the non-assigned resonators in the new sweep.
 TODO: Implement more diagnostic plotting
 TODO: Add another cleaning step for matched resIDs to make sure that the old and new frequencies match closely enough.
+TODO: Add flagging for failure modes.
 """
 
 import numpy as np
@@ -27,7 +26,7 @@ log.addHandler(sh)
 
 
 class Correlator(object):
-    def __init__(self, oldPath='', newPath='', beammapPath=''):
+    def __init__(self, oldPath='', newPath='', boardNum='000'):
         """
         Input paths to the old data, new data, and beammap. Will correlate the resIDs between the old and new frequency
         list using frequency data. Matched/cleaned resID lists are found in self.resIDMatches. Correlator class works on
@@ -40,7 +39,7 @@ class Correlator(object):
         log.info("Initializing correlation")
         self.old = SweepMetadata(file=oldPath)
         self.new = SweepMetadata(file=newPath)
-        # self.beammap = Beammap(file=beammapPath)
+        self.board = boardNum
         self.cleanData()
 
         self.bestShift = 0
@@ -64,6 +63,8 @@ class Correlator(object):
         self.matchResIDs()
         log.info("Resolving resonator IDs assigned multiple times in matched ID lists")
         self.cleanResIDMatches()
+        log.info("Badly mismatched resonators being removed.")
+        self.ensureGoodFinalFreqMatches()
 
     def cleanData(self):
         """
@@ -77,8 +78,8 @@ class Correlator(object):
         self.newFreq = self.new.freq[newmask]
         self.newRes = self.new.resIDs[newmask]
 
-        # shortmaskO = (self.oldFreq >= 4.e9) & (self.oldFreq <= 4.25e9)
-        # shortmaskN = (self.newFreq >= 4.e9) & (self.newFreq <= 4.25e9)
+        # shortmaskO = (self.oldFreq <= 4.5e9) & (self.oldFreq >= 4.e9)
+        # shortmaskN = (self.newFreq <= 4.5e9) & (self.newFreq >= 4.e9)
         # self.oldFreq = self.oldFreq[shortmaskO]
         # self.oldRes = self.oldRes[shortmaskO]
         # self.newFreq = self.newFreq[shortmaskN]
@@ -107,6 +108,12 @@ class Correlator(object):
             self.newAvgResidual.append(np.average(residuals))
         newmask = self.newAvgResidual == np.min(self.newAvgResidual)
         self.bestShift = self.shifts[1][newmask][0]
+
+        tempMatch = self.matchFrequencies(self.newFreq, self.oldFreq, self.bestShift)
+        tempResiduals = tempMatch[0]-tempMatch[1]
+        averageResidual = np.average(tempResiduals)
+        log.info("The average residual after matching frequency lists is {} MHz".format(averageResidual/1.e6))
+        self.bestShift = self.bestShift - averageResidual
         log.info("The best shift is {} MHz".format(self.bestShift/1.e6))
 
     def matchFrequencies(self, list1, list2, shift=0):
@@ -151,10 +158,19 @@ class Correlator(object):
         best correspond to each other. resIDs in the same column correspond to each other. This function does not take
         into account doubles where one resonator in one list is matched to multiple resonators in another.
         """
-        self.bestMatches = self.matchFrequencies(list1=self.shiftedFreq, list2=self.oldFreq)
-        self.resIDMatches = np.full_like(self.bestMatches, np.nan, dtype=float)
-        self.resIDMatches[0] = self._matchIDtoFreq(self.bestMatches[0], self.shiftedFreq, self.newRes)
-        self.resIDMatches[1] = self._matchIDtoFreq(self.bestMatches[1], self.oldFreq, self.oldRes)
+        tempFreq = self.matchFrequencies(list1=self.shiftedFreq, list2=self.oldFreq)
+        tempID = np.full_like(tempFreq, np.nan, dtype=float)
+        tempID[0] = self._matchIDtoFreq(tempFreq[0], self.shiftedFreq, self.newRes)
+        tempID[1] = self._matchIDtoFreq(tempFreq[1], self.oldFreq, self.oldRes)
+        tempFreq = np.transpose(tempFreq)
+        tempID = np.transpose(tempID)
+
+        self.resIDMatches = np.full((len(tempID), len(tempID[0])+1), np.nan)
+        self.resIDMatches[:, 0] = tempID[:, 1]
+        self.resIDMatches[:, 1] = tempID[:, 0]
+        self.freqMatches = np.full_like(tempFreq, np.nan)
+        self.freqMatches[:, 0] = tempFreq[:, 1]
+        self.freqMatches[:, 1] = tempFreq[:, 0]
 
     def _matchIDtoFreq(self, freqList, freqListFromData, resIDList):
         """
@@ -175,35 +191,66 @@ class Correlator(object):
         Function to resolve doubles where a resonator in one list was assigned to multiple resonators in the other. This
         will resolve doubles in the new AND old list.
         """
-        doubleList = []
-        for i in range(len(self.resIDMatches)):
-            for j in self.resIDMatches[i]:
-                mask = self.resIDMatches[i] == j
-                r = self.resIDMatches[i][mask]
+        for j in range(len(self.freqMatches[0])):
+            doubles = []
+            for i in self.resIDMatches[:, j]:
+                mask = self.resIDMatches[:, j] == i
+                r = self.resIDMatches[:, j][mask]
                 if len(r) > 1:
-                    doubleList.append(r[0])
-            doubleList = list(set(doubleList))
-            for k in doubleList:
-                self._resolveDoubleIDs(k, i)
+                    doubles.append(r[0])
+            doubles = list(set(doubles))
+            if len(doubles) != 0:
+                for k in doubles:
+                    self._resolveDoubleIDs(k, j)
 
-
-    def _resolveDoubleIDs(self, ID, arraySide):
+    def _resolveDoubleIDs(self, ID, side):
         """
         Helper function to modify the self.resIDMatches object when resolving doubles.
         """
-        idx = np.where(self.resIDMatches[arraySide] == ID)[0]
-        toResolveIDs = self.resIDMatches[:, idx[0]:idx[1]+1]
-        toResolveFreqs = self.bestMatches[:, idx[0]:idx[1]+1]
-        freqResids = abs(toResolveFreqs[0] - toResolveFreqs[1])
-        bestFreqMatch = freqResids == min(freqResids)
-        for i in range(len(bestFreqMatch)):
+        idx = np.where(self.resIDMatches[:, side] == ID)[0]
+        toResolveIDs = self.resIDMatches[idx]
+        toResolveFreqs = self.freqMatches[idx]
+        freqResidual = abs(toResolveFreqs[:, 0] - toResolveFreqs[:, 1])
+        bestFreqMatch = freqResidual == min(freqResidual)
+        for i in range(len(toResolveIDs)):
             if not bestFreqMatch[i]:
-                toResolveIDs[arraySide][i] = np.nan
-        self.resIDMatches[:, idx[0]:idx[1]+1] = toResolveIDs
+                toResolveIDs[i][side] = np.nan
+        self.resIDMatches[idx] = toResolveIDs
+
+    def ensureGoodFinalFreqMatches(self):
+        """
+        Ensures that all of the resID matches are also well matched in frequency space.
+        Flags: 0 = Both resIDs matched and frequencies match
+               1 = ResID in old powerSweep has no analog in new powerSweep (no DAC tone)
+               2 = ResID in new powerSweep has no analog in old powerSweep (beammap failed)
+               3 = Closest frequency match was too far to reasonably be the same resonator (beammap failed)
+        """
+        self.residuals = abs(self.freqMatches[:, 0] - self.freqMatches[:, 1])
+        # for i in range(len(self.residuals)):
+        #     if self.residuals[i] >= 100e3:
+        #         self.resIDMatches[i][2] = 3
+        for i in self.resIDMatches:
+            if np.isnan(i[2]):
+                if not np.isnan(i[0]) and not np.isnan(i[1]):
+                    m = (self.resIDMatches[:, 0] == i[0]) & (self.resIDMatches[:, 1] == i[1])
+                    if self.residuals[m] <= 100e3:
+                        i[2] = 0
+                    else:
+                        i[2] = 3
+                elif not np.isnan(i[0]) and np.isnan(i[1]):
+                    i[2] = 1
+                elif np.isnan(i[0]) and not np.isnan(i[1]):
+                    i[2] = 2
 
     def plotResults(self):
+        """
+        TODO: Add functionality
+        """
         plt.plot(self.newFreq, np.zeros(len(self.newFreq)), 'r.', label="New Data")
         plt.plot(self.oldFreq, np.zeros(len(self.oldFreq)), 'b.', label="Old Data")
         plt.plot(self.shiftedFreq, np.zeros(len(self.shiftedFreq))+1, 'm.', label="Shifted Data")
         plt.plot(self.oldFreq, np.zeros(len(self.oldFreq))+1, 'c.', label="Old Data")
         plt.show()
+
+    def saveResult(self):
+        np.savetxt(str(self.board)+"_correlated_IDs.txt", self.resIDMatches, header="Old New", fmt='%.1f')
