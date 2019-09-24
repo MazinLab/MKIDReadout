@@ -219,7 +219,7 @@ class SweepMetadata(object):
                 self.freq[use] = freqs[use]
 
     def lomask(self, lo):
-        return ((self.flag & ISGOOD) & (~np.isnan(self.mlfreq)) & (np.abs(self.mlfreq - lo) < LOCUT)).astype(bool)
+        return ((self.flag & ISGOOD) & (~np.isnan(self.freq)) & (np.abs(self.freq - lo) < LOCUT) & (self.atten > 0)).astype(bool)
 
     def vet(self):
         if (np.abs(self.atten[~np.isnan(self.atten)]) > MAX_ATTEN).any():
@@ -248,7 +248,7 @@ class SweepMetadata(object):
                    header=self.genheader())
 
     def templar_data(self, lo):
-        aResMask = slice(None,None) #self.lomask(lo)  #TODO URGENT add range assignment to each resonator
+        aResMask = self.lomask(lo)  #TODO URGENT add range assignment to each resonator
         freq = self.freq[aResMask]
         # Do not sort or force things to be unique, doing so would break the implicity channel order
         return self.resIDs[aResMask], freq, self.atten[aResMask], self.phases[aResMask], self.iqRatios[aResMask]
