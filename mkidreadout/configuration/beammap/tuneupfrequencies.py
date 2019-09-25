@@ -26,7 +26,7 @@ log.addHandler(sh)
 
 
 class Correlator(object):
-    def __init__(self, oldPath='', newPath='', boardNum='000'):
+    def __init__(self, oldPath='', newPath='', flNum='0a'):
         """
         Input paths to the old data, new data, and beammap. Will correlate the resIDs between the old and new frequency
         list using frequency data. Matched/cleaned resID lists are found in self.resIDMatches. Correlator class works on
@@ -36,14 +36,14 @@ class Correlator(object):
         self.resIDMatches[1] = Corresponding Old ResIDs
         """
         start = time.time()
-        log.info("Initializing correlation")
+        self.fl = flNum
+        log.info("Initializing correlation of feedline {}".format(self.fl))
         self.old = SweepMetadata(file=oldPath)
         self.new = SweepMetadata(file=newPath)
-        self.board = boardNum
         self.cleanData()
 
         self.bestShift = 0
-        self.shifts = [np.linspace(-5e6, 5e6, 2001), np.linspace(-1e3, 1e3, 2001)]
+        self.shifts = np.linspace(-1e6, 1e6, 2001)
         self.resIDMatches = None
 
         self.correlateLists()
@@ -94,20 +94,13 @@ class Correlator(object):
         """
         self.avgResidual = []
         self.newAvgResidual = []
-        for i in self.shifts[0]:
+        for i in self.shifts:
             match = self.matchFrequencies(self.newFreq, self.oldFreq, i)
             residuals = abs(match[0]-match[1])
             self.avgResidual.append(np.average(residuals))
         mask = self.avgResidual == np.min(self.avgResidual)
-        self.bestShift = self.shifts[0][mask][0]
-        self.shifts[1] = self.shifts[1] + self.bestShift
+        self.bestShift = self.shifts[mask][0]
         log.info("The best shift after pass one is {} MHz".format(self.bestShift/1.e6))
-        for i in self.shifts[1]:
-            match = self.matchFrequencies(self.newFreq, self.oldFreq, i)
-            residuals = abs(match[0]-match[1])
-            self.newAvgResidual.append(np.average(residuals))
-        newmask = self.newAvgResidual == np.min(self.newAvgResidual)
-        self.bestShift = self.shifts[1][newmask][0]
 
         tempMatch = self.matchFrequencies(self.newFreq, self.oldFreq, self.bestShift)
         tempResiduals = tempMatch[0]-tempMatch[1]
@@ -225,15 +218,12 @@ class Correlator(object):
                2 = ResID in new powerSweep has no analog in old powerSweep (beammap failed)
                3 = Closest frequency match was too far to reasonably be the same resonator (beammap failed)
         """
-        self.residuals = abs(self.freqMatches[:, 0] - self.freqMatches[:, 1])
-        # for i in range(len(self.residuals)):
-        #     if self.residuals[i] >= 100e3:
-        #         self.resIDMatches[i][2] = 3
+        self.residuals = self.freqMatches[:, 0] - self.freqMatches[:, 1]
         for i in self.resIDMatches:
             if np.isnan(i[2]):
                 if not np.isnan(i[0]) and not np.isnan(i[1]):
                     m = (self.resIDMatches[:, 0] == i[0]) & (self.resIDMatches[:, 1] == i[1])
-                    if self.residuals[m] <= 100e3:
+                    if abs(self.residuals[m][0]) <= 500e3:
                         i[2] = 0
                     else:
                         i[2] = 3
@@ -253,4 +243,5 @@ class Correlator(object):
         plt.show()
 
     def saveResult(self):
-        np.savetxt(str(self.board)+"_correlated_IDs.txt", self.resIDMatches, header="Old New", fmt='%.1f')
+        np.savetxt(str(self.fl)+"_correlated_IDs.txt", np.concatenate((self.resIDMatches, self.freqMatches), axis=1),
+                   header="Old New Flag OldFreq NewFreq", fmt='%.1f %.1f %.1f %9.7f %9.7f')
