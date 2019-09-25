@@ -485,6 +485,35 @@ class SBOptimizer:
         sbLocs = -1*freqLocs + len(specDict['freqsMHz'])
         sbSuppressions = specDict['spectrumDb'][freqLocs]-specDict['spectrumDb'][sbLocs]
         return sbSuppressions
+    
+    def takeExhaustiveGridData(self, phases=np.arange(-20, 10), iqRatios=np.arange(0.8, 1.2, 0.02), useQDR=True):
+        if useQDR==False:
+            raise Exception('Not yet implemented')
+
+        self.loadLUT('all', globalDacAtten=self.globalDacAtten)
+        nBins = 2**21
+        snapDict = takeQdrSnap(self.roach.fpga)
+        specDict = streamSpectrum(snapDict['iVals'], snapDict['qVals'], nBins)
+        initialSpectrum = specDict['spectrumDb']
+        initialSBSuppression, freqLocs, sbLocs = measureSidebands(freqList - self.loFreq, 1.e6*specDict['freqsMHz'],
+                                    specDict['spectrumDb'], self.roach.params['dacSampleRate'], 
+                                    self.roach.params['nDacSamplesPerCycle']*self.roach.params['nLutRowsToUse']) 
+        sbSuppressions = np.zeros((len(self.freqList), len(phases), len(iqRatios)))
+        for i in range(len(phases)):
+            for j in range(len(iqRatios)):
+                print('Grid Step:', i, ',', j)
+                phaseList = phases[i]*np.ones(len(self.freqList))
+                iqRatioList = iqRatios[j]*np.ones(len(self.freqList))
+                self.loadLUT('all', phaseList, iqRatioList, globalDacAtten=self.globalDacAtten)
+                snapDict = takeQdrSnap(self.roach.fpga)
+                specDict = streamSpectrum(snapDict['iVals'], snapDict['qVals'], nBins)
+                sbSuppressions[:, i, j] = specDict['spectrumDb'][freqLocs] - specDict['spectrumDb'][sbLocs]
+
+        np.savez('exhaustive_grid_data_'+'r'+self.roach.ip[-3:]+'_'+str(len(self.freqList))+'_freqs_all_' \
+                        +time.strftime("%Y%m%d-%H%M%S",time.localtime()), freqs=self.freqList, sbSuppressions=sbSuppressions, loFreq=self.loFreq,
+                        globalDacAtten=self.globalDacAtten, adcAtten=self.adcAtten, toneAttenList=self.toneAttenList)
+
+
                
 def loadGridTable(fileName):
     """
@@ -724,9 +753,27 @@ if __name__=='__main__':
     parser.add_argument('roaches', nargs='+', help='Roach numbers')
     parser.add_argument('-c', '--config', default=mkidreadout.config.DEFAULT_ROACH_CFGFILE, help='roach.yml config file')
     parser.add_argument('-q', '--use-qdr', action='store_true', help='Use long QDR snap')
+    parser.add_argument('-g', '--grid-data', action='store_true', help='Take exhaustive grid data set. One roach only.')
     args = parser.parse_args()
     config = mkidreadout.config.load(args.config)
     threadpool = []
+
+    if args.grid_data:
+        if len(args.roaches) > 1:
+            raise Exception('Can only take grid data for one roach at a time')
+        roachNum = args.roaches[0]
+        ip = config.get('r{}.ip'.format(roachNum))
+        loFreq = config.get('r{}.lo_freq'.format(roachNum))
+        feedline = config.get('r{}.feedline'.format(roachNum))
+        band = config.get('r{}.range'.format(roachNum))
+        metadataFn = config.get('r{}.freqfileroot'.format(roachNum)).format(roach=roachNum, feedline=feedline, range=band)
+        print('Roach', roachNum, 'loading config from', metadataFn)
+        metadata = SweepMetadata(file=metadataFn)
+        resIDList, freqList, toneAttenList, _, _ = metadata.templar_data(loFreq)
+        print('Initializing SB optimizer...')
+        sbo = SBOptimizer(ip=ip, resIDList=resIDList, freqList=freqList, toneAttenList=toneAttenList, loFreq=loFreq)
+        print('Starting grid data')
+        sbo.takeExhaustiveGridData()
 
     for roachNum in args.roaches:
         ip = config.get('r{}.ip'.format(roachNum))
