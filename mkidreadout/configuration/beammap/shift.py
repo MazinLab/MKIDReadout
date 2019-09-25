@@ -278,7 +278,7 @@ class Feedline(object):
             self.bestshiftYcoords = self.shiftedYcoords[MAD_idx[0]][MAD_idx[1]]
             self.bestshiftResiduals = self.residuals[MAD_idx[0]][MAD_idx[1]]
             self.bestMatchedFreqs = self.matchedfreqs[MAD_idx[0]][MAD_idx[1]]
-        else :
+        else:
             self.bestshiftvector = np.array((0, 0))
             self.bestshiftXcoords = self.shiftedXcoords[(2 * self.maxY + 1) // 2][(2 * self.maxX + 1) // 2]
             self.bestshiftYcoords = self.shiftedYcoords[(2 * self.maxY + 1) // 2][(2 * self.maxX + 1) // 2]
