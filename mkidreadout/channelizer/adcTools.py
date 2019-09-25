@@ -24,15 +24,16 @@ def streamSpectrum(iVals,qVals,nBins=None):
 
     spectrum = np.fft.fft(foldedSignal)
     spectrum = 1.*spectrum / nSamplesPerFft
-    if nAvgs > 1:
-        spectrum = np.average(spectrum, axis=0)
 
     freqsMHz = np.fft.fftfreq(nSamplesPerFft)*sampleRate/MHz
 
     freqsMHz = np.fft.fftshift(freqsMHz)
     spectrum = np.fft.fftshift(spectrum)
+    powerSpectrum = np.abs(spectrum)**2
+    if nAvgs > 1:
+        powerSpectrum = np.average(powerSpectrum, axis=0)
 
-    spectrumDb = 20*np.log10(np.abs(spectrum))
+    spectrumDb = 10*np.log10(powerSpectrum)
 
     peakFreq = freqsMHz[np.argmax(spectrumDb)]
     peakFreqPower = spectrumDb[np.argmax(spectrumDb)]
