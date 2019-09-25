@@ -241,10 +241,14 @@ class SweepMetadata(object):
                   'rID\trFlag\twsFreq\tmlFreq\tatten\tmlGood\tmlBad')
         return header.format(self.feedline, self.wsatten)
 
-    def save(self, file=''):
+    def save(self, file='', saveSBSupData=False):
         sf = file.format(feedline=self.feedline) if file else self.file.format(feedline=self.feedline)
         self.vet()
-        np.savetxt(sf, self.toarray().T, fmt="%8d %1u %16.7f %16.7f %5.1f %16.7f %5.1f %6.4f %6.4f",
+        if saveSBSupData:
+            np.savetxt(sf, self.toarray().T, fmt="%8d %1u %16.7f %16.7f %5.1f %16.7f %5.1f %6.4f %6.4f %6.4f %6.4f",
+                       header=self.genheader())
+        else:
+            np.savetxt(sf, self.toarray().T[:, :-2], fmt="%8d %1u %16.7f %16.7f %5.1f %16.7f %5.1f %6.4f %6.4f",
                    header=self.genheader())
 
     def templar_data(self, lo):
