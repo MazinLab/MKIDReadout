@@ -5,8 +5,6 @@ beammapping.
 Author: Noah Swimmer - 20 September 2019.
 
 TODO: Implement more diagnostic plotting
-TODO: Add another cleaning step for matched resIDs to make sure that the old and new frequencies match closely enough.
-TODO: Add flagging for failure modes.
 """
 
 import numpy as np
@@ -43,7 +41,7 @@ class Correlator(object):
         self.cleanData()
 
         self.bestShift = 0
-        self.shifts = [np.linspace(-5e6, 5e6, 2001), np.linspace(-1e3, 1e3, 2001)]
+        self.shifts = np.linspace(-1e6, 1e6, 2001)
         self.resIDMatches = None
 
         self.correlateLists()
@@ -94,20 +92,13 @@ class Correlator(object):
         """
         self.avgResidual = []
         self.newAvgResidual = []
-        for i in self.shifts[0]:
+        for i in self.shifts:
             match = self.matchFrequencies(self.newFreq, self.oldFreq, i)
             residuals = abs(match[0]-match[1])
             self.avgResidual.append(np.average(residuals))
         mask = self.avgResidual == np.min(self.avgResidual)
-        self.bestShift = self.shifts[0][mask][0]
-        self.shifts[1] = self.shifts[1] + self.bestShift
+        self.bestShift = self.shifts[mask][0]
         log.info("The best shift after pass one is {} MHz".format(self.bestShift/1.e6))
-        for i in self.shifts[1]:
-            match = self.matchFrequencies(self.newFreq, self.oldFreq, i)
-            residuals = abs(match[0]-match[1])
-            self.newAvgResidual.append(np.average(residuals))
-        newmask = self.newAvgResidual == np.min(self.newAvgResidual)
-        self.bestShift = self.shifts[1][newmask][0]
 
         tempMatch = self.matchFrequencies(self.newFreq, self.oldFreq, self.bestShift)
         tempResiduals = tempMatch[0]-tempMatch[1]
