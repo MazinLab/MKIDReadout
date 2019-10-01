@@ -6,6 +6,7 @@ Author: Noah Swimmer - 20 September 2019.
 
 TODO: Implement more diagnostic plotting
 TODO: Add function to take in beammap and determine number of resonators mapped in old list and not found in new
+TODO: Make properties/setters, document new code
 """
 
 import numpy as np
@@ -25,7 +26,7 @@ log.addHandler(sh)
 
 
 class Correlator(object):
-    def __init__(self, oldPath=None, newPath=None, boardNum=None):
+    def __init__(self, oldPath=None, newPath=None, boardNum=None, frequencyCutoff=500e3):
         """
         Input paths to the old data, new data, and beammap. Will correlate the resIDs between the old and new frequency
         list using frequency data. Matched/cleaned resID lists are found in self.resIDMatches. Correlator class works on
@@ -41,6 +42,7 @@ class Correlator(object):
 
         self.bestShift = 0
         self.shifts = np.linspace(-1e6, 1e6, 2001)
+        self._freqCutoff = frequencyCutoff
 
         self.resIDMatches = None
         self.freqMatches = None
@@ -58,7 +60,6 @@ class Correlator(object):
         log.info("Applying a shift of {} MHz".format(self.bestShift/1.e6))
         self.applyBestShift()
         log.info("Flagging Resonators")
-        self.createGrid()
         self.handleFlags()
         end = time.time()
         log.debug("ID correlation took {} seconds".format(end - start))
@@ -144,37 +145,63 @@ class Correlator(object):
         log.info("A shift of {} MHz was applied to the new frequency list".format(self.bestShift/1.e6))
         self.shiftedFreq = self.newFreq + self.bestShift
 
-    def createGrid(self):
+    def _createResidualGrid(self):
         self.oldFreq = np.reshape(self.oldFreq, (len(self.oldFreq), 1))
-        self.residGrid = abs(self.oldFreq-self.shiftedFreq)
-        self.flagGrid = np.zeros(self.residGrid.shape)
-        minResidsNew = np.argmin(self.residGrid, axis=0)
-        minResidsOld = np.argmin(self.residGrid, axis=1)
-        self.coordsNew = [(j, i) for i, j in enumerate(minResidsNew)]
-        self.coordsOld = [(i, j) for i, j in enumerate(minResidsOld)]
-        goodCoords = set(self.coordsNew) & set(self.coordsOld)
-        noNewMatch = set(self.coordsNew) - goodCoords
-        noOldMatch = set(self.coordsOld) - goodCoords
-        for i in goodCoords:
-            if self.residGrid[i] <= 500e3:
-                self.flagGrid[i] = 1
-            else:
-                self.flagGrid[i] = 4
-        for i in noNewMatch:
-            self.flagGrid[i] = 2
-        for i in noOldMatch:
-            self.flagGrid[i] = 3
+        self._residualGrid = abs(self.oldFreq - self.shiftedFreq)
+
+    @property
+    def residualGrid(self):
+        if self._residualGrid is not None:
+            return self._residualGrid
+        self._createResidualGrid()
+
+    @property
+    def flagGrid(self):
+        if self._flagGrid is not None:
+            return self._flagGrid
+        self._flagGrid = self._createFlagGrid()
+        return self._flagGrid
+
+    def _createFlagGrid(self):
+        flagGrid = np.zeros(self._residualGrid.shape)
+        minResidsNew = np.argmin(self._residualGrid, axis=0)
+        minResidsOld = np.argmin(self._residualGrid, axis=1)
+        coordsNew = set([(j, i) for i, j in enumerate(minResidsNew)])
+        coordsOld = set([(i, j) for i, j in enumerate(minResidsOld)])
+        goodCoords = np.array(list(coordsNew & coordsOld))
+        noNewMatch = np.array(list(coordsNew - (coordsNew & coordsOld)))
+        noOldMatch = np.array(list(coordsOld - (coordsNew & coordsOld)))
+
+        flagGrid[goodCoords[:, 0], goodCoords[:, 1]] = 1
+        flagGrid[noNewMatch[:, 0], noNewMatch[:, 1]] = 2
+        flagGrid[noOldMatch[:, 0], noOldMatch[:, 1]] = 3
+
+        m = (flagGrid == 1) & (self._residualGrid >= self._freqCutoff)
+        flagGrid[m] = 4
+        self._flagGrid = flagGrid
+
+    @property
+    def freqCutoff(self):
+        return self._freqCutoff
+
+    @freqCutoff.setter
+    def freqCutoff(self, x):
+        self._freqCutoff = x
+        self._createFlagGrid()
 
     def handleFlags(self):
+        self._createResidualGrid()
+        self._createFlagGrid()
+
         self.resIDMatches = []
         self.freqMatches = []
-        m1 = self.flagGrid == 1
+        m1 = self._flagGrid == 1
         coords1 = np.where(m1)
-        m2 = self.flagGrid == 2
+        m2 = self._flagGrid == 2
         coords2 = np.where(m2)
-        m3 = self.flagGrid == 3
+        m3 = self._flagGrid == 3
         coords3 = np.where(m3)
-        m4 = self.flagGrid == 4
+        m4 = self._flagGrid == 4
         coords4 = np.where(m4)
 
         for i, j in zip(coords1[0], coords1[1]):
