@@ -193,6 +193,8 @@ class Correlator(object):
     def handleFlags(self):
         self._createResidualGrid()
         self._createFlagGrid()
+        self.oldFlag = np.zeros(len(self.oldRes))
+        self.newFlag = np.zeros(len(self.newRes))
 
         self.resIDMatches = []
         self.freqMatches = []
@@ -207,19 +209,28 @@ class Correlator(object):
 
         for i, j in zip(coords1[0], coords1[1]):
             self.resIDMatches.append(np.array([self.oldRes[i], self.newRes[j], 1]))
-            self.freqMatches.append(np.array([self.oldFreq[i], self.newFreq[i]]))
+            self.freqMatches.append(np.array([self.oldFreq[i], self.newFreq[j]]))
+            self.oldFlag[i] = 1
+            self.newFlag[j] = 1
         for i, j in zip(coords2[0], coords2[1]):
             self.resIDMatches.append(np.array([np.nan, self.newRes[j], 2]))
-            self.freqMatches.append(np.array([np.nan, self.newFreq[i]]))
+            self.freqMatches.append(np.array([np.nan, self.newFreq[j]]))
+            self.newFlag[j] = 2
         for i, j in zip(coords3[0], coords3[1]):
             self.resIDMatches.append(np.array([self.oldRes[i], np.nan, 3]))
             self.freqMatches.append(np.array([self.oldFreq[i], np.nan]))
+            self.oldFlag[i] = 3
         for i, j in zip(coords4[0], coords4[1]):
             self.resIDMatches.append(np.array([self.oldRes[i], self.newRes[j], 4]))
-            self.freqMatches.append(np.array([self.oldFreq[i], self.newFreq[i]]))
+            self.freqMatches.append(np.array([self.oldFreq[i], self.newFreq[j]]))
+            self.oldFlag[i] = 4
+            self.newFlag[j] = 4
 
         self.resIDMatches = np.array(self.resIDMatches)
         self.freqMatches = np.array(self.freqMatches)
+
+        assert(not np.any(self.oldFlag == 0))
+        assert(not np.any(self.newFlag == 0))
 
     def load(self, fName):
         oldIDs, newIDs, correlatorFlags, oldFreqs, newFreqs = np.loadtxt(fName, unpack=True)
