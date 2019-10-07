@@ -13,6 +13,8 @@ import numpy as np
 import logging
 import time
 import matplotlib.pyplot as plt
+import mkidcore.objects as mko
+from mkidcore.pixelflags import beamMapFlags
 
 from mkidreadout.configuration.sweepdata import SweepMetadata
 
@@ -228,3 +230,8 @@ class Correlator(object):
     def saveResult(self):
         np.savetxt(str(self.board)+"_correlated_IDs.txt", np.concatenate((self.resIDMatches, self.freqMatches), axis=1),
                    header="Old New Flag OldFreq NewFreq", fmt='%.1f %.1f %i %9.7f %9.7f')
+
+    def generateBMResMask(self, beammap):
+        self.bmResMask = np.zeros(len(self.oldRes)).astype(bool)
+        for i, res in enumerate(self.oldRes):
+            self.bmResMask[i] = (beammap.getResonatorFlag(res) == beamMapFlags['good'])
