@@ -186,7 +186,7 @@ class Correlator(object):
         m = (flagGrid == 1) & (self._residualGrid >= self._freqCutoff)
         flagGrid[m] = 4
         self._flagGrid = flagGrid
-        self.fixMismatches()
+        # self.fixMismatches()
 
     @property
     def freqCutoff(self):
@@ -261,6 +261,7 @@ class Correlator(object):
             square = self._flagGrid[i[0]-1:i[0]+2, i[1]-1:i[1]+2]
             residualSq = self.residualGrid[i[0]-1:i[0]+2, i[1]-1:i[1]+2]
             # if (3 in square) and (2 in square):
+            print(i)
             if 3 in square:
                 newSq = self.resolveSquare(square, residualSq)
                 self._flagGrid[i[0]-1:i[0]+2, i[1]-1:i[1]+2] = newSq
