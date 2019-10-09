@@ -73,12 +73,18 @@ class Correlator(object):
         oldmask = (np.isfinite(self.old.atten)) & (self.old.flag == 1)
         self.oldFreq = self.old.freq[oldmask]
         self.oldRes = self.old.resIDs[oldmask]
+        oldIndices = np.argsort(self.oldFreq)
+        self.oldFreq = self.oldFreq[oldIndices]
+        self.oldRes = self.oldRes[oldIndices]
         newmask = (np.isfinite(self.new.atten)) & (self.new.flag == 1)
         self.newFreq = self.new.freq[newmask]
         self.newRes = self.new.resIDs[newmask]
+        newIndices = np.argsort(self.newFreq)
+        self.newFreq = self.newFreq[newIndices]
+        self.newRes = self.newRes[newIndices]
 
-        # shortmaskO = (self.oldFreq <= 4e9) #& (self.oldFreq >= 4.e9)
-        # shortmaskN = (self.newFreq <= 4e9) #& (self.newFreq >= 4.e9)
+        # shortmaskO = (self.oldFreq <= 5.87e9) #& (self.oldFreq >= 4.e9)
+        # shortmaskN = (self.newFreq <= 5.87e9) #& (self.newFreq >= 4.e9)
         # self.oldFreq = self.oldFreq[shortmaskO]
         # self.oldRes = self.oldRes[shortmaskO]
         # self.newFreq = self.newFreq[shortmaskN]
@@ -180,6 +186,7 @@ class Correlator(object):
         m = (flagGrid == 1) & (self._residualGrid >= self._freqCutoff)
         flagGrid[m] = 4
         self._flagGrid = flagGrid
+        self.fixMismatches()
 
     @property
     def freqCutoff(self):
@@ -228,6 +235,7 @@ class Correlator(object):
 
         self.resIDMatches = np.array(self.resIDMatches)
         self.freqMatches = np.array(self.freqMatches)
+        self.residuals = self.freqMatches[:, 0] - self.freqMatches[:, 1]
 
         assert(not np.any(self.oldFlag == 0))
         assert(not np.any(self.newFlag == 0))
@@ -246,3 +254,82 @@ class Correlator(object):
         self.bmResMask = np.zeros(len(self.oldRes)).astype(bool)
         for i, res in enumerate(self.oldRes):
             self.bmResMask[i] = (beammap.getResonatorFlag(res) == beamMapFlags['good'])
+
+    def fixMismatches(self):
+        centers = np.transpose(np.where(self._flagGrid == 2))
+        for i in centers:
+            square = self._flagGrid[i[0]-1:i[0]+2, i[1]-1:i[1]+2]
+            residualSq = self.residualGrid[i[0]-1:i[0]+2, i[1]-1:i[1]+2]
+            # if (3 in square) and (2 in square):
+            if 3 in square:
+                newSq = self.resolveSquare(square, residualSq)
+                self._flagGrid[i[0]-1:i[0]+2, i[1]-1:i[1]+2] = newSq
+            else:
+                pass
+
+    def resolveSquare(self, square, residuals):
+        newSq = np.copy(square)
+        coords3 = np.transpose(np.where(newSq == 3))
+        coords1 = np.transpose(np.where(newSq == 1))
+        coord2 = np.transpose(np.where(newSq == 2))
+        if len(newSq[newSq == 3]):
+            dist = []
+            for i in coords3:
+                d = np.sqrt((i[0]-coord2[0][0])**2 + (i[1]-coord2[0][1])**2)
+                dist.append(d)
+            m = dist != min(dist)
+            farCoord = coords3[m]
+            newSq[farCoord[:, 0], farCoord[:, 1]] = 6
+
+        row = np.where(newSq == 3)[0]
+        col = np.where(newSq == 2)[1]
+        mask = (newSq == 2) | (newSq == 3)
+        newSq[mask] = 0
+        newSq[row, col] = 5
+        coord5 = np.array([row, col])
+
+        vectorsTo1 = []
+        for i in coords1:
+            vector = np.array([coord5[0] - i[0], coord5[1] - i[1]])
+            vectorsTo1.append(vector)
+
+        toDelete=[]
+        for i, j in enumerate(vectorsTo1):
+            if (j[0][0] == 1) and (j[1][0] == -1):
+                pass
+            elif (j[0][0] == -1) and (j[1][0] == 1):
+                pass
+            elif (j[0][0] == 1) and (j[1][0] == 1):
+                toDelete.append(i)
+            elif (j[0][0] == -1) and (j[1][0] == -1):
+                toDelete.append(i)
+            else:
+                toDelete.append(i)
+
+        coords = np.transpose(np.where((newSq == 1) | (newSq == 5)))
+        vectorsTo1 = np.delete(vectorsTo1, toDelete, axis=0)
+        coords = np.delete(coords, toDelete, axis=0)
+        newCoords = np.copy(coords)
+        for i in vectorsTo1:
+            if ((i[0] == 1) and (i[1] == -1)) or ((i[0] == 1) and (i[1] == -1)):
+                totalResidualsOriginal = sum(residuals[coords[:, 0], coords[:, 1]])
+                colVals = newCoords[:, 1]
+                colVals = colVals[::-1]
+                newCoords[:, 1] = colVals
+
+                totalResidualsNew = sum(residuals[newCoords[:, 0], newCoords[:, 1]])
+                if totalResidualsOriginal <= totalResidualsNew:
+                    return square
+                else:
+                    newSq[coords[:, 0], coords[:, 1]] = 0
+                    newSq[newCoords[:, 0], newCoords[:, 1]] = 1
+                    gMask = newSq == 5
+                    bMask = newSq == 6
+                    newSq[gMask] = 1
+                    newSq[bMask] = 3
+
+        gMask = newSq == 5
+        bMask = newSq == 6
+        newSq[gMask] = 1
+        newSq[bMask] = 3
+        return newSq
