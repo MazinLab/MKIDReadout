@@ -2,6 +2,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from mkidcore.corelog import getLogger
+from mkidcore.objects import Beammap
+from mkidreadout.configuration.beammap.flags import beamMapFlags
 
 # flags
 ISGOOD = 0b1
@@ -335,6 +337,13 @@ class SweepMetadata(object):
         self.ml_isgood_score[self.flag & ISBAD] = 0
         self.ml_isbad_score[self.flag & ISBAD] = 1
         self._vet()
+        
+    def powerDownUnbeammappedRes(self, beammap):
+        badResIDs = beammap.resIDs[beammap.flags != beamMapFlags['good']]
+        for i,r in enumerate(self.resIDs):
+            if np.any(r == badResIDs):
+                self.atten[i] = 99
+
 
 
 def loadold(allfile, goodfile, outfile='digWS_FL{feedline}_metadata.txt'):
