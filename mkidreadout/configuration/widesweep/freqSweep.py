@@ -27,7 +27,7 @@ from multiprocessing import Pool
 
 import matplotlib.pyplot as plt
 import numpy as np
-from mkidreadout.utils.readDict import readDict
+from mkidcore.readdict import ReadDict
 import mkidreadout.config
 import mkidcore.corelog
 from mkidcore.corelog import getLogger
