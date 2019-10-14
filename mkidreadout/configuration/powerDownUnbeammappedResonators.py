@@ -1,36 +1,27 @@
 import os
 import sys
-
+import argparse
+from glob import glob
 import numpy as np
-
-
-#todo make part of a frequency comb object
-
-def powerDownBadResonators(resIDList, attenList, badResIDList):
-    badInds = []
-    for badResID in badResIDList:
-        if(np.any(badResID==resIDList)):
-            badInds.append(np.where(resIDList==badResID)[0][0])
-
-    badInds = np.array(badInds)
-    attenList[badInds] = 99
-    return attenList
+from mkidcore.objects import Beammap
+from mkidreadout.configuration.sweepdata import SweepMetadata
 
 
 if __name__=='__main__':
-    # usage: python powerDownUnbeammappedResonators.py <freqfile_in_$MKID_DATA_DIR>
-    mdd = os.environ['MKID_DATA_DIR']
-    beammapFile = '/mnt/data0/Darkness/20180522/Beammap/finalMap_20180524.txt'
+    parser = argparse.ArgumentParser()
+    parser.add_argument('filepat', help='Pattern for matching frequency file(s)')
+    parser.add_argument('beammap', help='Beammap file')
+    args = parser.parse_args()
 
-    freqFile = os.path.join(mdd,sys.argv[1])
-    resIDs, freqs, attens = np.loadtxt(freqFile, unpack=True)
-    bmResIDs, bmFlag, x, y = np.loadtxt(beammapFile, unpack=True)
+    freqFiles = glob(args.filepat)
+    print 'found: ', freqFiles
+    beammap = Beammap(parser.beammap, (140, 146))
 
-    badResIDs = bmResIDs[np.where(bmFlag!=0)[0]]
+    for fl in freqFiles:
+        md = SweepMetadata(fl)
+        md.powerDownUnbeammappedRes(beammap)
+        md.save(fl.split('.')[0] + '_pdubr.txt')
 
-    attens = powerDownBadResonators(resIDs, attens, badResIDs)
-
-    np.savetxt(freqFile.split('.')[0] + '_pdubr.txt', np.transpose([resIDs, freqs, attens]), fmt='%4i %10.9e %4i')
 
 
 
