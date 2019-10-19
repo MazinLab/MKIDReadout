@@ -346,8 +346,9 @@ class MKIDDashboard(QMainWindow):
         timer.setInterval(1000)
         timer.start()
 
-
-        if self.config.instrument.lower() != 'bluefors':
+        if self.config.instrument.lower() == 'bluefors':
+            self.dither_dialog = None
+        else:
             #Dither window
             self.dither_dialog = DitherWindow(self.config.dither.url, parent=self)
 
