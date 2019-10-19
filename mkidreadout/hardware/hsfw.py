@@ -282,31 +282,32 @@ def getfilternames(host='localhost:50000', timeout=TIMEOUT):
         return 'Error: '+str(e)
 
 
-def getfilter(host='localhost:50000', timeout=TIMEOUT):
-    host, port = host.split(':')
-    getLogger(__name__).debug('Attempting to get filter from {} w/ t/o {}'.format(host, timeout))
-    conn = connect(host, port, timeout=timeout)
-    try:
-        conn.sendall('?\n'.encode('utf-8'))
-        data = conn.recv(2048).decode('utf-8').strip()
-        getLogger(__name__).info("Response: {}".format(data))
-        conn.close()
-        if data.lower().startswith('error'):
-            getLogger(__name__).error(data)
-            return data
-        return int(data)
-    except AttributeError:
-        msg = 'Cannot connect to filter server'
-        getLogger(__name__).error(msg)
-        return 'Error: ' +msg
-    except Exception as e:
-        msg = 'Cannot get status of filter server'
-        getLogger(__name__).error(msg, exc_info=True)
+def getfilter(host='localhost:50000', timeout=TIMEOUT, filter_connected=True):
+    if filter_connected:
+        host, port = host.split(':')
+        getLogger(__name__).debug('Attempting to get filter from {} w/ t/o {}'.format(host, timeout))
+        conn = connect(host, port, timeout=timeout)
         try:
+            conn.sendall('?\n'.encode('utf-8'))
+            data = conn.recv(2048).decode('utf-8').strip()
+            getLogger(__name__).info("Response: {}".format(data))
             conn.close()
+            if data.lower().startswith('error'):
+                getLogger(__name__).error(data)
+                return data
+            return int(data)
+        except AttributeError:
+            msg = 'Cannot connect to filter server'
+            getLogger(__name__).error(msg)
+            return 'Error: ' +msg
         except Exception as e:
-            getLogger(__name__).error('error:', exc_info=True)
-        return 'Error: '+str(e)
+            msg = 'Cannot get status of filter server'
+            getLogger(__name__).error(msg, exc_info=True)
+            try:
+                conn.close()
+            except Exception as e:
+                getLogger(__name__).error('error:', exc_info=True)
+            return 'Error: '+str(e)
 
 
 def setfilter(fnum, home=False, host='localhost:50000', killserver=False, timeout=TIMEOUT):

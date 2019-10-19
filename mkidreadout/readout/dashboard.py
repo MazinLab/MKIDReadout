@@ -461,7 +461,7 @@ class MKIDDashboard(QMainWindow):
         """
         for roach in self.roachList:
             roach.startSendingPhotons(self.config.packetmaster.ip, self.config.packetmaster.captureport)
-            roach.setMaxCountRate(self.config.dashboard.cpslim)
+            roach.setMaxCountRate(self.config.dashboard.max_count_rate)
         getLogger('Dashboard').info('Roaches sending photon packets!')
 
     def loadBeammap(self):
@@ -542,21 +542,22 @@ class MKIDDashboard(QMainWindow):
                     pass
             photonImage.header.update(state)
 
-            w = wcs.WCS(naxis=2)
-            w.wcs.ctype = ["RA--TAN", "DEC-TAN"]
-            w._naxis1, w._naxis2 = photonImage.shape
-            c = SkyCoord(photonImage.header['ra'], photonImage.header['dec'], unit=(units.hourangle, units.deg),
-                         obstime='J' + str(photonImage.header['equinox']))
-            w.wcs.crval = np.array([c.ra.deg, c.dec.deg])
-            w.wcs.crpix = compute_wcs_ref_pixel(json.loads(photonImage.header['dither_pos']),
-                                                self.config.dashboard.dither_home,
-                                                self.config.dashboard.dither_ref)
-            do_rad = np.deg2rad(self.config.dashboard.device_orientation)
-            w.wcs.pc = np.array([[np.cos(do_rad), -np.sin(do_rad)],
-                                 [np.sin(do_rad), np.cos(do_rad)]])
-            w.wcs.cdelt = [self.config.dashboard.platescale/3600.0, self.config.dashboard.platescale/3600.0]
-            w.wcs.cunit = ["deg", "deg"]
-            photonImage.header.update(w.to_header())
+            if self.config.instrument.lower() != 'bluefors':
+                w = wcs.WCS(naxis=2)
+                w.wcs.ctype = ["RA--TAN", "DEC-TAN"]
+                w._naxis1, w._naxis2 = photonImage.shape
+                c = SkyCoord(photonImage.header['ra'], photonImage.header['dec'], unit=(units.hourangle, units.deg),
+                             obstime='J' + str(photonImage.header['equinox']))
+                w.wcs.crval = np.array([c.ra.deg, c.dec.deg])
+                w.wcs.crpix = compute_wcs_ref_pixel(json.loads(photonImage.header['dither_pos']),
+                                                    self.config.dashboard.dither_home,
+                                                    self.config.dashboard.dither_ref)
+                do_rad = np.deg2rad(self.config.dashboard.device_orientation)
+                w.wcs.pc = np.array([[np.cos(do_rad), -np.sin(do_rad)],
+                                     [np.sin(do_rad), np.cos(do_rad)]])
+                w.wcs.cdelt = [self.config.dashboard.platescale/3600.0, self.config.dashboard.platescale/3600.0]
+                w.wcs.cunit = ["deg", "deg"]
+                photonImage.header.update(w.to_header())
 
             self.imageList.append(photonImage)
             self.fitsList.append(photonImage)  # for the stream
@@ -1012,35 +1013,38 @@ class MKIDDashboard(QMainWindow):
             if self.checkbox_flipper.isChecked():
                 QtCore.QTimer.singleShot(500 * 1000, flipperoff)
 
-    def setFilter(self, filter_index=None):
+    def setFilter(self, filter_index=None, instrument='mec'):
         error = False
-        if filter_index is None:
-            result = mkidreadout.hardware.hsfw.getfilter(self.config.filter.ip)
-            if str(result).lower().startswith('error'):
-                error = True
-            else:
-                self.filter=int(result)
-                filternames = mkidreadout.hardware.hsfw.getfilternames(self.config.filter.ip)
-                filternames = filternames.split(', ')
-                self.combobox_filter.clear()
-                self.combobox_filter.addItems(filternames)
-                self.combobox_filter.setCurrentIndex(self.filter - 1)
-        else:
-            if str(self.combobox_filter.itemText(filter_index)).startswith('Connect'):
-                return self.setFilter(None)
-            elif str(self.combobox_filter.itemText(filter_index)).startswith('Error'):
-                return
-            else:
-                result = mkidreadout.hardware.hsfw.setfilter(filter_index+1, home=False,host=self.config.filter.ip)
+        if self.config.instrument.lower() != 'bluefors':
+            if filter_index is None:
+                result = mkidreadout.hardware.hsfw.getfilter(self.config.filter.ip)
                 if str(result).lower().startswith('error'):
                     error = True
                 else:
-                    self.filter = int(result)
-        if error:
-            self.filter = 'UNKNOWN'
-            self.combobox_filter.clear()
-            self.combobox_filter.addItems(['Connect', 'Error'])
-            self.combobox_filter.setCurrentIndex(1)
+                    self.filter=int(result)
+                    filternames = mkidreadout.hardware.hsfw.getfilternames(self.config.filter.ip)
+                    filternames = filternames.split(', ')
+                    self.combobox_filter.clear()
+                    self.combobox_filter.addItems(filternames)
+                    self.combobox_filter.setCurrentIndex(self.filter - 1)
+            else:
+                if str(self.combobox_filter.itemText(filter_index)).startswith('Connect'):
+                    return self.setFilter(None)
+                elif str(self.combobox_filter.itemText(filter_index)).startswith('Error'):
+                    return
+                else:
+                    result = mkidreadout.hardware.hsfw.setfilter(filter_index+1, home=False,host=self.config.filter.ip)
+                    if str(result).lower().startswith('error'):
+                        error = True
+                    else:
+                        self.filter = int(result)
+            if error:
+                self.filter = 'UNKNOWN'
+                self.combobox_filter.clear()
+                self.combobox_filter.addItems(['Connect', 'Error'])
+                self.combobox_filter.setCurrentIndex(1)
+        else:
+            self.filter = 0
 
         self.logstate()
 
@@ -1138,6 +1142,8 @@ class MKIDDashboard(QMainWindow):
         if self.dither_dialog is not None:
             button_dither = QPushButton("Dithers")
             button_dither.clicked.connect(lambda: self.dither_dialog.show())
+        else:
+            button_dither = QPushButton("Dithers")
 
         # Filter
         label_filter = QLabel("Filter:")
@@ -1208,7 +1214,7 @@ class MKIDDashboard(QMainWindow):
         minCountRate = self.config.dashboard.min_count_rate
         label_maxCountRate = QLabel('max:')
         spinbox_maxCountRate = QSpinBox()
-        spinbox_maxCountRate.setRange(minCountRate, self.config.dashboard.cpslim)
+        spinbox_maxCountRate.setRange(minCountRate, self.config.dashboard.max_count_rate)
         spinbox_maxCountRate.setValue(maxCountRate)
         spinbox_maxCountRate.setSuffix(' #/s')
         spinbox_maxCountRate.setWrapping(False)

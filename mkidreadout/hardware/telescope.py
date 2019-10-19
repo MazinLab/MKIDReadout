@@ -120,7 +120,7 @@ class Telescope(object):
         self.user = user
 
     def get_header(self):
-        return {'RA': '00:00:00.0000', 'DEC': '00:00:00.0000', 'HA': 0.0, 'AIRMASS': 1.0, 'AZ': 0/.0, 'EL': 90,
+        return {'RA': '00:00:00.0000', 'DEC': '00:00:00.0000', 'HA': 0.0, 'AIRMASS': 1.0, 'AZ': .0, 'EL': 90,
                 'UTCTCS': '01/01/2000 00:00:00.00', 'EQUINOX': 2000.0, 'PARALLACTIC': 0.0}
     
 
@@ -133,6 +133,11 @@ class NoScope(Telescope):
         self.latStr = '00.0:00.0:00.0'
         self.lonStr = '0.0:00.0:00.00'
         self.elevation = 0.0
+
+    def get_telescope_position(self, targetName=None):
+        if targetName is None or len(targetName) == 0:
+            targetName = 'sky'
+        return self.get_header()
 
 
 class Subaru(Telescope):
