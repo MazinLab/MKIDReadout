@@ -120,14 +120,14 @@ class Telescope(object):
         self.user = user
 
     def get_header(self):
-        return {'RA': '00:00:00.0000', 'DEC': '00:00:00.0000', 'HA': 0.0, 'AIRMASS': 1.0, 'AZ': 45, 'EL': 90,
-                'TCS-UTC': '01/01/2000 00:00:00.00', 'EQUINOX': 2000.0}
-
+        return {'RA': '00:00:00.0000', 'DEC': '00:00:00.0000', 'HA': 0.0, 'AIRMASS': 1.0, 'AZ': 0/.0, 'EL': 90,
+                'UTCTCS': '01/01/2000 00:00:00.00', 'EQUINOX': 2000.0, 'PARALLACTIC': 0.0}
+    
 
 class Subaru(Telescope):
     def __init__(self, **kwargs):
         super(Subaru, self).__init__(**kwargs)
-        self.observatory = 'Subaru Telescope'
+        self.observatory = 'Subaru'
         self.lat = 19.0 + 49.0/60.0 + 43/3600.0
         self.lon = 155.0 + 28.0/60.0 + 50/3600.0
         self.latStr = '19.0:49.0:43.0'
@@ -148,7 +148,7 @@ class Palomar(Telescope):
         super(Palomar, self).__init__(**kwargs)
 
         #Palomar's position
-        self.observatory = 'Palomar 200" Hale Telescope'
+        self.observatory = 'Palomar'
 
         self.lat = 33.0 + 21.0/60.0 + 21.6/3600.0
         self.lon = 116.0 + 51.0/60.0 + 46.8/3600.0

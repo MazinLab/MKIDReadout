@@ -46,7 +46,7 @@ from mkidcore.fits import CalFactory, combineHDU, summarize
 from mkidcore.objects import Beammap
 from mkidreadout.channelizer.Roach2Controls import Roach2Controls
 from mkidreadout.hardware.lasercontrol import LaserControl
-from mkidreadout.hardware.telescope import Palomar, Subaru
+from mkidreadout.hardware.telescope import Palomar, Subaru, Telescope
 from mkidreadout.readout.guiwindows import DitherWindow, PixelHistogramWindow, PixelTimestreamWindow, TelescopeWindow
 from mkidreadout.readout.packetmaster import Packetmaster
 from mkidreadout.utils.utils import interpolateImage
@@ -325,14 +325,21 @@ class MKIDDashboard(QMainWindow):
         # telscope TCS connection
         #TODO make the Telescope work with Subaru, TCS query part is done
         getLogger('Dashboard').info('Setting up telescope connection...')
-        if self.config.instrument.lower() == 'mec':
-            self.telescopeController = Subaru(ip=self.config.telescope.ip, user=self.config.telescope.user,
-                                              password=self.config.telescope.password)
+        if self.config.telescope.ip is None:
+            self.telescopeController = Telescope()
         else:
-            self.telescopeController = Palomar(ip=self.config.telescope.ip, port=self.config.telescope.port,
-                                               receivePort=self.config.telescope.receive_port)
+            if self.config.instrument.lower() == 'mec':
+                self.telescopeController = Subaru(ip=self.config.telescope.ip, user=self.config.telescope.user,
+                                                  password=self.config.telescope.password)
+            elif self.config.instrument.lower() == 'dark':
+                self.telescopeController = Palomar(ip=self.config.telescope.ip, port=self.config.telescope.port,
+                                                   receivePort=self.config.telescope.receive_port)
+            elif self.config.instrument.lower() == 'bluefors':
+                self.telescopeController = Telescope()
 
         self.telescopeWindow = TelescopeWindow(self.telescopeController)
+        
+        # This polling loop is more to ensure that queries to the state don't lag
         self.last_tcs_poll = self.telescopeController.get_header()
         timer = QtCore.QTimer(self)
         timer.timeout.connect(self.update_tcs)
@@ -1071,7 +1078,7 @@ class MKIDDashboard(QMainWindow):
         telescope_state = self.telescopeController.get_header()
         now = datetime.utcnow()
         state = dict(target=targ, laser=self.laserController.status,
-                     flipper='image', filter=self.filter, observatory='Subaru',
+                     flipper='image', filter=self.filter, observatory=self.telescopeController.observatory,
                      instrument=self.config.instrument,
                      dither_home=tuple(self.config.dashboard.dither_home),
                      dither_ref=tuple(self.config.dashboard.dither_ref),
