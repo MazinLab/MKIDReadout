@@ -124,6 +124,17 @@ class Telescope(object):
                 'UTCTCS': '01/01/2000 00:00:00.00', 'EQUINOX': 2000.0, 'PARALLACTIC': 0.0}
     
 
+class NoScope(Telescope):
+    def __init__(self, **kwargs):
+        super(NoScope, self).__init__(**kwargs)
+        self.observatory = 'None'
+        self.lat = 0.0
+        self.lon = 0.0
+        self.latStr = '00.0:00.0:00.0'
+        self.lonStr = '0.0:00.0:00.00'
+        self.elevation = 0.0
+
+
 class Subaru(Telescope):
     def __init__(self, **kwargs):
         super(Subaru, self).__init__(**kwargs)

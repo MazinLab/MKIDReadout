@@ -46,7 +46,7 @@ from mkidcore.fits import CalFactory, combineHDU, summarize
 from mkidcore.objects import Beammap
 from mkidreadout.channelizer.Roach2Controls import Roach2Controls
 from mkidreadout.hardware.lasercontrol import LaserControl
-from mkidreadout.hardware.telescope import Palomar, Subaru, Telescope
+from mkidreadout.hardware.telescope import Palomar, Subaru, NoScope
 from mkidreadout.readout.guiwindows import DitherWindow, PixelHistogramWindow, PixelTimestreamWindow, TelescopeWindow
 from mkidreadout.readout.packetmaster import Packetmaster
 from mkidreadout.utils.utils import interpolateImage
@@ -326,7 +326,7 @@ class MKIDDashboard(QMainWindow):
         #TODO make the Telescope work with Subaru, TCS query part is done
         getLogger('Dashboard').info('Setting up telescope connection...')
         if self.config.telescope.ip is None:
-            self.telescopeController = Telescope()
+            self.telescopeController = NoScope()
         else:
             if self.config.instrument.lower() == 'mec':
                 self.telescopeController = Subaru(ip=self.config.telescope.ip, user=self.config.telescope.user,
@@ -335,7 +335,7 @@ class MKIDDashboard(QMainWindow):
                 self.telescopeController = Palomar(ip=self.config.telescope.ip, port=self.config.telescope.port,
                                                    receivePort=self.config.telescope.receive_port)
             elif self.config.instrument.lower() == 'bluefors':
-                self.telescopeController = Telescope()
+                self.telescopeController = NoScope()
 
         self.telescopeWindow = TelescopeWindow(self.telescopeController)
         
