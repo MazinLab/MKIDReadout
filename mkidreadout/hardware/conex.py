@@ -605,8 +605,11 @@ def status(address='http://localhost:50001', timeout=TIMEOUT):
         dictionary: {'state':self.state, 'pos':pos, 'conexstatus':status, 'limits':self.conex.limits}
         HTTP status code
     """
-    r = requests.post(address + '/conex', json={'command': 'status'}, timeout=timeout)
-    return r.json()
+    try:
+        r = requests.post(address + '/conex', json={'command': 'status'}, timeout=timeout)
+        return r.json()
+    except requests.exceptions.ConnectionError:
+        return {'state': 'Offline: HTTPConnectionError', 'pos': None, 'conexstatus': None, 'limits': None}
 
 
 def queryDither(address='http://localhost:50001', timeout=TIMEOUT):

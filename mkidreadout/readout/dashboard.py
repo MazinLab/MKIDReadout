@@ -346,42 +346,44 @@ class MKIDDashboard(QMainWindow):
         timer.setInterval(1000)
         timer.start()
 
-        #Dither window
-        self.dither_dialog = DitherWindow(self.config.dither.url, parent=self)
 
-        #TODO sort out the two dither logs
-        def logdither(status):
-            if status.offline or status.haserrors:
-                msg = 'Dither completed with errors: "{}", Conex Status="{}"'.format(
-                    status.state, status.conexstatus)
-                getLogger('Dashboard').error(msg)
-            else:
-                dither_result = 'Dither Path: {}\n'.format(str(status.last_dither).replace('\n', '\n   '))
-                getLogger('Dashboard').info(dither_result)
-                getLogger('dither').info(dither_result)
+        if self.config.instrument.lower() != 'bluefors':
+            #Dither window
+            self.dither_dialog = DitherWindow(self.config.dither.url, parent=self)
 
-        def logdither(d):
-            state = d['status']['state'][1]
-            if state == 'Stopped':
-                getLogger('Dashboard').error("Dither aborted early by user STOP. Conex Status="+str(d['status']['conexstatus']))
-            elif state.startswith('Error'):
-                getLogger('Dashboard').error("Dither aborted from error. Conex State="+state+" Conex Status="+str(d['status']['conexstatus']))
-            dither_dict = d['dither']
-            msg="Dither Path: ({}, {}) --> ({}, {}), {} steps {} seconds".format(
-                    dither_dict['startx'], dither_dict['starty'],
-                    dither_dict['endx'], dither_dict['endy'],
-                    dither_dict['n'], dither_dict['t'])
-            if 'subStep' in dither_dict.keys() and dither_dict['subStep']>0 and \
-               'subT' in dither_dict.keys() and dither_dict['subT']>0:
-                msg = msg+" +/-{} for {} seconds".format(dither_dict['subStep'], dither_dict['subT'])
-            msg = msg+"\n\tstarts={}\n\tends={}\n\tpath={}\n".format(dither_dict['startTimes'],
-                    dither_dict['endTimes'], zip(dither_dict['xlocs'], dither_dict['ylocs']))
-            getLogger('dither').info(msg)
-            getLogger('Dashboard').info(msg)
+            #TODO sort out the two dither logs
+            def logdither(status):
+                if status.offline or status.haserrors:
+                    msg = 'Dither completed with errors: "{}", Conex Status="{}"'.format(
+                        status.state, status.conexstatus)
+                    getLogger('Dashboard').error(msg)
+                else:
+                    dither_result = 'Dither Path: {}\n'.format(str(status.last_dither).replace('\n', '\n   '))
+                    getLogger('Dashboard').info(dither_result)
+                    getLogger('dither').info(dither_result)
 
-        self.dither_dialog.complete.connect(logdither)
-        self.dither_dialog.statusupdate.connect(self.logstate)
-        self.dither_dialog.hide()
+            def logdither(d):
+                state = d['status']['state'][1]
+                if state == 'Stopped':
+                    getLogger('Dashboard').error("Dither aborted early by user STOP. Conex Status="+str(d['status']['conexstatus']))
+                elif state.startswith('Error'):
+                    getLogger('Dashboard').error("Dither aborted from error. Conex State="+state+" Conex Status="+str(d['status']['conexstatus']))
+                dither_dict = d['dither']
+                msg="Dither Path: ({}, {}) --> ({}, {}), {} steps {} seconds".format(
+                        dither_dict['startx'], dither_dict['starty'],
+                        dither_dict['endx'], dither_dict['endy'],
+                        dither_dict['n'], dither_dict['t'])
+                if 'subStep' in dither_dict.keys() and dither_dict['subStep']>0 and \
+                   'subT' in dither_dict.keys() and dither_dict['subT']>0:
+                    msg = msg+" +/-{} for {} seconds".format(dither_dict['subStep'], dither_dict['subT'])
+                msg = msg+"\n\tstarts={}\n\tends={}\n\tpath={}\n".format(dither_dict['startTimes'],
+                        dither_dict['endTimes'], zip(dither_dict['xlocs'], dither_dict['ylocs']))
+                getLogger('dither').info(msg)
+                getLogger('Dashboard').info(msg)
+
+            self.dither_dialog.complete.connect(logdither)
+            self.dither_dialog.statusupdate.connect(self.logstate)
+            self.dither_dialog.hide()
 
 
         # Connect to ROACHES and initialize network port in firmware
@@ -1082,7 +1084,7 @@ class MKIDDashboard(QMainWindow):
                      instrument=self.config.instrument,
                      dither_home=tuple(self.config.dashboard.dither_home),
                      dither_ref=tuple(self.config.dashboard.dither_ref),
-                     dither_pos=self.dither_dialog.status['pos'],
+                     dither_pos=self.dither_dialog.status['pos'] if self.dither_dialog is not None else None,
                      platescale=self.config.dashboard.platescale,
                      device_orientation=self.config.dashboard.device_orientation,
                      utc_readable=now.strftime("%Y%m%d%H%M%S"), utc=now.strftime("%Y%m%d%H%M%S"), comment=cmt)
@@ -1132,8 +1134,9 @@ class MKIDDashboard(QMainWindow):
             self.button_obs.clicked.connect(self.startObs)
 
         # dithering
-        button_dither = QPushButton("Dithers")
-        button_dither.clicked.connect(lambda: self.dither_dialog.show())
+        if self.dither_dialog is not None:
+            button_dither = QPushButton("Dithers")
+            button_dither.clicked.connect(lambda: self.dither_dialog.show())
 
         # Filter
         label_filter = QLabel("Filter:")
@@ -1485,8 +1488,10 @@ class MKIDDashboard(QMainWindow):
             window.close()
         self.telescopeWindow._want_to_close = True
         self.telescopeWindow.close()
-        self.dither_dialog._want_to_close=True
-        self.dither_dialog.close()
+
+        if self.dither_dialog is not None:
+            self.dither_dialog._want_to_close=True
+            self.dither_dialog.close()
 
         self.hide()
         time.sleep(0.2) #wait a bit so everything finishes exiting nicely
