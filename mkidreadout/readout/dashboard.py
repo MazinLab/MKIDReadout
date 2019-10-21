@@ -323,7 +323,6 @@ class MKIDDashboard(QMainWindow):
                                             self.config.lasercontrol.receive_port)
 
         # telscope TCS connection
-        #TODO make the Telescope work with Subaru, TCS query part is done
         getLogger('Dashboard').info('Setting up telescope connection...')
         if self.config.telescope.ip is None:
             self.telescopeController = NoScope()
@@ -339,7 +338,7 @@ class MKIDDashboard(QMainWindow):
 
         self.telescopeWindow = TelescopeWindow(self.telescopeController)
         
-        # This polling loop is more to ensure that queries to the state don't lag
+        # This polling loop is to help ensure that queries to the state don't lag
         self.last_tcs_poll = self.telescopeController.get_header()
         timer = QtCore.QTimer(self)
         timer.timeout.connect(self.update_tcs)
@@ -385,7 +384,6 @@ class MKIDDashboard(QMainWindow):
             self.dither_dialog.complete.connect(logdither)
             self.dither_dialog.statusupdate.connect(self.logstate)
             self.dither_dialog.hide()
-
 
         # Connect to ROACHES and initialize network port in firmware
         getLogger('Dashboard').info('Connecting roaches and loading beammap...')
