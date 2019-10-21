@@ -130,6 +130,9 @@ class LiveImageFetcher(QtCore.QObject):  # Extends QObject for use with QThreads
         self.finished.emit()
 
 
+_stretchtime = [0,0]
+
+
 class ConvertPhotonsToRGB(QtCore.QObject):
     """
     This class takes 2D arrays of photon counts and converts them into a QImage
@@ -141,8 +144,8 @@ class ConvertPhotonsToRGB(QtCore.QObject):
     """
     convertedImage = QtCore.pyqtSignal(object)
 
-    def __init__(self, image, minCountCutoff=0, maxCountCutoff=450, stretchMode='log', interpolate=False, makeRed=True,
-                 parent=None):
+    def __init__(self, cal_factory=None, image=None, minCountCutoff=0, maxCountCutoff=450, stretchMode='log',
+                 interpolate=False, makeRed=True, parent=None):
         """
         INPUTS:
             image - 2D numpy array of photon counts with np.nan where beammap failed
@@ -152,7 +155,10 @@ class ConvertPhotonsToRGB(QtCore.QObject):
             interpolate - interpolate over np.nan pixels
         """
         super(QtCore.QObject, self).__init__(parent)
+        self.cal_factory = cal_factory
         self.image = np.copy(image)
+        if cal_factory is None and image is None:
+            raise ValueError('Must specify cal_factory or image')
         self.minCountCutoff = minCountCutoff
         self.maxCountCutoff = maxCountCutoff
         self.interpolate = interpolate
@@ -164,6 +170,11 @@ class ConvertPhotonsToRGB(QtCore.QObject):
         """
         map photons to greyscale
         """
+        global _stretchtime
+        tic = time.time()
+        if self.image is None:
+            self.image = self.cal_factory.generate(name='LiveImage', bias=0, maskvalue=np.nan)
+
         # first interpolate and find hot pixels
         if self.interpolate:
             self.image = interpolateImage(self.image)
@@ -181,6 +192,12 @@ class ConvertPhotonsToRGB(QtCore.QObject):
             raise ValueError('Unknown stretch mode')
 
         self.makeQPixMap(imageGrey)
+        _stretchtime = (_stretchtime[0] + time.time() - tic, _stretchtime[1]+1)
+
+        if _stretchtime[1] > 60:
+            msg = 'ConvertPhotonsToRGB.stretchImage took {:.3} ms/frame for the last {} frames.'
+            getLogger(__name__).debug(msg.format(1000*_stretchtime[0]/_stretchtime[1], _stretchtime[1]))
+            _stretchtime = (0, 0)
 
     def logStretch(self):
         """
@@ -597,20 +614,15 @@ class MKIDDashboard(QMainWindow):
                 self.checkbox_darkImage.setChecked(False)
                 getLogger('Dashboard').warning('Unable to load flat from {}'.format(self.darkfile))
 
-
-        #NB this really could be moved into the ConvertPhotonsToRGB thread
+        # Set up worker object and thread for the display.
+        #  All of this code could be axed if the live image was broken out into a separate program
         cf = CalFactory('avg', images=self.imageList[-1:],
                         dark=self.darkField if self.checkbox_darkImage.isChecked() else None,
-                        flat=self.flatField if self.checkbox_flatImage.isChecked() else None)
-        image = cf.generate(name='LiveImage', bias=0)
-        image.data[self.beammapFailed] = np.nan
+                        flat=self.flatField if self.checkbox_flatImage.isChecked() else None,
+                        mask=self.beammapFailed)
 
-        # Set up worker object and thread
-        converter = ConvertPhotonsToRGB(image.data,
-                                        self.config.dashboard.min_count_rate,
-                                        self.config.dashboard.max_count_rate,
-                                        self.combobox_stretch.currentText(),
-                                        self.checkbox_interpolate.isChecked(),
+        converter = ConvertPhotonsToRGB(cf, self.config.dashboard.min_count_rate, self.config.dashboard.max_count_rate,
+                                        self.combobox_stretch.currentText(), self.checkbox_interpolate.isChecked(),
                                         not self.checkbox_smooth.isChecked())  # no red pixels if smoothing
 
         thread = self.startworker(converter, "convertImage_{}".format(len(self.threadPool)))
