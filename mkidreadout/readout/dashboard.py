@@ -622,9 +622,11 @@ class MKIDDashboard(QMainWindow):
                         flat=self.flatField if self.checkbox_flatImage.isChecked() else None,
                         mask=self.beammapFailed)
 
-        converter = ConvertPhotonsToRGB(cf, self.config.dashboard.min_count_rate, self.config.dashboard.max_count_rate,
-                                        self.combobox_stretch.currentText(), self.checkbox_interpolate.isChecked(),
-                                        not self.checkbox_smooth.isChecked())  # no red pixels if smoothing
+        converter = ConvertPhotonsToRGB(cal_factory=cf, minCountCutoff=self.config.dashboard.min_count_rate,
+                                        maxCountCutoff=self.config.dashboard.max_count_rate,
+                                        stretchMode=self.combobox_stretch.currentText(),
+                                        interpolate=self.checkbox_interpolate.isChecked(),
+                                        makeRed=not self.checkbox_smooth.isChecked())  # no red pixels if smoothing
 
         thread = self.startworker(converter, "convertImage_{}".format(len(self.threadPool)))
         thread.started.connect(converter.stretchImage)
