@@ -198,7 +198,7 @@ class ConvertPhotonsToRGB(QtCore.QObject):
 
         if _stretchtime[1] > 60:
             msg = 'ConvertPhotonsToRGB.stretchImage took {:.3} ms/frame for the last {} frames.'
-            getLogger(__name__).debug(msg.format(1000*_stretchtime[0]/_stretchtime[1], _stretchtime[1]))
+            getLogger('Dashboard').debug(msg.format(1000*_stretchtime[0]/_stretchtime[1], _stretchtime[1]))
             _stretchtime = (0, 0)
 
     def logStretch(self):
