@@ -156,7 +156,7 @@ class ConvertPhotonsToRGB(QtCore.QObject):
         """
         super(QtCore.QObject, self).__init__(parent)
         self.cal_factory = cal_factory
-        self.image = np.copy(image)
+        self.image = np.copy(image) if image is not None else None
         if cal_factory is None and image is None:
             raise ValueError('Must specify cal_factory or image')
         self.minCountCutoff = minCountCutoff
@@ -172,12 +172,14 @@ class ConvertPhotonsToRGB(QtCore.QObject):
         """
         global _stretchtime
         tic = time.time()
+
         if self.image is None:
-            self.image = self.cal_factory.generate(name='LiveImage', bias=0, maskvalue=np.nan)
+            self.image = self.cal_factory.generate(name='LiveImage', bias=0, maskvalue=np.nan).data
 
         # first interpolate and find hot pixels
         if self.interpolate:
             self.image = interpolateImage(self.image)
+
         self.image[~np.isfinite(self.image)] = 0  # get rid of np.nan's
 
         self.redPixels = self.image >= self.maxCountCutoff if self.makeRed else []
