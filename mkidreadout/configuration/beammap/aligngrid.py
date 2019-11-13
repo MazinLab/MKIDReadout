@@ -28,7 +28,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import scipy.ndimage as sciim
 
-from mkidcore.readdict import ReadDict
+from mkidcore.config import load
 from mkidreadout.configuration.beammap.flags import beamMapFlags
 from mkidreadout.configuration.beammap.utils import DARKNESS_FL_WIDTH, MEC_FL_WIDTH, N_FL_DARKNESS, N_FL_MEC, \
     getFLFromID, isInCorrectFL
@@ -310,7 +310,7 @@ class KVecGUI():
         self.fig.canvas.mpl_connect('button_press_event', self.onClick)
         
 
-        plt.show()
+        plt.show(block=True)
 
 
     def onClick(self, event):
@@ -334,14 +334,14 @@ if __name__=='__main__':
         print('Usage: "python alignGrid.py <configFile>", where <configFile> is in MKID_DATA_DIR')
         exit(1)
 
-    cfgFn=sys.argv[1]
-    if not os.path.isfile(cfgFn):
+    cfgfilename=sys.argv[1]
+    if not os.path.isfile(cfgfilename):
         mdd = os.environ['MKID_DATA_DIR']
-        cfgFn = os.path.join(mdd, cfgFn)
-    paramDict = ReadDict()
-    paramDict.read_from_file(cfgFn)
+        cfgfilename = os.path.join(mdd, cfgfilename)
+    config = load(cfgfilename)
 
-    aligner = BMAligner(paramDict['masterPositionList'], paramDict['nXPix'], paramDict['nYPix'], paramDict['instrument'], paramDict['flip'])
+    aligner = BMAligner(config.beammap.paths.beammapdirectory+config.beammap.paths.masterpositionlist,
+                        config.beammap.numcols, config.beammap.numrows, config.beammap.instrument, config.beammap.flip)
     aligner.makeRawImage()
     #aligner.fftRawImage()
     aligner.loadFFT()
@@ -351,8 +351,9 @@ if __name__=='__main__':
     aligner.findOffset(50000)
     aligner.plotCoords()
     aligner.saveRawMap(paramDict['outputFilename'])
-    if paramDict['masterDoublesList'] is not None:
-        aligner.makeDoublesRawMap(paramDict['masterDoublesList'], paramDict['outputDoubleName'])
+    if config.beammap.paths.masterdoubleslist is not None:
+        aligner.makeDoublesRawMap(config.beammap.paths.beammapdirectory+config.beammap.paths.masterdoubleslist,
+                                  config.beammap.paths.beammapdirectory+config.beammap.paths.outputdoublename)
 
 
 

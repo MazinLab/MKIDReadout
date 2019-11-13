@@ -22,6 +22,7 @@ import numpy as np
 from mkidreadout.utils.readDict import readDict
 
 from mkidcore.objects import Beammap
+from mkidcore.config import load
 from mkidreadout.configuration.beammap import shift
 from mkidreadout.configuration.beammap.flags import beamMapFlags
 from mkidreadout.configuration.beammap.utils import generateCoords, getFLFromCoords, getFLFromID, isInCorrectFL, \
@@ -391,22 +392,23 @@ if __name__=='__main__':
     parser.add_argument('cfgFile', nargs=1, type=str, default='/mnt/data0/MEC/20181218/clean.cfg', help='Configuration file')
     #default config file location
     args = parser.parse_args()
-    configFileName = args.cfgFile[0]
+    cfgfilename = args.cfgFile[0]
+
+    config = load(cfgfilename)
+
     resolutionType = args
     log.setLevel(logging.INFO)
 
-    configData = readDict()
-    configData.read_from_file(configFileName)
-    beammapDirectory = configData['beammapDirectory']
-    finalBMFile = configData['finalBMFile']
-    rawBMFile = configData['rawBMFile']
-    useFreqs = configData['useFreqs']
-    psFiles = configData['powersweeps']
-    designFile = configData['designMapFile']
-    numRows = configData['numRows']
-    numCols = configData['numCols']
-    flipParam = configData['flip']
-    inst = configData['instrument']
+    beammapDirectory = config.beammap.paths.beammapdirectory
+    finalBMFile = beammapDirectory+config.beammap.paths.finalbmfile
+    rawBMFile = beammapDirectory+config.beammap.paths.outputfilename
+    useFreqs = config.beammap.clean.usefreqs
+    psFiles = config.beammap.clean.psfiles
+    designFile = config.beammap.paths.designmapfile
+    numRows = config.beammap.numrows
+    numCols = config.beammap.numcols
+    flipParam = config.beammap.flip
+    inst = config.beammap.instrument
 
     rawBeamMap = Beammap(rawBMFile, (146, 140), 'MEC')
     if useFreqs:

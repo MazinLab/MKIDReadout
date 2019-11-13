@@ -1,0 +1,45 @@
+!configdict
+beammap: !configdict
+
+  paths: !configdict
+    imgFileDirectory: /Users/dodkins/MEC/20181218/ScienceDataIMGs/
+    beammapDirectory: /Users/dodkins/MEC/20181218/
+    initialBeammap: mec.bmap
+    roughBeammap: beammap_20181218_FL1.bmap
+    masterPositionList: beammap_20181219_all_clicked.bmap
+    masterDoublesList: None
+    outputFilename: RawMap20181218.txt
+    outputDoubleName: None
+    designMapFile: /mnt/data0/nswimmer/Repositories/mapcheckertesting/mec_feedline.txt
+    finalBMFile: finalMapV1_1.txt
+
+  instrument: 'MEC'
+  numCols: 140
+  numRows: 146
+  flip: False
+
+  sweep: !configdict #
+    sweeps:
+      - !configdict
+        sweeptype: x
+        sweepdirection: +
+        speed: 1
+        size: 3
+        starttime: 1545187978
+        duration: 500
+
+      - !configdict
+        sweeptype: y
+        sweepdirection: +
+        speed: 1
+        size: 3
+        starttime: 1545188573
+        duration: 500
+    fittype: gaussian
+
+  align: placeholder
+
+  clean: !configdict
+    usefreqs: False
+    psFiles: 'ps*.txt'
+

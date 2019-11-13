@@ -34,7 +34,7 @@ import numpy as np
 
 matplotlib.use('Qt4Agg')
 import matplotlib.pyplot as plt
-from mkidcore.config import importoldconfig, ConfigThing, _consolidateconfig
+from mkidcore.config import importoldconfig, ConfigThing, _consolidateconfig, load
 from mkidcore.corelog import getLogger, create_log
 
 import argparse
@@ -790,7 +790,8 @@ class RoughBeammap():
         allResIDs_map, flag_map, self.x_locs, self.y_locs = shapeBeammapIntoImages(self.config.beammap.sweep.initialbeammap, self.config.beammap.sweep.roughbeammap)
 
     def loadSweepImgs(self, s):
-        path = self.config.beammap.sweep.imgfiledirectory
+        # path = self.config.beammap.sweep.imgfiledirectory
+        path = self.config.beammap.paths.imgfiledirectory
         startTime = s.starttime
         duration = s.duration
         if duration % 2 == 0:
@@ -799,13 +800,13 @@ class RoughBeammap():
                                             "make it odd")
             duration -= 1
         fnList = [path + str(startTime + i) + '.img' for i in range(duration)]
-        nRows = s.numrows
-        nCols = s.numcols
+        nRows = self.config.beammap.numrows
+        nCols = self.config.beammap.numcols
         return loadImgFiles(fnList, nRows, nCols)
 
     def manualSweepCleanup(self):
-        m = ManualRoughBeammap(self.x_images, self.y_images, self.config.beammap.sweep.initialbeammap,
-                               self.config.beammap.sweep.roughbeammap, self.config.beammap.sweep.fittype)
+        m = ManualRoughBeammap(self.x_images, self.y_images, self.config.beammap.paths.initialbeammap,
+                               self.config.beammap.paths.roughbeammap, self.config.beammap.sweep.fittype)
 
     def plotTimestream(self):
         pass
@@ -836,13 +837,14 @@ if __name__ == '__main__':
 
 
     parser = argparse.ArgumentParser(description='MKID Beammap Analysis Utility')
-    parser.add_argument('cfgfile', type=str, default='sweep.cfg',help='Configuration file for beammap sweeps')
+    parser.add_argument('cfgfilename', type=str, default='sweep.cfg',help='Configuration file for beammap sweeps')
     parser.add_argument('-cc', default=False, action='store_true', dest='use_cc', help='run in Xcor mode')
     args = parser.parse_args()
 
-    thisconfig = ConfigThing()
-    importoldconfig(thisconfig, args.cfgfile, namespace='beammap.sweep')
-    _consolidateconfig(thisconfig.beammap.sweep)
+    # thisconfig = ConfigThing()
+    # importoldconfig(thisconfig, args.cfgfile, namespace='beammap.sweep')
+    # _consolidateconfig(thisconfig.beammap.sweep)
+    thisconfig = load(args.cfgfilename)
     #registersettings()
 
     log.info('Starting rough beammap')
