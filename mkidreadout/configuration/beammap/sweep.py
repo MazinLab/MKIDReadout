@@ -2,8 +2,8 @@
 Author: Alex Walter
 Date: June 5, 2018
 
-This file contains classes and functions used to create a rough beammap
-A rough beammap is the following format:
+This file contains classes and functions used to create a temporal beammap
+A temporal beammap is the following format:
 resID   flag    time_x  time_y
 [int    int     float   float]
 
@@ -14,15 +14,15 @@ resID   flag    loc_x   loc_y
 
 Classes in this file:
 BeamSweep1D(imageList, pixelComputationMask=None, minCounts=5, maxCountRate=2499)
-ManualRoughBeammap(x_images, y_images, initialBeammap, roughBeammapFN)
-RoughBeammap(configFN)
+ManualTemporalBeammap(x_images, y_images, initialBeammap, temporalBeammapFN)
+TemporalBeammap(configFN)
 BeamSweepGaussFit(imageList, initialGuessImage)
 
 Usage:
     From the commandline:
     $ python sweep.py sweep.cfg [-cc]
 
-    The optional -cc option will run the crosscorellation and create a new rough beammap
+    The optional -cc option will run the crosscorellation and create a new temporal beammap
     Otherwise, it will run the manual click GUI
 
 """
@@ -58,7 +58,7 @@ class FitBeamSweep(object):
         self.peakLocs = np.empty(imageList[0].shape)
         self.peakLocs[:] = np.nan
 
-    def fitRoughPeakLocs(self, fitType, fitWindow=20):
+    def fitTemporalPeakLocs(self, fitType, fitWindow=20):
         """
         INPUTS:
             fitWindow - Only find peaks within this window of the initial guess
@@ -86,7 +86,7 @@ class FitBeamSweep(object):
 
 class CorrelateBeamSweep(object):
     """
-    This class is for computing a rough beammap using a list of images
+    This class is for computing a temporal beammap using a list of images
     
     It uses a complicated cross-correlation function to find the pixel locations
     """
@@ -238,19 +238,19 @@ class CorrelateBeamSweep(object):
         return locs
 
 
-class ManualRoughBeammap(object):
-    def __init__(self, x_images, y_images, initialBeammap, roughBeammapFN, fitType = None):
+class ManualTemporalBeammap(object):
+    def __init__(self, x_images, y_images, initialBeammap, temporalBeammapFN, fitType = None):
         """
         Class for manually clicking through beammap.
-        Saves a rough beammap with filename roughBeammapFN-HHMMSS.txt
-        A 'rough' beammap is one that doesn't have x/y but instead the peak location in time from the swept light beam.
+        Saves a temporal beammap with filename temporalBeammapFN-HHMMSS.txt
+        A 'temporal' beammap is one that doesn't have x/y but instead the peak location in time from the swept light beam.
 
         INPUTS:
             x_images - list of images for sweep(s) in x-direction
             y_images -
             initialBeammap - path+filename of initial beammap used for making the images
-            roughBeammapFN - path+filename of the rough beammap (time at peak instead of x/y value)
-                             If the roughBeammap doesn't exist then it will be instantiated with nans
+            temporalBeammapFN - path+filename of the temporal beammap (time at peak instead of x/y value)
+                             If the temporalBeammap doesn't exist then it will be instantiated with nans
                              We append a timestamp to this string as the output file
             fitType - Type of fit to use when finding exact peak location from click. Current options are
                              com and gaussian. Ignored if None (default).
@@ -263,14 +263,14 @@ class ManualRoughBeammap(object):
         self.nTime_y = len(self.y_images)
 
         self.initialBeammapFN = initialBeammap
-        self.roughBeammapFN = roughBeammapFN
-        # self.outputBeammapFn = roughBeammapFN.rsplit('.',1)[0]+time.strftime('-%H%M%S')+'.txt'
-        self.outputBeammapFn = roughBeammapFN.rsplit('.', 1)[0] + '_clicked.bmap'
+        self.temporalBeammapFN = temporalBeammapFN
+        # self.outputBeammapFn = temporalBeammapFN.rsplit('.',1)[0]+time.strftime('-%H%M%S')+'.txt'
+        self.outputBeammapFn = temporalBeammapFN.rsplit('.', 1)[0] + '_clicked.bmap'
         if os.path.isfile(self.outputBeammapFn):
-            self.roughBeammapFN = self.outputBeammapFn
+            self.temporalBeammapFN = self.outputBeammapFn
         self.resIDsMap, self.flagMap, self.x_loc, self.y_loc = shapeBeammapIntoImages(self.initialBeammapFN,
-                                                                                      self.roughBeammapFN)
-        if self.roughBeammapFN is None or not os.path.isfile(self.roughBeammapFN):
+                                                                                      self.temporalBeammapFN)
+        if self.temporalBeammapFN is None or not os.path.isfile(self.temporalBeammapFN):
             self.flagMap[np.where(self.flagMap != beamMapFlags['noDacTone'])] = beamMapFlags['failed']
 
         self.fitType = fitType.lower()
@@ -282,7 +282,7 @@ class ManualRoughBeammap(object):
         # for row in range(len(self.y_loc)):
         #    for col in range(len(self.y_loc[0])):
         #        self.y_loc[row, col] = snapToPeak(self.y_images[:,row,col],self.y_loc[row,col],10)
-        # self.saveRoughBeammap()
+        # self.saveTemporalBeammap()
 
         self.goodPix = np.where((self.flagMap != beamMapFlags['noDacTone']) * (totalCounts_x + totalCounts_y) > 0)
         self.nGoodPix = len(self.goodPix[0])
@@ -297,7 +297,7 @@ class ManualRoughBeammap(object):
 
         plt.show()
 
-    def saveRoughBeammap(self):
+    def saveTemporalBeammap(self):
         getLogger('beammap').info('Saving: '.format(self.outputBeammapFn))
         allResIDs = self.resIDsMap.flatten()
         flags = self.flagMap.flatten()
@@ -517,7 +517,7 @@ class ManualRoughBeammap(object):
             self.flagMap[y, x] = beamMapFlags['yFailed']
         elif np.logical_not(np.isfinite(self.x_loc[y, x])) * np.logical_not(np.isfinite(self.y_loc[y, x])):
             self.flagMap[y, x] = beamMapFlags['failed']
-        self.saveRoughBeammap()
+        self.saveTemporalBeammap()
         self.updateFlagMapPlot()
 
     def updateFlagMapPlot(self):
@@ -583,10 +583,10 @@ class ManualRoughBeammap(object):
             plt.show()
 
 
-class RoughBeammap():
+class TemporalBeammap():
     def __init__(self, config):
         """
-        This class is for finding the rough location of each pixel in units of timesteps
+        This class is for finding the temporal location of each pixel in units of timesteps
         INPUTS:
             configFN - config file listing the sweeps and properties
         """
@@ -635,7 +635,7 @@ class RoughBeammap():
             self.x_images = images
         else:
             self.y_images = images
-        getLogger('sweep.RoughBeammap').info('Stacked {} {} sweeps', int(nSweeps), sweepType)
+        getLogger('sweep.TemporalBeammap').info('Stacked {} {} sweeps', int(nSweeps), sweepType)
         return images
 
     def concatImages(self, sweepType, removeBkg=True):
@@ -734,7 +734,7 @@ class RoughBeammap():
         imageList = self.stackImages(sweepType)
         sweep = FitBeamSweep(imageList, locEstimates)
         if locEstimates is None: fitWindow = None
-        locs = sweep.fitRoughPeakLocs(fitType, fitWindow=fitWindow)
+        locs = sweep.fitTemporalPeakLocs(fitType, fitWindow=fitWindow)
         if sweepType in ['x', 'X']:
             self.x_locs = locs
         else:
@@ -750,17 +750,17 @@ class RoughBeammap():
     #    sweep = CorrelateBeamSweep(imageList,pixelComputationMask)
     #    locs=sweep.findRelativePixelLocations()
     #    sweepFit = BeamSweepGaussFit(imageList, locs)
-    #    locs = sweepFit.fitRoughPeakLocs()
+    #    locs = sweepFit.fitTemporalPeakLocs()
     #
     #    if sweepType in ['x','X']: self.x_locs=locs
     #    else: self.y_locs=locs
-    #    self.saveRoughBeammap()
+    #    self.saveTemporalBeammap()
 
-    def saveRoughBeammap(self):
+    def saveTemporalBeammap(self):
 
         getLogger('beammap').info('Saving')
         allResIDs_map, flag_map, x_map, y_map = shapeBeammapIntoImages(self.config.beammap.sweep.initialbeammap,
-                                                                       self.config.beammap.sweep.roughbeammap)
+                                                                       self.config.beammap.sweep.temporalbeammap)
         otherFlagArgs = np.where((flag_map != beamMapFlags['good']) * (flag_map != beamMapFlags['failed']) * (
                     flag_map != beamMapFlags['xFailed']) * (flag_map != beamMapFlags['yFailed']))
         otherFlags = flag_map[otherFlagArgs]
@@ -784,10 +784,10 @@ class RoughBeammap():
         y = y_map.flatten()
         args = np.argsort(allResIDs)
         data = np.asarray([allResIDs[args], flags[args], x[args], y[args]]).T
-        np.savetxt(self.config.beammap.sweep.roughbeammap, data, fmt='%7d %3d %7f %7f')
+        np.savetxt(self.config.beammap.sweep.temporalbeammap, data, fmt='%7d %3d %7f %7f')
 
-    def loadRoughBeammap(self):
-        allResIDs_map, flag_map, self.x_locs, self.y_locs = shapeBeammapIntoImages(self.config.beammap.sweep.initialbeammap, self.config.beammap.sweep.roughbeammap)
+    def loadTemporalBeammap(self):
+        allResIDs_map, flag_map, self.x_locs, self.y_locs = shapeBeammapIntoImages(self.config.beammap.sweep.initialbeammap, self.config.beammap.sweep.temporalbeammap)
 
     def loadSweepImgs(self, s):
         # path = self.config.beammap.sweep.imgfiledirectory
@@ -805,8 +805,8 @@ class RoughBeammap():
         return loadImgFiles(fnList, nRows, nCols)
 
     def manualSweepCleanup(self):
-        m = ManualRoughBeammap(self.x_images, self.y_images, self.config.beammap.paths.initialbeammap,
-                               self.config.beammap.paths.roughbeammap, self.config.beammap.sweep.fittype)
+        m = ManualTemporalBeammap(self.x_images, self.y_images, self.config.beammap.paths.initialbeammap,
+                               self.config.beammap.paths.temporalbeammap, self.config.beammap.sweep.fittype)
 
     def plotTimestream(self):
         pass
@@ -814,7 +814,7 @@ class RoughBeammap():
 def registersettings(cfgObj):
     cfgObj.register('beammap.sweep.imgfiledirectory', '')
     cfgObj.register('beammap.sweep.initialbeammap', '')
-    cfgObj.register('beammap.sweep.roughbeammap', '')
+    cfgObj.register('beammap.sweep.temporalbeammap', '')
     cfgObj.register('detector.nrow', 146)
     cfgObj.register('detector.ncol', 140)
 
@@ -835,30 +835,25 @@ if __name__ == '__main__':
     create_log('mkidreadout')
     log = getLogger('Sweep')
 
-
     parser = argparse.ArgumentParser(description='MKID Beammap Analysis Utility')
     parser.add_argument('cfgfilename', type=str, default='sweep.cfg',help='Configuration file for beammap sweeps')
     parser.add_argument('-cc', default=False, action='store_true', dest='use_cc', help='run in Xcor mode')
     args = parser.parse_args()
 
-    # thisconfig = ConfigThing()
-    # importoldconfig(thisconfig, args.cfgfile, namespace='beammap.sweep')
-    # _consolidateconfig(thisconfig.beammap.sweep)
     thisconfig = load(args.cfgfilename)
-    #registersettings()
 
-    log.info('Starting rough beammap')
-    b = RoughBeammap(thisconfig)
+    log.info('Starting temporal beammap')
+    b = TemporalBeammap(thisconfig)
 
     if args.use_cc: #Cross correllation mode
-        b.loadRoughBeammap()
+        b.loadTemporalBeammap()
         b.concatImages('x',False)
         b.concatImages('y',False)
         b.findLocWithCrossCorrelation('x')
         b.findLocWithCrossCorrelation('y')
         b.refinePeakLocs('x', b.config.beammap.sweep.fittype, b.x_locs, fitWindow=15)
         b.refinePeakLocs('y', b.config.beammap.sweep.fittype, b.y_locs, fitWindow=15)
-        b.saveRoughBeammap()
+        b.saveTemporalBeammap()
     else:   #Manual mode
         log.info('Stack x and y')
         b.stackImages('x')

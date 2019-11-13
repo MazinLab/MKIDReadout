@@ -1,11 +1,11 @@
 """
 cleanV2.py
 
-Takes rough beammap with overlapping pixels and pixels out of bounds
+Takes temporal beammap with overlapping pixels and pixels out of bounds
 Reconciles doubles by placing them in nearest empty pix
 Places o.o.b pixels in random position, changes flag to 1
 Places failed pixels randomly.
-Outputs final cleaned beammap with ID, flag, x, y; ready to go into dashboard
+Outputs quantized cleaned beammap with ID, flag, x, y; ready to go into dashboard
 
 TODO: refactor to actually use the Beammap class
 
@@ -379,8 +379,8 @@ class BMCleaner(object):
             INPUTS:
                 path - full path of beammap file
         '''
-        assert np.all(np.isnan(self.placedXs)==False), 'NaNs in final beammap!'
-        assert np.all(np.isnan(self.placedYs)==False), 'NaNs in final beammap!'
+        assert np.all(np.isnan(self.placedXs)==False), 'NaNs in quantized final beammap!'
+        assert np.all(np.isnan(self.placedYs)==False), 'NaNs in quantized final beammap!'
         log.info('N good pixels: ' + str(np.sum(self.beamMap.flags.astype(int)==beamMapFlags['good'])))
         log.info('N doubles: ' + str(np.sum(self.beamMap.flags.astype(int)==beamMapFlags['double'])))
         log.info('N failed pixels (read out but not beammapped): ' + str(np.sum((self.beamMap.flags.astype(int)!=beamMapFlags['good']) & (self.beamMap.flags.astype(int)!=beamMapFlags['double']) & (self.beamMap.flags.astype(int)!=beamMapFlags['noDacTone']))))
@@ -400,8 +400,8 @@ if __name__=='__main__':
     log.setLevel(logging.INFO)
 
     beammapDirectory = config.beammap.paths.beammapdirectory
-    finalBMFile = beammapDirectory+config.beammap.paths.finalbmfile
-    rawBMFile = beammapDirectory+config.beammap.paths.outputfilename
+    quantizedbeammap = beammapDirectory+config.beammap.paths.quantizedbeammap
+    alignedbeammap = beammapDirectory+config.beammap.paths.alignedbeammap
     useFreqs = config.beammap.clean.usefreqs
     psFiles = config.beammap.clean.psfiles
     designFile = config.beammap.paths.designmapfile
@@ -410,7 +410,7 @@ if __name__=='__main__':
     flipParam = config.beammap.flip
     inst = config.beammap.instrument
 
-    rawBeamMap = Beammap(rawBMFile, (146, 140), 'MEC')
+    rawBeamMap = Beammap(alignedbeammap, (146, 140), 'MEC')
     if useFreqs:
         rawBeamMap.loadFrequencies(psFiles)
         cleaner = BMCleaner(beamMap=rawBeamMap, nRows=numRows, nCols=numCols,
@@ -432,11 +432,11 @@ if __name__=='__main__':
     if useFreqs:
         cleaner.resolveOverlapWithFrequency()
         cleaner.placeFailedPixels()
-        cleaner.saveBeammap(finalBMFile)
+        cleaner.saveBeammap(quantizedbeammap)
     else:
         cleaner.resolveOverlaps()
         cleaner.placeFailedPixels()
-        cleaner.saveBeammap(finalBMFile)
+        cleaner.saveBeammap(quantizedbeammap)
 
     fig2 = plt.figure()
     ax2 = fig2.add_subplot(111)

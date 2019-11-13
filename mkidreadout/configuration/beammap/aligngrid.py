@@ -1,10 +1,10 @@
 """
 Automates the functionality in the pixels_movingscan GUI. Finds the optimal scale, angle, and
-offset from the raw beammap data, applies these, and saves the beammap file. Note that clean.py
+offset from the temporal beammap data, applies these, and saves the beammap file. Note that clean.py
 should still be run after this.
 
 Algorithm outline:
-    1. Take an FFT of the lattice of raw pixel coordinates (x/y sweep timestamps from sweep.py)
+    1. Take an FFT of the lattice of temporal pixel coordinates (x/y sweep timestamps from sweep.py)
     2. Find the fundamental frequencies in x and y planes (click on them w/ GUI)
     3. Use these to determine scale factor and angle
 TODO: implement skew
@@ -13,7 +13,7 @@ Author: Neelay Fruitwala
 
 Usage: python alignGrid.py <configFile>
     configFile is almost identical to the GridConfig.dict file used by pixels_movingscan - it specifies
-    the master beamlist and doubles lists that come out of the clickthrough GUI, as well as the raw beammap
+    the master beamlist and doubles lists that come out of the clickthrough GUI, as well as the temporal beammap
     output files. The only difference is that it has parameters for nXPix and nYPix.
 
 """
@@ -42,11 +42,11 @@ class BMAligner(object):
         self.nYPix = nYPix
         self.instrument = instrument.lower()
         self.flip = flip
-        self.resIDs, self.flags, self.rawXs, self.rawYs = np.loadtxt(beamListFn, unpack=True)
-        self.makeRawImage()
-        self.rawImage = None
-        self.rawImageFFT = None
-        self.rawImageFreqs = None
+        self.resIDs, self.flags, self.temporalXs, self.temporalYs = np.loadtxt(beamListFn, unpack=True)
+        self.makeTemporalImage()
+        self.temporalImage = None
+        self.temporalImageFFT = None
+        self.temporalImageFreqs = None
 
         if instrument.lower()=='mec':
             self.flWidth = MEC_FL_WIDTH
@@ -58,34 +58,38 @@ class BMAligner(object):
         else:
             raise Exception('Instrument ' + instrument + ' not implemented yet!')
 
-    def makeRawImage(self):
-        self.rawImage = np.zeros((int(np.max(self.rawXs[np.where(np.isfinite(self.rawXs))])*self.usFactor+2), int(np.max(self.rawYs[np.where(np.isfinite(self.rawYs))])*self.usFactor+2)))
+    def makeTemporalImage(self):
+        self.temporalImage = np.zeros((int(np.max(self.temporalXs[np.where(np.isfinite(self.temporalXs))])*self.usFactor+2), int(np.max(self.temporalYs[np.where(np.isfinite(self.temporalYs))])*self.usFactor+2)))
         for i, resID in enumerate(self.resIDs):
             if self.flags[i] == beamMapFlags['good']:
-                if np.isfinite(self.rawXs[i]) and np.isfinite(self.rawYs[i]):
-                    self.rawImage[int(round(self.rawXs[i]*self.usFactor)), int(round(self.rawYs[i]*self.usFactor))] = 1
+                if np.isfinite(self.temporalXs[i]) and np.isfinite(self.temporalYs[i]):
+                    self.temporalImage[int(round(self.temporalXs[i]*self.usFactor)), int(round(self.temporalYs[i]*self.usFactor))] = 1
 
-    def fftRawImage(self, save=True):
-        self.rawImageFFT = np.abs(np.fft.fft2(self.rawImage))
-        self.rawImageFreqs = [np.fft.fftfreq(self.rawImageFFT.shape[0]), np.fft.fftfreq(self.rawImageFFT.shape[1])]
+    def fftTemporalImage(self, save=True):
+        self.temporalImageFFT = np.abs(np.fft.fft2(self.temporalImage))
+        self.temporalImageFreqs = [np.fft.fftfreq(self.temporalImageFFT.shape[0]), np.fft.fftfreq(self.temporalImageFFT.shape[1])]
         if save:
-            np.savez(os.path.join(os.path.dirname(self.beamListFn), 'rawImageFFT.npz'), rawImageFFT=self.rawImageFFT, rawImageFreqs=self.rawImageFreqs)
+            np.savez(os.path.join(os.path.dirname(self.beamListFn), 'temporalImageFFT.npz'), temporalImageFFT=self.temporalImageFFT, temporalImageFreqs=self.temporalImageFreqs)
 
     def loadFFT(self, path=None):
         if path is None:
-            path = os.path.join(os.path.dirname(self.beamListFn), 'rawImageFFT.npz')
+            path = os.path.join(os.path.dirname(self.beamListFn), 'temporalImageFFT.npz')
 
         warnings.warn('Loading FFT from ' + str(path))
         fftDict = np.load(path)
-        self.rawImageFFT = fftDict['rawImageFFT']
-        self.rawImageFreqs = fftDict['rawImageFreqs']
-
+        try:
+            self.temporalImageFFT = fftDict['temporalImageFFT']
+            self.temporalImageFreqs = fftDict['temporalImageFreqs']
+        except KeyError:
+            print('FFT file has old format variable names')
+            self.temporalImageFFT = fftDict['rawImageFFT']
+            self.temporalImageFreqs = fftDict['rawImageFreqs']
     
     def findKvecsAuto(self):
-        maxFiltFFT = sciim.maximum_filter(self.rawImageFFT, size=10)
-        locMaxMask = (self.rawImageFFT==maxFiltFFT)
+        maxFiltFFT = sciim.maximum_filter(self.temporalImageFFT, size=10)
+        locMaxMask = (self.temporalImageFFT==maxFiltFFT)
         
-        maxInds = np.argsort(self.rawImageFFT, axis=None)
+        maxInds = np.argsort(self.temporalImageFFT, axis=None)
         maxInds = maxInds[::-1]
 
         # find four nonzero k-vectors
@@ -93,8 +97,8 @@ class BMAligner(object):
         i = 0
         kvecList = np.zeros((2,2))
         while nMaxFound < 2:
-            maxCoords = np.unravel_index(maxInds[i], self.rawImageFFT.shape)
-            kvec = np.array([self.rawImageFreqs[0][maxCoords[0]], self.rawImageFreqs[1][maxCoords[1]]])
+            maxCoords = np.unravel_index(maxInds[i], self.temporalImageFFT.shape)
+            kvec = np.array([self.temporalImageFreqs[0][maxCoords[0]], self.temporalImageFreqs[1][maxCoords[1]]])
 
             if locMaxMask[maxCoords]==1 and (kvec[0]**2+kvec[1]**2)>0.05:
                 if nMaxFound == 0:
@@ -125,9 +129,9 @@ class BMAligner(object):
 
     def findKvecsManual(self):
         shiftedFreqs = [0, 0]
-        shiftedFreqs[0] = np.fft.fftshift(self.rawImageFreqs[0])
-        shiftedFreqs[1] = np.fft.fftshift(self.rawImageFreqs[1])
-        shiftedImage = np.fft.fftshift(self.rawImageFFT)
+        shiftedFreqs[0] = np.fft.fftshift(self.temporalImageFreqs[0])
+        shiftedFreqs[1] = np.fft.fftshift(self.temporalImageFreqs[1])
+        shiftedImage = np.fft.fftshift(self.temporalImageFFT)
 
         kvecGui = KVecGUI(shiftedImage, shiftedFreqs, 30*self.usFactor)
         self.xKvec = kvecGui.kx
@@ -152,10 +156,10 @@ class BMAligner(object):
         s = np.sin(-self.angle)
         rotMat = np.array([[c, -s], [s, c]])
         if xVals is None:
-            rawCoords = np.stack((self.rawXs, self.rawYs))
+            temporalCoords = np.stack((self.temporalXs, self.temporalYs))
         else:
-            rawCoords = np.stack((xVals, yVals))
-        coords = np.dot(rotMat,rawCoords)
+            temporalCoords = np.stack((xVals, yVals))
+        coords = np.dot(rotMat,temporalCoords)
         coords = np.transpose(coords)
         coords[:,0] /= self.xScale
         coords[:,1] /= self.yScale
@@ -258,16 +262,16 @@ class BMAligner(object):
         newCoords[:,1] = coords[:,1] - self.yOffs
         return newCoords
 
-    def saveRawMap(self, rawMapFn):
-        np.savetxt(rawMapFn, np.transpose([self.resIDs, self.flags, self.coords[:,0], self.coords[:,1]]), fmt='%4i %4i %.5f %.5f')
+    def saveTemporalMap(self, temporalMapFn):
+        np.savetxt(temporalMapFn, np.transpose([self.resIDs, self.flags, self.coords[:,0], self.coords[:,1]]), fmt='%4i %4i %.5f %.5f')
 
-    def makeDoublesRawMap(self, doublesListFn, rawDoublesMapFn):
+    def makeDoublesTemporalMap(self, doublesListFn, temporalDoublesMapFn):
         resID, x1, y1, x2, y2 = np.loadtxt(doublesListFn, unpack=True)
         coords1 = self.rotateAndScaleCoords(x1, y1)
         coords2 = self.rotateAndScaleCoords(x2, y2)
         coords1 = self.applyOffset(coords1)
         coords2 = self.applyOffset(coords2)
-        np.savetxt(rawDoublesMapFn, np.transpose([resID, coords1[:,0], coords1[:,1], 
+        np.savetxt(temporalDoublesMapFn, np.transpose([resID, coords1[:,0], coords1[:,1],
             coords2[:,0], coords2[:,1]]), fmt='%4i %.5f %.5f %.5f %.5f')
         
     def plotCoords(self):
@@ -340,22 +344,19 @@ if __name__=='__main__':
         cfgfilename = os.path.join(mdd, cfgfilename)
     config = load(cfgfilename)
 
-    aligner = BMAligner(config.beammap.paths.beammapdirectory+config.beammap.paths.masterpositionlist,
+    print(config.beammap.paths.masterdoubleslist)
+    aligner = BMAligner(config.beammap.paths.beammapdirectory+config.beammap.paths.mastertemporalbeammap,
                         config.beammap.numcols, config.beammap.numrows, config.beammap.instrument, config.beammap.flip)
-    aligner.makeRawImage()
-    #aligner.fftRawImage()
+    aligner.makeTemporalImage()
+    # aligner.fftTemporalImage()
     aligner.loadFFT()
     aligner.findKvecsManual()
     aligner.findAngleAndScale()
     aligner.rotateAndScaleCoords()
     aligner.findOffset(50000)
     aligner.plotCoords()
-    aligner.saveRawMap(paramDict['outputFilename'])
+    aligner.saveTemporalMap(config.beammap.paths.beammapdirectory+config.beammap.paths.alignedbeammap)
     if config.beammap.paths.masterdoubleslist is not None:
-        aligner.makeDoublesRawMap(config.beammap.paths.beammapdirectory+config.beammap.paths.masterdoubleslist,
+        aligner.makeDoublesTemporalMap(config.beammap.paths.beammapdirectory+config.beammap.paths.masterdoubleslist,
                                   config.beammap.paths.beammapdirectory+config.beammap.paths.outputdoublename)
 
-
-
-                
-            
