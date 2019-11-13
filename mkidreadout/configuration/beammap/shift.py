@@ -82,7 +82,7 @@ class BeammapShifter(object):
         self.feedlineShifts = None
         self.designArray = DesignArray()
         if self.instrument.lower() == 'mec':
-            self.feedlines = [Feedline(i, self.beammap, self.design, instrument='mec') for i in range(1, 11)]
+            self.feedlines = [Feedline(i, self.beammap, self.design, instrument='mec') for i in [1, 6, 7, 8, 9, 10]]
         elif self.instrument.lower() == 'darkness':
             self.feedlines = [Feedline(i, self.beammap, self.design, instrument='darkness') for i in range(1, 6)]
         else:
@@ -158,7 +158,7 @@ class Feedline(object):
         self.flags = beammap.get('flags', self.flNum)
         self.xcoords = np.floor(beammap.get('xcoords', self.flNum))
         self.ycoords = np.floor(beammap.get('ycoords', self.flNum))
-        self.frequencies = beammap.get('frequencies', self.flNum)
+        self.frequencies = beammap.get('frequencies', self.flNum) / 1e6
         self.xshifts = np.linspace(-1 * self.maxX, self.maxX, (2 * self.maxX) + 1).astype(int)
         self.yshifts = np.linspace(-1 * self.maxY, self.maxY, (2 * self.maxY) + 1).astype(int)
         self.shiftedXcoords = np.full((len(self.yshifts), len(self.xshifts), len(self.xcoords)), np.nan)
@@ -231,8 +231,8 @@ class Feedline(object):
                     residuals.append(np.nan)
                     matchedf.append(np.nan)
                     desf.append(np.nan)
-                    raise Exception("Pixel was not assigned a frequency so we could not find a residual for it. This"
-                                    "beammap may already have been cleaned")
+                    # raise Exception("Pixel was not assigned a frequency so we could not find a residual for it. This"
+                    #                 "beammap may already have been cleaned")
             else:
                 residuals.append(np.nan)
                 matchedf.append(np.nan)
