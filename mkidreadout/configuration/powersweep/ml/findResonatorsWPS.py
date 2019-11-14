@@ -143,4 +143,8 @@ if __name__=='__main__':
         band = 'b'
 
     print 'Saving resonator metadata in:', args.metadata
-    saveMetadata(args.metadata, resFreqs, resAttens, scores, inst.guessFeedline(os.path.basename(args.inferenceData)), band)
+    try:
+        fl = inst.guessFeedline(os.path.basename(args.inferenceData))
+    except ValueError:
+        fl = 1
+    saveMetadata(args.metadata, resFreqs, resAttens, scores, fl, band)
