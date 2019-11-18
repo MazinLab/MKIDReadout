@@ -12,6 +12,7 @@ from __future__ import print_function
 
 import argparse
 import threading
+from pkg_resources import resource_filename
 
 import mkidreadout.config
 from mkidreadout.channelizer.InitStateMachine import InitStateMachine
@@ -28,8 +29,11 @@ def worker(rNum, config):
     print("r" + str(rNum) + " Done")
     del roach
 
-def reinitADCDAC(rNums, config):
+def reinitADCDAC(rNums, config=None):
     threads = []
+    if config is None:
+        configFn = resource_filename('mkidreadout', os.path.join('config', 'roach.yml'))
+        config = mkidreadout.config.load(configFn)
     for n in rNums:
         t = threading.Thread(target=worker, args=(n, config))
         threads.append(t)
