@@ -594,18 +594,18 @@ if __name__ == "__main__":
         #After this loop, rNumsA and rNumsB are low and high frequency boards aligned by FL, with Nones in case only half feedline is being sweeped 
         for i,fl in enumerate(args.feedlines):
             if fl.isdigit(): #is a number, so full feedline represented
-                rNumsA.append(flToRoach[fl + 'a']) 
-                rNumsB.append(flToRoach[fl + 'b']) 
+                rNumsA.append(int(flToRoach[fl + 'a']))
+                rNumsB.append(int(flToRoach[fl + 'b'])) 
             elif i+1 < len(args.feedlines) and fl[0:-1] == args.feedlines[i+1][0:-1]: #fl na followed by nb, so full FL represented
-                rNumsA.append(flToRoach[fl]) 
-                rNumsB.append(flToRoach[args.feedlines[i+1]])
+                rNumsA.append(int(flToRoach[fl]))
+                rNumsB.append(int(flToRoach[args.feedlines[i+1]]))
                 args.feedlines.remove(args.feedlines[i+1])
             else:
                 if fl[-1]=='a':
-                    rNumsA.append(flToRoach[fl])
+                    rNumsA.append(int(flToRoach[fl]))
                     rNumsB.append(None)
                 elif fl[-1]=='b':
-                    rNumsB.append(flToRoach[fl])
+                    rNumsB.append(int(flToRoach[fl]))
                     rNumsA.append(None)
                 else:
                     raise Exception(fl + ' must be feedline number followed by a or b')
@@ -615,7 +615,6 @@ if __name__ == "__main__":
         rNums = rNumsA + rNumsB
         rNums = list(np.unique(rNums))
         rNums.remove(None) #rNums is sorted list of roach nums with None's removed
-        
         setupMultRoaches4FreqSweep(rNums, freqFN=args.freq_file, defineLUTs=True)
 
         maxAttens(mkidcore.instruments.ROACHES[args.instrument.lower()]) #max attens of all roaches
