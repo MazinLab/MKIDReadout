@@ -136,6 +136,7 @@ def setupRoach4FreqSweep(roachNum, freqFN='rfFreqs.txt', defineLUTs=False):
             roachController.dacQuantizedFreqList=dacQuantizedFreqList
         
         #defineDacLUTs
+        print 'roachNum', type(roachNum)
         loFreq=random.random()*2.-1.+5000.+2000.*roachNum%2    #Around 5000MHz for even roaches, 7000MHz for odd roaches. Should really specify based on low or high band of feedline since roach numbers are arbitrary. Although, with MEC even/odd numbers are low/high band. 
         if defineLUTs:
             combDict = roachController.generateDacComb()
@@ -253,20 +254,20 @@ def mecSlowPowerSweeps(rNumsA, rNumsB, startFreqA, endFreqA, startFreqB, endFreq
     """ 
     rNumsA = np.asarray(rNumsA)
     rNumsB = np.asarray(rNumsB)
-    rNumsB = np.roll(rNumsB) #want feedlines to not line up
+    rNumsB = np.roll(rNumsB, 1) #want feedlines to not line up
     k_dictA={'startFreq':startFreqA,'endFreq':endFreqA,'startDacAtten':startDacAtten, 'endDacAtten':endDacAtten, 'attenStep':attenStep, 'loStepQ':1, 'nOverlap':14, 'freqList':freqList, 'defineLUTs':defineLUTs, 'outputFN':outputFN}
-    k_dictB=k_dict.copy()
-    k_dict2['startFreq']=startFreqB
-    k_dict2['endFreq']=startFreqB
+    k_dictB=k_dictA.copy()
+    k_dictB['startFreq']=startFreqB
+    k_dictB['endFreq']=startFreqB
     for i, rNum in enumerate(rNumsA):
         if rNum is not None:
-            reinitADCDAC(np.asarray([rNum]))
-            t1=threading.Thread(target=takePowerSweep, args=(rNum,),kwargs=k_dict)   
+            reinitADCDAC([rNum])
+            t1=threading.Thread(target=takePowerSweep, args=(rNum,),kwargs=k_dictA)   
             t1.start()
         
         if rNumsB[i] is not None:
-            reinitADCDAC(rNumsB[i])
-            t2=threading.Thread(target=takePowerSweep, args=(rNumsB[i],),kwargs=k_dict2)   
+            reinitADCDAC([rNumsB[i]])
+            t2=threading.Thread(target=takePowerSweep, args=(rNumsB[i],),kwargs=k_dictB)   
             t2.start()
 
         if rNum is not None:

@@ -10,6 +10,7 @@ Usage: $python reinitADCDAC.py 220 221 223
 """
 from __future__ import print_function
 
+import os
 import argparse
 import threading
 from pkg_resources import resource_filename
