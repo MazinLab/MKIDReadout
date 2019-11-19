@@ -251,26 +251,34 @@ def mecSlowPowerSweeps(rNumsA, rNumsB, startFreqA, endFreqA, startFreqB, endFreq
             3 column freq file (resID, freq, atten) of 1024 IF freqs to use for tones
 
     """ 
-    maxAttens(rNumsA)
-    maxAttens(rNumsB)
-
+    rNumsA = np.asarray(rNumsA)
+    rNumsB = np.asarray(rNumsB)
+    rNumsB = np.roll(rNumsB) #want feedlines to not line up
     k_dictA={'startFreq':startFreqA,'endFreq':endFreqA,'startDacAtten':startDacAtten, 'endDacAtten':endDacAtten, 'attenStep':attenStep, 'loStepQ':1, 'nOverlap':14, 'freqList':freqList, 'defineLUTs':defineLUTs, 'outputFN':outputFN}
     k_dictB=k_dict.copy()
     k_dict2['startFreq']=startFreqB
     k_dict2['endFreq']=startFreqB
     for i, rNum in enumerate(rNumsA):
-        #reinitADCDAC(np.asarray([rNum,rNumsB[i]]), mkidreadout.config.load('/home/data/MEC/20190911/roach.yml'))
-        reinitADCDAC(np.asarray([rNum]))
-
-        t1=threading.Thread(target=takePowerSweep, args=(rNum,),kwargs=k_dict)   
-        t1.start()
+        if rNum is not None:
+            reinitADCDAC(np.asarray([rNum]))
+            t1=threading.Thread(target=takePowerSweep, args=(rNum,),kwargs=k_dict)   
+            t1.start()
         
-        #t2=threading.Thread(target=takePowerSweep, args=(rNumsB[i],),kwargs=k_dict2)   
-        #t2.start()
+        if rNumsB[i] is not None:
+            reinitADCDAC(rNumsB[i])
+            t2=threading.Thread(target=takePowerSweep, args=(rNumsB[i],),kwargs=k_dict2)   
+            t2.start()
 
-        t1.join()
-        #t2.join()   #wait until they both finish
-        del t1#, t2
+        if rNum is not None:
+            t1.join() 
+        if rNumsB[i] is not None:
+            t2.join()   #wait until they both finish
+        if rNum is not None:
+            del t1
+            maxAttens(rNum)
+        if rNumsB[i] is not None:
+            del t2
+            maxAttens(rNumsB[i])
         
         #maxAttens(np.asarray([rNum,rNumsB[i]]))
 
@@ -548,7 +556,7 @@ if __name__ == "__main__":
     parser.add_argument('-a', action='store_true', default=False, dest='all_feedlines',
                         help='Run with all feedlines/roaches for instrument in cfg')
     parser.add_argument('-r', '--roaches', nargs='+', type=int, help='Roach numbers to sweep')
-    parser.add_argument('-f', '--feedlines', nargs='+', type=str, help='Feedlines to sweep')
+    parser.add_argument('-f', '--feedlines', nargs='+', type=str, help='Feedlines to sweep (e.g. "1", "1a", "2b")')
     parser.add_argument('-o', '--output', default='psData.npz', 
                         help='Output path. Should end w/ .npz extension, boardNum is automatically added')
     parser.add_argument('--freq-file', default='ifFreqs_full.txt', 
@@ -559,6 +567,9 @@ if __name__ == "__main__":
                         If not specified, 2GHz above LF start freq')
     parser.add_argument('--end-freq-b', type=float, default=None, help='LF sweep end (Hz). \
                         If not specified, 2GHz above LF end freq')
+    parser.add_argument('--start-atten', type=float, default=3.75)
+    parser.add_argument('--end-atten', type=float, default=33.75)
+    parser.add_argument('--atten-step', type=float, default=1)
     args = parser.parse_args()
 
     if args.feedlines is not None and args.roaches is not None:
@@ -586,9 +597,9 @@ if __name__ == "__main__":
                 rNumsA.append(flToRoach[fl + 'a']) 
                 rNumsB.append(flToRoach[fl + 'b']) 
             elif i+1 < len(args.feedlines) and fl[0:-1] == args.feedlines[i+1][0:-1]: #fl na followed by nb, so full FL represented
-                    rNumsA.append(flToRoach[fl]) 
-                    rNumsB.append(flToRoach[args.feedlines[i+1]])
-                    args.feedlines.remove(args.feedlines[i+1])
+                rNumsA.append(flToRoach[fl]) 
+                rNumsB.append(flToRoach[args.feedlines[i+1]])
+                args.feedlines.remove(args.feedlines[i+1])
             else:
                 if fl[-1]=='a':
                     rNumsA.append(flToRoach[fl])
@@ -613,9 +624,16 @@ if __name__ == "__main__":
         startTime=time.time()
         mecSlowPowerSweeps(rNumsA, rNumsB, args.start_freq_a, args.end_freq_a, args.start_freq_b, 
                 args.end_freq_b, freqList=args.freq_file, defineLUTs=False, outputFN=args.output, 
-                startDacAtten=3.75, endDacAtten=33.75,attenStep=1)
+                startDacAtten=args.start_atten, endDacAtten=args.end_atten,attenStep=args.atten_step)
         t1=time.time()-startTime
         print t1
+
+    elif args.roaches is not None:
+        setupMultRoaches4FreqSweep(args.roaches, freqFN=args.freq_file, defineLUTs=True)
+        takeMultPowerSweeps(args.roaches, startFreqs=args.start_freq_a*np.ones(len(args.roaches)), 
+                endFreqs=args.end_freq_a*np.ones(len(args.roaches)), startDacAtten=args.start_atten, 
+                endDacAtten=args.end_atten, attenStep=args.atten_step, loStepQ=1, nOverlap=14, 
+                freqList=args.freq_file, defineLUTs=False, outputFN=args.output)
     
 
     #startTime=time.time()
