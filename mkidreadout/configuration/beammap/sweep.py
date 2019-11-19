@@ -34,8 +34,9 @@ import numpy as np
 
 matplotlib.use('Qt4Agg')
 import matplotlib.pyplot as plt
-from mkidcore.config import importoldconfig, ConfigThing, _consolidateconfig, load
+from mkidcore.config import ConfigThing, load
 from mkidcore.corelog import getLogger, create_log
+from mkidcore.hdf.mkidbin import extract
 
 import argparse
 
@@ -802,7 +803,34 @@ class TemporalBeammap():
         fnList = [path + str(startTime + i) + '.img' for i in range(duration)]
         nRows = self.config.beammap.numrows
         nCols = self.config.beammap.numcols
+        for image in loadImgFiles(fnList, nRows, nCols):
+            plt.imshow(image)
+            plt.show(block=True)
         return loadImgFiles(fnList, nRows, nCols)
+
+
+    def loadSweepBins(self, s):
+        path = self.config.beammap.paths.imgfiledirectory
+        startTime = s.starttime
+        duration = s.duration
+        if duration % 2 == 0:
+            getLogger('beammap.sweep').warn("Having an even number of time steps"
+                                            "can create off by 1 errors: subtracting one time step to "
+                                            "make it odd")
+            duration -= 1
+        fnList = [path + str(startTime + i) + '.bin' for i in range(duration)]
+        nRows = self.config.beammap.numrows
+        nCols = self.config.beammap.numcols
+        beamfile = os.path.join(self.config.beammap.paths.beammapdirectory, self.config.beammap.paths.initialbeammap)
+        images=[]
+        # duration = 10
+        for start in range(startTime, startTime+duration):
+            photons = extract(path, start, 1, beamfile, nCols, nRows)
+            image = np.histogram(photons['ResID'], bins=nCols * nRows)[0].reshape(nRows, nCols)
+            images.append(image)
+            plt.imshow(image)
+            plt.show(block=True)
+        return np.array(images)
 
     def manualSweepCleanup(self):
         m = ManualTemporalBeammap(self.x_images, self.y_images, self.config.beammap.paths.initialbeammap,
