@@ -23,6 +23,7 @@ import traceback
 import warnings
 import time
 import argparse
+#from argparse import RawTextHelpFormatter
 from functools import partial
 from multiprocessing import Pool
 
@@ -533,40 +534,88 @@ class FreqSweep:
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description='MKID Init GUI')
+    getLogger(__name__, setup=True)
+    getLogger('mkidreadout.channelizer.Roach2Controls').setLevel(mkidcore.corelog.DEBUG)
+    getLogger('casperfpga').setLevel(mkidcore.corelog.INFO)
+    parser = argparse.ArgumentParser(description='Performs frequency/power sweeps for full feedline coverage.\n\
+                        There are two modes:\n\
+                            \n\t1) If instrument/feedlines are specified, sweep relevant ROACH boards as specified\
+                                    in mkidcore.instruments. Sweeps are done in slow mode to prevent crosstalk.\n\
+                            \n\t2) If roach numbers are specified, sweeps those ROACH boards simultaneously.\
+                                Mostly intended for testing/debugging single sweeps.')
     parser.add_argument('instrument', type=str, default='mec',
                         help='The instrument, either mec or darkness')
     parser.add_argument('-a', action='store_true', default=False, dest='all_feedlines',
                         help='Run with all feedlines/roaches for instrument in cfg')
     parser.add_argument('-r', '--roaches', nargs='+', type=int, help='Roach numbers to sweep')
-    parser.add_argument('-f', '--feedlines', nargs='+', type=int, he)
+    parser.add_argument('-f', '--feedlines', nargs='+', type=str, help='Feedlines to sweep')
     parser.add_argument('-o', '--output', default='psData.npz', 
                         help='Output path. Should end w/ .npz extension, boardNum is automatically added')
     parser.add_argument('--freq-file', default='ifFreqs_full.txt', 
                         help='freqfile of IF band tone freqs to use. Default is file committed to repo')
-    parser.add_argument('--start-freq-a', type=float, default=3.43e9, help='LF sweep start (Hz)')
-    parser.add_argument('--end-freq-a', type=float, default=5.43e9, help='LF sweep end (Hz)')
-    parser.add_argument('--start-freq-b', type=float, default=None, help='HF sweep start (Hz)')
-    parser.add_argument('--end-freq-b', type=float, default=None, help='LF sweep end (Hz)')
+    parser.add_argument('-s', '--start-freq-a', type=float, default=3.43e9, help='LF sweep start (Hz)')
+    parser.add_argument('-e', '--end-freq-a', type=float, default=5.43e9, help='LF sweep end (Hz)')
+    parser.add_argument('--start-freq-b', type=float, default=None, help='HF sweep start (Hz). \
+                        If not specified, 2GHz above LF start freq')
+    parser.add_argument('--end-freq-b', type=float, default=None, help='LF sweep end (Hz). \
+                        If not specified, 2GHz above LF end freq')
     args = parser.parse_args()
 
-    if args.start_freq_b is None:
-        args.start_freq_b = args.start_freq_a + 2.e9
-    if args.end_freq_b is None:
-        args.end_freq_b = args.end_freq_a + 2.e9
+    if args.feedlines is not None and args.roaches is not None:
+        raise Exception('Cannot specify both ROACH boards and feedlines.')
 
-    if args.instrument.lower() == 'mec':
-        flToRoach = mkidcore.instruments.MEC_FL_NUM_MAP
-    elif args.instrument.lower() == 'darkness':
-        flToRoach = mkidcore.instruments.DARKNESS_FL_NUM_MAP
-    
-    setupMultRoaches4FreqSweep(rNums, freqFN=args.freqFN, defineLUTs=True)
+    if args.feedlines is not None:
+        if args.start_freq_b is None:
+            args.start_freq_b = args.start_freq_a + 2.e9
+        if args.end_freq_b is None:
+            args.end_freq_b = args.end_freq_a + 2.e9
 
-    
-    startTime=time.time()
-    mecSlowPowerSweeps(freqList=args.freqFN, defineLUTs=False, outputFN='/home/data/MEC/20190911/psData',startDacAtten=3.75, endDacAtten=33.75,attenStep=1)
-    t1=time.time()-startTime
-    print t1
+        if args.instrument.lower() == 'mec':
+            flToRoach = mkidcore.instruments.MEC_FL_NUM_MAP
+        elif args.instrument.lower() == 'darkness':
+            flToRoach = mkidcore.instruments.DARKNESS_FL_NUM_MAP
+
+        rNumsA = []
+        rNumsB = []
+        args.feedlines = list(np.unique(args.feedlines))
+        args.feedlines.sort()
+        getLogger(__name__).info('Sweeping feedines: ' + str(args.feedlines))
+        #After this loop, rNumsA and rNumsB are low and high frequency boards aligned by FL, with Nones in case only half feedline is being sweeped 
+        for i,fl in enumerate(args.feedlines):
+            if fl.isdigit(): #is a number, so full feedline represented
+                rNumsA.append(flToRoach[fl + 'a']) 
+                rNumsB.append(flToRoach[fl + 'b']) 
+            elif i+1 < len(args.feedlines) and fl[0:-1] == args.feedlines[i+1][0:-1]: #fl na followed by nb, so full FL represented
+                    rNumsA.append(flToRoach[fl]) 
+                    rNumsB.append(flToRoach[args.feedlines[i+1]])
+                    args.feedlines.remove(args.feedlines[i+1])
+            else:
+                if fl[-1]=='a':
+                    rNumsA.append(flToRoach[fl])
+                    rNumsB.append(None)
+                elif fl[-1]=='b':
+                    rNumsB.append(flToRoach[fl])
+                    rNumsA.append(None)
+                else:
+                    raise Exception(fl + ' must be feedline number followed by a or b')
+
+        getLogger(__name__).info('Low frequency boards: ' + str(rNumsA))
+        getLogger(__name__).info('High frequency boards: ' + str(rNumsB))
+        rNums = rNumsA + rNumsB
+        rNums = list(np.unique(rNums))
+        rNums.remove(None) #rNums is sorted list of roach nums with None's removed
+        
+        setupMultRoaches4FreqSweep(rNums, freqFN=args.freq_file, defineLUTs=True)
+
+        maxAttens(mkidcore.instruments.ROACHES[args.instrument.lower()]) #max attens of all roaches
+
+        
+        startTime=time.time()
+        mecSlowPowerSweeps(rNumsA, rNumsB, args.start_freq_a, args.end_freq_a, args.start_freq_b, 
+                args.end_freq_b, freqList=args.freq_file, defineLUTs=False, outputFN=args.output, 
+                startDacAtten=3.75, endDacAtten=33.75,attenStep=1)
+        t1=time.time()-startTime
+        print t1
     
 
     #startTime=time.time()
