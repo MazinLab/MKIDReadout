@@ -608,7 +608,7 @@ class TemporalBeammap():
         for s in self.config.beammap.sweep.sweeps:
             if s.sweeptype in sweepType:
                 nSweeps += 1.
-                imList = self.loadSweepImgs(s)
+                imList = self.loadSweepBins(s)
                 direction = -1 if s.sweepdirection is '-' else 1
                 if sweepList is None:
                     sweepList = np.asarray([imList[::direction, :, :]])
@@ -650,7 +650,7 @@ class TemporalBeammap():
         for s in self.config.beammap.sweep.sweeps:
             if s.sweeptype in sweepType:
                 getLogger('beammap').info('loading: ' + str(s))
-                imList = self.loadSweepImgs(s).astype(np.float)
+                imList = self.loadSweepBins(s).astype(np.float)
                 if removeBkg:
                     bkgndList = np.median(imList, axis=0)
                     imList -= bkgndList
@@ -791,7 +791,6 @@ class TemporalBeammap():
         allResIDs_map, flag_map, self.x_locs, self.y_locs = shapeBeammapIntoImages(self.config.beammap.sweep.initialbeammap, self.config.beammap.sweep.temporalbeammap)
 
     def loadSweepImgs(self, s):
-        # path = self.config.beammap.sweep.imgfiledirectory
         path = self.config.beammap.paths.imgfiledirectory
         startTime = s.starttime
         duration = s.duration
@@ -803,11 +802,10 @@ class TemporalBeammap():
         fnList = [path + str(startTime + i) + '.img' for i in range(duration)]
         nRows = self.config.beammap.numrows
         nCols = self.config.beammap.numcols
-        for image in loadImgFiles(fnList, nRows, nCols):
-            plt.imshow(image)
-            plt.show(block=True)
+        # for image in loadImgFiles(fnList, nRows, nCols):
+        #     plt.imshow(image)
+        #     plt.show(block=True)
         return loadImgFiles(fnList, nRows, nCols)
-
 
     def loadSweepBins(self, s):
         path = self.config.beammap.paths.imgfiledirectory
@@ -818,18 +816,23 @@ class TemporalBeammap():
                                             "can create off by 1 errors: subtracting one time step to "
                                             "make it odd")
             duration -= 1
-        fnList = [path + str(startTime + i) + '.bin' for i in range(duration)]
+
         nRows = self.config.beammap.numrows
         nCols = self.config.beammap.numcols
         beamfile = os.path.join(self.config.beammap.paths.beammapdirectory, self.config.beammap.paths.initialbeammap)
         images=[]
-        # duration = 10
         for start in range(startTime, startTime+duration):
             photons = extract(path, start, 1, beamfile, nCols, nRows)
-            image = np.histogram(photons['ResID'], bins=nCols * nRows)[0].reshape(nRows, nCols)
+            beammap = np.loadtxt(beamfile)
+            beamIDs = np.append(beammap[:,0], beammap[-1,0]+1)
+            hist, bins = np.histogram(photons['ResID'], bins=beamIDs)
+            image = np.zeros((nRows, nCols))
+            x = np.int_(beammap[:, 2])
+            y = np.int_(beammap[:, 3])
+            image[y, x] = hist
             images.append(image)
-            plt.imshow(image)
-            plt.show(block=True)
+            # plt.imshow(image)
+            # plt.show(block=True)
         return np.array(images)
 
     def manualSweepCleanup(self):
