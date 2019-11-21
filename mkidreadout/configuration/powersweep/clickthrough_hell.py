@@ -250,7 +250,7 @@ class StartQt4(QMainWindow):
         self.ui.plot_2.canvas.ax.plot(self.Res1.freq[self.indx], self.res1_iq_vel[self.indx], 'bo')
         self.ui.plot_3.canvas.ax.plot(self.Res1.I[self.indx], self.Res1.Q[self.indx], 'bo')
 
-        self.indx = np.abs(self.Res1.freq - self.resfreq).argmin()
+        self.indx = np.abs(self.Res1.freq[:-1] - self.resfreq).argmin()
 
         self.ui.plot_2.canvas.ax.plot(self.Res1.freq[self.indx], self.res1_iq_vel[self.indx], 'ro')
         self.ui.plot_2.canvas.draw()
