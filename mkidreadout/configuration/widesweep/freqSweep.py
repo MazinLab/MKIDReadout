@@ -278,10 +278,10 @@ def mecSlowPowerSweeps(rNumsA, rNumsB, startFreqA, endFreqA, startFreqB, endFreq
             t2.join()   #wait until they both finish
         if rNum is not None:
             del t1
-            maxAttens(rNum)
+            maxAttens([rNum])
         if rNumsB[i] is not None:
             del t2
-            maxAttens(rNumsB[i])
+            maxAttens([rNumsB[i]])
         
         #maxAttens(np.asarray([rNum,rNumsB[i]]))
 
@@ -617,7 +617,8 @@ if __name__ == "__main__":
         getLogger(__name__).info('High frequency boards: ' + str(rNumsB))
         rNums = rNumsA + rNumsB
         rNums = list(np.unique(rNums))
-        rNums.remove(None) #rNums is sorted list of roach nums with None's removed
+        if np.any(rNums==None):
+            rNums.remove(None) #rNums is sorted list of roach nums with None's removed
         setupMultRoaches4FreqSweep(rNums, freqFN=args.freq_file, defineLUTs=True)
 
         maxAttens(mkidcore.instruments.ROACHES[args.instrument.lower()]) #max attens of all roaches

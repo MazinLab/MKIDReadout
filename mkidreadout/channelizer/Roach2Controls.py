@@ -696,7 +696,7 @@ class Roach2Controls(object):
         tofar = delta > self.params['dacSampleRate']/2
         if tofar.all():
             getLogger(__name__).warning('All frequencies more than half a sample rate from '
-                                        'the LO. Unable to set. LO: {} Delta min: {} Halfsamp: {} )'.format(lo, delta.min(),
+                                        'the LO. LO: {} Delta min: {} Halfsamp: {} )'.format(lo, delta.min(),
                                             self.params['dacSampleRate'] / 2))
             if not force:
                 raise ValueError('LO out of bounds')
