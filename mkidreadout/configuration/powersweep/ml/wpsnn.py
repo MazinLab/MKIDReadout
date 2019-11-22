@@ -51,10 +51,10 @@ class WPSNeuralNet(object):
             if self.mlDict['trimAttens']:
                 goodResMask = goodResMask & ~(optAttenInds < self.mlDict['attenWinBelow'])
                 goodResMask = goodResMask & ~(optAttenInds >= (len(trainSweep.atten) - self.mlDict['attenWinAbove']))
-            if self.mlDict['filterMaxedAttens']:
-                maxAttenInd = np.argmax(trainSweep.atten)
-                goodResMask = goodResMask & ~(optAttenInds==maxAttenInd)
-                print 'Filtered', np.sum(rawTrainData.opt_iAttens==maxAttenInd), 'maxed out attens.'
+            #if self.mlDict['filterMaxedAttens']:
+            #    maxAttenInd = np.argmax(trainSweep.atten)
+            #    goodResMask = goodResMask & ~(optAttenInds==maxAttenInd)
+            #    print 'Filtered', np.sum(rawTrainData.opt_iAttens==maxAttenInd), 'maxed out attens.'
 
             images = np.zeros((self.mlDict['nImagesPerRes']*self.nClasses*np.sum(goodResMask),) + self.imageShape)
             labels = np.zeros((self.mlDict['nImagesPerRes']*self.nClasses*np.sum(goodResMask), self.nClasses))
