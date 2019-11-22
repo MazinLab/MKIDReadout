@@ -257,7 +257,7 @@ def mecSlowPowerSweeps(rNumsA, rNumsB, startFreqA, endFreqA, startFreqB, endFreq
     k_dictA={'startFreq':startFreqA,'endFreq':endFreqA,'startDacAtten':startDacAtten, 'endDacAtten':endDacAtten, 'attenStep':attenStep, 'loStepQ':1, 'nOverlap':14, 'freqList':freqList, 'defineLUTs':defineLUTs, 'outputFN':outputFN}
     k_dictB=k_dictA.copy()
     k_dictB['startFreq']=startFreqB
-    k_dictB['endFreq']=startFreqB
+    k_dictB['endFreq']=endFreqB
     for i, rNum in enumerate(rNumsA):
         if rNum is not None and rNumsB[i] is not None:
             reinitADCDAC([rNum, rNumsB[i]])
@@ -619,7 +619,7 @@ if __name__ == "__main__":
         rNums = list(np.unique(rNums))
         if np.any(rNums==None):
             rNums.remove(None) #rNums is sorted list of roach nums with None's removed
-        setupMultRoaches4FreqSweep(rNums, freqFN=args.freq_file, defineLUTs=True)
+        #setupMultRoaches4FreqSweep(rNums, freqFN=args.freq_file, defineLUTs=True)
 
         maxAttens(mkidcore.instruments.ROACHES[args.instrument.lower()]) #max attens of all roaches
 
