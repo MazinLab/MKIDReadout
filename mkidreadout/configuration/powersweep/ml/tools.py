@@ -46,40 +46,44 @@ def makeWPSImage(freqSweep, centerFreq, centerAtten, nFreqs, nAttens, useIQV, us
     else:
         endAttenPads = 0
 
+    #SELECT
     freqs = toneFreqs[startFreqInd:endFreqInd]
     attens = freqSweep.atten[startAttenInd:endAttenInd]
     iVals = freqSweep.i[startAttenInd:endAttenInd, toneInd, startFreqInd:endFreqInd]
     qVals = freqSweep.q[startAttenInd:endAttenInd, toneInd, startFreqInd:endFreqInd]
-    iqVels = np.sqrt(np.diff(iVals, axis=1)**2 + np.diff(qVals, axis=1)**2)
-    iVels = np.diff(iVals, axis=1)
-    qVels = np.diff(qVals, axis=1)
 
-    freqs = np.pad(freqs, (startFreqPads, endFreqPads), 'edge')
-    attens = np.pad(attens, (startAttenPads, endAttenPads), 'edge')
-    iVals = np.pad(iVals, ((startAttenPads, endAttenPads), (startFreqPads, endFreqPads)), 'edge')
-    qVals = np.pad(qVals, ((startAttenPads, endAttenPads), (startFreqPads, endFreqPads)), 'edge')
-    iqVels = np.pad(iqVels, ((startAttenPads, endAttenPads), (startFreqPads, endFreqPads+1)), 'edge')
-    iVels = np.pad(iVels, ((startAttenPads, endAttenPads), (startFreqPads, endFreqPads+1)), 'edge')
-    qVels = np.pad(qVels, ((startAttenPads, endAttenPads), (startFreqPads, endFreqPads+1)), 'edge')
 
+    #NORMALIZE
     iVals = np.transpose(np.transpose(iVals) - np.mean(iVals, axis=1))
     qVals = np.transpose(np.transpose(qVals) - np.mean(qVals, axis=1))
     res_mag = np.sqrt(np.mean(iVals**2 + qVals**2, axis=1))
     iVals = np.transpose(np.transpose(iVals)/res_mag)
     qVals = np.transpose(np.transpose(qVals)/res_mag)
 
+    iqVels = np.sqrt(np.diff(iVals, axis=1)**2 + np.diff(qVals, axis=1)**2)
+    iVels = np.diff(iVals, axis=1)
+    qVels = np.diff(qVals, axis=1)
+
     iqVels = np.transpose(np.transpose(iqVels) - np.mean(iqVels, axis=1))
-    iqVels = np.transpose(np.transpose(iqVels)/res_mag)
-    iqVels /= np.sqrt(np.mean(iqVels**2))
+    #iqVels = np.transpose(np.transpose(iqVels)/res_mag)
+    #iqVels /= np.sqrt(np.mean(iqVels**2))
 
     iVels = np.transpose(np.transpose(iVels) - np.mean(iVels, axis=1))
-    iVels = np.transpose(np.transpose(iVels)/res_mag)
-    iVels /= np.sqrt(np.mean(iVels**2))
+    #iVels = np.transpose(np.transpose(iVels)/res_mag)
+    #iVels /= np.sqrt(np.mean(iVels**2))
 
     qVels = np.transpose(np.transpose(qVels) - np.mean(qVels, axis=1))
-    qVels = np.transpose(np.transpose(qVels)/res_mag)
-    qVels /= np.sqrt(np.mean(qVels**2))
+    #qVels = np.transpose(np.transpose(qVels)/res_mag)
+    #qVels /= np.sqrt(np.mean(qVels**2))
 
+    #PAD
+    iVals = np.pad(iVals, ((startAttenPads, endAttenPads), (startFreqPads, endFreqPads)), 'edge')
+    qVals = np.pad(qVals, ((startAttenPads, endAttenPads), (startFreqPads, endFreqPads)), 'edge')
+    iqVels = np.pad(iqVels, ((startAttenPads, endAttenPads), (startFreqPads, endFreqPads+1)), 'edge')
+    iVels = np.pad(iVels, ((startAttenPads, endAttenPads), (startFreqPads, endFreqPads+1)), 'edge')
+    qVels = np.pad(qVels, ((startAttenPads, endAttenPads), (startFreqPads, endFreqPads+1)), 'edge')
+    freqs = np.pad(freqs, (startFreqPads, endFreqPads), 'edge')
+    attens = np.pad(attens, (startAttenPads, endAttenPads), 'edge')
 
     image = np.dstack((iVals, qVals))
     if useIQV:

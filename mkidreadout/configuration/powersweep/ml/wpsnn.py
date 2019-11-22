@@ -357,13 +357,13 @@ class WPSNeuralNet(object):
                 ce_log[i/ACC_INTERVAL] = self.sess.run(cross_entropy, feed_dict={self.x: batch_xs, y_: batch_ys, self.keep_prob: 1, self.is_training: False})
                 summary, acc = self.sess.run([merged, accuracy], feed_dict={self.x: testImages, y_: testLabels, self.keep_prob: 1, self.is_training: False})
                 acc_log[i/ACC_INTERVAL] = acc*100
-                test_writer.add_summary(summary, i)
+                #test_writer.add_summary(summary, i)
                 if saveGraph:
                     graph_writer.add_summary(summary, i)
 
                 print acc*100
-                summary, _ = self.sess.run([merged, train_step], feed_dict={self.x: batch_xs, y_: batch_ys, self.keep_prob: self.mlDict['keep_prob'], self.is_training: True}) #calculate train_step using feed_dict
-                train_writer.add_summary(summary, i)
+                #summary, _ = self.sess.run([merged, train_step], feed_dict={self.x: batch_xs, y_: batch_ys, self.keep_prob: self.mlDict['keep_prob'], self.is_training: True}) #calculate train_step using feed_dict
+                #train_writer.add_summary(summary, i)
 
             elif i % ACC_INTERVAL == 0:
                 ce_log[i/ACC_INTERVAL] = self.sess.run(cross_entropy, feed_dict={self.x: batch_xs, y_: batch_ys, self.keep_prob: 1, self.is_training: False})
