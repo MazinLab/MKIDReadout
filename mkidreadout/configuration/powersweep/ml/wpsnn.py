@@ -9,6 +9,8 @@ import numpy as np
 import math
 import sys, os
 import time
+import git
+from pkg_resources import resource_filename
 import matplotlib.pyplot as plt
 import tensorflow as tf
 from tensorflow.python import debug as tf_debug
@@ -93,7 +95,8 @@ class WPSNeuralNet(object):
                             satResAttens = np.delete(satResAttens, -1) #pick without replacement
                         except IndexError:
                             satResAtten = np.random.choice(trainSweep.atten[satResMask]) #pick a random one if out of attens
-                        images[imgCtr], _, _ = mlt.makeWPSImage(trainSweep, optFreqs[i], satResAtten, self.imageShape[1], 
+                        freqOffs = (-100.e3)*np.random.random() #sat resonators move left, so correct this
+                        images[imgCtr], _, _ = mlt.makeWPSImage(trainSweep, optFreqs[i]+freqOffs, satResAtten, self.imageShape[1], 
                             self.imageShape[0], self.mlDict['useIQV'], self.mlDict['useVectIQV']) #saturated image
                         labels[imgCtr] = np.array([0, 1, 0, 0])
                         imgCtr += 1
@@ -407,10 +410,13 @@ class WPSNeuralNet(object):
         print tf.get_default_graph().get_all_collection_keys()
         
         np.savez(modelSavePath+'_confusion.npz', ys_true=ys_true, ys_guess=ys_guess, y_probs=y_probs, ce=ce_log, acc=acc_log)
+        gitrepo = git.Repo(resource_filename('mkidreadout', '..'))
+        commithash = gitrepo.head.object.hexsha
         logfile = modelSavePath + '_train_' + time.strftime("%Y%m%d-%H%M%S",time.localtime()) + '.log'
         with open(logfile, 'w') as lf:
             lf.write('Test Accuracy: ' + str(testScore/100.) + '\n')
             lf.write('Train Accuracy: ' + str(trainScore/100.) + '\n')
+            lf.write('git commit hash: ' + commithash + '\n')
             lf.write('\n')
             for k, v in self.mlDict.items():
                 lf.write(k + ': ' + str(v) + '\n')
