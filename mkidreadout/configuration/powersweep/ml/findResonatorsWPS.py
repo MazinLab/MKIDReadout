@@ -80,6 +80,8 @@ def makeWPSMap(modelDir, freqSweep, freqStep=None, attenClip=0):
         print 'atten:', attens[attenInd]
         print ' took', time.time() - tstart, 'seconds'
 
+    if N_CPU > 1:
+        pool.close()
 
     return wpsImage, freqs, attens
 
@@ -88,7 +90,7 @@ def makeImage(centerFreq, freqSweep, atten, freqWinSize, attenWinSize, useIQV, u
     image, _, _, = mlt.makeWPSImage(freqSweep, centerFreq, atten, freqWinSize, attenWinSize, useIQV, useVectIQV) 
     return image
 
-def findResonators(wpsmap, freqs, attens, peakThresh=0.5, minPeakDist=120.e3, nRes=1500, attenGrad=0):
+def findResonators(wpsmap, freqs, attens, peakThresh=0.5, minPeakDist=40.e3, nRes=1500, attenGrad=0):
     minPeakDist /= np.diff(freqs)[0]
     if attenGrad > 0:
         attenBias = np.linspace(0, -(len(attens)-1)*attenGrad, len(attens))

@@ -57,15 +57,27 @@ if __name__=='__main__':
     if len(args.manMDFiles) > 1:
         mdB = SweepMetadata(file=args.manMDFiles[1]) 
         bFileName = os.path.basename(args.manMDFiles[1]).split('.')[0] + '_manual'
+        saveDir = os.path.dirname(args.manMDFiles[1])
         resIDB, freqB, attenB, goodMaskB = retrieveManResList(mdB) #compare two manual files
+        usingML = False
+        plotTitle = aFileName + ' vs ' + bFileName
+        plotFn = aFileName + '_vs_' + bFileName
     elif args.ml_metadata is not None:
         bFileName = os.path.basename(args.ml_metadata).split('.')[0] + '_ml'
+        saveDir = os.path.dirname(args.ml_metadata)
         mdB = SweepMetadata(file=args.ml_metadata)
         resIDB, freqB, attenB, goodMaskB = retrieveMLResList(mdB, args.threshold) #use ML inference from provided ML file
+        usingML = True
+        plotTitle = bFileName + ' vs manual'
+        plotFn = bFileName
     else: 
         aFileName = 'manual'
         bFileName = 'ml'
         resIDB, freqB, attenB, goodMaskB = retrieveMLResList(mdA, args.threshold) #use ML inference from provided ML file
+        usingML = True
+        saveDir = os.path.dirname(args.manMDFiles[0])
+        plotTitle = os.path.basename(args.manMDFiles[0]) + ' ml vs manual'
+        plotFn = os.path.basename(args.manMDFiles[0])
 
     print np.sum(goodMaskA), 'resonators in', aFileName
     print np.sum(goodMaskB), 'resonators in', bFileName
@@ -126,11 +138,38 @@ if __name__=='__main__':
     attenDiff = attenBMatched - attenAMatched
     freqDiff = freqBMatched - freqAMatched
 
-    plt.hist(attenDiff, bins=30, range=(-10,10))
+    plt.hist(attenDiff, bins=11, range=(-5,5))
+    plt.title(plotTitle)
+    plt.xlabel('AttenDiff (' + bFileName + ' - ' + aFileName + ')')
+    plt.savefig(os.path.join(saveDir, plotFn + '_attenDiff.png'))
     plt.show()
 
     plt.hist(freqDiff, bins=20, range=(-100.e3, 100.e3))
+    plt.xlabel('FreqDiff (Hz; ' + bFileName + ' - ' + aFileName + ')')
     plt.show()
+
+    if args.plotConfusion:
+        attenStart = min(np.append(attenAMatched, attenBMatched))
+        attenAMatched -= attenStart
+        attenBMatched -= attenStart
+        attenAMatched = np.round(attenAMatched).astype(int)
+        attenBMatched = np.round(attenBMatched).astype(int)
+        confImage = np.zeros((max(attenAMatched) + 1, max(attenBMatched) + 1))
+        for i in range(len(attenAMatched)):
+            confImage[attenAMatched[i], attenBMatched[i]] += 1
+    
+        plt.imshow(np.transpose(confImage), vmax=30)
+        if usingML:
+            plt.xlabel('True Atten')
+            plt.ylabel('Guess Atten')
+        else:
+            plt.xlabel(aFileName)
+            plt.ylabel(bFileName)
+
+        plt.title(plotTitle)
+        plt.colorbar()
+        plt.savefig(os.path.join(saveDir, plotFn+'_confusion.png'))
+        plt.show()
 
 
 
