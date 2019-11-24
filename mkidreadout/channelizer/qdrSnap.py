@@ -128,7 +128,7 @@ def measureSidebands(ifFreqList, fftFreqs, spectrumDB, dacSampleRate=2.e9, nDacS
     return spectrumDB[freqLocs] - spectrumDB[sbLocs], freqLocs, sbLocs
 
 def plotSBSuppression(ifFreqList, fftFreqs, spectrumDB, freqLocs, sbLocs):
-    fig = plt.figure()
+    fig = plt.figure(figsize=[18,10])
     ax1 = fig.add_subplot(211)
     ax2 = fig.add_subplot(212)
 
@@ -137,7 +137,7 @@ def plotSBSuppression(ifFreqList, fftFreqs, spectrumDB, freqLocs, sbLocs):
     ax1.vlines(fftFreqs[freqLocs], spectrumDB[sbLocs], spectrumDB[freqLocs] , alpha=0.3, color='#d62728')
     ax1.legend()
     ax1.set_ylabel('dBFS')
-    ax1.set_ylim((-110, -35))
+    ax1.set_ylim((-115, -30))
     ax1.set_title('Sideband Suppression')
 
     ax2.plot(fftFreqs[freqLocs], spectrumDB[freqLocs] - spectrumDB[sbLocs], label='total suppression')
