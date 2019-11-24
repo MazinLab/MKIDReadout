@@ -3,6 +3,7 @@ Author: Alex Walter
 Date: June 5, 2018
 
 This file contains the flags used in the beammap file
+#TODO: standardize and move to core
 """
 
 
