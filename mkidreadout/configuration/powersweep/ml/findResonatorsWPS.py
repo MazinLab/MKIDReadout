@@ -7,7 +7,7 @@ import time
 import copy
 import argparse
 import logging
-import ipdb
+#import ipdb
 import matplotlib.pyplot as plt
 import skimage.feature as skf
 import mkidreadout.configuration.sweepdata as sd

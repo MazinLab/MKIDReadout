@@ -16,6 +16,7 @@ if __name__=='__main__':
     parser.add_argument('-w', '--window', type=int, default=100)
     parser.add_argument('-t', '--threshold', type=float, default=0)
     parser.add_argument('--sat', action='store_true')
+    parser.add_argument('--mag', action='store_true')
     parser.add_argument('--image', action='store_true')
     args = parser.parse_args()
 
@@ -25,7 +26,9 @@ if __name__=='__main__':
         print freqInd
         if args.sat:
             plt.imshow(wpsdata['wpsmap'][:, freqInd-args.window/2:freqInd+args.window/2, 1], vmin=args.threshold)
-        else: 
+        elif args.mag: 
+            plt.imshow(wpsdata['wpsmap'][:, freqInd-args.window/2:freqInd+args.window/2, -1], vmin=args.threshold)
+        else:
             plt.imshow(wpsdata['wpsmap'][:, freqInd-args.window/2:freqInd+args.window/2, 0], vmin=args.threshold)
         plt.show()
 
