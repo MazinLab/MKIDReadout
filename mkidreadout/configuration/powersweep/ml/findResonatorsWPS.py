@@ -7,6 +7,7 @@ import time
 import copy
 import argparse
 import logging
+import ipdb
 import matplotlib.pyplot as plt
 import skimage.feature as skf
 import mkidreadout.configuration.sweepdata as sd
@@ -137,6 +138,7 @@ def findResonators(wpsmap, freqs, attens, peakThresh=0.97, minPeakDist=40.e3, nR
         if nRes is None:
             raise Exception('Must specify number of resonators to use loop size cut')
         resCoords = skf.peak_local_max(wpsmap[:,:,0], min_distance=minPeakDist, threshold_abs=peakThresh, exclude_border=False)
+        resCoords = prominenceCut(wpsmap, resCoords)
         resMags = np.zeros(len(resCoords))
         print 'Found', len(resCoords), 'peaks above', peakThresh
         for i in range(len(resMags)):
@@ -147,8 +149,10 @@ def findResonators(wpsmap, freqs, attens, peakThresh=0.97, minPeakDist=40.e3, nR
 
     elif nRes is not None:
         resCoords = skf.peak_local_max(wpsmap[:,:,0], min_distance=minPeakDist, threshold_abs=peakThresh, num_peaks=nRes, exclude_border=False)
+        resCoords = prominenceCut(wpsmap, resCoords)
     else:
         resCoords = skf.peak_local_max(wpsmap[:,:,0], min_distance=minPeakDist, threshold_abs=peakThresh, exclude_border=False)
+        resCoords = prominenceCut(wpsmap, resCoords)
 
     resFreqs = freqs[resCoords[:,1]]
     resAttens = attens[resCoords[:,0]]
@@ -163,6 +167,52 @@ def findResonators(wpsmap, freqs, attens, peakThresh=0.97, minPeakDist=40.e3, nR
     scores = scores[sortedInds]
 
     return resFreqs, resAttens, scores
+
+def prominenceCut(wpsmap, resCoords, minThresh=0.9):
+    freqSortedInds = np.argsort(resCoords[:,1])
+    resCoords = resCoords[freqSortedInds]
+    valleys = np.zeros(len(resCoords))
+    for i in range(len(resCoords) - 1):
+        attenInds = np.sort([resCoords[i, 0], resCoords[i+1, 0]])
+        #image = wpsmap[attenInds[0]:attenInds[1]+1, resCoords[i,1]:resCoords[i+1,1]+1, 0]
+        #coords = skf.peak_local_max(-image, num_peaks=1, exclude_border=False)
+        #valleys[i] = np.min(image)#image[coords[0], coords[1]]
+        valleys[i] = wpsmap[int(np.ceil((attenInds[0]+attenInds[1])/2.)), (resCoords[i,1]+resCoords[i+1,1])/2, 0]
+
+    #plt.hist(valleys)
+    #plt.show()
+    shallowMask = valleys > minThresh #there isn't a deep enough valley between this peak and the one after it
+    clusterStartMask = np.diff(np.roll(shallowMask.astype(int), 1)) > 0
+    clusterInds = np.where(clusterStartMask)[0]
+
+    indsToDelete = []
+    for ind in clusterInds:
+        maxCoords = resCoords[ind]
+        maxScore = wpsmap[maxCoords[0], maxCoords[1], 0]
+        maxInd = ind
+        curInd = ind
+        while(shallowMask[curInd]):
+            curInd += 1
+            curCoords = resCoords[curInd]
+            if wpsmap[curCoords[0], curCoords[1], 0] > maxScore:
+                maxScore = wpsmap[curCoords[0], curCoords[1], 0]
+                indsToDelete.append(maxInd)
+                maxInd = curInd
+                maxCoords = curCoords
+            else:
+                indsToDelete.append(curInd)
+
+    assert len(indsToDelete) == np.sum(shallowMask)
+
+    resCoords = np.delete(resCoords, indsToDelete, axis=0)
+
+    print 'Prominence cut deleted', len(indsToDelete), 'resonators'
+
+    return resCoords
+        
+
+        
+        
 
 def saveMetadata(outFile, resFreqs, resAttens, scores, feedline, band, collThresh=200.e3):
     assert len(resFreqs) == len(resAttens) == len(scores), 'Lists must be the same length'
@@ -208,6 +258,7 @@ if __name__=='__main__':
             + '_' + os.path.basename(args.model) + '.npz')
 
     if not os.path.isfile(wpsmapFile) or args.remake_wpsmap:
+        print wpsmapFile, 'not found'
         print 'Generating new WPS map'
         freqSweep = sd.FreqSweep(args.inferenceData)
         wpsmap, freqs, attens = makeWPSMap(args.model, freqSweep)
