@@ -14,6 +14,7 @@ if __name__=='__main__':
     parser.add_argument('-f', '--freq', type=float, default=None)
     parser.add_argument('-a', '--atten', type=float, default=None)
     parser.add_argument('-w', '--window', type=int, default=100)
+    parser.add_argument('-t', '--threshold', type=float, default=0)
     parser.add_argument('--sat', action='store_true')
     parser.add_argument('--image', action='store_true')
     args = parser.parse_args()
@@ -21,10 +22,11 @@ if __name__=='__main__':
     if args.wpsmap is not None:
         wpsdata = np.load(args.wpsmap)
         freqInd = np.argmin(np.abs(args.freq - wpsdata['freqs']))
+        print freqInd
         if args.sat:
-            plt.imshow(wpsdata['wpsmap'][:, freqInd-args.window/2:freqInd+args.window/2, 1])
+            plt.imshow(wpsdata['wpsmap'][:, freqInd-args.window/2:freqInd+args.window/2, 1], vmin=args.threshold)
         else: 
-            plt.imshow(wpsdata['wpsmap'][:, freqInd-args.window/2:freqInd+args.window/2, 0])
+            plt.imshow(wpsdata['wpsmap'][:, freqInd-args.window/2:freqInd+args.window/2, 0], vmin=args.threshold)
         plt.show()
 
     if args.model is not None:
@@ -41,7 +43,7 @@ if __name__=='__main__':
         ax0 = fig0.add_subplot(111)
         ax1 = fig1.add_subplot(111)
 
-        image, _, _ = mlt.makeWPSImage(freqSweep, args.freq, args.atten, mlDict['freqWinSize'], 
+        image, _, _, _ = mlt.makeWPSImage(freqSweep, args.freq, args.atten, mlDict['freqWinSize'], 
                 1+mlDict['attenWinBelow']+mlDict['attenWinAbove'], mlDict['useIQV'], mlDict['useVectIQV'])
 
         ax0.plot(image[:, :, 0].T, image[:, :, 1].T)

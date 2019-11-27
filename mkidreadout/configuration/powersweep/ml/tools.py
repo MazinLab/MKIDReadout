@@ -6,7 +6,8 @@ import os, sys, glob
 from PSFitMLData import *
 from mkidreadout.configuration.powersweep.psmldata import *
 
-def makeWPSImage(freqSweep, centerFreq, centerAtten, nFreqs, nAttens, useIQV, useVectIQV):
+#TODO: finish center IQV feature or take it out
+def makeWPSImage(freqSweep, centerFreq, centerAtten, nFreqs, nAttens, useIQV, useVectIQV, centerIQV=False):
     """
     dataObj: FreqSweep object
     """
@@ -52,6 +53,10 @@ def makeWPSImage(freqSweep, centerFreq, centerAtten, nFreqs, nAttens, useIQV, us
     iVals = freqSweep.i[startAttenInd:endAttenInd, toneInd, startFreqInd:endFreqInd]
     qVals = freqSweep.q[startAttenInd:endAttenInd, toneInd, startFreqInd:endFreqInd]
 
+    if centerIQV:
+        iqVels = np.sqrt(np.diff(iVals, axis=1)**2 + np.diff(qVals, axis=1)**2)
+        raise Exception('Not implemented')
+
 
     #NORMALIZE
     iVals = np.transpose(np.transpose(iVals) - np.mean(iVals, axis=1))
@@ -92,7 +97,7 @@ def makeWPSImage(freqSweep, centerFreq, centerAtten, nFreqs, nAttens, useIQV, us
         image = np.dstack((image, iVels))
         image = np.dstack((image, qVels))
 
-    return image, attens, freqs
+    return image, res_mag[nAttens/2], attens, freqs
 
 
 
