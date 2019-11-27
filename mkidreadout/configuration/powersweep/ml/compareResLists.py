@@ -20,11 +20,15 @@ def retrieveManResList(metadata):
 
     return resIDs, freqs, attens, goodMask
 
-def retrieveMLResList(metadata, threshold=0):
+def retrieveMLResList(metadata, threshold=0, nManRes=None):
     goodMask = ((metadata.flag & ISGOOD) == ISGOOD)
-    goodMask = goodMask & (metadata.ml_isgood_score >= args.threshold)
     goodMask = goodMask & (metadata.mlatten != np.nanmax(metadata.atten))
-
+    if threshold >= 1:
+        assert nManRes is not None
+        sortedScores = np.sort(metadata.ml_isgood_score[goodMask])[::-1]
+        threshold = sortedScores[nManRes-1]
+        print 'Using ML score threshold: ', threshold
+    goodMask = goodMask & (metadata.ml_isgood_score >= threshold)
     resIDs = metadata.resIDs
     freqs = metadata.mlfreq
     attens = metadata.mlatten
@@ -37,7 +41,7 @@ if __name__=='__main__':
     parser.add_argument('-ml', '--ml-metadata', default=None, help='ML metadata file')
     parser.add_argument('-df', '--max-df', type=float, default=250.e3)
     parser.add_argument('-t', '--threshold', type=float, default=0)
-    parser.add_argument('-c', '--cut', type=float, default=1.0)
+    #parser.add_argument('-c', '--cut', type=float, default=1.0)
     parser.add_argument('-l', '--lower', default=2.5, type=float)
     parser.add_argument('-u', '--upper', default=2.5, type=float)
     parser.add_argument('-p', '--plotConfusion', action='store_true')
@@ -66,14 +70,14 @@ if __name__=='__main__':
         bFileName = os.path.basename(args.ml_metadata).split('.')[0] + '_ml'
         saveDir = os.path.dirname(args.ml_metadata)
         mdB = SweepMetadata(file=args.ml_metadata)
-        resIDB, freqB, attenB, goodMaskB = retrieveMLResList(mdB, args.threshold) #use ML inference from provided ML file
+        resIDB, freqB, attenB, goodMaskB = retrieveMLResList(mdB, args.threshold, np.sum(goodMaskA)) #use ML inference from provided ML file
         usingML = True
         plotTitle = bFileName + ' vs manual'
         plotFn = bFileName
     else: 
         aFileName = 'manual'
         bFileName = 'ml'
-        resIDB, freqB, attenB, goodMaskB = retrieveMLResList(mdA, args.threshold) #use ML inference from provided ML file
+        resIDB, freqB, attenB, goodMaskB = retrieveMLResList(mdA, args.threshold, np.sum(goodMaskA)) #use ML inference from provided ML file
         usingML = True
         saveDir = os.path.dirname(args.manMDFiles[0])
         plotTitle = os.path.basename(args.manMDFiles[0]) + ' ml vs manual'

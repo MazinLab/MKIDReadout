@@ -1,0 +1,52 @@
+import os, sys
+import argparse
+import numpy as np
+import matplotlib.pyplot as plt
+import tensorflow as tf
+import mkidreadout.configuration.sweepdata as sd
+import mkidreadout.configuration.powersweep.ml.tools as mlt
+
+if __name__=='__main__':
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--model', default=None)
+    parser.add_argument('--sweep', default=None)
+    parser.add_argument('--wpsmap', default=None)
+    parser.add_argument('-f', '--freq', type=float, default=None)
+    parser.add_argument('-a', '--atten', type=float, default=None)
+    parser.add_argument('-w', '--window', type=int, default=100)
+    parser.add_argument('--sat', action='store_true')
+    parser.add_argument('--image', action='store_true')
+    args = parser.parse_args()
+
+    if args.wpsmap is not None:
+        wpsdata = np.load(args.wpsmap)
+        freqInd = np.argmin(np.abs(args.freq - wpsdata['freqs']))
+        if args.sat:
+            plt.imshow(wpsdata['wpsmap'][:, freqInd-args.window/2:freqInd+args.window/2, 1])
+        else: 
+            plt.imshow(wpsdata['wpsmap'][:, freqInd-args.window/2:freqInd+args.window/2, 0])
+        plt.show()
+
+    if args.model is not None:
+        mlDict, sess, graph, x_input, y_output, keep_prob, is_training = mlt.get_ml_model(args.model)
+
+    if args.sweep  is not None:
+        freqSweep = sd.FreqSweep(args.sweep)
+
+    if args.image:
+        if args.sweep is None or args.model is None:
+            raise Exception('Must specify model and freq sweep')
+        fig0 = plt.figure()
+        fig1 = plt.figure()
+        ax0 = fig0.add_subplot(111)
+        ax1 = fig1.add_subplot(111)
+
+        image, _, _ = mlt.makeWPSImage(freqSweep, args.freq, args.atten, mlDict['freqWinSize'], 
+                1+mlDict['attenWinBelow']+mlDict['attenWinAbove'], mlDict['useIQV'], mlDict['useVectIQV'])
+
+        ax0.plot(image[:, :, 0].T, image[:, :, 1].T)
+        if image.shape[2] > 2:
+            ax1.plot(image[:, :, 2].T)
+        plt.show()
+
+        
