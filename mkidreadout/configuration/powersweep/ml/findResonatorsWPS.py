@@ -60,7 +60,7 @@ def makeWPSMap(modelDir, freqSweep, freqStep=None, attenClip=0):
                 for i, freqInd in enumerate(range(chunkSize*chunkInd, chunkSize*chunkInd + nFreqsInChunk)):
                     imageList[i], resMagList[i], _, _  = mlt.makeWPSImage(freqSweep, freqs[freqInd], attens[attenInd], mlDict['freqWinSize'],
                             1+mlDict['attenWinBelow']+mlDict['attenWinAbove'], mlDict['useIQV'], mlDict['useVectIQV'],
-                            normalizeBeforeCenter=self.mlDict['normalizeBeforeCenter']) 
+                            normalizeBeforeCenter=mlDict['normalizeBeforeCenter']) 
             else:
                 freqList = freqs[range(chunkSize*chunkInd, chunkSize*chunkInd + nFreqsInChunk)]
                 toneIndLow = np.argmin(np.abs(freqList[0] - toneWinCenters))
@@ -73,7 +73,7 @@ def makeWPSMap(modelDir, freqSweep, freqStep=None, attenClip=0):
                 processChunk = partial(makeImage, freqSweep=freqSweepChunk, atten=attens[attenInd], 
                             freqWinSize=mlDict['freqWinSize'], attenWinSize=1+mlDict['attenWinBelow']+mlDict['attenWinAbove'], 
                             useIQV=mlDict['useIQV'], useVectIQV=mlDict['useVectIQV'],
-                            normalizeBeforeCenter=self.mlDict['normalizeBeforeCenter']) 
+                            normalizeBeforeCenter=mlDict['normalizeBeforeCenter']) 
 
                 imageList[:nFreqsInChunk], resMagList[:nFreqsInChunk] = zip(*pool.map(processChunk, freqList, chunksize=chunkSize/N_CPU))
 
@@ -93,7 +93,7 @@ def makeWPSMap(modelDir, freqSweep, freqStep=None, attenClip=0):
 
 def makeImage(centerFreq, freqSweep, atten, freqWinSize, attenWinSize, useIQV, useVectIQV, normalizeBeforeCenter):
     image, resMag, _, _, = mlt.makeWPSImage(freqSweep, centerFreq, atten, freqWinSize, attenWinSize, useIQV, useVectIQV,
-            normalizeBeforeCenter=self.mlDict['normalizeBeforeCenter']) 
+            normalizeBeforeCenter=normalizeBeforeCenter) 
     return image, resMag
 
 def addResMagToWPSMap(wpsDict, freqSweep, outFile, freqWinSize=30, nRes=1500):
