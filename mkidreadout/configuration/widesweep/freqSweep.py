@@ -559,20 +559,20 @@ if __name__ == "__main__":
     parser.add_argument('-a', action='store_true', default=False, dest='all_feedlines',
                         help='Run with all feedlines/roaches for instrument in cfg')
     parser.add_argument('-r', '--roaches', nargs='+', type=int, help='Roach numbers to sweep')
-    parser.add_argument('-f', '--feedlines', nargs='+', type=str, help='Feedlines to sweep (e.g. "1", "1a", "2b")')
+    parser.add_argument('-f', '--feedlines', nargs='+', type=str, help='Feedlines to sweep (e.g. 1a 2b 3)')
     parser.add_argument('-o', '--output', default='psData.npz', 
                         help='Output path. Should end w/ .npz extension, boardNum is automatically added')
     parser.add_argument('--freq-file', default='ifFreqs_full.txt', 
                         help='freqfile of IF band tone freqs to use. Default is file committed to repo')
-    parser.add_argument('-s', '--start-freq-a', type=float, default=3.43e9, help='LF sweep start (Hz)')
-    parser.add_argument('-e', '--end-freq-a', type=float, default=5.43e9, help='LF sweep end (Hz)')
+    parser.add_argument('-s', '--start-freq-a', type=float, default=3.43e9, help='LF sweep start (Hz). Default: 3.43e9')
+    parser.add_argument('-e', '--end-freq-a', type=float, default=5.43e9, help='LF sweep end (Hz). Default: 5.43e9')
     parser.add_argument('--start-freq-b', type=float, default=None, help='HF sweep start (Hz). \
                         If not specified, 2GHz above LF start freq')
     parser.add_argument('--end-freq-b', type=float, default=None, help='LF sweep end (Hz). \
                         If not specified, 2GHz above LF end freq')
-    parser.add_argument('--start-atten', type=float, default=3.75)
-    parser.add_argument('--end-atten', type=float, default=33.75)
-    parser.add_argument('--atten-step', type=float, default=1)
+    parser.add_argument('--start-atten', type=float, default=3.75, help='Start (lower) DAC atten in dB. Default: 3.75')
+    parser.add_argument('--end-atten', type=float, default=33.75, help='End (upper) DAC atten in dB. Default: 33.75')
+    parser.add_argument('--atten-step', type=float, default=1, help='Default: 1 dB')
     args = parser.parse_args()
 
     if args.feedlines is not None and args.roaches is not None:
