@@ -59,7 +59,8 @@ def makeWPSMap(modelDir, freqSweep, freqStep=None, attenClip=0):
             if N_CPU == 1:
                 for i, freqInd in enumerate(range(chunkSize*chunkInd, chunkSize*chunkInd + nFreqsInChunk)):
                     imageList[i], resMagList[i], _, _  = mlt.makeWPSImage(freqSweep, freqs[freqInd], attens[attenInd], mlDict['freqWinSize'],
-                            1+mlDict['attenWinBelow']+mlDict['attenWinAbove'], mlDict['useIQV'], mlDict['useVectIQV']) 
+                            1+mlDict['attenWinBelow']+mlDict['attenWinAbove'], mlDict['useIQV'], mlDict['useVectIQV'],
+                            normalizeBeforeCenter=self.mlDict['normalizeBeforeCenter']) 
             else:
                 freqList = freqs[range(chunkSize*chunkInd, chunkSize*chunkInd + nFreqsInChunk)]
                 toneIndLow = np.argmin(np.abs(freqList[0] - toneWinCenters))
@@ -71,7 +72,8 @@ def makeWPSMap(modelDir, freqSweep, freqStep=None, attenClip=0):
                 
                 processChunk = partial(makeImage, freqSweep=freqSweepChunk, atten=attens[attenInd], 
                             freqWinSize=mlDict['freqWinSize'], attenWinSize=1+mlDict['attenWinBelow']+mlDict['attenWinAbove'], 
-                            useIQV=mlDict['useIQV'], useVectIQV=mlDict['useVectIQV']) 
+                            useIQV=mlDict['useIQV'], useVectIQV=mlDict['useVectIQV'],
+                            normalizeBeforeCenter=self.mlDict['normalizeBeforeCenter']) 
 
                 imageList[:nFreqsInChunk], resMagList[:nFreqsInChunk] = zip(*pool.map(processChunk, freqList, chunksize=chunkSize/N_CPU))
 
@@ -89,8 +91,9 @@ def makeWPSMap(modelDir, freqSweep, freqStep=None, attenClip=0):
     return wpsImage, freqs, attens
 
 
-def makeImage(centerFreq, freqSweep, atten, freqWinSize, attenWinSize, useIQV, useVectIQV):
-    image, resMag, _, _, = mlt.makeWPSImage(freqSweep, centerFreq, atten, freqWinSize, attenWinSize, useIQV, useVectIQV) 
+def makeImage(centerFreq, freqSweep, atten, freqWinSize, attenWinSize, useIQV, useVectIQV, normalizeBeforeCenter):
+    image, resMag, _, _, = mlt.makeWPSImage(freqSweep, centerFreq, atten, freqWinSize, attenWinSize, useIQV, useVectIQV,
+            normalizeBeforeCenter=self.mlDict['normalizeBeforeCenter']) 
     return image, resMag
 
 def addResMagToWPSMap(wpsDict, freqSweep, outFile, freqWinSize=30, nRes=1500):
@@ -145,7 +148,10 @@ def findResonators(wpsmap, freqs, attens, peakThresh=0.97, minPeakDist=40.e3, nR
             resMags[i] = wpsmap[resCoords[i, 0], resCoords[i, 1], N_CLASSES]
         largestMagInds = np.argsort(resMags)[::-1]
         largestMagInds = largestMagInds[:nRes]
+        print 'Res mag cutoff:', resMags[largestMagInds[-1]]
         resCoords = resCoords[largestMagInds]
+        plt.hist(resMags, bins=30)
+        plt.show()
 
     elif nRes is not None:
         resCoords = skf.peak_local_max(wpsmap[:,:,0], min_distance=minPeakDist, threshold_abs=peakThresh, num_peaks=nRes, exclude_border=False)

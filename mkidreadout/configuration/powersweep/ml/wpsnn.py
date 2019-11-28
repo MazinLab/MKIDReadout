@@ -97,7 +97,8 @@ class WPSNeuralNet(object):
 
                 for j in range(self.mlDict['nImagesPerRes']):
                     images[imgCtr], _,  _, _ = mlt.makeWPSImage(trainSweep, optFreqs[i], optAttens[i], self.imageShape[1], 
-                        self.imageShape[0], self.mlDict['useIQV'], self.mlDict['useVectIQV']) #good image
+                        self.imageShape[0], self.mlDict['useIQV'], self.mlDict['useVectIQV'], 
+                        normalizeBeforeCenter=self.mlDict['normalizeBeforeCenter']) #good image
                     labels[imgCtr] = np.array([1, 0, 0, 0])
                     imgCtr += 1
                     if np.any(satResMask):
@@ -108,7 +109,8 @@ class WPSNeuralNet(object):
                             satResAtten = np.random.choice(trainSweep.atten[satResMask]) #pick a random one if out of attens
                         freqOffs = (-100.e3)*np.random.random() #sat resonators move left, so correct this
                         images[imgCtr], _, _, _ = mlt.makeWPSImage(trainSweep, optFreqs[i]+freqOffs, satResAtten, self.imageShape[1], 
-                            self.imageShape[0], self.mlDict['useIQV'], self.mlDict['useVectIQV']) #saturated image
+                            self.imageShape[0], self.mlDict['useIQV'], self.mlDict['useVectIQV'],
+                            normalizeBeforeCenter=self.mlDict['normalizeBeforeCenter']) #saturated image
                         labels[imgCtr] = np.array([0, 1, 0, 0])
                         imgCtr += 1
 
@@ -119,14 +121,16 @@ class WPSNeuralNet(object):
                         except IndexError:
                             upResAtten = np.random.choice(trainSweep.atten[upResMask])
                         images[imgCtr], _, _, _ = mlt.makeWPSImage(trainSweep, optFreqs[i], upResAtten, self.imageShape[1], 
-                            self.imageShape[0], self.mlDict['useIQV'], self.mlDict['useVectIQV']) #upurated image
+                            self.imageShape[0], self.mlDict['useIQV'], self.mlDict['useVectIQV'],
+                            normalizeBeforeCenter=self.mlDict['normalizeBeforeCenter']) #upurated image
                         labels[imgCtr] = np.array([0, 0, 1, 0])
                         imgCtr += 1
 
                     offResF = np.random.choice(offResFreqs)
                     offResAtt = np.random.choice(trainSweep.atten)
                     images[imgCtr], _, _, _ = mlt.makeWPSImage(trainSweep, offResF, offResAtt, self.imageShape[1], 
-                        self.imageShape[0], self.mlDict['useIQV'], self.mlDict['useVectIQV']) #off resonance image
+                        self.imageShape[0], self.mlDict['useIQV'], self.mlDict['useVectIQV'],
+                        normalizeBeforeCenter=self.mlDict['normalizeBeforeCenter']) #off resonance image
                     labels[imgCtr] = np.array([0, 0, 0, 1])
                     imgCtr += 1
 

@@ -6,7 +6,7 @@ import os, sys, glob
 from mkidreadout.configuration.powersweep.psmldata import *
 
 #TODO: finish center IQV feature or take it out
-def makeWPSImage(freqSweep, centerFreq, centerAtten, nFreqs, nAttens, useIQV, useVectIQV, centerIQV=False):
+def makeWPSImage(freqSweep, centerFreq, centerAtten, nFreqs, nAttens, useIQV, useVectIQV, centerIQV=False, normalizeBeforeCenter=False):
     """
     dataObj: FreqSweep object
     """
@@ -58,11 +58,19 @@ def makeWPSImage(freqSweep, centerFreq, centerAtten, nFreqs, nAttens, useIQV, us
 
 
     #NORMALIZE
-    iVals = np.transpose(np.transpose(iVals) - np.mean(iVals, axis=1))
-    qVals = np.transpose(np.transpose(qVals) - np.mean(qVals, axis=1))
-    res_mag = np.sqrt(np.mean(iVals**2 + qVals**2, axis=1))
-    iVals = np.transpose(np.transpose(iVals)/res_mag)
-    qVals = np.transpose(np.transpose(qVals)/res_mag)
+    if normalizeBeforeCenter:
+        res_mag = np.sqrt(np.mean(iVals**2 + qVals**2, axis=1))
+        iVals = np.transpose(np.transpose(iVals)/res_mag)
+        qVals = np.transpose(np.transpose(qVals)/res_mag)
+        iVals = np.transpose(np.transpose(iVals) - np.mean(iVals, axis=1))
+        qVals = np.transpose(np.transpose(qVals) - np.mean(qVals, axis=1))
+
+    else:
+        iVals = np.transpose(np.transpose(iVals) - np.mean(iVals, axis=1))
+        qVals = np.transpose(np.transpose(qVals) - np.mean(qVals, axis=1))
+        res_mag = np.sqrt(np.mean(iVals**2 + qVals**2, axis=1))
+        iVals = np.transpose(np.transpose(iVals)/res_mag)
+        qVals = np.transpose(np.transpose(qVals)/res_mag)
 
     iqVels = np.sqrt(np.diff(iVals, axis=1)**2 + np.diff(qVals, axis=1)**2)
     iVels = np.diff(iVals, axis=1)
@@ -372,6 +380,10 @@ def get_ml_model(modelDir=''):
     mlDict = {}
     for param in tf.get_collection('mlDict'):
         mlDict[param.op.name] = param.eval(session=sess)
+
+    if not mlDict.has_key('normalizeBeforeCenter'): #maintain backwards compatibility with old models
+        print 'Adding key: normalizeBeforeCenter'
+        mlDict['normalizeBeforeCenter'] = False
 
     return mlDict, sess, graph, x_input, y_output, keep_prob, is_training
 
