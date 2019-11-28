@@ -1,17 +1,3 @@
-''' 
-Author Rupert Dodkins, Neelay Fruitwala
-
-Neural net for resonator identification + tuning. Operates in a sliding window fashion
-on freqency x attenuation sweep data set. Every point in freq x atten space gets a score 
-in one of four classes: (good res, saturated res, underpowered res, no res). Local maxima
-in "good res" class are flagged and added to output frequency list. 
-
-The code here (neural net class) only generates the ouput (scored) image; flagging maxima 
-and generating freq list are done in findResonatorsWPS.py.
-
-
-'''
-
 import numpy as np
 import sys, os
 import matplotlib.pyplot as plt
