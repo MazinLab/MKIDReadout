@@ -7,7 +7,6 @@ import pickle
 import random
 import time
 import math
-from mkidreadout.configuration.powersweep.ml.PSFitMLData import *
 from mkidreadout.configuration.powersweep.psmldata import *
 np.set_printoptions(threshold=np.inf)
 import mkidreadout.configuration.powersweep.ml.tools as mlt

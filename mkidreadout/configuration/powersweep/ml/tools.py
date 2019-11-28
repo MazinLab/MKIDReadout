@@ -3,7 +3,6 @@ import random
 import tensorflow as tf
 import logging
 import os, sys, glob
-from PSFitMLData import *
 from mkidreadout.configuration.powersweep.psmldata import *
 
 #TODO: finish center IQV feature or take it out

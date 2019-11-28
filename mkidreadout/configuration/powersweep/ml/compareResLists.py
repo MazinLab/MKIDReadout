@@ -162,7 +162,7 @@ if __name__=='__main__':
         for i in range(len(attenAMatched)):
             confImage[attenAMatched[i], attenBMatched[i]] += 1
     
-        plt.imshow(np.transpose(confImage), vmax=30)
+        plt.imshow(np.transpose(confImage))#, vmax=30)
         if usingML:
             plt.xlabel('True Atten')
             plt.ylabel('Guess Atten')

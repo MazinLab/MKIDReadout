@@ -13,7 +13,7 @@ import tensorflow as tf
 import os, sys, glob
 import argparse
 import logging
-from mkidreadout.configuration.powersweep.ml.PSFitMLData import PSFitMLData
+#from mkidreadout.configuration.powersweep.ml.PSFitMLData import PSFitMLData
 import mkidreadout.configuration.powersweep.ml.tools as mlt
 from mkidreadout.utils.readDict import readDict
 from mkidreadout.configuration.powersweep.psmldata import MLData

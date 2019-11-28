@@ -3,7 +3,6 @@ import matplotlib.pylab as plt
 import tensorflow as tf
 import os, sys
 import argparse
-from PSFitMLData import PSFitMLData
 import tools as mlt
 
 from mkidreadout.utils.readDict import readDict
@@ -13,9 +12,7 @@ from mkidcore.corelog import getLogger
 class diagnostics():
     def __init__(self, modelDir, psDataFileName=None, metadataFn=None, wsAtten=None, resWidth=None):
         if psDataFileName is not None:
-            if psDataFileName.split('.')[1] == 'h5':
-                self.inferenceData = PSFitMLData(h5File=psDataFileName, useAllAttens=False, useResID=True)
-            elif psDataFileName.split('.')[1] == 'npz':
+            if psDataFileName.split('.')[1] == 'npz':
                 assert os.path.isfile(metadataFn), 'Must resonator metadata file'
                 self.inferenceData = MLData(psDataFileName, metadataFn)
             else:
