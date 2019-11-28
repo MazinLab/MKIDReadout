@@ -25,6 +25,7 @@ dependencies:
   - cython
   - flask
   - requests
+  - gitpython
 #optional
   - mpmath
   - blas
