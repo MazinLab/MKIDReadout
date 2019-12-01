@@ -47,7 +47,8 @@ if __name__=='__main__':
         ax1 = fig1.add_subplot(111)
 
         image, _, _, _ = mlt.makeWPSImage(freqSweep, args.freq, args.atten, mlDict['freqWinSize'], 
-                1+mlDict['attenWinBelow']+mlDict['attenWinAbove'], mlDict['useIQV'], mlDict['useVectIQV'])
+                1+mlDict['attenWinBelow']+mlDict['attenWinAbove'], mlDict['useIQV'], mlDict['useVectIQV'],
+                normalizeBeforeCenter=mlDict['normalizeBeforeCenter'])
 
         ax0.plot(image[:, :, 0].T, image[:, :, 1].T)
         if image.shape[2] > 2:
