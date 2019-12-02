@@ -18,7 +18,7 @@ import ConfigParser
 from mkidreadout.configuration.createTemplarResList import createTemplarResList
 from mkidcore.readdict import ReadDict
 
-def findLOs(freqs, loRange=0.2, nIters=10000, colParamWeight=1, resBW=0.0002, ifHole=0.003):
+def findLOs(freqsA, freqsB, sweepLOA, sweepLOB, loRange=10.e6, nIters=10000, colParamWeight=1, resBW=200.e3, ifHole=3.e6):
     '''
     Finds the optimal LO frequencies for a feedline, given a list of resonator frequencies.
     Does Monte Carlo optimization to minimize the number of out of band tones and sideband 
@@ -39,32 +39,31 @@ def findLOs(freqs, loRange=0.2, nIters=10000, colParamWeight=1, resBW=0.0002, if
     -------
         lo1, lo2 - low and high frequency LOs (in GHz)
     '''
-    lfRange = np.array([freqs[0]+1-loRange/2, freqs[0]+1+loRange/2]) #range to search for LF LO; 200 MHz span
-    hfRange = np.array([freqs[-1]-1-loRange/2, freqs[-1]-1+loRange/2])
+    lfRange = np.array([sweepLOA - loRange/2., sweepLOA + loRange/2.])
+    hfRange = np.array([sweepLOB - loRange/2., sweepLOB + loRange/2.])
     
-    nCollisionsOpt = len(freqs) #number of sideband collisions
-    nFreqsOmittedOpt = len(freqs) #number of frequencies outside LO band
+    nCollisionsOpt = len(freqsA) + len(freqsB) #number of sideband collisions
+    nFreqsOmittedOpt = len(freqsA) + len(freqsB) #number of frequencies outside LO band
     costOpt = nCollisionsOpt + colParamWeight*nCollisionsOpt
     for i in range(nIters):
-        lo1 = np.random.rand(1)[0]*loRange + lfRange[0]
-        hflolb = max(hfRange[0], lo1 + 2) #lower bound of hf sampling range; want LOs to be 1 GHz apart
-        lo2 = np.random.rand(1)[0]*(hfRange[1]-hflolb) + hflolb
+        loA = np.random.rand(1)[0]*loRange + lfRange[0]
+        hflolb = max(hfRange[0], loA + 2.e9) #lower bound of hf sampling range; want LOs to be 1 GHz apart
+        loB = np.random.rand(1)[0]*(hfRange[1]-hflolb) + hflolb
 
         #find nFreqsOmitted
-        freqsIF1 = freqs - lo1
-        freqsIF2 = freqs - lo2
-        isInLFBand = np.logical_and(np.abs(freqsIF1)<1, np.abs(freqsIF1)>ifHole)
-        isInHFBand = np.logical_and(np.abs(freqsIF2)<1, np.abs(freqsIF2)>ifHole)
-        isNotValidTone = np.logical_not(np.logical_or(isInLFBand, isInHFBand))
-        nFreqsOmitted = np.sum(isNotValidTone)
+        freqsIFA = freqsA - loA
+        freqsIFB = freqsB - loB
+        isInBandA = (np.abs(freqsIFA) < 1.e9) & (np.abs(freqsIFA) > ifHole)
+        isInBandB = (np.abs(freqsIFB) < 1.e9) & (np.abs(freqsIFB) > ifHole)
+        nFreqsOmitted = np.sum(~isInBandA) + np.sum(~isInBandB)
 
         #find nCollisions
-        freqsIF1 = freqsIF1[np.where(isInLFBand)]
-        freqsIF2 = freqsIF2[np.where(isInHFBand)]
-        freqsIF1SB = np.sort(np.abs(freqsIF1))
-        freqsIF2SB = np.sort(np.abs(freqsIF2))
-        nLFColl = np.sum(np.diff(freqsIF1SB)<resBW)
-        nHFColl = np.sum(np.diff(freqsIF2SB)<resBW)
+        freqsIFA = freqsIFA[isInBandA]
+        freqsIFB = freqsIFB[isInBandB]
+        freqsIFASB = np.sort(np.abs(freqsIFA))
+        freqsIFBSB = np.sort(np.abs(freqsIFB))
+        nLFColl = np.sum(np.diff(freqsIFASB)<resBW)
+        nHFColl = np.sum(np.diff(freqsIFBSB)<resBW)
         nCollisions = nLFColl + nHFColl
 
         #pdb.set_trace()
@@ -74,18 +73,18 @@ def findLOs(freqs, loRange=0.2, nIters=10000, colParamWeight=1, resBW=0.0002, if
             costOpt = cost
             nCollisionsOpt = nCollisions
             nFreqsOmittedOpt = nFreqsOmitted
-            lo1Opt = lo1
-            lo2Opt = lo2
-            #print 'nCollOpt', nCollisionsOpt
-            #print 'nFreqsOmittedOpt', nFreqsOmittedOpt
-            #print 'los', lo1, lo2
+            loAOpt = loA
+            loBOpt = loB
+            print 'nCollOpt', nCollisionsOpt
+            print 'nFreqsOmittedOpt', nFreqsOmittedOpt
+            print 'los', loA, loB
 
     print 'Optimal nCollisions', nCollisionsOpt
     print 'Optimal nFreqsOmitted', nFreqsOmittedOpt
-    print 'LO1', lo1Opt
-    print 'LO2', lo2Opt
+    print 'LOA', loAOpt
+    print 'LOB', loBOpt
 
-    return lo1Opt, lo2Opt
+    return loAOpt, loBOpt
 
 def modifyTemplarConfigFile(templarConfFn, flNums, roachNums, freqFiles, los, freqBandFlags):
     '''
