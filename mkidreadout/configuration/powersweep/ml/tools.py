@@ -1,13 +1,116 @@
-import glob
-
+import numpy as np
+import random
 import tensorflow as tf
-
-from PSFitMLData import *
+import logging
+import os, sys, glob
 from mkidreadout.configuration.powersweep.psmldata import *
+
+#TODO: finish center IQV feature or take it out
+def makeWPSImage(freqSweep, centerFreq, centerAtten, nFreqs, nAttens, useIQV, useVectIQV, centerIQV=False, normalizeBeforeCenter=False):
+    """
+    dataObj: FreqSweep object
+    """
+    winCenters = freqSweep.freqs[:, freqSweep.nlostep/2]
+    toneInd = np.argmin(np.abs(centerFreq - winCenters)) #index of resonator tone to use
+    toneFreqs = freqSweep.freqs[toneInd, :]
+    assert toneFreqs[0] < centerFreq < toneFreqs[-1], 'centerFreq out of range'
+
+    centerFreqInd = np.argmin(np.abs(toneFreqs - centerFreq))
+    startFreqInd = centerFreqInd - int(np.floor(nFreqs/2.))
+    endFreqInd = centerFreqInd + int(np.ceil(nFreqs/2.))
+
+    if startFreqInd < 0:
+        startFreqPads = 0 - startFreqInd
+        startFreqInd = 0
+    else:
+        startFreqPads = 0
+    if endFreqInd > len(toneFreqs):
+        endFreqPads = endFreqInd - len(toneFreqs)
+        endFreqInd = len(toneFreqs)
+    else:
+        endFreqPads = 0
+
+    assert freqSweep.atten[0] <= centerAtten <= freqSweep.atten[-1], 'centerAtten out of range'
+    centerAttenInd = np.argmin(np.abs(freqSweep.atten - centerAtten))
+    startAttenInd = centerAttenInd - int(np.floor(nAttens/2.))
+    endAttenInd = centerAttenInd + int(np.ceil(nAttens/2.))
+
+    if startAttenInd < 0:
+        startAttenPads = 0 - startAttenInd
+        startAttenInd = 0
+    else:
+        startAttenPads = 0
+    if endAttenInd > len(freqSweep.atten):
+        endAttenPads = endAttenInd - len(freqSweep.atten)
+        endAttenInd = len(freqSweep.atten)
+    else:
+        endAttenPads = 0
+
+    #SELECT
+    freqs = toneFreqs[startFreqInd:endFreqInd]
+    attens = freqSweep.atten[startAttenInd:endAttenInd]
+    iVals = freqSweep.i[startAttenInd:endAttenInd, toneInd, startFreqInd:endFreqInd]
+    qVals = freqSweep.q[startAttenInd:endAttenInd, toneInd, startFreqInd:endFreqInd]
+
+    if centerIQV:
+        iqVels = np.sqrt(np.diff(iVals, axis=1)**2 + np.diff(qVals, axis=1)**2)
+        raise Exception('Not implemented')
+
+
+    #NORMALIZE
+    if normalizeBeforeCenter:
+        res_mag = np.sqrt(np.mean(iVals**2 + qVals**2, axis=1))
+        iVals = np.transpose(np.transpose(iVals)/res_mag)
+        qVals = np.transpose(np.transpose(qVals)/res_mag)
+        iVals = np.transpose(np.transpose(iVals) - np.mean(iVals, axis=1))
+        qVals = np.transpose(np.transpose(qVals) - np.mean(qVals, axis=1))
+
+    else:
+        iVals = np.transpose(np.transpose(iVals) - np.mean(iVals, axis=1))
+        qVals = np.transpose(np.transpose(qVals) - np.mean(qVals, axis=1))
+        res_mag = np.sqrt(np.mean(iVals**2 + qVals**2, axis=1))
+        iVals = np.transpose(np.transpose(iVals)/res_mag)
+        qVals = np.transpose(np.transpose(qVals)/res_mag)
+
+    iqVels = np.sqrt(np.diff(iVals, axis=1)**2 + np.diff(qVals, axis=1)**2)
+    iVels = np.diff(iVals, axis=1)
+    qVels = np.diff(qVals, axis=1)
+
+    iqVels = np.transpose(np.transpose(iqVels) - np.mean(iqVels, axis=1))
+    #iqVels = np.transpose(np.transpose(iqVels)/res_mag)
+    #iqVels /= np.sqrt(np.mean(iqVels**2))
+
+    iVels = np.transpose(np.transpose(iVels) - np.mean(iVels, axis=1))
+    #iVels = np.transpose(np.transpose(iVels)/res_mag)
+    #iVels /= np.sqrt(np.mean(iVels**2))
+
+    qVels = np.transpose(np.transpose(qVels) - np.mean(qVels, axis=1))
+    #qVels = np.transpose(np.transpose(qVels)/res_mag)
+    #qVels /= np.sqrt(np.mean(qVels**2))
+
+    #PAD
+    iVals = np.pad(iVals, ((startAttenPads, endAttenPads), (startFreqPads, endFreqPads)), 'edge')
+    qVals = np.pad(qVals, ((startAttenPads, endAttenPads), (startFreqPads, endFreqPads)), 'edge')
+    iqVels = np.pad(iqVels, ((startAttenPads, endAttenPads), (startFreqPads, endFreqPads+1)), 'edge')
+    iVels = np.pad(iVels, ((startAttenPads, endAttenPads), (startFreqPads, endFreqPads+1)), 'edge')
+    qVels = np.pad(qVels, ((startAttenPads, endAttenPads), (startFreqPads, endFreqPads+1)), 'edge')
+    freqs = np.pad(freqs, (startFreqPads, endFreqPads), 'edge')
+    attens = np.pad(attens, (startAttenPads, endAttenPads), 'edge')
+
+    image = np.dstack((iVals, qVals))
+    if useIQV:
+        image = np.dstack((image, iqVels))
+    if useVectIQV:
+        image = np.dstack((image, iVels))
+        image = np.dstack((image, qVels))
+
+    return image, res_mag[nAttens/2], attens, freqs
+
+
 
 
 def makeResImage(res_num, dataObj, wsAttenInd, xWidth, resWidth, 
-            pad_res_win, useIQV, useMag, centerLoop, nAttensModel, collisionRange=100.e3):
+            pad_res_win, useIQV, useMag, centerLoop, nAttensModel, useVectIQV=False, collisionRange=100.e3):
     """Creates a table with 2 rows, I and Q for makeTrainData(mag_data=True)
 
     inputs
@@ -179,6 +282,13 @@ def makeResImage(res_num, dataObj, wsAttenInd, xWidth, resWidth,
     #iqVelImage = np.transpose(np.transpose(iqVelImage) / np.sqrt(np.amax(iqVelImage ** 2, axis=1))) 
         #replaced with edit after 'if center_loop' on 20190107
     magsdbImage = np.transpose(np.transpose(magsdbImage) / np.sqrt(np.mean(magsdbImage ** 2, axis=1)))
+    #iqVelImage = iqVelImage/np.sqrt(np.mean(iqVelImage**2)) #changed 20190107, probably a mistake earlier
+        #20190324 - move this before scaling
+
+    iVelImage = np.diff(singleFrameImage[:, :, 0], axis=1)
+    qVelImage = np.diff(singleFrameImage[:, :, 1], axis=1)
+    iVelImage = np.pad(iVelImage, ((0, 0), (0, 1)), 'edge')
+    qVelImage = np.pad(qVelImage, ((0, 0), (0, 1)), 'edge')
 
     if centerLoop:
         singleFrameImage[:, :, 0] = np.transpose(
@@ -188,9 +298,14 @@ def makeResImage(res_num, dataObj, wsAttenInd, xWidth, resWidth,
             np.transpose(singleFrameImage[:, :, 1]) - np.mean(singleFrameImage[:, :, 1], 1))
         iqVelImage = np.transpose(np.transpose(iqVelImage) - np.mean(iqVelImage, 1))  # added by NF 20180423
         magsdbImage = np.transpose(np.transpose(magsdbImage) - np.mean(magsdbImage, 1))  # added by NF 20180423
+        iVelImage = np.transpose(np.transpose(iVelImage) - np.mean(iVelImage, 1))
+        qVelImage = np.transpose(np.transpose(qVelImage) - np.mean(qVelImage, 1))
+
 
     iqVelImage = iqVelImage/np.sqrt(np.mean(iqVelImage**2)) #changed 20190107, probably a mistake earlier
-
+    iVelImage = iVelImage/np.sqrt(np.mean(iVelImage**2)) #changed 20190107, probably a mistake earlier
+    qVelImage = qVelImage/np.sqrt(np.mean(qVelImage**2)) #changed 20190107, probably a mistake earlier
+    
 
     if resWidth < xWidth:
         nPadVals = (xWidth - resWidth) / 2.
@@ -200,6 +315,8 @@ def makeResImage(res_num, dataObj, wsAttenInd, xWidth, resWidth,
             singleFrameImageFS[:, :, i] = np.pad(singleFrameImage[:, :, i],
                                                  [(0, 0), (int(np.ceil(nPadVals)), int(np.floor(nPadVals)))], 'edge')
         iqVelImage = np.pad(iqVelImage, [(0, 0), (int(np.ceil(nPadVals)), int(np.floor(nPadVals)))], 'edge')
+        iVelImage = np.pad(iVelImage, [(0, 0), (int(np.ceil(nPadVals)), int(np.floor(nPadVals)))], 'edge')
+        qVelImage = np.pad(qVelImage, [(0, 0), (int(np.ceil(nPadVals)), int(np.floor(nPadVals)))], 'edge')
         magsdbImage = np.pad(magsdbImage, [(0, 0), (int(np.ceil(nPadVals)), int(np.floor(nPadVals)))], 'edge')
         freqCubeFS = np.pad(freqCube, [(0, 0), (int(np.ceil(nPadVals)), int(np.floor(nPadVals)))], 'edge')
         singleFrameImage = singleFrameImageFS
@@ -212,6 +329,8 @@ def makeResImage(res_num, dataObj, wsAttenInd, xWidth, resWidth,
             singleFrameImageFS[:, :, i] = np.pad(singleFrameImage[:, :, i], [(0, mlDictnAttens - nAttens), (0, 0)],
                                                  'edge')
         iqVelImage = np.pad(iqVelImage, [(0, mlDictnAttens - nAttens), (0, 0)], 'edge')
+        iVelImage = np.pad(iVelImage, [(0, mlDictnAttens - nAttens), (0, 0)], 'edge')
+        qVelImage = np.pad(qVelImage, [(0, mlDictnAttens - nAttens), (0, 0)], 'edge')
         magsdbImage = np.pad(magsdbImage, [(0, mlDictnAttens - nAttens), (0, 0)], 'edge')
         freqCubeFS = np.pad(freqCube, [(0, mlDictnAttens - nAttens), (0, 0)], 'edge')
         singleFrameImage = singleFrameImageFS
@@ -222,6 +341,8 @@ def makeResImage(res_num, dataObj, wsAttenInd, xWidth, resWidth,
     elif nAttens > nAttensModel:
         singleFrameImage = singleFrameImage[:nAttensModel, :, :]
         iqVelImage = iqVelImage[:nAttensModel, :]
+        iVelImage = iVelImage[:nAttensModel, :]
+        qVelImage = qVelImage[:nAttensModel, :]
         magsdbImage = magsdbImage[:nAttensModel, :]
         freqCube = freqCube[:nAttensModel, :]
         attenList = attenList[:nAttensModel]
@@ -231,6 +352,10 @@ def makeResImage(res_num, dataObj, wsAttenInd, xWidth, resWidth,
 
     if useMag:
         singleFrameImage = np.dstack((singleFrameImage, magsdbImage))
+
+    if useVectIQV:
+        singleFrameImage = np.dstack((singleFrameImage, iVelImage))
+        singleFrameImage = np.dstack((singleFrameImage, qVelImage))
 
     return singleFrameImage, freqCube, attenList, iqVelImage, magsdbImage
 
@@ -256,6 +381,10 @@ def get_ml_model(modelDir=''):
     for param in tf.get_collection('mlDict'):
         mlDict[param.op.name] = param.eval(session=sess)
 
+    if not mlDict.has_key('normalizeBeforeCenter'): #maintain backwards compatibility with old models
+        print 'Adding key: normalizeBeforeCenter'
+        mlDict['normalizeBeforeCenter'] = False
+
     return mlDict, sess, graph, x_input, y_output, keep_prob, is_training
 
 def get_peak_idx(res_num, iAtten, dataObj, smooth=False, cutType=None, padInd=None):
@@ -271,3 +400,13 @@ def get_peak_idx(res_num, iAtten, dataObj, smooth=False, cutType=None, padInd=No
     if smooth:
         iq_vels = np.correlate(iq_vels, np.ones(5), mode='same')
     return np.argmax(iq_vels)
+
+def next_batch(trainImages, trainLabels, batch_size):
+    '''selects a random batch of batch_size from trainImages and trainLabels'''
+    perm = random.sample(range(len(trainImages)), batch_size)
+    trainImagesBatch = trainImages[perm]
+    trainLabelsBatch = trainLabels[perm]
+    #print 'next_batch trImshape', np.shape(trainImages)
+    return trainImagesBatch, trainLabelsBatch
+
+

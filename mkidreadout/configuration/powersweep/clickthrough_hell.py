@@ -38,6 +38,7 @@ class StartQt4(QMainWindow):
         QObject.connect(self.ui.atten, SIGNAL("valueChanged(int)"), self.setnewatten)
         QObject.connect(self.ui.savevalues, SIGNAL("clicked()"), self.savevalues)
         QObject.connect(self.ui.jumptores, SIGNAL("clicked()"), self.jumptores)
+        QObject.connect(self.ui.jumptoresbyid, SIGNAL("clicked()"), self.jumptoresbyid)
 
         QShortcut(QKeySequence(Qt.Key_Space), self, self.savevalues)
         QShortcut(QKeySequence('B'), self, self.goback)
@@ -389,6 +390,21 @@ class StartQt4(QMainWindow):
         try:
             self.atten = -1
             self.resnum = self.ui.jumptonum.value()
+            self.loadres()
+        except IndexError:
+            getLogger(__name__).info("Res value out of bounds.")
+            self.ui.plot_1.canvas.ax.clear()
+            self.ui.plot_2.canvas.ax.clear()
+            self.ui.plot_3.canvas.ax.clear()
+            self.ui.plot_1.canvas.draw()
+            self.ui.plot_2.canvas.draw()
+            self.ui.plot_3.canvas.draw()
+
+    def jumptoresbyid(self):
+        try:
+            self.atten = -1
+            resID = self.ui.jumptoid.value()
+            self.resnum = np.where(self.fsweepdata.resIDs == resID)[0][0]
             self.loadres()
         except IndexError:
             getLogger(__name__).info("Res value out of bounds.")

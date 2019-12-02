@@ -1,28 +1,12 @@
-''' 
-Author Rupert Dodkins, Neelay Fruitwala
-
-A script to automate the identification of resonator attenuations normally performed by PSFit.py. This is accomplished 
-using Google's Tensor Flow machine learning package which implements a pattern recognition convolution neural network 
-algorithm and classification algorithm on power and frequency sweep data saved in h5 format.
-
-Usage: train using cfg file specifying model parameters and training data (see FlemingLFV1.cfg), with trainModel.py.
-For inference, use findPowers.py.
-
-How it works:
-For every resonator an "image" of it's power sweep is made, with axes of frequency and attenuation. The image has three 
-"color" channels, corresponding to I, Q, and IQ Velocity. This image is used by the CNN to find the optimal attenuation.
-
-mlClassification defines the graph structure, trains the model, and saves it so it can be used for inference.
-
-'''
-
-import math
-import random
-
+import numpy as np
+import sys, os
+import matplotlib.pyplot as plt
 import tensorflow as tf
 from tensorflow.python import debug as tf_debug
-
-from mkidreadout.configuration.powersweep.ml.PSFitMLData import *
+import pickle
+import random
+import time
+import math
 from mkidreadout.configuration.powersweep.psmldata import *
 
 np.set_printoptions(threshold=np.inf)
@@ -31,6 +15,8 @@ import mkidreadout.configuration.powersweep.ml.tools as mlt
 #removes visible depreciation warnings from lib.iqsweep
 import warnings
 warnings.filterwarnings("ignore")
+
+MAX_IMAGES = 10000
 
 
 class mlClassification():
@@ -41,7 +27,7 @@ class mlClassification():
         '''
         self.mlDict = mlDict
         #self.uAttDist = +2 # rule of thumb attenuation steps to reach the underpowed peak
-        self.nClass = self.mlDict['nAttens']
+        self.nClass = 2
         self.trainFile = os.path.join(self.mlDict['modelDir'], self.mlDict['trainPklFile'])
         self.trainFrac = self.mlDict['trainFrac']
         self.testFrac = 1-self.trainFrac
@@ -65,7 +51,7 @@ class mlClassification():
 
             if self.mlDict['trimAttens']:
                 goodResMask = goodResMask & ~(rawTrainData.opt_iAttens < self.mlDict['attenWinBelow'])
-                goodResMask = goodResMask & ~(rawTrainData.opt_iAttens > (len(rawTrainData.attens) - self.mlDict['attenWinAbove']))
+                goodResMask = goodResMask & ~(rawTrainData.opt_iAttens >= (len(rawTrainData.attens) - self.mlDict['attenWinAbove']))
             if self.mlDict['filterMaxedAttens']:
                 maxAttenInd = np.argmax(rawTrainData.attens)
                 goodResMask = goodResMask & ~(rawTrainData.opt_iAttens==maxAttenInd)
@@ -87,7 +73,16 @@ class mlClassification():
             
             #class_steps = 300
 
-            trainImages, trainLabels, testImages, testLabels = [], [], [], []
+            nColors = 2
+            if self.mlDict['useIQV']:
+                nColors += 1
+            if self.mlDict['useMag']:
+                nColors += 1
+            if self.mlDict['useVectIQV']:
+                nColors += 2
+
+            if not self.mlDict.has_key('nImagesPerRes'):
+                self.mlDict['nImagesPerRes'] = 1
 
             # num_rotations = 3
             # angle = np.arange(0,2*math.pi,2*math.pi/num_rotations)
@@ -95,34 +90,81 @@ class mlClassification():
             test_ind=[]
             np.array([test_ind.append(el) for el in range(rawTrainData.res_nums) if el not in train_ind])
 
-            #TODO: fix append if this is too slow
+            trainImages = np.zeros((2*self.mlDict['nImagesPerRes']*len(train_ind), self.mlDict['attenWinBelow']+self.mlDict['attenWinAbove']+1, self.mlDict['xWidth'], nColors))
+            testImages = np.zeros((2*len(test_ind), self.mlDict['attenWinBelow']+self.mlDict['attenWinAbove']+1, self.mlDict['xWidth'], nColors))
+            trainLabels = np.zeros((2*self.mlDict['nImagesPerRes']*len(train_ind), self.nClass))
+            testLabels = np.zeros((2*len(test_ind), self.nClass))
+
+            imCtr = 0
             for rn in train_ind:#range(int(self.trainFrac*rawTrainData.res_nums)):
                 # for t in range(num_rotations):
                 #     image = self.makeResImage(res_num = rn, iAtten= iAttens[rn,c], angle=angle[t],showFrames=False, 
                 #                                 test_if_noisy=test_if_noisy, xCenter=self.res_indicies[rn,c])
                 image, _, _, _, _ = mlt.makeResImage(rn, rawTrainData, wsAttenInd, self.mlDict['xWidth'], 
                                         self.mlDict['resWidth'], self.mlDict['padResWin'], self.mlDict['useIQV'], 
-                                        self.mlDict['useMag'], self.mlDict['centerLoop'], self.mlDict['nAttens']) 
+                                        self.mlDict['useMag'], self.mlDict['centerLoop'], self.mlDict['nAttens'], self.mlDict['useVectIQV']) 
                 if image is not None:
-                    trainImages.append(image)
-                    oneHot = np.zeros(self.mlDict['nAttens'])
-                    oneHot[rawTrainData.opt_iAttens[rn]] = 1
-                    trainLabels.append(oneHot)
+                    badAttenMask = np.ones(self.mlDict['nAttens'])
+                    badAttenMask[:self.mlDict['attenWinBelow']] = 0
+                    badAttenMask[-self.mlDict['attenWinAbove']-1:] = 0
+                    endInd = min(self.mlDict['nAttens'], rawTrainData.opt_iAttens[rn] + self.mlDict['badAttenRangeAbove'])
+                    startInd = max(0, rawTrainData.opt_iAttens[rn] - self.mlDict['badAttenRangeBelow'])
 
 
-            for rn in test_ind:#range(int(self.trainFrac*rawTrainData.res_nums), int(self.trainFrac*rawTrainData.res_nums + self.testFrac*rawTrainData.res_nums)):
+                    for k in range(self.mlDict['nImagesPerRes']):
+                        imageGood = image[rawTrainData.opt_iAttens[rn]-self.mlDict['attenWinBelow']:rawTrainData.opt_iAttens[rn]+self.mlDict['attenWinAbove']+1]
+                        trainImages[imCtr] = imageGood
+                        trainLabels[imCtr] = np.array([1,0])
+                        imCtr += 1
+
+                        if self.mlDict['equalizeTrainingSat'] and startInd > self.mlDict['attenWinBelow'] and endInd < self.mlDict['nAttens'] - self.mlDict['attenWinAbove'] - 1:
+                            sat = np.random.choice(np.array([True, False]))
+                            if sat:
+                                endInd = self.mlDict['nAttens']
+                            else:
+                                startInd = 0
+                        badAttenMask[startInd:endInd] = 0
+                        badAttenInds = np.where(badAttenMask)[0]
+                        badAttenInd = np.random.choice(badAttenInds)
+                        imageBad = image[badAttenInd-self.mlDict['attenWinBelow']:badAttenInd+self.mlDict['attenWinAbove']+1]
+                        trainImages[imCtr] = imageBad
+                        trainLabels[imCtr] = np.array([0,1])
+                        imCtr += 1
+
+
+            imCtr = 0
+            for rn in test_ind:
                 image, _, _, _, _ = mlt.makeResImage(rn, rawTrainData, wsAttenInd, self.mlDict['xWidth'], 
                                         self.mlDict['resWidth'], self.mlDict['padResWin'], self.mlDict['useIQV'], 
-                                        self.mlDict['useMag'], self.mlDict['centerLoop'], self.mlDict['nAttens']) 
+                                        self.mlDict['useMag'], self.mlDict['centerLoop'], self.mlDict['nAttens'], self.mlDict['useVectIQV']) 
                 if image is not None:
-                    testImages.append(image)
-                    oneHot = np.zeros(self.mlDict['nAttens'])
-                    oneHot[rawTrainData.opt_iAttens[rn]] = 1
-                    testLabels.append(oneHot)
+                    imageGood = image[rawTrainData.opt_iAttens[rn]-self.mlDict['attenWinBelow']:rawTrainData.opt_iAttens[rn]+self.mlDict['attenWinAbove']+1]
+                    testImages[imCtr] = imageGood
+                    testLabels[imCtr] = np.array([1,0])
+                    imCtr += 1
+
+                    badAttenMask = np.ones(self.mlDict['nAttens'])
+                    badAttenMask[:self.mlDict['attenWinBelow']] = 0
+                    badAttenMask[-self.mlDict['attenWinAbove']-1:] = 0
+                    endInd = min(self.mlDict['nAttens'], rawTrainData.opt_iAttens[rn] + self.mlDict['badAttenRangeAbove'])
+                    startInd = max(0, rawTrainData.opt_iAttens[rn] - self.mlDict['badAttenRangeBelow'])
+                    if self.mlDict['equalizeTrainingSat'] and startInd > self.mlDict['attenWinBelow'] and endInd < self.mlDict['nAttens'] - self.mlDict['attenWinAbove'] - 1:
+                        sat = np.random.choice(np.array([True, False]))
+                        if sat:
+                            endInd = self.mlDict['nAttens']
+                        else:
+                            startInd = 0
+                    badAttenMask[startInd:endInd] = 0
+                    badAttenInds = np.where(badAttenMask)[0]
+                    badAttenInd = np.random.choice(badAttenInds)
+                    imageBad = image[badAttenInd-self.mlDict['attenWinBelow']:badAttenInd+self.mlDict['attenWinAbove']+1]
+                    testImages[imCtr] = imageBad
+                    testLabels[imCtr] = np.array([0,1])
+                    imCtr += 1
 
             with open(self.trainFile, 'ab') as trainFile:
-                pickle.dump([trainImages, trainLabels], trainFile)
-                pickle.dump([testImages, testLabels], trainFile)
+                pickle.dump([np.array(trainImages), np.array(trainLabels)], trainFile)
+                pickle.dump([np.array(testImages), np.array(testLabels)], trainFile)
 
     def initializeAndTrainModel(self, debug=False, saveGraph=False):
         print self.trainFile
@@ -131,10 +173,10 @@ class mlClassification():
             self.makeTrainData()
 
         trainImages, trainLabels, testImages, testLabels = loadPkl(self.trainFile)
-        trainImages = np.asarray(trainImages)
-        trainLabels = np.asarray(trainLabels)
-        testImages = np.asarray(testImages)
-        testLabels = np.asarray(testLabels)
+        #trainImages = np.asarray(trainImages)
+        #trainLabels = np.asarray(trainLabels)
+        #testImages = np.asarray(testImages)
+        #testLabels = np.asarray(testLabels)
 
         if self.mlDict['overfitTest']:
             trainImages = trainImages[:30]
@@ -158,12 +200,14 @@ class mlClassification():
             nColors += 1
         if self.mlDict['useMag']:
             nColors += 1
+        if self.mlDict['useVectIQV']:
+            nColors += 2
 
         
-        self.x = tf.placeholder(tf.float32, [None, self.mlDict['nAttens'], self.mlDict['xWidth'], nColors], name='inputImage')
-        x_image = tf.reshape(self.x, [-1, self.mlDict['nAttens'], self.mlDict['xWidth'], nColors])
-
         attenWin = 1 + self.mlDict['attenWinBelow'] + self.mlDict['attenWinAbove']
+        self.x = tf.placeholder(tf.float32, [None, attenWin, self.mlDict['xWidth'], nColors], name='inputImage')
+        x_image = tf.reshape(self.x, [-1, attenWin, self.mlDict['xWidth'], nColors])
+
         numImg = tf.shape(x_image)[0]
 
         def weight_variable(shape, name=None):
@@ -183,6 +227,9 @@ class mlClassification():
         
         def max_pool_nx1(x,n):
             return tf.nn.max_pool(x, ksize=[1, 1, n, 1], strides=[1, 1, n, 1], padding='SAME')
+
+        def max_pool_nxm(x,n,m):
+            return tf.nn.max_pool(x, ksize=[1, n, m, 1], strides=[1, n, m, 1], padding='SAME')
 
         def variable_summaries(var):
             with tf.name_scope('summaries'):
@@ -211,9 +258,10 @@ class mlClassification():
                 h_conv1 = tf.nn.relu(h_conv1_batch, name='h_conv1')
             else:
                 h_conv1 = tf.nn.relu(h_conv1_raw, name='h_conv1')
-            h_pool1 = max_pool_nx1(h_conv1,n_pool1)
+            h_pool1 = max_pool_nxm(h_conv1,n_pool1[0],n_pool1[1])
             h_pool1_dropout = tf.nn.dropout(h_pool1, self.keep_prob)
-            xWidth1 = int(math.ceil(self.mlDict['xWidth']/float(n_pool1)))
+            xWidth1 = int(math.ceil(self.mlDict['xWidth']/float(n_pool1[1])))
+            aWidth1 = int(math.ceil(attenWin/float(n_pool1[0])))
             cWidth1 = num_filt1
             tf.summary.histogram('h_conv1', h_conv1)
             tf.summary.histogram('h_pool1', h_pool1)
@@ -232,11 +280,12 @@ class mlClassification():
                 h_conv2 = tf.nn.relu(h_conv2_batch, name='h_conv2')
             else:
                 h_conv2 = tf.nn.relu(h_conv2_raw, name='h_conv2')
-            with tf.control_dependencies([tf.assert_equal(tf.shape(h_pool1),(numImg,self.mlDict['nAttens'],xWidth1,cWidth1),message='hpool1 assertion')]):
-                h_pool2 = max_pool_nx1(h_conv2, n_pool2)
+            with tf.control_dependencies([tf.assert_equal(tf.shape(h_pool1),(numImg,aWidth1,xWidth1,cWidth1),message='hpool1 assertion')]):
+                h_pool2 = max_pool_nxm(h_conv2, n_pool2[0], n_pool2[1])
                 h_pool2_dropout = tf.nn.dropout(h_pool2, self.keep_prob)
-                xWidth2 = int(math.ceil(xWidth1/float(n_pool2)))
+                xWidth2 = int(math.ceil(xWidth1/float(n_pool2[1])))
                 cWidth2 = num_filt2
+                aWidth2 = int(math.ceil(aWidth1/float(n_pool2[0])))
             tf.summary.histogram('h_conv2', h_conv2)
             tf.summary.histogram('h_pool2', h_pool2)
 
@@ -254,10 +303,11 @@ class mlClassification():
                 h_conv3 = tf.nn.relu(h_conv3_batch, name='h_conv3')
             else:
                 h_conv3 = tf.nn.relu(h_conv3_raw, name='h_conv3')
-            with tf.control_dependencies([tf.assert_equal(tf.shape(h_pool2),(numImg,self.mlDict['nAttens'],xWidth2,cWidth2),message='hpool2 assertion')]):
-                h_pool3 = max_pool_nx1(h_conv3, n_pool3)
+            with tf.control_dependencies([tf.assert_equal(tf.shape(h_pool2),(numImg,aWidth2,xWidth2,cWidth2),message='hpool2 assertion')]):
+                h_pool3 = max_pool_nxm(h_conv3, n_pool3[0], n_pool3[1])
                 h_pool3_dropout = tf.nn.dropout(h_pool3, self.keep_prob)
-                xWidth3 = int(math.ceil(xWidth2/float(n_pool3)))
+                xWidth3 = int(math.ceil(xWidth2/float(n_pool3[1])))
+                aWidth3 = int(math.ceil(aWidth2/float(n_pool3[0])))
                 cWidth3 = num_filt3
             tf.summary.histogram('h_conv3', h_conv3)
             tf.summary.histogram('h_pool3', h_pool3)
@@ -275,22 +325,19 @@ class mlClassification():
         #     cWidth4 = num_filt4
         
         with tf.name_scope('FinalLayer'):
-            h_pool3_flat = tf.reshape(h_pool3_dropout,[-1,self.mlDict['nAttens'],cWidth3*xWidth3,1])        
-            W_final = weight_variable([1, cWidth3*xWidth3, 1, 1])
-            b_final = bias_variable([1])     
+            h_pool3_flat = tf.reshape(h_pool3_dropout,[-1,aWidth3*cWidth3*xWidth3])        
+            W_final = weight_variable([aWidth3*cWidth3*xWidth3, self.nClass])
+            b_final = bias_variable([2])     
             variable_summaries(W_final)
             variable_summaries(b_final)
             
-            with tf.control_dependencies([tf.assert_equal(tf.shape(h_pool3),(numImg,self.mlDict['nAttens'],xWidth3,cWidth3))]):
-                h_conv_final = tf.nn.conv2d(h_pool3_flat, W_final, strides=[1, 1, 1, 1], padding='VALID') + b_final
-            
-            with tf.control_dependencies([tf.assert_equal(tf.shape(h_conv_final),(numImg,self.mlDict['nAttens'],1,1))]):
-                h_conv_final = tf.reshape(h_conv_final, [-1,self.mlDict['nAttens']])
+            with tf.control_dependencies([tf.assert_equal(tf.shape(h_pool3),(numImg,aWidth3,xWidth3,cWidth3))]):
+                h_conv_final = tf.matmul(h_pool3_flat, W_final) + b_final 
                 tf.summary.histogram('h_conv_final', h_conv_final)
         
         self.y=tf.nn.softmax(h_conv_final, name="outputLabel") #h_fc1_drop   
 
-        y_ = tf.placeholder(tf.float32, [None, self.mlDict['nAttens']]) # true class lables identified by user 
+        y_ = tf.placeholder(tf.float32, [None, self.nClass]) # true class lables identified by user 
         cross_entropy = tf.reduce_mean(-tf.reduce_sum(y_ * tf.log(self.y+ 1e-10), reduction_indices=[1])) # find optimum solution by minimizing error
         tf.summary.scalar('cross_entropy', cross_entropy)
         #cross_entropy = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(self.y,y_))
@@ -379,17 +426,19 @@ class mlClassification():
             if ys_guess[i] == y: # or ys_guess[i] == y-1 or ys_guess[i] == y+1:
                 #print i, 'guessed right'
                 right.append(i)
-            if np.abs(ys_guess[i]-y) <= 1:
-                within1dB.append(i)
 
         print len(right), len(ys_true), float(len(right))/len(ys_true)
 
         testScore = self.sess.run(accuracy, feed_dict={self.x: testImages, y_: testLabels, self.keep_prob: 1, self.is_training: False}) * 100
         print 'Accuracy of model in testing: ', testScore, '%'
-        if testScore < 85: print 'Consider making more training images'
-        print 'Testing accuracy within 1 dB: ', float(len(within1dB))/len(ys_true)*100, '%' 
 
-        trainScore = self.sess.run(accuracy, feed_dict={self.x: trainImages, y_: trainLabels, self.keep_prob: 1, self.is_training: False}) * 100
+        trainScore = 0
+        nTrainScoreBatches = len(trainImages)/MAX_IMAGES + 1
+        for i in range(nTrainScoreBatches):
+            endInd = min((i+1)*MAX_IMAGES, len(trainImages))
+            trainImagesBatch = trainImages[i*MAX_IMAGES:endInd]
+            trainLabelsBatch = trainLabels[i*MAX_IMAGES:endInd]
+            trainScore += self.sess.run(accuracy, feed_dict={self.x: trainImagesBatch, y_: trainLabelsBatch, self.keep_prob: 1, self.is_training: False}) * 100/nTrainScoreBatches
         print 'Accuracy of model in training: ', trainScore, '%'
         print tf.get_default_graph().get_all_collection_keys()
         

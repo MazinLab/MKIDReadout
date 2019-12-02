@@ -8,15 +8,13 @@ Usage: python findPowers.py <mlConfigFile> <h5File>
         infer powers.
 
 """
-import argparse
-import os
-
 import numpy as np
 import tensorflow as tf
-
+import os, sys, glob
+import argparse
+import logging
 import mkidreadout.configuration.powersweep.ml.tools as mlt
 from mkidcore.corelog import getLogger
-from mkidreadout.configuration.powersweep.ml.PSFitMLData import PSFitMLData
 from mkidreadout.configuration.powersweep.psmldata import MLData
 
 FREQ_USE_MAG = False
@@ -24,12 +22,8 @@ FREQ_USE_MAG = False
 
 def findPowers(goodModelDir, badModelDir, psDataFileName, metadataFn=None,
                saveScores=False, wsAtten=None, resWidth=None):
-    if psDataFileName.split('.')[1] == 'h5':
-        inferenceData = PSFitMLData(h5File=psDataFileName, useAllAttens=False, useResID=True)
-        inferenceData.wsatten = wsAtten
-    else:
-        assert os.path.isfile(metadataFn), 'Must resonator metadata file'
-        inferenceData = MLData(psDataFileName, metadataFn)
+    assert os.path.isfile(metadataFn), 'Must resonator metadata file'
+    inferenceData = MLData(psDataFileName, metadataFn)
 
     apply_ml_model(inferenceData, wsAtten, resWidth, goodModelDir=goodModelDir, badModelDir=badModelDir)
 
@@ -68,7 +62,7 @@ def apply_ml_model(inferenceData, wsAtten, resWidth, goodModelDir='', badModelDi
     if resWidth is None:
         resWidth = mlDict['resWidth']
 
-    inferenceLabels = np.zeros((res_nums, mlDict['nAttens']))
+    inferenceLabels = np.zeros((res_nums, mlDict['nAttens'] - mlDict['attenWinAbove'] - mlDict['attenWinBelow'], 2))
 
     if badModelDir:
         mlDictBad, sess_bad, graph_bad, x_input_bad, y_output_bad, keep_prob_bad = mlt.get_ml_model(badModelDir)
@@ -82,13 +76,18 @@ def apply_ml_model(inferenceData, wsAtten, resWidth, goodModelDir='', badModelDi
 
         image, freqCube, attenList, iqVel, magsdb = mlt.makeResImage(rn, inferenceData, wsAttenInd, mlDict['xWidth'],
                                         resWidth, mlDict['padResWin'], mlDict['useIQV'], mlDict['useMag'],
-                                        mlDict['centerLoop'], mlDict['nAttens'])
+                                        mlDict['centerLoop'], mlDict['nAttens'], mlDict['useVectIQV'])
 
-        image -= meanImage
-        inferenceImage = [image]
-        inferenceLabels[rn, :] = sess.run(y_output, feed_dict={x_input: inferenceImage, keep_prob: 1, is_training: False})
-        iAtt = np.argmax(inferenceLabels[rn, :-3])
-        inferenceData.opt_attens[rn] = attenList[iAtt]
+        #image -= meanImage
+        for i in range(mlDict['attenWinBelow'], mlDict['nAttens'] - mlDict['attenWinAbove']):
+            inferenceImage = image[i-mlDict['attenWinBelow']: i+mlDict['attenWinAbove']+1]
+            inferenceLabels[rn, i-mlDict['attenWinBelow'], :] = sess.run(y_output, feed_dict={x_input: [inferenceImage], keep_prob: 1, is_training: False})
+        iAtt = np.argmax(np.correlate(inferenceLabels[rn, :, 0], np.ones(5), 'same')) + mlDict['attenWinBelow']
+        if np.all(np.correlate(inferenceLabels[rn, :, 0], np.ones(3), 'same') < 0.25):
+            inferenceData.opt_attens[rn] = attenList[-1]
+            getLogger(__name__).debug("res %d flagged bad" %(inferenceData.resIDs[rn]))
+        else:
+            inferenceData.opt_attens[rn] = attenList[iAtt]
         if FREQ_USE_MAG:
             inferenceData.opt_freqs[rn] = freqCube[iAtt, np.argmin(magsdb[iAtt,:])]  # TODO: make this more robust
         else:
@@ -98,7 +97,7 @@ def apply_ml_model(inferenceData, wsAtten, resWidth, goodModelDir='', badModelDi
         assert inferenceData.freqs[rn, 0] <= inferenceData.opt_freqs[rn] <= inferenceData.freqs[
             rn, -1], 'freq out of range, need to debug'
 
-        inferenceData.scores[rn] = inferenceLabels[rn, iAtt]
+        inferenceData.scores[rn] = inferenceLabels[rn, iAtt-mlDict['attenWinBelow'], 0]
 
         if rn > 0 and np.abs(inferenceData.opt_freqs[rn] - inferenceData.opt_freqs[rn - 1]) < 200.e3:
             doubleCounter += 1
