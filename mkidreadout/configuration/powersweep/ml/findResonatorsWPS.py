@@ -174,7 +174,7 @@ def findResonators(wpsmap, freqs, attens, peakThresh=0.97, minPeakDist=40.e3, nR
 
     return resFreqs, resAttens, scores
 
-def prominenceCut(wpsmap, resCoords, minThresh=0.9):
+def prominenceCut(wpsmap, resCoords, minThresh=0.88):
     freqSortedInds = np.argsort(resCoords[:,1])
     resCoords = resCoords[freqSortedInds]
     valleys = np.zeros(len(resCoords))
