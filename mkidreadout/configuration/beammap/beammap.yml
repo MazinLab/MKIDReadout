@@ -4,7 +4,7 @@ beammap: !configdict
   paths: !configdict
     imgFileDirectory: /mnt/data0/dodkins/mec/20181218/ScienceData/  # todo convert to h5file directory
     beammapDirectory: /mnt/data0/dodkins/mec/20181218/  # The location of the intermediate and final beammap files
-    initialBeammap: mec.bmap  # flags all = 0. resID and row/col pixel nums all monotonically increase
+    initialBeammap: finalMap_20181218.bmap  # flags all = 0. resID and row/col pixel nums all monotonically increase
     temporalBeammap: beammap_20181218_FL1.bmap  # resID has associated times (not row col ints yet) (formerly roughbeammap)
     masterTemporalBeammap: beammap_20181219_all_clicked.bmap  # input for aligngrid. Concatenation of many feedlines manually clicked
     masterDoublesList:   #leave empty for case None
@@ -25,7 +25,7 @@ beammap: !configdict
         sweepdirection: +
         speed: 1
         size: 3
-        starttime: 1545190257
+        starttime: 1545191407 #1545190257
         duration: 500
 
       - !configdict
@@ -33,7 +33,7 @@ beammap: !configdict
         sweepdirection: +
         speed: 1
         size: 3
-        starttime: 1545190865
+        starttime: 1545194792 #1545190865
         duration: 500
     fittype: gaussian
 

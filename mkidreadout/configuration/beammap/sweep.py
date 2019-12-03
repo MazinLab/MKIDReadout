@@ -36,7 +36,7 @@ matplotlib.use('Qt4Agg')
 import matplotlib.pyplot as plt
 from mkidcore.config import ConfigThing, load
 from mkidcore.corelog import getLogger, create_log
-from mkidcore.hdf.mkidbin import extract
+from mkidcore.hdf.mkidbin import parse
 
 import argparse
 
@@ -817,19 +817,18 @@ class TemporalBeammap():
                                             "make it odd")
             duration -= 1
 
-        nRows = self.config.beammap.numrows
-        nCols = self.config.beammap.numcols
-        beamfile = os.path.join(self.config.beammap.paths.beammapdirectory, self.config.beammap.paths.initialbeammap)
         images=[]
         for start in range(startTime, startTime+duration):
-            photons = extract(path, start, 1, beamfile, nCols, nRows)
-            beammap = np.loadtxt(beamfile)
-            beamIDs = np.append(beammap[:,0], beammap[-1,0]+1)
-            hist, bins = np.histogram(photons['ResID'], bins=beamIDs)
-            image = np.zeros((nRows, nCols))
-            x = np.int_(beammap[:, 2])
-            y = np.int_(beammap[:, 3])
-            image[y, x] = hist
+            print("Making image for time %i" % start)
+            # getLogger('beammap.sweep').info("Making image for time %i" % start)
+            photons = parse(path + str(start) + '.bin')
+
+            x = photons['x']
+            y = photons['y']
+            image = np.zeros((146, 140))
+            for y, x in zip(y, x):
+                image[y, x] += 1
+
             images.append(image)
             # plt.imshow(image)
             # plt.show(block=True)
