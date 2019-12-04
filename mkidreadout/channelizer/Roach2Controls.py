@@ -2436,10 +2436,29 @@ class Roach2Controls(object):
         return True
 
     def tagfile(self, root, dir='', epilog=''):
+        """
+        The final file consists of root with any occurrences of {roach}, {feedline}, and {range} replaced followed by
+        the below tag, followed by epilog (an _ will be prepended to the epilog if on e is absent), followed by the
+        original file extension.
+
+        The tag takes the form of {roach tag}{feedlineinfo tag}:
+            If {roach} and at least one of {feedline} or {range} is missing from root then {roach_tag} tkes the form
+             _{roach}, else it is omitted.
+            If {feedline} is not in root then {feedlineinfo tag} takes the form _FL{feedline}_{range},
+            else it is omitted.
+
+
+        """
         root, ext = os.path.splitext(str(root))
         el = '_' + epilog if epilog else epilog
-        tagroach = '{roach}' not in root and ('{feedline}' not in root or '{range}' not in root)
-        tag = '{}{}'.format('_{roach}' if tagroach else '', '_FL{feedline}_{range}' if '{feedline}' not in root else '')
+
+        tagroach = not (('{feedline}' in root and '{range}' in root) or '{roach}' in root)
+
+        if tagroach:
+            tag = '_{roach}{}'.format('_FL{feedline}_{range}' if '{feedline}' not in root else '')
+        else:
+            tag = ''
+
         root = root.format(roach=self.num, feedline=self.feedline, range=self.range)
         tag = tag.format(roach=self.num, feedline=self.feedline, range=self.range)
         return os.path.join(dir, '{root}{tag}{el}{ext}'.format(root=root, tag=tag, ext=ext, el=el))

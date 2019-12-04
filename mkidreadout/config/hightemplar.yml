@@ -1,7 +1,7 @@
 !configdict
 paths: !configdict
   logs: ./logs/
-  data: ./data/
+  data: /home/data/MEC/today/
 
 templar_host_ip: 10.0.0.51
 

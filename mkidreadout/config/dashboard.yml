@@ -1,7 +1,8 @@
 !configdict
 paths: !configdict
-  logs: /home/data/ScienceData/Subaru/20190529/
-  data: /home/data/ScienceData/Subaru/20190529/
+  logs: /home/data/ScienceData/Subaru/today/logs/
+  data: /home/data/ScienceData/Subaru/today/
+  setup: /home/data/MEC/today/
 
 packetmaster: !configdict
   ip: 10.0.0.52

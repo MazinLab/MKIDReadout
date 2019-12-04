@@ -15,6 +15,19 @@ This is a GUI class for real time control of the MEC and DARKNESS instruments.
     MKIDDashboard - main GUI
     ImageSearcher - searches for new images on ramdisk
     ConvertPhotonsToRGB - converts a 2D list of photon counts to a QImage
+
+============Dashboard config
+config.paths
+logs: directory where logs will be written
+data: directory where bin files, fits files are saved and freq files are sought
+
+config.beammap omitting will load the default beammap for instrument
+config.beammap.default: str will load default for
+presence of config.beammap.freqfiles will result in freqs from those files being attached to the loaded .bmap file
+but these are not used for seting the LO freq. the frequences will be pulled from whatever was specified in the roach config
+those files are assumed relative to config.paths.data (even if they look to be FQPs)
+
+
  """
 from __future__ import print_function
 
@@ -505,7 +518,7 @@ class MKIDDashboard(QMainWindow):
 
         for roach in self.roachList:
             ffile = roach.tagfile(self.config.roaches.get('r{}.freqfileroot'.format(roach.num)),
-                                  dir=self.config.paths.data)
+                                  dir=self.config.paths.setup)
             roach.setLOFreq(self.config.roaches.get('r{}.lo_freq'.format(roach.num)))
             roach.loadBeammapCoords(self.beammap, freqListFile=ffile)
 
