@@ -620,7 +620,7 @@ if __name__ == "__main__":
                     rNumsB.append(int(flToRoach[fl]))
                     rNumsA.append(None)
                 else:
-                    raise Exception(fl + ' must be feedline number followed by a or b')
+                    raise Exception(fl + ' must be feedline number, optionally followed by a or b')
 
         getLogger(__name__).info('Low frequency boards: ' + str(rNumsA))
         getLogger(__name__).info('High frequency boards: ' + str(rNumsB))

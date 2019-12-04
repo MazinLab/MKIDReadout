@@ -39,16 +39,21 @@ if __name__=='__main__':
         freqSweep = sd.FreqSweep(args.sweep)
 
     if args.image:
-        if args.sweep is None or args.model is None:
+        if args.sweep is None:
             raise Exception('Must specify model and freq sweep')
         fig0 = plt.figure()
         fig1 = plt.figure()
         ax0 = fig0.add_subplot(111)
         ax1 = fig1.add_subplot(111)
 
-        image, _, _, _ = mlt.makeWPSImage(freqSweep, args.freq, args.atten, mlDict['freqWinSize'], 
-                1+mlDict['attenWinBelow']+mlDict['attenWinAbove'], mlDict['useIQV'], mlDict['useVectIQV'],
-                normalizeBeforeCenter=mlDict['normalizeBeforeCenter'])
+        if args.model is None:
+            image, _, _, _ = mlt.makeWPSImage(freqSweep, args.freq, args.atten, 30, 7, True, False,
+                    normalizeBeforeCenter=True)
+
+        else:
+            image, _, _, _ = mlt.makeWPSImage(freqSweep, args.freq, args.atten, mlDict['freqWinSize'], 
+                    1+mlDict['attenWinBelow']+mlDict['attenWinAbove'], mlDict['useIQV'], mlDict['useVectIQV'],
+                    normalizeBeforeCenter=mlDict['normalizeBeforeCenter'])
 
         ax0.plot(image[:, :, 0].T, image[:, :, 1].T)
         if image.shape[2] > 2:
