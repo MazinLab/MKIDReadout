@@ -573,6 +573,8 @@ if __name__ == "__main__":
     parser.add_argument('--start-atten', type=float, default=3.75, help='Start (lower) DAC atten in dB. Default: 3.75')
     parser.add_argument('--end-atten', type=float, default=33.75, help='End (upper) DAC atten in dB. Default: 33.75')
     parser.add_argument('--atten-step', type=float, default=1, help='Default: 1 dB')
+    parser.add_argument('--setup-only', action='store_true', help='Only load DAC/DDS LUTs, don\'t do sweep')
+    parser.add_argument('--no-setup', action='store_true', help='Don\t load LUTs, only do sweep')
     args = parser.parse_args()
 
     if args.feedlines is not None and args.roaches is not None:
@@ -619,24 +621,29 @@ if __name__ == "__main__":
         rNums = list(np.unique(rNums))
         if np.any(rNums==None):
             rNums.remove(None) #rNums is sorted list of roach nums with None's removed
-        #setupMultRoaches4FreqSweep(rNums, freqFN=args.freq_file, defineLUTs=True)
 
-        maxAttens(mkidcore.instruments.ROACHES[args.instrument.lower()]) #max attens of all roaches
+        if not args.no_setup:
+            setupMultRoaches4FreqSweep(rNums, freqFN=args.freq_file, defineLUTs=True)
 
-        
-        startTime=time.time()
-        mecSlowPowerSweeps(rNumsA, rNumsB, args.start_freq_a, args.end_freq_a, args.start_freq_b, 
-                args.end_freq_b, freqList=args.freq_file, defineLUTs=False, outputFN=args.output, 
-                startDacAtten=args.start_atten, endDacAtten=args.end_atten,attenStep=args.atten_step)
-        t1=time.time()-startTime
-        print t1
+        if not args.setup_only:
+            maxAttens(mkidcore.instruments.ROACHES[args.instrument.lower()]) #max attens of all roaches
+
+            
+            startTime=time.time()
+            mecSlowPowerSweeps(rNumsA, rNumsB, args.start_freq_a, args.end_freq_a, args.start_freq_b, 
+                    args.end_freq_b, freqList=args.freq_file, defineLUTs=False, outputFN=args.output, 
+                    startDacAtten=args.start_atten, endDacAtten=args.end_atten,attenStep=args.atten_step)
+            t1=time.time()-startTime
+            print t1
 
     elif args.roaches is not None:
-        setupMultRoaches4FreqSweep(args.roaches, freqFN=args.freq_file, defineLUTs=True)
-        takeMultPowerSweeps(args.roaches, startFreqs=args.start_freq_a*np.ones(len(args.roaches)), 
-                endFreqs=args.end_freq_a*np.ones(len(args.roaches)), startDacAtten=args.start_atten, 
-                endDacAtten=args.end_atten, attenStep=args.atten_step, loStepQ=1, nOverlap=14, 
-                freqList=args.freq_file, defineLUTs=False, outputFN=args.output)
+        if not args.no_setup:
+            setupMultRoaches4FreqSweep(args.roaches, freqFN=args.freq_file, defineLUTs=True)
+        if not args.setup_only:
+            takeMultPowerSweeps(args.roaches, startFreqs=args.start_freq_a*np.ones(len(args.roaches)), 
+                    endFreqs=args.end_freq_a*np.ones(len(args.roaches)), startDacAtten=args.start_atten, 
+                    endDacAtten=args.end_atten, attenStep=args.atten_step, loStepQ=1, nOverlap=14, 
+                    freqList=args.freq_file, defineLUTs=False, outputFN=args.output)
     
 
     #startTime=time.time()
