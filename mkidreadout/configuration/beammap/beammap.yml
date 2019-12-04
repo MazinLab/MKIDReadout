@@ -25,7 +25,7 @@ beammap: !configdict
         sweepdirection: +
         speed: 1
         size: 3
-        starttime: 1545191407 #1545190257
+        starttime: 1545190257 #1545191407
         duration: 500
 
       - !configdict
@@ -33,7 +33,7 @@ beammap: !configdict
         sweepdirection: +
         speed: 1
         size: 3
-        starttime: 1545194792 #1545190865
+        starttime: 1545190865 #1545194792
         duration: 500
     fittype: gaussian
 

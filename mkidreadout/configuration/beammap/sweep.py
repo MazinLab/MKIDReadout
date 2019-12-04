@@ -811,6 +811,8 @@ class TemporalBeammap():
         path = self.config.beammap.paths.imgfiledirectory
         startTime = s.starttime
         duration = s.duration
+        nRows = self.config.beammap.numrows
+        nCols = self.config.beammap.numcols
         if duration % 2 == 0:
             getLogger('beammap.sweep').warn("Having an even number of time steps"
                                             "can create off by 1 errors: subtracting one time step to "
@@ -819,24 +821,24 @@ class TemporalBeammap():
 
         images=[]
         for start in range(startTime, startTime+duration):
-            print("Making image for time %i" % start)
-            # getLogger('beammap.sweep').info("Making image for time %i" % start)
+            log.info("Making image for time %i" % start)
             photons = parse(path + str(start) + '.bin')
 
             x = photons['x']
             y = photons['y']
-            image = np.zeros((146, 140))
-            for y, x in zip(y, x):
-                image[y, x] += 1
+            image, _, _ = np.histogram2d(y, x, bins = [range(nRows+1), range(nCols+1)])
 
             images.append(image)
+
             # plt.imshow(image)
             # plt.show(block=True)
         return np.array(images)
 
     def manualSweepCleanup(self):
-        m = ManualTemporalBeammap(self.x_images, self.y_images, self.config.beammap.paths.initialbeammap,
-                               self.config.beammap.paths.temporalbeammap, self.config.beammap.sweep.fittype)
+        initialbeammap = self.config.beammap.paths.beammapdirectory+self.config.beammap.paths.initialbeammap
+        temporalbeammap = self.config.beammap.paths.beammapdirectory+self.config.beammap.paths.temporalbeammap
+        m = ManualTemporalBeammap(self.x_images, self.y_images, initialbeammap, temporalbeammap,
+                                  self.config.beammap.sweep.fittype)
 
     def plotTimestream(self):
         pass
