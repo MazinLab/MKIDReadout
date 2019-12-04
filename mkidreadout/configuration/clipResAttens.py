@@ -21,17 +21,19 @@ from glob import glob
 
 import matplotlib.pyplot as plt
 import numpy as np
+import mkidreadout.configuration.sweepdata as sd
 
 
 def clipHist(filename):
-    data = np.loadtxt(filename)
-    maxAtten = np.amax(data[:,2])
-    minAtten = np.amin(data[np.where(data[:,2]>=0)[0],2])
+    data = sd.SweepMetadata(file=filename)
+    goodMask = (data.flag & sd.ISGOOD) == sd.ISGOOD
+    maxAtten = np.amax(data.atten[goodMask])
+    minAtten = np.amin(data.atten[goodMask])
     nBins = int(round(maxAtten - minAtten))
 
     # the histogram of the data
     fig, ax = plt.subplots()
-    n, bins, patches = ax.hist(data[np.where(data[:,2]>=0)[0],2], nBins, facecolor='g', alpha=0.75)
+    n, bins, patches = ax.hist(data.atten[goodMask], nBins, facecolor='g', alpha=0.75)
     ax.set_xlabel('Attenuation')
     ax.set_ylabel('Number')
     ax.set_title('Histogram of Resonator Attenuations\n'+os.path.basename(filename))
@@ -61,11 +63,13 @@ def clipHist(filename):
     print 'Max Atten = ' + str(atten['max'])
     print 'Min Atten = ' + str(atten['min'])
 
-    data=data[np.where(data[:,2]>=0)[0]] #get rid of -1's
-    data[np.where(data[:,2]<atten['min'])[0],2]=atten['min']
-    data = data[np.where(data[:,2]<atten['max'])]
-    outFN = filename.rsplit('.',1)[0]+'_clip.txt'
-    np.savetxt(outFN, data, fmt="%6i %10.9e %4i")
+    #data=data[np.where(data[:,2]>=0)[0]] #get rid of -1's
+    #data[np.where(data[:,2]<atten['min'])[0],2]=atten['min']
+    #data = data[np.where(data[:,2]<atten['max'])]
+    #outFN = filename.rsplit('.',1)[0]+'_clip.txt'
+    #np.savetxt(outFN, data, fmt="%6i %10.9e %4i")
+    data.atten[data.atten < atten['min']] = atten['min']
+    data.save(file=filename.split('.')[0] + '_clipped.txt')
 
 
 if __name__=='__main__':
