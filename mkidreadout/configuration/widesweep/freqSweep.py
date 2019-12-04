@@ -425,7 +425,7 @@ def takePowerSweep(rNum, startFreq=3.5E9, endFreq=6.E9, startDacAtten=1, endDacA
             if outputFN is not None:
                 freqs2save = np.reshape(freq_list, (nSweeps*len(dacQuantizedFreqList), -1))
                 atten2save = np.asarray([attenList[i]- roachController.globalDacAtten + resAtten])
-                FreqSweep.savePowerSweep(outputFN, np.asarray([I_list]), np.asarray([Q_list]), freqs2save, atten2save)
+                FreqSweep.savePowerSweep(outputFN, np.asarray([I_list]), np.asarray([Q_list]), freqs2save, atten2save, loStart, loEnd)
 
         I_vals = np.reshape(I_vals, (len(attenList), nSweeps*len(dacQuantizedFreqList), -1))
         Q_vals = np.reshape(Q_vals, (len(attenList), nSweeps*len(dacQuantizedFreqList), -1))
@@ -477,7 +477,7 @@ def plotWS(fn,roachNums):
 class FreqSweep:
 
     @staticmethod
-    def savePowerSweep(fn, I_vals, Q_vals, freqList, attens, mode='a'):
+    def savePowerSweep(fn, I_vals, Q_vals, freqList, attens, loStart, loEnd, mode='a'):
         """
         Static method for saving power sweep data generated from takePowerSweep()
 
@@ -518,7 +518,7 @@ class FreqSweep:
 
             if np.array_equal(axes,[-1,-1,-1]): warnings.warn('Unable to append data! Overwriting file instead.')
 
-        np.savez_compressed(fn, I=I_vals, Q=Q_vals, freqs=freqList, atten=attens)
+        np.savez_compressed(fn, I=I_vals, Q=Q_vals, freqs=freqList, atten=attens, loStart=loStart, loEnd=loEnd)
 
     def loadPowerSweep(self,fn):
         self.data=np.load(fn)
