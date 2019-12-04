@@ -18,7 +18,7 @@ dependencies:
   - tensorflow=1.8
   - pip>=17
   - hdf5=1.10.2
-  - ruamel.yaml
+  - ruamel.yaml=0.15.64
   - numba>=0.39.0
   - psutil
   - ipdb
