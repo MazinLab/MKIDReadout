@@ -30,8 +30,12 @@ def findLOs(freqsA, freqsB, sweepLOA, sweepLOB, loRange=10.e6, nIters=10000, col
     
     Parameters
     ----------
-        freqs - list of resonator frequencies, in GHz
-        loRange - size of LO search band, in GHz
+        freqsA - list of LF board resonator frequencies, in Hz
+        freqsB - list of HF board resonator frequencies, in Hz
+        sweepLOA - WPS LO center for LF board
+        sweepLOB - WPS LO center for HF board
+        loRange - size of LO search band, in Hz; power output should be approx uniform across this 
+            band so solution from digital WPS is still valid
         nIters - number of optimization interations
         colParamWeight - relative weighting between number of collisions and number of omitted
             tones in cost function. 1 usually gives good performance, set to 0 if you don't want
@@ -41,7 +45,7 @@ def findLOs(freqsA, freqsB, sweepLOA, sweepLOB, loRange=10.e6, nIters=10000, col
         ifHole - tones within this distance from LO are not counted
     Returns
     -------
-        lo1, lo2 - low and high frequency LOs (in GHz)
+        lo1, lo2 - low and high frequency LOs (in Hz)
     '''
     lfRange = np.array([sweepLOA - loRange/2., sweepLOA + loRange/2.])
     hfRange = np.array([sweepLOB - loRange/2., sweepLOB + loRange/2.])
