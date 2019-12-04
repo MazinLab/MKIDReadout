@@ -1,25 +1,19 @@
 '''
 Author: Neelay Fruitwala
 
-Automates finding LOs, generating frequecy files and modifying templarconf.cfg files.
-Usage: python findLOsAndMakeFreqFiles.py <setupcfgfile> <templarcfgfile>
-    setupcfgfile - Configuration file containing lists of feedline numbers, roach
-        numbers, and WideAna generated clickthrough results. An example can be found in
-        example_setup.cfg. If it can't find the file it looks in MKID_DATA_DIR.
-    templarcfgfile - High templar configuration file to be modified. WARNING: file will
-        be OVERWRITTEN. Changes the frequency lists, LOs, longsnap files, and powersweep files
-        to point to the write locations (for the boards specified in setupcfgfile). If it can't 
-        find the file it looks in MKID_DATA_DIR.
+Script for finding optimal LOs from frequency lists. Assumes wide/power sweep using
+digital readout; ensures LO is in narrow range around LO used for sweep.
 
 '''
-import ConfigParser
 import os
 import sys
+import argparse
+import re
 
 import numpy as np
 
-from mkidcore.readdict import ReadDict
-from mkidreadout.configuration.createTemplarResList import createTemplarResList
+import mkidcore.config
+import mkidreadout.configuration.sweepdata as sd
 
 
 def findLOs(freqsA, freqsB, sweepLOA, sweepLOB, loRange=10.e6, nIters=10000, colParamWeight=1, resBW=200.e3, ifHole=3.e6):
@@ -94,96 +88,28 @@ def findLOs(freqsA, freqsB, sweepLOA, sweepLOB, loRange=10.e6, nIters=10000, col
 
     return loAOpt, loBOpt
 
-def modifyTemplarConfigFile(templarConfFn, flNums, roachNums, freqFiles, los, freqBandFlags):
-    '''
-    Modifies the specified templar config file with the correct frequency lists and los. All files
-    are referenced to the templarconfig file's location. If the templarconfig file can't be found it
-    looks in MKID_DATA_DIR environment variable. Also changes powersweep_file, longsnap_file, etc
-    to be referenced to the correct feedline and MKID_DATA_DIR
-
-    Parameters
-    ----------
-        templarConfFn - name of templar config file
-        flNums - list of feedline numbers corresponding to roachNums
-        roachNums - list of board numbers (last 3 digits of roach IP)
-        freqFiles - list of frequency file names
-        los - list of LO frequencies (in GHz)
-        freqBandFlags - list of flags indicating whether board is LF or HF. 'a' for LF and 'b' for HF
-    '''
-    
-    try:
-        tcfp = open(templarConfFn, 'r')
-        mdd = os.path.dirname(templarConfFn)
-    except IOError:
-        mdd = os.environ['MKID_DATA_DIR']
-        templarConfFn = os.path.join(mdd, templarConfFn)
-        tcfp = open(templarConfFn, 'r')
-    templarConf = ConfigParser.ConfigParser()
-    templarConf.readfp(tcfp)
-    tcfp.close()
-    
-    for i,roachNum in enumerate(roachNums):
-        templarConf.set('Roach '+str(roachNum), 'freqfile', os.path.join(mdd, freqFiles[i]))
-        templarConf.set('Roach '+str(roachNum), 'powersweepfile', os.path.join(mdd, 'ps_r'+str(roachNum)+'_FL'+str(flNums[i])+'_'+freqBandFlags[i]+'.h5'))
-        templarConf.set('Roach '+str(roachNum), 'longsnapfile', os.path.join(mdd, 'phasesnaps/snap_'+str(roachNum)+'.npz'))
-        templarConf.set('Roach '+str(roachNum), 'lo_freq', '%0.9E'%(los[i]*1.e9))
-
-    tcfp = open(templarConfFn, 'w')
-    templarConf.write(tcfp)
-    tcfp.close()
- 
-def loadClickthroughFile(fn):
-    '''
-    Loads clickthrough results from WideAna output file. Returns list of
-    ResIDs, peak locations, and frequencies (in GHz)
-    '''
-    if not os.path.isfile(fn):
-        fn = os.path.join(mdd, fn)
-    resIDs, locs, freqs = np.loadtxt(fn, unpack=True)
-    return resIDs, locs, freqs
-
-
+def getRoachNumberFromFile(fn):
+    return int(re.findall('\d{3}', fn)[0])
 
 if __name__=='__main__':
-    if len(sys.argv)<3:
-        print 'Usage: python findLOsAndMakeFreqFiles.py <setupcfgfile> <templarcfgfile>'
-    
-    setupDict = ReadDict()
-    try: 
-        setupDict.readFromFile(sys.argv[1])
-        try: mdd = setupDict['MKID_DATA_DIR']
-        except KeyError: mdd = os.environ['MKID_DATA_DIR']
-    except IOError:
-        mdd = os.environ['MKID_DATA_DIR']
-        setupDict.readFromFile(os.path.join(mdd, sys.argv[1]))
-    #print setupDict
-    templarCfgFile = sys.argv[2]
-    freqFiles = []
-    los = []
-    flNums = []
-    freqBandFlags = []
-    boardNums = []
+    parser = ArgumentParser()
+    parser.add_argument('sweep_data', nargs=2, help='Sweep npz files for a feedline (LF then HF)')
+    parser.add_argument('-m', '--metadata', nargs=2, help='Sweep metadata files')
+    parser.add_argument('-c', '--config', help='roach.yml file to modify. WILL BE OVERWRITTEN.')
+    args = parser.parse_args()
 
-    for i, fl in enumerate(setupDict['feedline_nums']):
-        clickthroughFile = os.path.join(mdd, setupDict['clickthrough_files'][i])
-        try:    
-            _, _, freqs = loadClickthroughFile(clickthroughFile)
-            print "Loaded:", clickthroughFile
-        except IOError:
-            print "Unable to load:",clickthroughFile
-            continue
-        lo1, lo2 = findLOs(freqs)
-        createTemplarResList(clickthroughFile, lo1, lo2, fl)
-        freqFiles.append('freq_FL' + str(fl) + '_a.txt')
-        freqFiles.append('freq_FL' + str(fl) + '_b.txt')
-        los.append(lo1)
-        los.append(lo2)
-        flNums.append(fl)
-        flNums.append(fl)
-        freqBandFlags.append('a')
-        freqBandFlags.append('b')
-        boardNums.append(setupDict['low_freq_boardnums'][i])
-        boardNums.append(setupDict['high_freq_boardnums'][i])
+    sweepA = sd.FreqSweep(args.sweep_data[0])
+    sweepB = sd.FreqSweep(args.sweep_data[1])
+    mdA = sd.FreqSweep(args.metadata[0])
+    mdB = sd.FreqSweep(args.metadata[1])
+    freqsA = mdA.freqs[(mdA.flag & sd.IS_GOOD) == sd.IS_GOOD]
+    freqsB = mdB.freqs[(mdB.flag & sd.IS_GOOD) == sd.IS_GOOD]
+    loA, loB = findLOs(freqsA, freqsB, sweepA.lo, sweepB.lo)
 
-    modifyTemplarConfigFile(templarCfgFile, flNums, boardNums, freqFiles, los, freqBandFlags)
-
+    if args.config is not None:
+        cfg = mkidcore.config.load(args.config)
+        rnumA = getRoachNumberFromFile(sweepA)
+        rnumB = getRoachNumberFromFile(sweepB)
+        cfg.register('r{}.lo'.format(rnumA), loA)
+        cfg.register('r{}.lo'.format(rnumB), loB)
+        

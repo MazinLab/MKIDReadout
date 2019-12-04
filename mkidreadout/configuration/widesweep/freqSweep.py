@@ -526,7 +526,7 @@ class FreqSweep:
     def plotTransmissionData(self,show=True):
         freqs=self.data['freqs'].flatten()
         plt.figure()
-        for i, atten in enumerate(self.data['atten'][::2]):
+        for i, atten in enumerate(self.data['atten'][10:15:2]):
             print 'flattening '+str(i)
             I=self.data['I'][i].flatten()
             Q=self.data['Q'][i].flatten()
@@ -562,6 +562,7 @@ if __name__ == "__main__":
     parser.add_argument('-f', '--feedlines', nargs='+', type=str, help='Feedlines to sweep (e.g. 1a 2b 3)')
     parser.add_argument('-o', '--output', default='psData.npz', 
                         help='Output path. Should end w/ .npz extension, boardNum is automatically added')
+    parser.add_argument('-p', '--plot', type=str, default=None, help='Plot npz data in file then exit')
     parser.add_argument('--freq-file', default='ifFreqs_full.txt', 
                         help='freqfile of IF band tone freqs to use. Default is file committed to repo')
     parser.add_argument('-s', '--start-freq-a', type=float, default=3.43e9, help='LF sweep start (Hz). Default: 3.43e9')
@@ -576,6 +577,12 @@ if __name__ == "__main__":
     parser.add_argument('--setup-only', action='store_true', help='Only load DAC/DDS LUTs, don\'t do sweep')
     parser.add_argument('--no-setup', action='store_true', help='Don\t load LUTs, only do sweep')
     args = parser.parse_args()
+
+    if args.plot is not None:
+        sweep = FreqSweep()
+        sweep.loadPowerSweep(args.plot)
+        sweep.plotTransmissionData()
+        exit(0)
 
     if args.feedlines is not None and args.roaches is not None:
         raise Exception('Cannot specify both ROACH boards and feedlines.')

@@ -57,6 +57,12 @@ class FreqSweep(object):
         self.atten = self.atten[sortedAttenInds]
         self.i = self.i[sortedAttenInds, :, :]
         self.q = self.q[sortedAttenInds, :, :]
+        try:
+            self.lostart = data['loStart']
+            self.loend = data['loEnd']
+            self.lo = (self.lostart + self.loend)/2
+        except KeyError:
+            pass
 
     def oldwsformat_effective_atten(self, atten, amax=None):
         atten = np.abs(self.atten - atten).argmin()
