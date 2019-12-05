@@ -608,7 +608,6 @@ class TemporalBeammap():
         self.y_locs = None
         self.x_images = None
         self.y_images = None
-        self.man_feed_idx = None  # identifier to load correct rough beammap
 
     def stackImages(self, sweepType, median=True):
 
@@ -867,12 +866,13 @@ class TemporalBeammap():
         #     plt.show(block=True)
         return images
 
-    def manualSweepCleanup(self):
+    def manualSweepCleanup(self, feedline):
         if self.config.paths.initialbeammap is None:
             initialbeammap = Beammap(default=self.config.beammap.instrument).file
         else:
             initialbeammap = os.path.join(self.config.paths.beammapdirectory, self.config.paths.initialbeammap)
-        toClickbeammap = self.get_FL_filename(self.man_feed_idx)
+
+        toClickbeammap = self.get_FL_filename(feedline)
         getLogger('Sweep').info('toClick: {}'.format(toClickbeammap))
         m = ManualTemporalBeammap(self.x_images, self.y_images, initialbeammap, toClickbeammap,
                                   self.config.beammap.sweep.fittype)
@@ -968,11 +968,9 @@ if __name__ == '__main__':
         b.stackImages('x')
         b.stackImages('y')
         log.info('Cleanup')
-        b.man_feed_idx = args.manual_idx
-        b.manualSweepCleanup()
+        b.manualSweepCleanup(feedline=args.manual_idx)
     elif args.use_combo:  # Combine clicked FL beam files
         b.combineClicked()
-
     elif args.align:
         log.info('Using "{}" for masterdoubleslist'.format(config.paths.masterdoubleslist))
         aligner = bmap_align.BMAligner(os.path.join(config.paths.beammapdirectory, config.paths.mastertemporalbeammap),
