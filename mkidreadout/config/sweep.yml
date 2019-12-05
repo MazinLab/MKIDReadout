@@ -29,7 +29,7 @@ beammap: !configdict
         sweepdirection: +
         speed: 1
         size: 3
-        starttime: 1575527539
+        starttime: 1575535711
         duration: 700
 
       - !configdict
@@ -37,7 +37,39 @@ beammap: !configdict
         sweepdirection: +
         speed: 1
         size: 3
-        starttime: 1575528461
+        starttime: 1575536445
+        duration: 600
+
+      - !configdict
+        sweeptype: x
+        sweepdirection: +
+        speed: 1
+        size: 3
+        starttime: 1575537067
+        duration: 700
+
+      - !configdict
+        sweeptype: y
+        sweepdirection: +
+        speed: 1
+        size: 3
+        starttime: 1575537812
+        duration: 600
+
+      - !configdict
+        sweeptype: x
+        sweepdirection: +
+        speed: 1
+        size: 3
+        starttime: 1575538434
+        duration: 700
+
+      - !configdict
+        sweeptype: y
+        sweepdirection: +
+        speed: 1
+        size: 3
+        starttime: 1575539173
         duration: 600
 
   align: placeholder
