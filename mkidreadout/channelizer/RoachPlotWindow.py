@@ -868,13 +868,19 @@ class RoachSweepWindow(QMainWindow):
             attens = np.copy(self.roach.roachController.attenList)
 
         resIDs = np.copy(self.roach.roachController.resIDs)
-        freqfile = str(self.config.roaches.get('r{}.freqfileroot'.format(self.roachNum)))
-        freqFile = os.path.join(self.config.paths.data, freqfile.format(roach=self.roachNum, feedline=self.roach.roachController.feedline, range=self.roach.roachController.range))
-        legacyFile = self.roach.roachController.tagfile(self.config.roaches.get('r{}.freqfileroot'.format(self.roachNum)),
-                                                      dir=self.config.paths.data, epilog='legacy')
-        sd = sweepdata.SweepMetadata(file=freqFile)
-        sd.file = '{0}_new.{1}'.format(*freqFile.rpartition('.')[::2])
+        untagged_freqfile = str(self.config.roaches.get('r{}.freqfileroot'.format(self.roachNum)))
+
+        freqfile = os.path.join(self.config.paths.setup,
+                                untagged_freqfile.format(roach=self.roachNum,
+                                                         feedline=self.roach.roachController.feedline,
+                                                         range=self.roach.roachController.range))
+
+        legacyFile = self.roach.roachController.tagfile(untagged_freqfile, dir=self.config.paths.setup, epilog='legacy')
+
+        sd = sweepdata.SweepMetadata(file=freqfile)
+        sd.file = '{0}_new.{1}'.format(*freqfile.rpartition('.')[::2])
         sd.update_from_roach(resIDs, freqs=freqs, attens=attens)
+
         getLogger(__name__).info("Saving %s", sd)
         sd.save()
         sd.legacy_save(file=legacyFile)
