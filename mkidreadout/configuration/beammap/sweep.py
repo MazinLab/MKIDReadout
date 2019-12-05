@@ -871,20 +871,41 @@ class TemporalBeammap():
             initialbeammap = Beammap(default=self.config.beammap.instrument).file
         else:
             initialbeammap = os.path.join(self.config.paths.beammapdirectory, self.config.paths.initialbeammap)
-        toClickbeammap = os.path.join(self.config.paths.beammapdirectory, self.get_FL_filename(self.man_feed_idx))
+        toClickbeammap = self.get_FL_filename(self.man_feed_idx)
         print(toClickbeammap, 'toClick')
         m = ManualTemporalBeammap(self.x_images, self.y_images, initialbeammap, toClickbeammap,
                                   self.config.beammap.sweep.fittype)
 
-    def plotTimestream(self):
-        pass
-
     def get_FL_filename(self, FL):
+        path = self.config.paths.beammapdirectory
         name, extension = self.config.paths.temporalbeammap.split('.')
         rough_loc = name.find('_stage1')
         if rough_loc != -1:  # if the filename has this str at then end replace with FLx
             name = name[:rough_loc]
-        return name + '_FL%s.' % FL + extension
+        return os.path.join(path, name + '_FL%s.' % FL + extension)
+
+    def combineClicked(self):
+        """
+        Concatenate all FL files after they've been verified by a human, and output to file masterTemporalBeammap
+
+        :return:
+        masterTemporalBeammap a .bmap file containing the contents of all the manual clickthroughs
+        """
+
+        mastertemporalbeammap = os.path.join(self.config.paths.beammapdirectory, self.config.paths.mastertemporalbeammap)
+
+        FLs = np.array([[str(num)+freq_type for freq_type in ['a', 'b']]
+                        for num in range(1, self.config.beammap.numfeedlines+1)]).flatten()  # '1a', '1b', '2a', ...
+        filenames = [self.get_FL_filename(FL) for FL in FLs]
+
+        with open(mastertemporalbeammap, 'w') as outfile:
+            for fname in filenames:
+                with open(fname) as infile:
+                    outfile.write(infile.read())
+        log.info('Combined contents of the clicked FL beammaps to %s' % mastertemporalbeammap)
+
+    def plotTimestream(self):
+        pass
 
 
 if __name__ == '__main__':
@@ -905,10 +926,11 @@ if __name__ == '__main__':
                        help='Run cross correlation (step 1)')
     group.add_argument('--simple-locate', default=False, action='store_true', dest='use_simple',
                        help='Run argmax to get peak location estimates (step 1 alt.)')
-    group.add_argument('--manual', default='1a', dest='manual_idx', type=str,
+    group.add_argument('--manual', default=False, dest='manual_idx',
                        help='Run manual sweep cleanup (step 2)')
-    group.add_argument('--align', default=False, action='store_true', dest='align', help='Run align grid (step 3)')
-    group.add_argument('--clean', default=False, action='store_true', dest='clean', help='Run clean (step 4)')
+    group.add_argument('--combo', default=False, action='store_true', dest='use_combo', help='Combines the different FLs into one master (step 3)')
+    group.add_argument('--align', default=False, action='store_true', dest='align', help='Run align grid (step 4)')
+    group.add_argument('--clean', default=False, action='store_true', dest='clean', help='Run clean (step 5)')
 
     args = parser.parse_args()
 
@@ -937,7 +959,7 @@ if __name__ == '__main__':
         b.refinePeakLocs('x', b.config.beammap.sweep.fittype, None, fitWindow=15)
         b.refinePeakLocs('y', b.config.beammap.sweep.fittype, None, fitWindow=15)
         b.saveTemporalBeammap()
-    elif args.manual_idx:   # Manual mode
+    elif args.manual_idx:  # Manual mode
         log.info('Starting manual verification for feedline %s' % args.manual_idx)
         log.info('Stack x and y')
         b.stackImages('x')
@@ -945,6 +967,8 @@ if __name__ == '__main__':
         log.info('Cleanup')
         b.man_feed_idx = args.manual_idx
         b.manualSweepCleanup()
+    elif args.use_combo:  # Combine clicked FL beam files
+        b.combineClicked()
 
     elif args.align:
         log.info('Using "{}" for masterdoubleslist'.format(config.paths.masterdoubleslist))
