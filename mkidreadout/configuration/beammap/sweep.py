@@ -37,6 +37,7 @@ import matplotlib.pyplot as plt
 from mkidcore.config import load
 from mkidcore.corelog import getLogger, create_log
 from mkidcore.hdf.mkidbin import parse
+from mkidcore.objects import Beammap
 
 import argparse
 
@@ -764,6 +765,9 @@ class TemporalBeammap():
     def saveTemporalBeammap(self):
 
         getLogger('beammap').info('Saving')
+        if self.config.paths.initialbeammap is None:
+            initialbeammap = Beammap(default=self.config.beammap.instrument).file
+
         allResIDs_map, flag_map, x_map, y_map = shapeBeammapIntoImages(self.config.beammap.sweep.initialbeammap,
                                                                        self.config.beammap.sweep.temporalbeammap)
         otherFlagArgs = np.where((flag_map != beamMapFlags['good']) * (flag_map != beamMapFlags['failed']) * (
@@ -792,6 +796,8 @@ class TemporalBeammap():
         np.savetxt(self.config.beammap.sweep.temporalbeammap, data, fmt='%7d %3d %7f %7f')
 
     def loadTemporalBeammap(self):
+        if self.config.paths.initialbeammap is None:
+            initialbeammap = Beammap(default=self.config.beammap.instrument).file
         allResIDs_map, flag_map, self.x_locs, self.y_locs = shapeBeammapIntoImages(self.config.beammap.sweep.initialbeammap, self.config.beammap.sweep.temporalbeammap)
 
     def loadSweepBins(self, s):
@@ -822,7 +828,10 @@ class TemporalBeammap():
         return np.array(images)
 
     def manualSweepCleanup(self):
-        initialbeammap = os.path.join(self.config.paths.beammapdirectory, self.config.paths.initialbeammap)
+        if self.config.paths.initialbeammap is None:
+            initialbeammap = Beammap(default=self.config.beammap.instrument).file
+        else:
+            initialbeammap = os.path.join(self.config.paths.beammapdirectory, self.config.paths.initialbeammap)
         temporalbeammap = os.path.join(self.config.paths.beammapdirectory, self.config.paths.temporalbeammap)
         m = ManualTemporalBeammap(self.x_images, self.y_images, initialbeammap, temporalbeammap,
                                   self.config.beammap.sweep.fittype)
@@ -859,6 +868,7 @@ if __name__ == '__main__':
         exit(0)
 
     config = load(args.cfgfilename)
+
     b = TemporalBeammap(config)
 
     log.info('Starting temporal beammap')
