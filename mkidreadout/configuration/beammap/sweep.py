@@ -818,7 +818,7 @@ class TemporalBeammap():
 
     def loadSweepBins(self, s):
         cachefile = os.path.join(self.config.paths.beammapdirectory,
-                                 '_beamcache_{}{}.npz.npy'.format(s.starttime, s.duration))
+                                 '_beamcache_{}{}.npz'.format(s.starttime, s.duration))
         try:
             images = np.load(cachefile)
             msg = 'Restored sweep images for {} s starting at {} from {}'
