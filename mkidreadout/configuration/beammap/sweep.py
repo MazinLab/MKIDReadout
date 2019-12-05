@@ -765,11 +765,14 @@ class TemporalBeammap():
     def saveTemporalBeammap(self):
 
         getLogger('beammap').info('Saving')
-        if self.config.paths.initialbeammap is None:
-            initialbeammap = Beammap(default=self.config.beammap.instrument).file
 
-        allResIDs_map, flag_map, x_map, y_map = shapeBeammapIntoImages(self.config.beammap.sweep.initialbeammap,
-                                                                       self.config.beammap.sweep.temporalbeammap)
+        if self.config.paths.initialbeammap is not None:
+            initial = os.path.join(self.config.paths.beammapdirectory, self.config.paths.initialbeammap)
+        else:
+            initial = Beammap(default=self.config.beammap.instrument).file
+        temporal = os.path.join(self.config.paths.beammapdirectory, self.config.path.temporalbeammap)
+
+        allResIDs_map, flag_map, x_map, y_map = shapeBeammapIntoImages(initial, temporal)
         otherFlagArgs = np.where((flag_map != beamMapFlags['good']) * (flag_map != beamMapFlags['failed']) * (
                     flag_map != beamMapFlags['xFailed']) * (flag_map != beamMapFlags['yFailed']))
         otherFlags = flag_map[otherFlagArgs]
@@ -796,9 +799,13 @@ class TemporalBeammap():
         np.savetxt(self.config.beammap.sweep.temporalbeammap, data, fmt='%7d %3d %7f %7f')
 
     def loadTemporalBeammap(self):
-        if self.config.paths.initialbeammap is None:
-            initialbeammap = Beammap(default=self.config.beammap.instrument).file
-        allResIDs_map, flag_map, self.x_locs, self.y_locs = shapeBeammapIntoImages(self.config.beammap.sweep.initialbeammap, self.config.beammap.sweep.temporalbeammap)
+        if self.config.paths.initialbeammap is not None:
+            initial = os.path.join(self.config.paths.beammapdirectory, self.config.paths.initialbeammap)
+        else:
+            initial = Beammap(default=self.config.beammap.instrument).file
+        temporal = os.path.join(self.config.paths.beammapdirectory, self.config.path.temporalbeammap)
+
+        allResIDs_map, flag_map, self.x_locs, self.y_locs = shapeBeammapIntoImages(initial, temporal)
 
     def loadSweepBins(self, s):
         path = self.config.paths.bin
