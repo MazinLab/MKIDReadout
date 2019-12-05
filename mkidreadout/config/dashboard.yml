@@ -30,6 +30,7 @@ dashboard: !configdict
   use_wave: False
   wave_start: 700  #wavecal units
   wave_stop: 1500
+  timestream_samples: 60  #number of points
   inttime: .5
   mininttime: .1
   maxinttime: 300

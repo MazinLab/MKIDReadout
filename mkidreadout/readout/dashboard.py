@@ -594,7 +594,7 @@ class MKIDDashboard(QMainWindow):
             self.imageList.append(photonImage)
             self.fitsList.append(photonImage)  # for the stream
 
-            self.imageList = self.imageList[-1:]  # trust the garbage collector
+            self.imageList = self.imageList[-max(self.config.dashboard.timestream_samples, 1):]
 
             if self.takingDark:
                 self.addDarkImage(photonImage)
