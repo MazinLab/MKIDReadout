@@ -839,7 +839,7 @@ class TemporalBeammap():
             images = np.load(cachefile)
             msg = 'Restored sweep images for {} s starting at {} from {}'
             getLogger('Sweep').info(msg.format(s.duration, s.starttime, cachefile))
-            return images
+            return images[images.keys()[0]]
         except IOError:
             pass
 
