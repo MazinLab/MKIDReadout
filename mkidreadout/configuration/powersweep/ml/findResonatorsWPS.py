@@ -156,6 +156,12 @@ def findResonators(wpsmap, freqs, attens, peakThresh=0.97, minPeakDist=40.e3, nR
     elif nRes is not None:
         resCoords = skf.peak_local_max(wpsmap[:,:,0], min_distance=minPeakDist, threshold_abs=peakThresh, num_peaks=nRes, exclude_border=False)
         resCoords = prominenceCut(wpsmap, resCoords)
+        if len(resCoords) < nRes:
+            nRes += nRes - len(resCoords)
+            print 'Running peak seearch again with', nRes, 'resonators'
+            resCoords = skf.peak_local_max(wpsmap[:,:,0], min_distance=minPeakDist, threshold_abs=peakThresh, num_peaks=nRes, exclude_border=False)
+            resCoords = prominenceCut(wpsmap, resCoords)
+
     else:
         resCoords = skf.peak_local_max(wpsmap[:,:,0], min_distance=minPeakDist, threshold_abs=peakThresh, exclude_border=False)
         resCoords = prominenceCut(wpsmap, resCoords)
