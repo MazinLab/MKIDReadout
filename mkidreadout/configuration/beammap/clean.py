@@ -87,7 +87,6 @@ class BMCleaner(object):
         self._fixOOBPixels(arraySlack)
         self._fixInitialFeedlinePlacement(flSlack)
 
-
     def placeOnGrid(self):
         '''
         Places all resonators on nRowsxnCols size grid. Only do this after precise coordinates are finalized.
@@ -99,7 +98,6 @@ class BMCleaner(object):
         self.placedXs = np.floor(self.beamMap.xCoords)
         self.placedYs = np.floor(self.beamMap.yCoords)
         self.bmGrid = getOverlapGrid(self.beamMap.xCoords, self.beamMap.yCoords, self.beamMap.flags.astype(int), self.nCols, self.nRows)
-
 
     def _fixInitialFeedlinePlacement(self, slack=1):
         wayOutMask = ~isInCorrectFL(self.beamMap.resIDs.astype(int), self.beamMap.xCoords, self.beamMap.yCoords, self.instrument, slack, self.flip)

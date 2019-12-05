@@ -9,6 +9,7 @@ import numpy as np
 import scipy.optimize as spo
 from numba import jit
 
+from mkidcore.corelog import getLogger
 from mkidcore.instruments import DARKNESS_FEEDLINE_INFO, MEC_FEEDLINE_INFO
 from mkidreadout.configuration.beammap.flags import beamMapFlags
 
@@ -112,7 +113,7 @@ def addBeammapReadoutFlag(initialBeammapFn, outputBeammapFn, templarCfg):
     for r in config.sections():
         try:
             freqFN = config.get(r, 'freqfile')
-            print(freqFN)
+            getLogger(__name__).info(freqFN)
             resIDs, _, _ = np.loadtxt(freqFN, unpack=True)
             goodResIDs = np.unique(np.concatenate((goodResIDs, resIDs)))
             # pdb.set_trace()
@@ -156,7 +157,7 @@ def getFreqMap(initialBeammap, templarCfg):
     for r in config.sections():
         freqFN = config.get(r, 'freqfile')
         if os.path.isfile(freqFN):
-            print(freqFN)
+            getLogger(__name__).info(freqFN)
             freqResIDs, freqs, _ = np.loadtxt(freqFN, unpack=True)
             for i, resID in enumerate(freqResIDs):
                 ind = np.where(resIDs == resID)[0][0]
@@ -297,11 +298,11 @@ def check_timestream(timestream, peak_location):
     good_peak = True
     good_peak = np.logical_and(good_peak, np.abs(np.argmax(timestream) - peak_location) < 2)
     if not good_peak:
-        print('peak_location is not close to actual maximum')
+        getLogger(__name__).info('peak_location is not close to actual maximum')
         return good_peak
     good_peak = np.logical_and(good_peak, np.amax(timestream) > 3 * np.mean(timestream))
     if not good_peak:
-        print('peak is < 3*mean')
+        getLogger(__name__).info('peak is < 3*mean')
         return good_peak
 
     # remove baseline from timestream
@@ -309,7 +310,7 @@ def check_timestream(timestream, peak_location):
     sigma = np.std(timestream)
     good_peak = np.logical_and(good_peak, np.amax(timestream) > 5 * sigma)
     if not good_peak:
-        print('peak is not > 5 sigma')
+        getLogger(__name__).info('peak is not > 5 sigma')
         return good_peak
 
     # check for other peaks. If there are others, then good_peak = False.
@@ -320,7 +321,7 @@ def check_timestream(timestream, peak_location):
         np.logical_and(timestream[mask] < 5 * sigma, timestream[mask] < .5 * np.amax(timestream))).all())
 
     if not good_peak:
-        print('there are multiple peaks above 5 sigma or maximum/2')
+        getLogger(__name__).info('there are multiple peaks above 5 sigma or maximum/2')
 
     return good_peak
 
@@ -396,16 +397,16 @@ def crossCorrelateTimestreams(timestreams, minCounts=5, maxCounts=2499):
     nCountsList = 1.0 * np.sum(timestreams, axis=1)
     maxCountsList = 1.0 * np.amax(timestreams, axis=1)
     goodPix = np.where((nCountsList > minCounts) * (maxCountsList < maxCounts) * (bkgndList < nCountsList / nTime))[0]
-    print("Num good Pix: " + str(len(goodPix)))
+    getLogger(__name__).info("Num good Pix: " + str(len(goodPix)))
 
     # Normalize the timestreams for cross correlation and remove bad pixels
     timestreams = timestreams[goodPix] - bkgndList[goodPix, np.newaxis]  # subtract background
     timestreams = timestreams / (1.0 * nCountsList[goodPix, np.newaxis] / nTime)  # divide by avg count rate
 
-    print("taking fft...")
+    getLogger(__name__).info("taking fft...")
     fftImage = np.fft.rfft(timestreams, axis=1)  # fft the timestream
     # del timestreams
-    print("...Done")
+    getLogger(__name__).info("...Done")
 
     fftCorrelationList = np.zeros(((len(goodPix) - 1) * len(goodPix) / 2, nTime))
 
@@ -419,15 +420,15 @@ def crossCorrelateTimestreams(timestreams, minCounts=5, maxCounts=2499):
 
         fftCorrelationList[startIndex: endIndex, :] = corrList
 
-    print("Cross correlating...")
+    getLogger(__name__).info("Cross correlating...")
     startTime = time.time()
     for i in range(len(goodPix) - 1):
         crossCorrelate_i(i)  # could be fast if we use multiprocessing
-    print("...cross Correlate: " + str((time.time() - startTime) * 1000) + ' ms')
+    getLogger(__name__).info("...cross Correlate: " + str((time.time() - startTime) * 1000) + ' ms')
     fftImage = None
-    print("Inverse fft...")
+    getLogger(__name__).info("Inverse fft...")
     correlationList = fftCorrelationList
-    print("...Done")
+    getLogger(__name__).info("...Done")
     return correlationList, goodPix
 
 

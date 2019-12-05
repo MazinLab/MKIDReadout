@@ -1,12 +1,13 @@
 !configdict
 paths: !configdict
-  bin: /home/data/ScienceData/Subaru/20191204/  # todo convert to h5file directory
+  bin: /home/data/ScienceData/Subaru/20191204/
   beammapDirectory: /home/data/MEC/20191204/sweep/  # The location of the intermediate and final beammap files
   initialBeammap:   # flags all = 0. resID and row/col pixel nums all monotonically increase None to use the default for instrument
-  temporalBeammap: beammap_20181218_FL1.bmap  # resID has associated times (not row col ints yet) (formerly roughbeammap)
-  masterTemporalBeammap: beammap_20181219_all_clicked.bmap  # input for aligngrid. Concatenation of many feedlines manually clicked
+  # resID has associated times (not row col ints yet) (formerly roughbeammap) This is the stage 1 output file
+  temporalBeammap: beammap_20191204_stage1.bmap
+  masterTemporalBeammap: beammap_20191204_stage1_copy.bmap  # input for aligngrid. Concatenation of many feedlines manually clicked
   masterDoublesList:   #leave empty for case None
-  alignedBeammap: RawMap20181218.txt  #aligned flagged beammap in pixel units (formerly raw map/output map)
+  alignedBeammap: RawMap20191204.txt  #aligned flagged beam map in pixel units. This is the stage 2 output
   outputDoubleName:   #leave empty for case None
   designMapFile: /home/data/MEC/20191204/mec_feedline.txt
   quantizedBeammap: finalMapV1_1.txt  # quantized beammap
@@ -44,3 +45,4 @@ beammap: !configdict
   clean: !configdict
     usefreqs: False
     psFiles: /home/data/MEC/20191204/data/psData_*clipped.txt
+

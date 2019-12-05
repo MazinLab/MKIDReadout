@@ -160,7 +160,7 @@ class CorrelateBeamSweep(object):
         offset = np.argmax(np.sum(shiftedTimes[:locLimit], axis=0))
         if auto: return offset
 
-        getLogger('beammap').info("Please click the correct peak")
+        getLogger('Sweep').info("Please click the correct peak")
         fig, ax = plt.subplots()
         for p_i in range(len(shiftedTimes)):
             ax.plot(shiftedTimes[p_i])
@@ -170,7 +170,7 @@ class CorrelateBeamSweep(object):
         def onclick(event):
             if fig.canvas.manager.toolbar._active is None:
                 offset = event.xdata
-                getLogger('beammap').info(offset)
+                getLogger('Sweep').info(offset)
                 ln.set_xdata(offset)
                 plt.draw()
 
@@ -190,7 +190,7 @@ class CorrelateBeamSweep(object):
 
         for g in self.compGroups:
             # for g in [0]:
-            getLogger('beammap').info('Starting group {}'.format(g))
+            getLogger('Sweep').info('Starting group {}'.format(g))
             compPixels = np.where(self.compMask == g)
 
             timestreams = np.transpose(self.imageList[:, compPixels[0], compPixels[1]])  # shape [nPix, nTime]
@@ -203,7 +203,7 @@ class CorrelateBeamSweep(object):
             # pdb.set_trace()
             del correlationList
 
-            getLogger('beammap').info("Making Correlation matrix...")
+            getLogger('Sweep').info("Making Correlation matrix...")
             corrMatrix = np.zeros((len(goodPix), len(goodPix)))
             corrMatrix[np.triu_indices(len(goodPix), 1)] = correlationLocs - len(self.imageList) / 2
             corrMatrix[np.tril_indices(len(goodPix), -1)] = -1 * np.transpose(corrMatrix)[
@@ -214,17 +214,17 @@ class CorrelateBeamSweep(object):
             corrQualityMatrix[np.tril_indices(len(goodPix), -1)] = -1 * np.transpose(corrQualityMatrix)[
                 np.tril_indices(len(goodPix), -1)]
             del correlationQaulity
-            getLogger('beammap').info("Done...")
+            getLogger('Sweep').info("Done...")
 
-            getLogger('beammap').info("Finding Best Relative Locations...")
+            getLogger('Sweep').info("Finding Best Relative Locations...")
             a = minimizePixelLocationVariance(corrMatrix)
             bestPixelArgs, totalVar = determineSelfconsistentPixelLocs2(corrMatrix, a)
             bestPixels = goodPix[bestPixelArgs]
             bestPixels = bestPixels[: len(bestPixels) / 20]
             best_a = minimizePixelLocationVariance(corrMatrix[:, np.where(np.in1d(goodPix, bestPixels))[0]])
-            getLogger('beammap').info("Done...")
+            getLogger('Sweep').info("Done...")
 
-            getLogger('beammap').info("Finding Timestream Peak Locations...")
+            getLogger('Sweep').info("Finding Timestream Peak Locations...")
             shifts = np.rint(best_a[bestPixelArgs]).astype(np.int)
             shifts = shifts[: len(bestPixels)]
             shifts = shifts[:, None] + np.arange(len(timestreams[0]))
@@ -242,7 +242,7 @@ class CorrelateBeamSweep(object):
 
             best_a += offset
 
-            getLogger('beammap').info("Done...")
+            getLogger('Sweep').info("Done...")
 
             locs[compPixels[0][goodPix], compPixels[1][goodPix]] = best_a
 
@@ -299,7 +299,7 @@ class ManualTemporalBeammap(object):
 
         self.goodPix = np.where((self.flagMap != beamMapFlags['noDacTone']) * (totalCounts_x + totalCounts_y) > 0)
         self.nGoodPix = len(self.goodPix[0])
-        getLogger('beammap').info('Pixels with light: {}'.format(self.nGoodPix))
+        getLogger('Sweep').info('Pixels with light: {}'.format(self.nGoodPix))
         self.curPixInd = 0
         self.curPixValue = np.amax(beamMapFlags.values()) + 1
 
@@ -311,7 +311,7 @@ class ManualTemporalBeammap(object):
         plt.show()
 
     def saveTemporalBeammap(self):
-        getLogger('beammap').info('Saving: '.format(self.outputBeammapFn))
+        getLogger('Sweep').info('Saving: '.format(self.outputBeammapFn))
         allResIDs = self.resIDsMap.flatten()
         flags = self.flagMap.flatten()
         x = self.x_loc.flatten()
@@ -357,7 +357,7 @@ class ManualTemporalBeammap(object):
         self.fig_time.canvas.mpl_connect('key_press_event', self.onKeyTime)
 
     def onKeyTime(self, event):
-        getLogger('beammap').info('Pressed '+event.key)
+        getLogger('Sweep').info('Pressed '+event.key)
         # if event.key not in ('right', 'left'): return
         if event.key in ['right', 'c']:
             self.curPixInd += 1
@@ -388,7 +388,7 @@ class ManualTemporalBeammap(object):
             x = self.goodPix[1][self.curPixInd]
             self.x_loc[y, x] = np.nan
             self.y_loc[y, x] = np.nan
-            getLogger('beammap').info('Pix {} ({}, {}) Marked bad'.format(int(self.resIDsMap[y, x]),x,y))
+            getLogger('Sweep').info('Pix {} ({}, {}) Marked bad'.format(int(self.resIDsMap[y, x]),x,y))
             self.updateFlagMap(self.curPixInd)
             self.curPixInd += 1
             self.curPixInd %= self.nGoodPix
@@ -400,10 +400,10 @@ class ManualTemporalBeammap(object):
             x = self.goodPix[1][self.curPixInd]
             if self.flagMap[y, x] != beamMapFlags['double']:
                 self.flagMap[y, x] = beamMapFlags['double']
-                getLogger('beammap').info('Pix {} ({}, {}) Marked as double'.format(int(self.resIDsMap[y, x]), x, y))
+                getLogger('Sweep').info('Pix {} ({}, {}) Marked as double'.format(int(self.resIDsMap[y, x]), x, y))
             else:
                 self.flagMap[y, x] = beamMapFlags['good']
-                getLogger('beammap').info('Pix {} ({}, {}) Un-Marked as double'.format(int(self.resIDsMap[y, x]), x, y))
+                getLogger('Sweep').info('Pix {} ({}, {}) Un-Marked as double'.format(int(self.resIDsMap[y, x]), x, y))
             self.updateFlagMap(self.curPixInd)
             self.updateTimestreamPlot(5)
 
@@ -484,12 +484,12 @@ class ManualTemporalBeammap(object):
                 if self.fitType == 'gaussian':
                     fitParams=fitPeak(self.x_images[:,y,x],offset,20)
                     offset=fitParams[0]
-                    getLogger('beammap').info('Gaussian fit params: ' + str(fitParams))
+                    getLogger('Sweep').info('Gaussian fit params: ' + str(fitParams))
                 elif self.fitType == 'com':
                     offset=getPeakCoM(self.x_images[:,y,x],offset)
-                    getLogger('beammap').info('Using CoM: ' + str(offset), 10)
+                    getLogger('Sweep').info('Using CoM: ' + str(offset), 10)
                 self.x_loc[y, x] = offset
-                getLogger('beammap').info('x: {}'.format(offset))
+                getLogger('Sweep').info('x: {}'.format(offset))
                 self.updateTimestreamPlot(0)
 
             elif event.inaxes == self.ax_time_y:
@@ -497,12 +497,12 @@ class ManualTemporalBeammap(object):
                 if self.fitType == 'gaussian':
                     fitParams=fitPeak(self.y_images[:,y,x],offset,20)
                     offset=fitParams[0]
-                    getLogger('beammap').info('Gaussian fit params: ' + str(fitParams))
+                    getLogger('Sweep').info('Gaussian fit params: ' + str(fitParams))
                 elif self.fitType == 'com':
                     offset=getPeakCoM(self.y_images[:,y,x],offset, 10)
-                    getLogger('beammap').info('Using CoM: ' + str(offset))
+                    getLogger('Sweep').info('Using CoM: ' + str(offset))
                 self.y_loc[y, x] = offset
-                getLogger('beammap').info('y: {}'.format(offset))
+                getLogger('Sweep').info('y: {}'.format(offset))
                 self.updateTimestreamPlot(1)
 
             self.updateXYPlot(2)
@@ -569,7 +569,7 @@ class ManualTemporalBeammap(object):
             nRows, nCols = self.x_images[0].shape
             if x >= 0 and x < nCols and y >= 0 and y < nRows:
                 msg = 'Clicked Flag Map! [{}, {}] -> {} Flag: {}'
-                getLogger('beammap').info(msg.format(x, y, self.resIDsMap[y, x], self.flagMap[y, x]))
+                getLogger('Sweep').info(msg.format(x, y, self.resIDsMap[y, x], self.flagMap[y, x]))
                 pixInd = np.where((self.goodPix[0] == y) * (self.goodPix[1] == x))[0]
                 if len(pixInd) == 1:
                     self.curPixInd = pixInd[0]
@@ -578,7 +578,7 @@ class ManualTemporalBeammap(object):
                     self.updateTimestreamPlot(4)
                     # plt.draw()
                 else:
-                    getLogger('beammap').info("No photons detected")
+                    getLogger('Sweep').info("No photons detected")
 
     def plotXYscatter(self):
         self.fig_XY, self.ax_XY = plt.subplots()
@@ -661,7 +661,7 @@ class TemporalBeammap():
         imageList = None
         for s in self.config.beammap.sweep.sweeps:
             if s.sweeptype in sweepType:
-                getLogger('beammap').info('loading: ' + str(s))
+                getLogger('Sweep').info('loading: ' + str(s))
                 imList = self.loadSweepBins(s).astype(np.float)
                 if removeBkg:
                     bkgndList = np.median(imList, axis=0)
@@ -772,7 +772,7 @@ class TemporalBeammap():
 
     def saveTemporalBeammap(self):
 
-        getLogger('beammap').info('Saving')
+        getLogger('Sweep').info('Saving')
 
         if self.config.paths.initialbeammap is not None:
             initial = os.path.join(self.config.paths.beammapdirectory, self.config.paths.initialbeammap)
@@ -786,10 +786,10 @@ class TemporalBeammap():
         otherFlags = flag_map[otherFlagArgs]
         if self.y_locs is not None and self.y_locs.shape == flag_map.shape:
             y_map = self.y_locs
-            getLogger('beammap').info('added y')
+            getLogger('Sweep').info('added y')
         if self.x_locs is not None and self.x_locs.shape == flag_map.shape:
             x_map = self.x_locs
-            getLogger('beammap').info('added x')
+            getLogger('Sweep').info('added x')
 
         flag_map[np.where(np.logical_not(np.isfinite(x_map)) * np.logical_not(np.isfinite(y_map)))] = beamMapFlags[
             'failed']
@@ -804,7 +804,7 @@ class TemporalBeammap():
         y = y_map.flatten()
         args = np.argsort(allResIDs)
         data = np.asarray([allResIDs[args], flags[args], x[args], y[args]]).T
-        outfile = os.path.join(self.config.paths.beammapDirectory, self.config.paths.temporalbeammap)
+        outfile = os.path.join(self.config.paths.beammapdirectory, self.config.paths.temporalbeammap)
         np.savetxt(outfile, data, fmt='%7d %3d %7f %7f')
 
     def loadTemporalBeammap(self):
@@ -818,11 +818,11 @@ class TemporalBeammap():
 
     def loadSweepBins(self, s):
         cachefile = os.path.join(self.config.paths.beammapdirectory,
-                                 '_beamcache_{}{}.npz'.format(s.starttime, s.duration))
+                                 '_beamcache_{}{}.npz.npy'.format(s.starttime, s.duration))
         try:
             images = np.load(cachefile)
             msg = 'Restored sweep images for {} s starting at {} from {}'
-            getLogger('beammap.sweep').info(msg.format(s.duration, s.starttime, cachefile))
+            getLogger('Sweep').info(msg.format(s.duration, s.starttime, cachefile))
             return images
         except IOError:
             pass
@@ -830,9 +830,8 @@ class TemporalBeammap():
         startTime = s.starttime
         duration = s.duration
         if duration % 2 == 0:
-            getLogger('beammap.sweep').warn("Having an even number of time steps"
-                                            "can create off by 1 errors: subtracting one time step to "
-                                            "make it odd")
+            getLogger('Sweep').warn("Having an even number of time steps can create off by 1 errors: "
+                                    "subtracting one time step to make it odd")
             duration -= 1
 
         arglist = [(os.path.join(self.config.paths.bin, '{}.bin'.format(start)),
@@ -878,12 +877,12 @@ if __name__ == '__main__':
                         help='generate config in CWD')
 
     group = parser.add_mutually_exclusive_group()
-    group.add_argument('--xcor', default=True, action='store_true', dest='use_cc',
+    group.add_argument('--xcor', default=False, action='store_true', dest='use_cc',
                        help='Run cross correlation (step 1)')
     group.add_argument('--manual', default=False, action='store_true', dest='use_manual',
                        help='Run manual sweep cleanup (step 1 alt.)')
     group.add_argument('--align', default=False, action='store_true', dest='align', help='Run align grid (step 2)')
-    group.add_argument('--clean', default=False, action='store_true', dest='align', help='Run clean (step 3)')
+    group.add_argument('--clean', default=False, action='store_true', dest='clean', help='Run clean (step 3)')
 
     args = parser.parse_args()
 

@@ -29,6 +29,7 @@ import numpy as np
 import scipy.ndimage as sciim
 
 from mkidcore.config import load
+from mkidcore.corelog import getLogger
 from mkidreadout.configuration.beammap.flags import beamMapFlags
 from mkidreadout.configuration.beammap.utils import DARKNESS_FL_WIDTH, MEC_FL_WIDTH, N_FL_DARKNESS, N_FL_MEC, \
     getFLFromID, isInCorrectFL
@@ -66,22 +67,26 @@ class BMAligner(object):
                     self.temporalImage[int(round(self.temporalXs[i]*self.usFactor)), int(round(self.temporalYs[i]*self.usFactor))] = 1
 
     def fftTemporalImage(self, save=True):
+        getLogger(__name__).info('Computing FFT of temporal image')
         self.temporalImageFFT = np.abs(np.fft.fft2(self.temporalImage))
         self.temporalImageFreqs = [np.fft.fftfreq(self.temporalImageFFT.shape[0]), np.fft.fftfreq(self.temporalImageFFT.shape[1])]
         if save:
-            np.savez(os.path.join(os.path.dirname(self.beamListFn), 'temporalImageFFT.npz'), temporalImageFFT=self.temporalImageFFT, temporalImageFreqs=self.temporalImageFreqs)
+            np.savez(os.path.join(os.path.dirname(self.beamListFn), 'temporalImageFFT.npz'),
+                     temporalImageFFT=self.temporalImageFFT, temporalImageFreqs=self.temporalImageFreqs)
 
     def loadFFT(self, path=None):
         if path is None:
             path = os.path.join(os.path.dirname(self.beamListFn), 'temporalImageFFT.npz')
+        if not os.path.exists(path):
+            self.fftTemporalImage()
 
-        warnings.warn('Loading FFT from ' + str(path))
+        getLogger(__name__).info('Loading FFT from ' + str(path))
         fftDict = np.load(path)
         try:
             self.temporalImageFFT = fftDict['temporalImageFFT']
             self.temporalImageFreqs = fftDict['temporalImageFreqs']
         except KeyError:
-            print('FFT file has old format variable names')
+            getLogger(__name__).warning('FFT file has old format variable names')
             self.temporalImageFFT = fftDict['rawImageFFT']
             self.temporalImageFreqs = fftDict['rawImageFreqs']
     
