@@ -125,6 +125,9 @@ class LiveImageFetcher(QtCore.QObject):  # Extends QObject for use with QThreads
                 utc = datetime.utcfromtimestamp(time.time()).strftime('%Y-%m-%d %H:%M:%S')
                 self.imagebuffer.startIntegration(integrationTime=self.inttime)
                 data = self.imagebuffer.receiveImage()
+                if not data.sum():
+                    getLogger('Dashboard').warning('Dropping a frame of zeros, will not display')
+                    continue
                 ret = fits.ImageHDU(data=data)
                 ret.header['utcstart'] = utc
                 ret.header['exptime'] = self.inttime
