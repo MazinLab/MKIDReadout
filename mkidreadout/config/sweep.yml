@@ -1,14 +1,14 @@
 !configdict
 paths: !configdict
-  bin: /mnt/data0/dodkins/mec/20181218/ScienceData/  # todo convert to h5file directory
-  beammapDirectory: /mnt/data0/dodkins/mec/20181218/  # The location of the intermediate and final beammap files
-  initialBeammap: finalMap_20181218.bmap  # flags all = 0. resID and row/col pixel nums all monotonically increase
+  bin: /home/data/ScienceData/Subaru/20191204/  # todo convert to h5file directory
+  beammapDirectory: /home/data/MEC/20191204/sweep/  # The location of the intermediate and final beammap files
+  initialBeammap:   # flags all = 0. resID and row/col pixel nums all monotonically increase None to use the default for instrument
   temporalBeammap: beammap_20181218_FL1.bmap  # resID has associated times (not row col ints yet) (formerly roughbeammap)
   masterTemporalBeammap: beammap_20181219_all_clicked.bmap  # input for aligngrid. Concatenation of many feedlines manually clicked
   masterDoublesList:   #leave empty for case None
   alignedBeammap: RawMap20181218.txt  #aligned flagged beammap in pixel units (formerly raw map/output map)
   outputDoubleName:   #leave empty for case None
-  designMapFile: /mnt/data0/nswimmer/Repositories/mapcheckertesting/mec_feedline.txt
+  designMapFile: /home/data/MEC/20191204/mec_feedline.txt
   quantizedBeammap: finalMapV1_1.txt  # quantized beammap
 
 beammap: !configdict
@@ -18,7 +18,9 @@ beammap: !configdict
   numRows: 146
   flip: False
 
-  sweep: !configdict #
+  ncpu: 6
+
+  sweep: !configdict
     fittype: gaussian
     sweeps:
       - !configdict
@@ -26,20 +28,19 @@ beammap: !configdict
         sweepdirection: +
         speed: 1
         size: 3
-        starttime: 1545190257 #1545191407
-        duration: 500
+        starttime: 1575527539
+        duration: 700
 
       - !configdict
         sweeptype: y
         sweepdirection: +
         speed: 1
         size: 3
-        starttime: 1545190865 #1545194792
-        duration: 500
+        starttime: 1575528461
+        duration: 600
 
   align: placeholder
 
   clean: !configdict
     usefreqs: False
-    psFiles: 'ps*.txt'
-
+    psFiles: /home/data/MEC/20191204/data/psData_*clipped.txt

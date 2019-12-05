@@ -31,6 +31,9 @@ import os
 
 import matplotlib
 import numpy as np
+import multiprocessing as mp
+import argparse
+
 
 matplotlib.use('Qt4Agg')
 import matplotlib.pyplot as plt
@@ -39,14 +42,19 @@ from mkidcore.corelog import getLogger, create_log
 from mkidcore.hdf.mkidbin import parse
 from mkidcore.objects import Beammap
 
-import argparse
 
 import mkidreadout.config
 from mkidreadout.configuration.beammap import aligngrid as bmap_align
 from mkidreadout.configuration.beammap import clean as bmap_clean
 from mkidreadout.configuration.beammap.utils import crossCorrelateTimestreams, determineSelfconsistentPixelLocs2, \
-    loadImgFiles, minimizePixelLocationVariance, snapToPeak, shapeBeammapIntoImages, fitPeak, getPeakCoM, check_timestream
+     minimizePixelLocationVariance, snapToPeak, shapeBeammapIntoImages, fitPeak, getPeakCoM, check_timestream
 from mkidreadout.configuration.beammap.flags import beamMapFlags
+
+
+def bin2img((binfile, nrows, ncols)):
+    print("Making image for {}".format(binfile))
+    photons = parse(binfile)
+    return np.histogram2d(photons['y'], photons['x'], bins=[range(nrows + 1), range(ncols + 1)])[0]
 
 
 class FitBeamSweep(object):
@@ -238,8 +246,8 @@ class CorrelateBeamSweep(object):
 
             locs[compPixels[0][goodPix], compPixels[1][goodPix]] = best_a
 
-        locs[np.where(locs < 0)] = 0
-        locs[np.where(locs >= len(self.imageList))] = len(self.imageList)
+        locs[locs < 0] = 0
+        locs[locs >= len(self.imageList)] = len(self.imageList)
         return locs
 
 
@@ -770,7 +778,7 @@ class TemporalBeammap():
             initial = os.path.join(self.config.paths.beammapdirectory, self.config.paths.initialbeammap)
         else:
             initial = Beammap(default=self.config.beammap.instrument).file
-        temporal = os.path.join(self.config.paths.beammapdirectory, self.config.path.temporalbeammap)
+        temporal = os.path.join(self.config.paths.beammapdirectory, self.config.paths.temporalbeammap)
 
         allResIDs_map, flag_map, x_map, y_map = shapeBeammapIntoImages(initial, temporal)
         otherFlagArgs = np.where((flag_map != beamMapFlags['good']) * (flag_map != beamMapFlags['failed']) * (
@@ -796,43 +804,52 @@ class TemporalBeammap():
         y = y_map.flatten()
         args = np.argsort(allResIDs)
         data = np.asarray([allResIDs[args], flags[args], x[args], y[args]]).T
-        np.savetxt(self.config.beammap.sweep.temporalbeammap, data, fmt='%7d %3d %7f %7f')
+        outfile = os.path.join(self.config.paths.beammapDirectory, self.config.paths.temporalbeammap)
+        np.savetxt(outfile, data, fmt='%7d %3d %7f %7f')
 
     def loadTemporalBeammap(self):
         if self.config.paths.initialbeammap is not None:
             initial = os.path.join(self.config.paths.beammapdirectory, self.config.paths.initialbeammap)
         else:
             initial = Beammap(default=self.config.beammap.instrument).file
-        temporal = os.path.join(self.config.paths.beammapdirectory, self.config.path.temporalbeammap)
+        temporal = os.path.join(self.config.paths.beammapdirectory, self.config.paths.temporalbeammap)
 
         allResIDs_map, flag_map, self.x_locs, self.y_locs = shapeBeammapIntoImages(initial, temporal)
 
     def loadSweepBins(self, s):
-        path = self.config.paths.bin
+        cachefile = os.path.join(self.config.paths.beammapdirectory,
+                                 '_beamcache_{}{}.npz'.format(s.starttime, s.duration))
+        try:
+            images = np.load(cachefile)
+            msg = 'Restored sweep images for {} s starting at {} from {}'
+            getLogger('beammap.sweep').info(msg.format(s.duration, s.starttime, cachefile))
+            return images
+        except IOError:
+            pass
+
         startTime = s.starttime
         duration = s.duration
-        nRows = self.config.beammap.numrows
-        nCols = self.config.beammap.numcols
         if duration % 2 == 0:
             getLogger('beammap.sweep').warn("Having an even number of time steps"
                                             "can create off by 1 errors: subtracting one time step to "
                                             "make it odd")
             duration -= 1
 
-        images=[]
-        for start in range(startTime, startTime+duration):
-            log.info("Making image for time %i" % start)
-            photons = parse(path + str(start) + '.bin')
+        arglist = [(os.path.join(self.config.paths.bin, '{}.bin'.format(start)),
+                    self.config.beammap.numrows, self.config.beammap.numcols)
+                   for start in range(startTime, startTime+duration)]
 
-            x = photons['x']
-            y = photons['y']
-            image, _, _ = np.histogram2d(y, x, bins = [range(nRows+1), range(nCols+1)])
+        pool = mp.Pool(self.config.beammap.ncpu)
+        images = np.array(pool.map(bin2img, arglist))
+        pool.close()
+        pool.join()
 
-            images.append(image)
+        np.savez(cachefile, images)
 
-            # plt.imshow(image)
-            # plt.show(block=True)
-        return np.array(images)
+        # for image in images:
+        #     plt.imshow(image)
+        #     plt.show(block=True)
+        return images
 
     def manualSweepCleanup(self):
         if self.config.paths.initialbeammap is None:
@@ -851,7 +868,7 @@ if __name__ == '__main__':
 
     create_log('Sweep')
     create_log('mkidcore')
-    create_log('mkidreadout')
+    create_log('mkidreadout', level='DEBUG')
     log = getLogger('Sweep')
 
     parser = argparse.ArgumentParser(description='MKID Beammap Analysis Utility')
@@ -874,7 +891,7 @@ if __name__ == '__main__':
         mkidreadout.config.generate_default_configs(sweep=True)
         exit(0)
 
-    config = load(args.cfgfilename)
+    config = load(args.config)
 
     b = TemporalBeammap(config)
 
