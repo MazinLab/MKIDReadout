@@ -437,7 +437,7 @@ class ManualTemporalBeammap(object):
                     getLogger('Sweep').info('x failed check')
                 yStream_good = check_timestream(yStream, y_loc)
                 if not yStream_good:
-                    getLogger('Sweep').info(('y failed check')
+                    getLogger('Sweep').info('y failed check')
                 skip_timestream = xStream_good and yStream_good
                 if skip_timestream:
                     if fastforward:
@@ -929,7 +929,8 @@ if __name__ == '__main__':
                        help='Run argmax to get peak location estimates (step 1 alt.)')
     group.add_argument('--manual', default=False, dest='manual_idx',
                        help='Run manual sweep cleanup (step 2)')
-    group.add_argument('--combo', default=False, action='store_true', dest='use_combo', help='Combines the different FLs into one master (step 3)')
+    group.add_argument('--combo', default=False, action='store_true', dest='use_combo',
+                       help='Combines the different FLs into one master (step 3)')
     group.add_argument('--align', default=False, action='store_true', dest='align', help='Run align grid (step 4)')
     group.add_argument('--clean', default=False, action='store_true', dest='clean', help='Run clean (step 5)')
 

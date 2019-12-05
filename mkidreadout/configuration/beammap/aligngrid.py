@@ -152,9 +152,9 @@ class BMAligner(object):
         self.xScale = 1/(self.usFactor*np.linalg.norm(self.xKvec))
         self.yScale = 1/(self.usFactor*np.linalg.norm(self.yKvec))
 
-        print('angle:', self.angle)
-        print('x scale:', self.xScale)
-        print('y scale:', self.yScale)
+        getLogger(__name__).info('angle: {}'.format(self.angle))
+        getLogger(__name__).info('x scale: {}'.format(self.xScale))
+        getLogger(__name__).info('y scale: {}'.format(self.yScale))
 
     def rotateAndScaleCoords(self, xVals=None, yVals=None):
         c = np.cos(-self.angle)
@@ -183,16 +183,16 @@ class BMAligner(object):
         sortedX = goodCoords[sortedXInds,0]
         sortedY = goodCoords[sortedYInds,1]
 
-        if self.instrument=='mec':
+        if self.instrument.lower() == 'mec':
             yStart = 0
             firstFL = getFLFromID(goodResIDs[sortedXInds[0]])
             if self.flip:
                 xStart = (self.nFL - firstFL)*self.flWidth
             else:
                 xStart = (firstFL - 1)*self.flWidth
-                print(xStart)
+                getLogger(__name__).info('xStart: {}'.format(xStart))
 
-        elif self.instrument=='darkness':
+        elif self.instrument.lower() == 'darkness':
             xStart = 0
             firstFL = getFLFromID(goodResIDs[sortedXInds[0]])
             if self.flip:
@@ -202,8 +202,8 @@ class BMAligner(object):
 
         baselineXOffs = np.median(sortedX[:self.nXPix*3/4]) - xStart
         baselineYOffs = np.median(sortedY[:self.nYPix*3/4]) - yStart
-        print('Baseline X Offset:', baselineXOffs)
-        print('Baseline Y Offset:', baselineYOffs)
+        getLogger(__name__).info('Baseline X Offset: {}'.format(baselineXOffs))
+        getLogger(__name__).info('Baseline Y Offset: {}'.format(baselineYOffs))
         curXOffs = baselineXOffs
         curYOffs = baselineYOffs
         optXOffs = curXOffs
@@ -240,7 +240,8 @@ class BMAligner(object):
                 optI = i
                 startXOffs = optXOffs
                 startYOffs = optYOffs
-                print('Found new optimum at', optXOffs, optYOffs, 'with', optNGoodPix, 'good Pixels. i =', i)
+                msg = 'Found new optimum at {:.1f}, {:.1f} with {:.0f} good pixles. i={}'
+                getLogger(__name__).info(msg.format(optXOffs, optYOffs, optNGoodPix, i))
             if i - optI > optSearchIters: #search around maximum for a bit then go back to baseline
                 startXOffs = baselineXOffs
                 startYOffs = baselineYOffs
@@ -250,7 +251,7 @@ class BMAligner(object):
         self.xOffs = optXOffs
         self.yOffs = optYOffs
 
-        print('Optimal offset:', self.xOffs, self.yOffs)
+        getLogger(__name__).info('Optimal offset: {:.1f}, {:.1f}'.format(self.xOffs, self.yOffs))
 
         #if roundCoords:
         #    self.coords[:,0] = (np.round(self.coords[:,0] - self.xOffs)).astype(int)
@@ -305,7 +306,7 @@ class KVecGUI():
 
         self.curAxis = 'x'
 
-        print('Click first bright spot to the right of center (red dot)')
+        getLogger(__name__).info('Click first bright spot to the right of center (red dot)')
 
         self.plotImage()
 
@@ -326,16 +327,16 @@ class KVecGUI():
         if self.fig.canvas.manager.toolbar._active is None:
             if self.curAxis=='x':
                 self.kx = np.array([self.fftFreqs[0][int(round(event.xdata))], self.fftFreqs[1][int(round(event.ydata))]])
-                print('kx:', self.kx)
+                getLogger(__name__).info('kx: {}'.format(self.kx))
                 self.curAxis='y'
-                print('Click first bright spot below center (red dot)')
+                getLogger(__name__).info('Click first bright spot below center (red dot)')
             elif self.curAxis=='y':
                 self.ky = np.array([self.fftFreqs[0][int(round(event.xdata))], self.fftFreqs[1][int(round(event.ydata))]])
-                print('ky:', self.ky)
+                getLogger(__name__).info('ky: {}'.format(self.ky))
                 self.curAxis='x'
-                print('Done.')
-                print(
-                    'If you want to re-select kx, click first bright spot to the right of center (red dot), otherwise close the plot')
+                getLogger(__name__).info('Done.')
+                getLogger(__name__).info('If you want to re-select kx, click first bright spot to the '
+                                         'right of center (red dot), otherwise close the plot')
 
 
 if __name__=='__main__':
