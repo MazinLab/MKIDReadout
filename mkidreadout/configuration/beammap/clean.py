@@ -34,7 +34,7 @@ DARKNESS_FL_WIDTH = 25
 N_FL_MEC = 10
 N_FL_DARKNESS = 5
 
-logging.basicConfig()
+
 log = logging.getLogger('beammap.clean')
 
 
@@ -387,17 +387,7 @@ class BMCleaner(object):
         np.savetxt(path, np.transpose([self.beamMap.resIDs.astype(int), self.beamMap.flags.astype(int), self.placedXs.astype(int), self.placedYs.astype(int)]), fmt='%4i %4i %4i %4i')
      
 
-if __name__=='__main__':
-    parser = argparse.ArgumentParser(description='argument parser')
-    parser.add_argument('cfgFile', nargs=1, type=str, default='/mnt/data0/MEC/20181218/clean.cfg', help='Configuration file')
-    #default config file location
-    args = parser.parse_args()
-    cfgfilename = args.cfgFile[0]
-
-    config = load(cfgfilename)
-
-    resolutionType = args
-    log.setLevel(logging.INFO)
+def main(config):
 
     beammapDirectory = config.beammap.paths.beammapdirectory
     quantizedbeammap = beammapDirectory+config.beammap.paths.quantizedbeammap
@@ -473,3 +463,17 @@ if __name__=='__main__':
     ax4.set_title('Quiver Plot showing final_coordinates -> precise_coordinates (arrows not to scale)')
 
     plt.show()
+
+
+if __name__=='__main__':
+    logging.basicConfig()
+
+    parser = argparse.ArgumentParser(description='argument parser')
+    parser.add_argument('cfgFile', nargs=1, type=str, default='/mnt/data0/MEC/20181218/clean.cfg', help='Configuration file')
+    #default config file location
+    args = parser.parse_args()
+    cfgfilename = args.cfgFile[0]
+
+    config = load(cfgfilename)
+
+    main(config)

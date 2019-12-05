@@ -41,6 +41,8 @@ from mkidcore.hdf.mkidbin import parse
 import argparse
 
 import mkidreadout.config
+from mkidreadout.configuration.beammap import aligngrid as bmap_align
+from mkidreadout.configuration.beammap import clean as bmap_clean
 from mkidreadout.configuration.beammap.utils import crossCorrelateTimestreams, determineSelfconsistentPixelLocs2, \
     loadImgFiles, minimizePixelLocationVariance, snapToPeak, shapeBeammapIntoImages, fitPeak, getPeakCoM, check_timestream
 from mkidreadout.configuration.beammap.flags import beamMapFlags
@@ -854,11 +856,18 @@ if __name__ == '__main__':
     log = getLogger('Sweep')
 
     parser = argparse.ArgumentParser(description='MKID Beammap Analysis Utility')
-    parser.add_argument('cfgfilename', type=str, default='sweep.yml', help='Configuration file for beammap sweeps')
-    parser.add_argument('-cc', default=False, action='store_true', dest='use_cc', help='run in Xcor mode')
-    parser.add_argument('--gencfg', default=False, action='store_true', dest='use_cc', help='run in Xcor mode')
+    parser.add_argument('-c', '--config', default=mkidreadout.config.DEFAULT_SWEEP_CFGFILE, dest='config',
+                        type=str, help='The config file')
     parser.add_argument('--gencfg', default=False, dest='genconfig', action='store_true',
                         help='generate config in CWD')
+
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument('--xcor', default=True, action='store_true', dest='use_cc',
+                       help='Run cross correlation (step 1)')
+    group.add_argument('--manual', default=False, action='store_true', dest='use_manual',
+                       help='Run manual sweep cleanup (step 1 alt.)')
+    group.add_argument('--align', default=False, action='store_true', dest='align', help='Run align grid (step 2)')
+    group.add_argument('--clean', default=False, action='store_true', dest='align', help='Run clean (step 3)')
 
     args = parser.parse_args()
 
@@ -879,10 +888,28 @@ if __name__ == '__main__':
         b.refinePeakLocs('x', b.config.beammap.sweep.fittype, b.x_locs, fitWindow=15)
         b.refinePeakLocs('y', b.config.beammap.sweep.fittype, b.y_locs, fitWindow=15)
         b.saveTemporalBeammap()
-    else:   # Manual mode
+    elif args.use_manual:   # Manual mode
         log.info('Stack x and y')
         b.stackImages('x')
         b.stackImages('y')
         log.info('Cleanup')
         b.manualSweepCleanup()
+    elif args.align:
+        log.info(config.beammap.paths.masterdoubleslist)
+        aligner = bmap_align.BMAligner(config.beammap.paths.beammapdirectory+config.beammap.paths.mastertemporalbeammap,
+                                      config.beammap.numcols, config.beammap.numrows, config.beammap.instrument, config.beammap.flip)
+        aligner.makeTemporalImage()
+        # aligner.fftTemporalImage()
+        aligner.loadFFT()
+        aligner.findKvecsManual()
+        aligner.findAngleAndScale()
+        aligner.rotateAndScaleCoords()
+        aligner.findOffset(50000)
+        aligner.plotCoords()
+        aligner.saveTemporalMap(config.beammap.paths.beammapdirectory+config.beammap.paths.alignedbeammap)
+        if config.beammap.paths.masterdoubleslist is not None:
+            aligner.makeDoublesTemporalMap(config.beammap.paths.beammapdirectory+config.beammap.paths.masterdoubleslist,
+                                           config.beammap.paths.beammapdirectory+config.beammap.paths.outputdoublename)
 
+    elif args.clean:
+        bmap_clean.main(config)

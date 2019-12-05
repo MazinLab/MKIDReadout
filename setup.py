@@ -109,7 +109,8 @@ setuptools.setup(
              'mkidreadout/channelizer/hightemplar.py',
              'mkidreadout/readout/dashboard.py',
              'mkidreadout/channelizer/reinitADCDAC.py',
-             'mkidreadout/configuration/powersweep/clickthrough_hell.py'],
+             'mkidreadout/configuration/powersweep/clickthrough_hell.py',
+             'mkidreadout/configuration/beammap/sweep.py'],
     ext_modules=cythonize(extensions),
     classifiers=(
         "Programming Language :: Python :: 2.7",
