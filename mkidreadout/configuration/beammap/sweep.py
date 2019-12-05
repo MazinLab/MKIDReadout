@@ -880,9 +880,9 @@ if __name__ == '__main__':
     group.add_argument('--xcor', default=False, action='store_true', dest='use_cc',
                        help='Run cross correlation (step 1)')
     group.add_argument('--manual', default=False, action='store_true', dest='use_manual',
-                       help='Run manual sweep cleanup (step 1 alt.)')
-    group.add_argument('--align', default=False, action='store_true', dest='align', help='Run align grid (step 2)')
-    group.add_argument('--clean', default=False, action='store_true', dest='clean', help='Run clean (step 3)')
+                       help='Run manual sweep cleanup (step 2)')
+    group.add_argument('--align', default=False, action='store_true', dest='align', help='Run align grid (step 3)')
+    group.add_argument('--clean', default=False, action='store_true', dest='clean', help='Run clean (step 4)')
 
     args = parser.parse_args()
 
