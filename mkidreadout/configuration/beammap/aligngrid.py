@@ -344,8 +344,8 @@ if __name__=='__main__':
         cfgfilename = os.path.join(mdd, cfgfilename)
     config = load(cfgfilename)
 
-    print(config.beammap.paths.masterdoubleslist)
-    aligner = BMAligner(config.beammap.paths.beammapdirectory+config.beammap.paths.mastertemporalbeammap,
+    print(config.paths.masterdoubleslist)
+    aligner = BMAligner(os.path.join(config.paths.beammapdirectory, config.paths.mastertemporalbeammap),
                         config.beammap.numcols, config.beammap.numrows, config.beammap.instrument, config.beammap.flip)
     aligner.makeTemporalImage()
     # aligner.fftTemporalImage()
@@ -355,8 +355,8 @@ if __name__=='__main__':
     aligner.rotateAndScaleCoords()
     aligner.findOffset(50000)
     aligner.plotCoords()
-    aligner.saveTemporalMap(config.beammap.paths.beammapdirectory+config.beammap.paths.alignedbeammap)
-    if config.beammap.paths.masterdoubleslist is not None:
-        aligner.makeDoublesTemporalMap(config.beammap.paths.beammapdirectory+config.beammap.paths.masterdoubleslist,
-                                  config.beammap.paths.beammapdirectory+config.beammap.paths.outputdoublename)
+    aligner.saveTemporalMap(os.path.join(config.paths.beammapdirectory, config.paths.alignedbeammap))
+    if config.paths.masterdoubleslist is not None:
+        aligner.makeDoublesTemporalMap(os.path.join(config.paths.beammapdirectory, config.paths.masterdoubleslist),
+                                       os.path.join(config.paths.beammapdirectory, config.paths.outputdoublename))
 

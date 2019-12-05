@@ -794,25 +794,8 @@ class TemporalBeammap():
     def loadTemporalBeammap(self):
         allResIDs_map, flag_map, self.x_locs, self.y_locs = shapeBeammapIntoImages(self.config.beammap.sweep.initialbeammap, self.config.beammap.sweep.temporalbeammap)
 
-    def loadSweepImgs(self, s):
-        path = self.config.beammap.paths.imgfiledirectory
-        startTime = s.starttime
-        duration = s.duration
-        if duration % 2 == 0:
-            getLogger('beammap.sweep').warn("Having an even number of time steps"
-                                            "can create off by 1 errors: subtracting one time step to "
-                                            "make it odd")
-            duration -= 1
-        fnList = [path + str(startTime + i) + '.img' for i in range(duration)]
-        nRows = self.config.beammap.numrows
-        nCols = self.config.beammap.numcols
-        # for image in loadImgFiles(fnList, nRows, nCols):
-        #     plt.imshow(image)
-        #     plt.show(block=True)
-        return loadImgFiles(fnList, nRows, nCols)
-
     def loadSweepBins(self, s):
-        path = self.config.beammap.paths.imgfiledirectory
+        path = self.config.paths.bin
         startTime = s.starttime
         duration = s.duration
         nRows = self.config.beammap.numrows
@@ -839,8 +822,8 @@ class TemporalBeammap():
         return np.array(images)
 
     def manualSweepCleanup(self):
-        initialbeammap = self.config.beammap.paths.beammapdirectory+self.config.beammap.paths.initialbeammap
-        temporalbeammap = self.config.beammap.paths.beammapdirectory+self.config.beammap.paths.temporalbeammap
+        initialbeammap = os.path.join(self.config.paths.beammapdirectory, self.config.paths.initialbeammap)
+        temporalbeammap = os.path.join(self.config.paths.beammapdirectory, self.config.paths.temporalbeammap)
         m = ManualTemporalBeammap(self.x_images, self.y_images, initialbeammap, temporalbeammap,
                                   self.config.beammap.sweep.fittype)
 
@@ -888,16 +871,18 @@ if __name__ == '__main__':
         b.refinePeakLocs('x', b.config.beammap.sweep.fittype, b.x_locs, fitWindow=15)
         b.refinePeakLocs('y', b.config.beammap.sweep.fittype, b.y_locs, fitWindow=15)
         b.saveTemporalBeammap()
+
     elif args.use_manual:   # Manual mode
         log.info('Stack x and y')
         b.stackImages('x')
         b.stackImages('y')
         log.info('Cleanup')
         b.manualSweepCleanup()
+
     elif args.align:
-        log.info(config.beammap.paths.masterdoubleslist)
-        aligner = bmap_align.BMAligner(config.beammap.paths.beammapdirectory+config.beammap.paths.mastertemporalbeammap,
-                                      config.beammap.numcols, config.beammap.numrows, config.beammap.instrument, config.beammap.flip)
+        log.info('Using "{}" for masterdoubleslist'.format(config.paths.masterdoubleslist))
+        aligner = bmap_align.BMAligner(os.path.join(config.paths.beammapdirectory, config.paths.mastertemporalbeammap),
+                                       config.beammap.numcols, config.beammap.numrows, config.beammap.instrument, config.beammap.flip)
         aligner.makeTemporalImage()
         # aligner.fftTemporalImage()
         aligner.loadFFT()
@@ -906,10 +891,10 @@ if __name__ == '__main__':
         aligner.rotateAndScaleCoords()
         aligner.findOffset(50000)
         aligner.plotCoords()
-        aligner.saveTemporalMap(config.beammap.paths.beammapdirectory+config.beammap.paths.alignedbeammap)
-        if config.beammap.paths.masterdoubleslist is not None:
-            aligner.makeDoublesTemporalMap(config.beammap.paths.beammapdirectory+config.beammap.paths.masterdoubleslist,
-                                           config.beammap.paths.beammapdirectory+config.beammap.paths.outputdoublename)
+        aligner.saveTemporalMap(os.path.join(config.paths.beammapdirectory, config.paths.alignedbeammap))
+        if config.paths.masterdoubleslist is not None:
+            aligner.makeDoublesTemporalMap(os.path.join(config.paths.beammapdirectory, config.paths.masterdoubleslist),
+                                           os.path.join(config.paths.beammapdirectory, config.paths.outputdoublename))
 
     elif args.clean:
         bmap_clean.main(config)

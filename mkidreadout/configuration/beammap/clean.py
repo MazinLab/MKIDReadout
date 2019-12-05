@@ -12,7 +12,7 @@ TODO: refactor to actually use the Beammap class
 """
 
 from __future__ import print_function
-
+import os
 import argparse
 import itertools
 import logging
@@ -389,12 +389,14 @@ class BMCleaner(object):
 
 def main(config):
 
-    beammapDirectory = config.beammap.paths.beammapdirectory
-    quantizedbeammap = beammapDirectory+config.beammap.paths.quantizedbeammap
-    alignedbeammap = beammapDirectory+config.beammap.paths.alignedbeammap
+    beammapDirectory = config.paths.beammapdirectory
+    quantizedbeammap = os.path.join(beammapDirectory, config.paths.quantizedbeammap)
+    alignedbeammap = os.path.join(beammapDirectory, config.paths.alignedbeammap)
+    designFile = config.paths.designmapfile
+
     useFreqs = config.beammap.clean.usefreqs
     psFiles = config.beammap.clean.psfiles
-    designFile = config.beammap.paths.designmapfile
+
     numRows = config.beammap.numrows
     numCols = config.beammap.numcols
     flipParam = config.beammap.flip
