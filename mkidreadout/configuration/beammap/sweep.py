@@ -86,7 +86,7 @@ class FitBeamSweep(object):
             for x in range(self.imageList[0].shape[1]):
                 timestream = self.imageList[:, y, x]
                 if self.initialGuessImage is None or np.logical_not(np.isfinite(self.initialGuessImage[y, x])):
-                    peakGuess=np.nan
+                    peakGuess= np.nan
                 else:
                     peakGuess=self.initialGuessImage[y, x]
 
@@ -879,6 +879,8 @@ if __name__ == '__main__':
     group = parser.add_mutually_exclusive_group()
     group.add_argument('--xcor', default=False, action='store_true', dest='use_cc',
                        help='Run cross correlation (step 1)')
+    group.add_argument('--simple-locate', default=False, action='store_true', dest='use_simple',
+                       help='Run argmax to get peak location estimates (step 1 alt.)')
     group.add_argument('--manual', default=False, action='store_true', dest='use_manual',
                        help='Run manual sweep cleanup (step 2)')
     group.add_argument('--align', default=False, action='store_true', dest='align', help='Run align grid (step 3)')
@@ -904,7 +906,12 @@ if __name__ == '__main__':
         b.refinePeakLocs('x', b.config.beammap.sweep.fittype, b.x_locs, fitWindow=15)
         b.refinePeakLocs('y', b.config.beammap.sweep.fittype, b.y_locs, fitWindow=15)
         b.saveTemporalBeammap()
-
+    elif args.use_simple:  # Alternative to cross cor. Only works on single sweeps
+        b.loadTemporalBeammap()
+        b.concatImages('x',False)
+        b.concatImages('y',False)
+        b.refinePeakLocs('x', b.config.beammap.sweep.fittype, None, fitWindow=15)
+        b.refinePeakLocs('y', b.config.beammap.sweep.fittype, None, fitWindow=15)
     elif args.use_manual:   # Manual mode
         log.info('Stack x and y')
         b.stackImages('x')
