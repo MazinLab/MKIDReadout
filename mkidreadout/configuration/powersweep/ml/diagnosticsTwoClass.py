@@ -6,7 +6,6 @@ import argparse
 from PSFitMLData import PSFitMLData
 import tools as mlt
 
-from mkidreadout.utils.readDict import readDict
 from mkidreadout.configuration.powersweep.psmldata import MLData
 from mkidcore.corelog import getLogger
 

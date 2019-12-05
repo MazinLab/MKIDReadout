@@ -19,7 +19,6 @@ import logging
 
 import matplotlib.pyplot as plt
 import numpy as np
-from mkidreadout.utils.readDict import readDict
 
 from mkidcore.objects import Beammap
 from mkidcore.config import load

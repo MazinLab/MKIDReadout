@@ -9,14 +9,15 @@ modelDir specified in config file.
 '''
 
 from wpsnn import *
-from mkidreadout.utils.readDict import readDict
+
+from mkidcore.utils.readdict import ReadDict
 
 if len(sys.argv)<2:
     print 'Must supply config file!'
     exit(1)
 
 mlDictFile = sys.argv[1]
-mlDict = readDict()
+mlDict = ReadDict()
 mlDict.readFromFile(mlDictFile)
 
 mlClass = WPSNeuralNet(mlDict)
