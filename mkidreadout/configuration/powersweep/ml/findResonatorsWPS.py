@@ -186,13 +186,13 @@ def prominenceCut(wpsmap, resCoords, minThresh=0.88):
     valleys = np.zeros(len(resCoords))
     for i in range(len(resCoords) - 1):
         attenInds = np.sort([resCoords[i, 0], resCoords[i+1, 0]])
-        #image = wpsmap[attenInds[0]:attenInds[1]+1, resCoords[i,1]:resCoords[i+1,1]+1, 0]
+        image = wpsmap[attenInds[0]:attenInds[1]+1, (resCoords[i,1]+resCoords[i+1,1])/2, 0] #use all attens but freq only in middle
         #coords = skf.peak_local_max(-image, num_peaks=1, exclude_border=False)
-        #valleys[i] = np.min(image)#image[coords[0], coords[1]]
-        valleys[i] = wpsmap[int(np.ceil((attenInds[0]+attenInds[1])/2.)), (resCoords[i,1]+resCoords[i+1,1])/2, 0]
+        valleys[i] = np.max(image)#image[coords[0], coords[1]]
+        #valleys[i] = wpsmap[int(np.ceil((attenInds[0]+attenInds[1])/2.)), (resCoords[i,1]+resCoords[i+1,1])/2, 0]
 
-    #plt.hist(valleys)
-    #plt.show()
+    plt.hist(valleys, bins=20)
+    plt.show()
     shallowMask = valleys > minThresh #there isn't a deep enough valley between this peak and the one after it
     clusterStartMask = np.diff(np.roll(shallowMask.astype(int), 1)) > 0
     clusterInds = np.where(clusterStartMask)[0]
