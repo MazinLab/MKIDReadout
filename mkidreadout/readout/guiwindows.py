@@ -339,7 +339,7 @@ class PixelTimestreamWindow(QMainWindow):
         ytitle = '{}Count Rate ({})'.format('Avg. ' if self.checkbox_normalize.isChecked() else '',
                                             '#/s' if self.checkbox_persec.isChecked() else '#')
         self.ax.set_ylabel(ytitle)
-        # self.draw()
+        self.draw()
 
     def getCountRate(self, forCurrentPix=False):
         imageList = list(self.parent.imageList)  #a list of fits hdu
@@ -351,7 +351,7 @@ class PixelTimestreamWindow(QMainWindow):
         x = pixList[:, 0]
         y = pixList[:, 1]
         # c = np.asarray([i.data for i in imageList])[:, y, x]
-        c = np.asarray([i.data[y, x] for i in imageList])
+        c = np.asarray([i.data[y, x] for i in imageList], dtype=float)
 
         dt = np.array([i.header['exptime'] for i in imageList], dtype=float)
         times = np.cumsum(dt)
