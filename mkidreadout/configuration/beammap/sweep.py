@@ -608,6 +608,7 @@ class TemporalBeammap():
         self.y_locs = None
         self.x_images = None
         self.y_images = None
+        self.man_feed_idx = None  # identifier to load correct rough beammap
 
     def stackImages(self, sweepType, median=True):
 
@@ -816,13 +817,9 @@ class TemporalBeammap():
 
         if copy_feedlines:
             for fl in range(1, self.config.beammap.numfeedlines+1):
-                name, extension = self.outputBeammapFn.split('.')
-                rough_loc = name.find('_stage1')
-                if rough_loc != -1:
-                    name = name[:rough_loc]
-                FL_filename = name + '_FL%i.' % fl + extension
+                FL_filename = self.get_FL_filename(fl)
                 log.info('Saving FL%i data in %s' % (fl, FL_filename))
-                args = np.int_(data[:, 0]/10000) == fl
+                args = np.int_(data[:, 0]/10000) == fl  # identify resonators for feedline fl
                 FL_data = data[args]
                 np.savetxt(FL_filename, FL_data, fmt='%7d %3d %7f %7f')
 
@@ -874,12 +871,20 @@ class TemporalBeammap():
             initialbeammap = Beammap(default=self.config.beammap.instrument).file
         else:
             initialbeammap = os.path.join(self.config.paths.beammapdirectory, self.config.paths.initialbeammap)
-        temporalbeammap = os.path.join(self.config.paths.beammapdirectory, self.config.paths.temporalbeammap)
-        m = ManualTemporalBeammap(self.x_images, self.y_images, initialbeammap, temporalbeammap,
+        toClickbeammap = os.path.join(self.config.paths.beammapdirectory, self.get_FL_filename(self.man_feed_idx))
+        print(toClickbeammap, 'toClick')
+        m = ManualTemporalBeammap(self.x_images, self.y_images, initialbeammap, toClickbeammap,
                                   self.config.beammap.sweep.fittype)
 
     def plotTimestream(self):
         pass
+
+    def get_FL_filename(self, FL):
+        name, extension = self.config.paths.temporalbeammap.split('.')
+        rough_loc = name.find('_stage1')
+        if rough_loc != -1:  # if the filename has this str at then end replace with FLx
+            name = name[:rough_loc]
+        return name + '_FL%s.' % FL + extension
 
 
 if __name__ == '__main__':
@@ -900,7 +905,7 @@ if __name__ == '__main__':
                        help='Run cross correlation (step 1)')
     group.add_argument('--simple-locate', default=False, action='store_true', dest='use_simple',
                        help='Run argmax to get peak location estimates (step 1 alt.)')
-    group.add_argument('--manual', default=False, action='store_true', dest='use_manual',
+    group.add_argument('--manual', default='1a', dest='manual_idx', type=str,
                        help='Run manual sweep cleanup (step 2)')
     group.add_argument('--align', default=False, action='store_true', dest='align', help='Run align grid (step 3)')
     group.add_argument('--clean', default=False, action='store_true', dest='clean', help='Run clean (step 4)')
@@ -932,11 +937,13 @@ if __name__ == '__main__':
         b.refinePeakLocs('x', b.config.beammap.sweep.fittype, None, fitWindow=15)
         b.refinePeakLocs('y', b.config.beammap.sweep.fittype, None, fitWindow=15)
         b.saveTemporalBeammap()
-    elif args.use_manual:   # Manual mode
+    elif args.manual_idx:   # Manual mode
+        log.info('Starting manual verification for feedline %s' % args.manual_idx)
         log.info('Stack x and y')
         b.stackImages('x')
         b.stackImages('y')
         log.info('Cleanup')
+        b.man_feed_idx = args.manual_idx
         b.manualSweepCleanup()
 
     elif args.align:
