@@ -870,7 +870,7 @@ class MKIDDashboard(QMainWindow):
         cf=CalFactory('sum', images=self.imageList[-numImages2Sum:], dark=self.darkField if applyDark else None)
         im = cf.generate(name='pixelcount')
         pixelList = np.asarray(pixelList)
-        return np.sum(np.asarray(im.data)[[pixelList[:, 1], pixelList[:, 0]]])
+        return im.data[(pixelList[:, 1], pixelList[:, 0])].sum()
 
     def updateSelectedPixelLabels(self):
         """
