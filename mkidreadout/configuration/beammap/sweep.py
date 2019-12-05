@@ -887,7 +887,7 @@ class TemporalBeammap():
 
     def combineClicked(self):
         """
-        Concatenate all FL files after they've been verified by a human, and output to file masterTemporalBeammap
+        Concatenate all relevant info from FL files after they've been verified by a human, and output to file masterTemporalBeammap
 
         :return:
         masterTemporalBeammap a .bmap file containing the contents of all the manual clickthroughs
@@ -895,14 +895,14 @@ class TemporalBeammap():
 
         mastertemporalbeammap = os.path.join(self.config.paths.beammapdirectory, self.config.paths.mastertemporalbeammap)
 
-        FLs = np.array([[str(num)+freq_type for freq_type in ['a', 'b']]
-                        for num in range(1, self.config.beammap.numfeedlines+1)]).flatten()  # '1a', '1b', '2a', ...
-        filenames = [self.get_FL_filename(FL) for FL in FLs]
+        filenames = [self.get_FL_filename(str(fl).split('.')[0]+'_clicked') for fl in range(1, self.config.beammap.numfeedlines+1)]
 
-        with open(mastertemporalbeammap, 'w') as outfile:
-            for fname in filenames:
-                with open(fname) as infile:
-                    outfile.write(infile.read())
+        masterfile = open(mastertemporalbeammap,'a')
+        for fl, fname in enumerate(filenames, 1):
+            FL_data = np.loadtxt(fname)
+            args = np.int_(FL_data[:, 0] / 10000) == fl
+            np.savetxt(masterfile, FL_data[args], fmt='%7d %3d %7f %7f')
+
         log.info('Combined contents of the clicked FL beammaps to %s' % mastertemporalbeammap)
 
     def plotTimestream(self):
