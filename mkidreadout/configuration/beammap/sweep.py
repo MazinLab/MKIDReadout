@@ -895,7 +895,8 @@ class TemporalBeammap():
 
         mastertemporalbeammap = os.path.join(self.config.paths.beammapdirectory, self.config.paths.mastertemporalbeammap)
 
-        filenames = [self.get_FL_filename(str(fl).split('.')[0]+'_clicked') for fl in range(1, self.config.beammap.numfeedlines+1)]
+        filenames = [self.get_FL_filename(str(fl).split('.')[0]+str(self.config.paths.clicked_epilog))
+                     for fl in range(1, self.config.beammap.numfeedlines+1)]
 
         masterfile = open(mastertemporalbeammap,'a')
         for fl, fname in enumerate(filenames, 1):

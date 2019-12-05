@@ -11,6 +11,7 @@ paths: !configdict
   outputDoubleName:   #leave empty for case None
   designMapFile: /home/data/MEC/20191204/mec_feedline.txt
   quantizedBeammap: finalMapV1_1.txt  # quantized beammap
+  clicked_epilog: _clicked
 
 beammap: !configdict
 
