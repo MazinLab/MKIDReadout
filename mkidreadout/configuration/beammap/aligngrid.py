@@ -48,6 +48,7 @@ class BMAligner(object):
         self.temporalImage = None
         self.temporalImageFFT = None
         self.temporalImageFreqs = None
+        self.temporalImageFFTFile = beamListFn.split('.')[0] + '_temporalImageFFT.npz'
 
         if instrument.lower()=='mec':
             self.flWidth = MEC_FL_WIDTH
@@ -71,12 +72,12 @@ class BMAligner(object):
         self.temporalImageFFT = np.abs(np.fft.fft2(self.temporalImage))
         self.temporalImageFreqs = [np.fft.fftfreq(self.temporalImageFFT.shape[0]), np.fft.fftfreq(self.temporalImageFFT.shape[1])]
         if save:
-            np.savez(os.path.join(os.path.dirname(self.beamListFn), 'temporalImageFFT.npz'),
+            np.savez(self.temporalImageFFTFile,
                      temporalImageFFT=self.temporalImageFFT, temporalImageFreqs=self.temporalImageFreqs)
 
     def loadFFT(self, path=None):
         if path is None:
-            path = os.path.join(os.path.dirname(self.beamListFn), 'temporalImageFFT.npz')
+            path = self.temporalImageFFTFile
         if not os.path.exists(path):
             self.fftTemporalImage()
 

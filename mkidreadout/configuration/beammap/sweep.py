@@ -978,7 +978,6 @@ if __name__ == '__main__':
         aligner = bmap_align.BMAligner(os.path.join(config.paths.beammapdirectory, config.paths.mastertemporalbeammap),
                                        config.beammap.numcols, config.beammap.numrows, config.beammap.instrument, config.beammap.flip)
         aligner.makeTemporalImage()
-        # aligner.fftTemporalImage()
         aligner.loadFFT()
         aligner.findKvecsManual()
         aligner.findAngleAndScale()
