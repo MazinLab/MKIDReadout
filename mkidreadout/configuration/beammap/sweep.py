@@ -820,8 +820,9 @@ class TemporalBeammap():
                 FL_filename = self.get_FL_filename(fl)
                 log.info('Saving FL%i data in %s' % (fl, FL_filename))
                 args = np.int_(data[:, 0] / 10000) != fl  # identify resonators for feedline fl
-                data[args, 1] = 2
-                np.savetxt(FL_filename, data, fmt='%7d %3d %7f %7f')
+                FL_data = data*1
+                FL_data[args, 1] = 2
+                np.savetxt(FL_filename, FL_data, fmt='%7d %3d %7f %7f')
 
     def loadTemporalBeammap(self):
         if self.config.paths.initialbeammap is not None:
