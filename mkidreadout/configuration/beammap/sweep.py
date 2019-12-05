@@ -34,12 +34,13 @@ import numpy as np
 
 matplotlib.use('Qt4Agg')
 import matplotlib.pyplot as plt
-from mkidcore.config import ConfigThing, load
+from mkidcore.config import load
 from mkidcore.corelog import getLogger, create_log
 from mkidcore.hdf.mkidbin import parse
 
 import argparse
 
+import mkidreadout.config
 from mkidreadout.configuration.beammap.utils import crossCorrelateTimestreams, determineSelfconsistentPixelLocs2, \
     loadImgFiles, minimizePixelLocationVariance, snapToPeak, shapeBeammapIntoImages, fitPeak, getPeakCoM, check_timestream
 from mkidreadout.configuration.beammap.flags import beamMapFlags
@@ -734,7 +735,8 @@ class TemporalBeammap():
         """
         imageList = self.stackImages(sweepType)
         sweep = FitBeamSweep(imageList, locEstimates)
-        if locEstimates is None: fitWindow = None
+        if locEstimates is None:
+            fitWindow = None
         locs = sweep.fitTemporalPeakLocs(fitType, fitWindow=fitWindow)
         if sweepType in ['x', 'X']:
             self.x_locs = locs
@@ -843,41 +845,33 @@ class TemporalBeammap():
     def plotTimestream(self):
         pass
 
-def registersettings(cfgObj):
-    cfgObj.register('beammap.sweep.imgfiledirectory', '')
-    cfgObj.register('beammap.sweep.initialbeammap', '')
-    cfgObj.register('beammap.sweep.temporalbeammap', '')
-    cfgObj.register('detector.nrow', 146)
-    cfgObj.register('detector.ncol', 140)
-
-    c = ConfigThing()
-    c.register('type','x', allowed=('x', 'y'))
-    c.register('direction', '+', allowed=('+', '-'))
-    c.register('speed', 3)
-    c.register('duration', 500)
-    c.register('start', 1527724450)
-    cfgObj.register('beammap.sweep.sweeps', [c])
-
-
-
 if __name__ == '__main__':
     #setup_logging()
+
     create_log('Sweep')
     create_log('mkidcore')
     create_log('mkidreadout')
     log = getLogger('Sweep')
 
     parser = argparse.ArgumentParser(description='MKID Beammap Analysis Utility')
-    parser.add_argument('cfgfilename', type=str, default='sweep.cfg',help='Configuration file for beammap sweeps')
+    parser.add_argument('cfgfilename', type=str, default='sweep.yml', help='Configuration file for beammap sweeps')
     parser.add_argument('-cc', default=False, action='store_true', dest='use_cc', help='run in Xcor mode')
+    parser.add_argument('--gencfg', default=False, action='store_true', dest='use_cc', help='run in Xcor mode')
+    parser.add_argument('--gencfg', default=False, dest='genconfig', action='store_true',
+                        help='generate configs in CWD')
+
     args = parser.parse_args()
 
-    thisconfig = load(args.cfgfilename)
+    if args.genconfig:
+        mkidreadout.config.generate_default_configs(sweep=True)
+        exit(0)
+
+
+    config = load(args.cfgfilename)
+    b = TemporalBeammap(config)
 
     log.info('Starting temporal beammap')
-    b = TemporalBeammap(thisconfig)
-
-    if args.use_cc: #Cross correllation mode
+    if args.use_cc:  # Cross correlation mode
         b.loadTemporalBeammap()
         b.concatImages('x',False)
         b.concatImages('y',False)
@@ -886,7 +880,7 @@ if __name__ == '__main__':
         b.refinePeakLocs('x', b.config.beammap.sweep.fittype, b.x_locs, fitWindow=15)
         b.refinePeakLocs('y', b.config.beammap.sweep.fittype, b.y_locs, fitWindow=15)
         b.saveTemporalBeammap()
-    else:   #Manual mode
+    else:   # Manual mode
         log.info('Stack x and y')
         b.stackImages('x')
         b.stackImages('y')

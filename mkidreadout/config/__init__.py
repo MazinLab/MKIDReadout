@@ -10,6 +10,7 @@ DEFAULT_TEMPLAR_CFGFILE = resource_filename('mkidreadout', os.path.join('config'
 DEFAULT_DASHBOARD_CFGFILE = resource_filename('mkidreadout', os.path.join('config', 'dashboard.yml'))
 DEFAULT_ROACH_CFGFILE = resource_filename('mkidreadout', os.path.join('config', 'roach.yml'))
 DEFAULT_INIT_CFGFILE = DEFAULT_ROACH_CFGFILE
+DEFAULT_SWEEP_CFGFILE = resource_filename('mkidreadout', os.path.join('config', 'sweep.yml'))
 
 load = mkidcore.config.load  # ensure import doesn't get optimized out by an IDE
 
@@ -27,7 +28,7 @@ def tagfile(f, tag='', nounderscore=False, droppath=False):
 
 
 def generate_default_configs(instrument='mec', dir='./', init=False, templar=False,
-                             dashboard=False):
+                             dashboard=False, sweep=False):
     if templar or dashboard or init:
         copy2(DEFAULT_ROACH_CFGFILE, os.path.join(dir, tagfile(DEFAULT_ROACH_CFGFILE, 'generated', droppath=True)))
     if templar:
@@ -37,5 +38,8 @@ def generate_default_configs(instrument='mec', dir='./', init=False, templar=Fal
               os.path.join(dir, tagfile(DEFAULT_DASHBOARD_CFGFILE, 'generated', droppath=True)))
         copy2(DEFAULT_BMAP_CFGFILES[instrument],
               os.path.join(dir, tagfile(DEFAULT_BMAP_CFGFILES[instrument], 'generated', droppath=True)))
+    if sweep:
+        copy2(DEFAULT_SWEEP_CFGFILE, os.path.join(dir, tagfile(DEFAULT_SWEEP_CFGFILE, 'generated', droppath=True)))
+
 
 tagstr = mkidcore.config.tagstr
