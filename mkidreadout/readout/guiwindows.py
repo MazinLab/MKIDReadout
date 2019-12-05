@@ -353,7 +353,7 @@ class PixelTimestreamWindow(QMainWindow):
         # c = np.asarray([i.data for i in imageList])[:, y, x]
         c = np.asarray([i.data[y, x] for i in imageList])
 
-        dt = np.asarray([i.header['exptime'] for i in imageList])
+        dt = np.array([i.header['exptime'] for i in imageList], dtype=float)
         times = np.cumsum(dt)
 
         countRate = np.sum(c, axis=1)
