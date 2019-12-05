@@ -845,8 +845,8 @@ class TemporalBeammap():
     def plotTimestream(self):
         pass
 
+
 if __name__ == '__main__':
-    #setup_logging()
 
     create_log('Sweep')
     create_log('mkidcore')
@@ -858,14 +858,13 @@ if __name__ == '__main__':
     parser.add_argument('-cc', default=False, action='store_true', dest='use_cc', help='run in Xcor mode')
     parser.add_argument('--gencfg', default=False, action='store_true', dest='use_cc', help='run in Xcor mode')
     parser.add_argument('--gencfg', default=False, dest='genconfig', action='store_true',
-                        help='generate configs in CWD')
+                        help='generate config in CWD')
 
     args = parser.parse_args()
 
     if args.genconfig:
         mkidreadout.config.generate_default_configs(sweep=True)
         exit(0)
-
 
     config = load(args.cfgfilename)
     b = TemporalBeammap(config)

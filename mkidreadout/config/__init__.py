@@ -23,7 +23,7 @@ def tagfile(f, tag='', nounderscore=False, droppath=False):
         tag = '_'+tag
     f, ext = os.path.splitext(f)
     if droppath:
-        f=os.path.basename(f)
+        f = os.path.basename(f)
     return '{}{}{}'.format(f, tag, ext)
 
 
