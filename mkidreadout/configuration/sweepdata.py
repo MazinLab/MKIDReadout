@@ -218,13 +218,13 @@ class SweepMetadata(object):
             assert resIDs.size == attens.size
         if freqs is not None:
             assert resIDs.size == freqs.size
-        for r in resIDs:
+        for i, r in enumerate(resIDs):
             #TODO vectorize!
             use = self.resIDs == r
             if attens is not None:
-                self.atten[use] = attens[use]
+                self.atten[use] = attens[i]
             if freqs is not None:
-                self.freq[use] = freqs[use]
+                self.freq[use] = freqs[i]
 
     def lomask(self, lo):
         return ((self.flag & ISGOOD) & (~np.isnan(self.freq)) & (np.abs(self.freq - lo) < LOCUT) & (self.atten > 0)).astype(bool)
