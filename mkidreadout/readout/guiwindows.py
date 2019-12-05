@@ -430,7 +430,7 @@ class PixelTimestreamWindow(QMainWindow):
         self.checkbox_normalize.stateChanged.connect(lambda x: self.plotData())
 
         self.checkbox_persec = QCheckBox('Use units of counts per second')
-        self.checkbox_persec.setChecked(False)
+        self.checkbox_persec.setChecked(True)
         self.checkbox_persec.stateChanged.connect(lambda x: self.plotData())
 
         vbox_plot = QVBoxLayout()
