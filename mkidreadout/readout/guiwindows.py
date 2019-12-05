@@ -302,22 +302,32 @@ class PixelTimestreamWindow(QMainWindow):
         self.parent = parent
         self.pixelList = np.asarray(pixelList, dtype=np.int)
         self.create_main_frame()
+        self.cur_line = None
+        self.pix_line = None
         self.plotData()
         parent.newImageProcessed.connect(self.plotData)
 
     def plotData(self, **kwargs):
         self.setCheckboxText(currentPix=True)
-        countRate = []
-        countRate_cur = []
-        if self.checkbox_plotPix.isChecked():
-            countRate = self.getCountRate()
-        if self.checkbox_plotCurrentPix.isChecked():
-            countRate_cur = self.getCountRate(True)
+
         oldx_lim = self.ax.get_xlim()
         oldy_lim = self.ax.get_ylim()
-        self.ax.cla()
-        self.ax.plot(countRate, 'g-')
-        self.ax.plot(countRate_cur, 'c-')
+
+        if self.checkbox_plotPix.isChecked():
+            times1, countRate = self.getCountRate()
+            if self.pix_line is None:
+                self.pix_line = self.ax.plot(times1, countRate, 'g-')[0]
+            else:
+                self.pix_line.set_data(times1, countRate)
+        if self.checkbox_plotCurrentPix.isChecked():
+            times2, countRate_cur = self.getCountRate(forCurrentPix=True)
+            if self.cur_line is None:
+                self.cur_line = self.ax.plot(times2, countRate_cur, 'c-')[0]
+            else:
+                self.cur_line.set_data(times2, countRate_cur)
+
+        # self.ax.cla()
+
         if self.mpl_toolbar._active is None:
             self.ax.relim()
             self.ax.autoscale_view(True, True, True)
@@ -325,26 +335,37 @@ class PixelTimestreamWindow(QMainWindow):
             self.ax.set_xlim(oldx_lim)
             self.ax.set_ylim(oldy_lim)
         self.ax.set_xlabel('Time (s)')
-        self.ax.set_ylabel('Counts/sec')
-        self.draw()
+
+        ytitle = '{}Count Rate ({})'.format('Avg. ' if self.checkbox_normalize.isChecked() else '',
+                                            '#/s' if self.checkbox_persec.isChecked() else '#')
+        self.ax.set_ylabel(ytitle)
+        # self.draw()
 
     def getCountRate(self, forCurrentPix=False):
-        imageList = self.parent.imageList  #a list of fits hdu
-        pixList = self.pixelList
-        if forCurrentPix:
-            pixList = np.asarray([[p[0], p[1]] for p in self.parent.selectedPixels])
+        imageList = list(self.parent.imageList)  #a list of fits hdu
+        pixList = np.asarray([[p[0], p[1]] for p in self.parent.selectedPixels]) if forCurrentPix else self.pixelList
 
-        if len(imageList) > 0 and len(pixList) > 0:
-            x = pixList[:, 0]
-            y = pixList[:, 1]
-            c = np.asarray([i.data for i in imageList])[:, y, x]
-            countRate = np.sum(c, axis=1)
-            if self.checkbox_normalize.isChecked():
-                numZeroPix = (np.sum(c, axis=0) == 0).sum()
-                if len(pixList) > numZeroPix:
-                    countRate /= len(pixList) - numZeroPix
-            return countRate
-        return []
+        if len(imageList) == 0 or len(pixList) == 0:
+            return []
+
+        x = pixList[:, 0]
+        y = pixList[:, 1]
+        # c = np.asarray([i.data for i in imageList])[:, y, x]
+        c = np.asarray([i.data[y, x] for i in imageList])
+
+        dt = np.asarray([i.header['exptime'] for i in imageList])
+        times = np.cumsum(dt)
+
+        countRate = np.sum(c, axis=1)
+
+        if self.checkbox_normalize.isChecked():
+            numZeroPix = (np.sum(c, axis=0) == 0).sum()
+            countRate /= max(len(pixList) - numZeroPix, 1)
+
+        if self.checkbox_persec.isChecked():
+            countRate /= dt
+
+        return times, countRate
 
     def addData(self, imageList):
         # countRate = np.sum(np.asarray(image)[self.pixelList[:,1],self.pixelList[:,0]])
@@ -381,8 +402,8 @@ class PixelTimestreamWindow(QMainWindow):
         self.canvas = FigureCanvas(self.fig)
         self.canvas.setParent(self.main_frame)
         self.ax = self.fig.add_subplot(111)
-        self.ax.set_xlabel('Time [s]')
-        self.ax.set_ylabel('Count Rate [#/s]')
+        self.ax.set_xlabel('Time (s)')
+        self.ax.set_ylabel('Count Rate (#/s)')
 
         # Create the navigation toolbar, tied to the canvas
         self.mpl_toolbar = NavigationToolbar(self.canvas, self.main_frame)
@@ -408,6 +429,10 @@ class PixelTimestreamWindow(QMainWindow):
         self.checkbox_normalize.setChecked(False)
         self.checkbox_normalize.stateChanged.connect(lambda x: self.plotData())
 
+        self.checkbox_persec = QCheckBox('Use units of counts per second')
+        self.checkbox_persec.setChecked(False)
+        self.checkbox_persec.stateChanged.connect(lambda x: self.plotData())
+
         vbox_plot = QVBoxLayout()
         vbox_plot.addWidget(self.canvas)
         vbox_plot.addWidget(self.mpl_toolbar)
@@ -415,6 +440,7 @@ class PixelTimestreamWindow(QMainWindow):
         vbox_plot.addWidget(self.checkbox_plotPix)
         vbox_plot.addWidget(self.checkbox_plotCurrentPix)
         vbox_plot.addWidget(self.checkbox_normalize)
+        vbox_plot.addWidget(self.checkbox_persec)
 
         self.main_frame.setLayout(vbox_plot)
         self.setCentralWidget(self.main_frame)
@@ -439,8 +465,7 @@ class PixelHistogramWindow(QMainWindow):
         self.create_main_frame()
         self.plotData()
         parent.newImageProcessed.connect(self.plotData)
-        
-    
+
     def plotData(self,**kwargs):
         self.setCheckboxText(currentPix=True)
         if self.checkbox_plotPix.isChecked():
@@ -454,15 +479,13 @@ class PixelHistogramWindow(QMainWindow):
         self.ax.relim()
         self.ax.autoscale_view(True,True,True)
         self.draw()
-    
-    '''
-    def plotData(self, **kwargs):
-        image = self.parent.imageList[-1]
-        countsX = np.sum(image,axis=0)
-        countsY = np.sum(image,axis=1)
-        self.line.set_data(image.shape[0],countsX)
-        self.line2.set_data(image.shape[1],countsY)
-    '''    
+
+    # def plotData(self, **kwargs):
+    #     image = self.parent.imageList[-1]
+    #     countsX = np.sum(image,axis=0)
+    #     countsY = np.sum(image,axis=1)
+    #     self.line.set_data(image.shape[0],countsX)
+    #     self.line2.set_data(image.shape[1],countsY)
 
     def getCountRateHist(self, forCurrentPix=False):
         imageList = self.parent.imageList
