@@ -770,7 +770,14 @@ class TemporalBeammap():
     #    else: self.y_locs=locs
     #    self.saveTemporalBeammap()
 
-    def saveTemporalBeammap(self):
+    def saveTemporalBeammap(self, copy_feedlines=True):
+        """
+        #todo verify we index feedlines from 1
+
+        :param copy_feedlines:
+            Takes each feedline data and creates a new file
+        :return:
+        """
 
         getLogger('Sweep').info('Saving')
 
@@ -806,6 +813,18 @@ class TemporalBeammap():
         data = np.asarray([allResIDs[args], flags[args], x[args], y[args]]).T
         outfile = os.path.join(self.config.paths.beammapdirectory, self.config.paths.temporalbeammap)
         np.savetxt(outfile, data, fmt='%7d %3d %7f %7f')
+
+        if copy_feedlines:
+            for fl in range(1, self.config.beammap.numfeedlines+1):
+                name, extension = self.outputBeammapFn.split('.')
+                rough_loc = name.find('_stage1')
+                if rough_loc != -1:
+                    name = name[:rough_loc]
+                FL_filename = name + '_FL%i.' % fl + extension
+                log.info('Saving FL%i data in %s' % (fl, FL_filename))
+                args = np.int_(data[:, 0]/10000) == fl
+                FL_data = data[args]
+                np.savetxt(FL_filename, FL_data, fmt='%7d %3d %7f %7f')
 
     def loadTemporalBeammap(self):
         if self.config.paths.initialbeammap is not None:
@@ -912,6 +931,7 @@ if __name__ == '__main__':
         b.concatImages('y',False)
         b.refinePeakLocs('x', b.config.beammap.sweep.fittype, None, fitWindow=15)
         b.refinePeakLocs('y', b.config.beammap.sweep.fittype, None, fitWindow=15)
+        b.saveTemporalBeammap()
     elif args.use_manual:   # Manual mode
         log.info('Stack x and y')
         b.stackImages('x')

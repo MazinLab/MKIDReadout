@@ -18,6 +18,7 @@ beammap: !configdict
   numCols: 140
   numRows: 146
   flip: False
+  numfeedlines: 10
 
   ncpu: 6
 
