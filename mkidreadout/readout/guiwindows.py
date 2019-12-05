@@ -319,12 +319,16 @@ class PixelTimestreamWindow(QMainWindow):
                 self.pix_line = self.ax.plot(times1, countRate, 'g-')[0]
             else:
                 self.pix_line.set_data(times1, countRate)
+        elif self.checkbox_plotPix is not None:
+            self.pix_line.set_data([], [])
         if self.checkbox_plotCurrentPix.isChecked():
             times2, countRate_cur = self.getCountRate(forCurrentPix=True)
             if self.cur_line is None:
                 self.cur_line = self.ax.plot(times2, countRate_cur, 'c-')[0]
             else:
                 self.cur_line.set_data(times2, countRate_cur)
+        elif self.cur_line is not None:
+            self.cur_line.set_data([], [])
 
         # self.ax.cla()
 
