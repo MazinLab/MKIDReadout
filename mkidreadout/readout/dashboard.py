@@ -909,7 +909,7 @@ class MKIDDashboard(QMainWindow):
                 resID = resIDs[0]
                 for roach in self.roachList:
                     freqFN = roach.tagfile(self.config.roaches.get('r{}.freqfileroot'.format(roach.num)),
-                                           dir=self.config.paths.data)
+                                           dir=self.config.paths.setup)
                     sd = sweepdata.SweepMetadata(file=freqFN)
                     resIDs, freqs, _, _, _ = sd.templar_data(self.config.roaches.get('r{}.lo_freq'.format(roach.num)))
                     try:

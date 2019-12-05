@@ -58,5 +58,5 @@ telescope: !configdict
   ip: g2db.sum.subaru.nao.ac.jp
   port:
   receive_port:
-  user: ''
+  user: 'mec'
   password: ''
