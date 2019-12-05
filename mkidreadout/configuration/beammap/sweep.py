@@ -434,10 +434,10 @@ class ManualTemporalBeammap(object):
                 x_loc = self.x_loc[y, x]
                 xStream_good = check_timestream(xStream, x_loc)
                 if not xStream_good:
-                    print('x failed check')
+                    getLogger('Sweep').info('x failed check')
                 yStream_good = check_timestream(yStream, y_loc)
                 if not yStream_good:
-                    print('y failed check')
+                    getLogger('Sweep').info(('y failed check')
                 skip_timestream = xStream_good and yStream_good
                 if skip_timestream:
                     if fastforward:
@@ -873,7 +873,7 @@ class TemporalBeammap():
         else:
             initialbeammap = os.path.join(self.config.paths.beammapdirectory, self.config.paths.initialbeammap)
         toClickbeammap = self.get_FL_filename(self.man_feed_idx)
-        print(toClickbeammap, 'toClick')
+        getLogger('Sweep').info('toClick: {}'.format(toClickbeammap))
         m = ManualTemporalBeammap(self.x_images, self.y_images, initialbeammap, toClickbeammap,
                                   self.config.beammap.sweep.fittype)
 
