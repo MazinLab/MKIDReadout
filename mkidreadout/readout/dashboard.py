@@ -123,7 +123,7 @@ class LiveImageFetcher(QtCore.QObject):  # Extends QObject for use with QThreads
         while self.search:
             try:
                 utc = datetime.utcfromtimestamp(time.time()).strftime('%Y-%m-%d %H:%M:%S')
-                self.imagebuffer.startIntegration(integrationTime=self.inttime)
+                self.imagebuffer.startIntegration(startTime=time.time(), integrationTime=self.inttime)
                 data = self.imagebuffer.receiveImage()
                 if not data.sum():
                     getLogger('Dashboard').warning('Received a frame of zeros from packetmaster!')
@@ -347,7 +347,7 @@ class MKIDDashboard(QMainWindow):
                                          beammap=self.config.beammap, forwarding=forwarding, recreate_images=True)
         self.liveimage = self.packetmaster.sharedImages['dashboard']
 
-        self.liveimage.startIntegration(integrationTime=1)
+        self.liveimage.startIntegration(startTime=time.time(), integrationTime=1)
         data = self.liveimage.receiveImage()
         getLogger('Dahsboard').debug(data)
 

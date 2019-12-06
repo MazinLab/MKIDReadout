@@ -4,6 +4,7 @@
 
 import numpy as np
 cimport numpy as np
+import datetime
 from mkidcore.corelog import getLogger
 import os
 from libc.string cimport strcpy
@@ -148,11 +149,16 @@ cdef class ImageCube(object):
         Parameters
         ----------
             startTime: double
-                image start time (in seconds since 00:00 Jan 1 UTC of current year). 
+                image start time (in seconds UTC)
                 If 0, start immediately w/ timestamp that packetmaster is currently parsing.
             integrationTime: double
                 integration time in seconds
         """
+        curYr = datetime.datetime.utcnow().year
+        yrStart = datetime.date(curYr, 1, 1)
+        tsOffs = calendar.timegm(yrStart.timetuple())
+        startTime -= tsOffs
+
         startTime = int(startTime*2000)
         integrationTime = int(integrationTime*2000) #convert to half-ms
         MKIDShmImage_startIntegration(&(self.image), startTime, integrationTime)
