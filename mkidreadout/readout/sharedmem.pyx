@@ -5,6 +5,7 @@
 import numpy as np
 cimport numpy as np
 import datetime
+import calendar
 from mkidcore.corelog import getLogger
 import os
 from libc.string cimport strcpy

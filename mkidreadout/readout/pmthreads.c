@@ -291,8 +291,11 @@ void *shmImageWriter(void *prms)
 
                        else if(curTs>(sharedImages[imgIdx].md->startTime+sharedImages[imgIdx].md->integrationTime))
                        {
+                           #ifdef _DEBUG_OUTPUT
+                           if(!((doneIntegrating[imgIdx]>>curRoachInd)&1))
+                               printf("SharedImageWriter: Roach %d done Integrating\n", boardNums[curRoachInd]);
+                           #endif
                            doneIntegrating[imgIdx] |= (1<<curRoachInd);
-                           //printf("SharedImageWriter: Roach %d done Integrating\n", boardNums[curRoachInd]);
 
                        }
 
