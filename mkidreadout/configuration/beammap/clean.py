@@ -396,7 +396,7 @@ def main(config):
 
     numRows = config.beammap.numrows
     numCols = config.beammap.numcols
-    flipParam = config.beammap.flip
+    flipParam = False #config.beammap.flip ... we've fixed in aligngrid
     inst = config.beammap.instrument
 
     rawBeamMap = Beammap(alignedbeammap, (146, 140), 'MEC')

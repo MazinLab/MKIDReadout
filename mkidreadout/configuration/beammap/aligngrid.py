@@ -82,7 +82,7 @@ class BMAligner(object):
             self.fftTemporalImage()
 
         getLogger(__name__).info('Loading FFT from ' + str(path))
-        fftDict = np.load(path)
+        fftDict = np.load(path, allow_pickle=True)
         try:
             self.temporalImageFFT = fftDict['temporalImageFFT']
             self.temporalImageFreqs = fftDict['temporalImageFreqs']
@@ -174,8 +174,13 @@ class BMAligner(object):
         else:
             return coords
 
-    def findOffset(self, nMCIters=10000, maxSampDist=10, roundCoords=False):
+    def findOffset(self, nMCIters=10000, maxSampDist=50, roundCoords=False):
         # find a good starting point for search, using median of 100 minimum "good" points
+        if self.instrument.lower() == 'mec' and self.flip:
+            self.coords[:,0] = -self.coords[:,0]
+        elif self.instrument.lower() == 'darkness' and self.flip:
+            self.coords[:,1] = -self.coords[:,1]
+
         goodMask = self.flags==0
         goodResIDs = self.resIDs[goodMask]
         goodCoords = self.coords[goodMask,:]
@@ -186,20 +191,14 @@ class BMAligner(object):
 
         if self.instrument.lower() == 'mec':
             yStart = 0
-            firstFL = getFLFromID(goodResIDs[sortedXInds[0]])
-            if self.flip:
-                xStart = (self.nFL - firstFL)*self.flWidth
-            else:
-                xStart = (firstFL - 1)*self.flWidth
-                getLogger(__name__).info('xStart: {}'.format(xStart))
+            firstFL = getFLFromID(goodResIDs[sortedXInds[100]]) #remove outliers - we expect at least 500 res per FL
+            xStart = (firstFL - 1)*self.flWidth
+            getLogger(__name__).info('xStart: {}'.format(xStart))
 
         elif self.instrument.lower() == 'darkness':
             xStart = 0
-            firstFL = getFLFromID(goodResIDs[sortedXInds[0]])
-            if self.flip:
-                yStart = (self.nFL - firstFL)*self.flWidth
-            else:
-                yStart = (firstFL - 1)*self.flWidth
+            firstFL = getFLFromID(goodResIDs[sortedYInds[100]])
+            yStart = (firstFL - 1)*self.flWidth
 
         baselineXOffs = np.median(sortedX[:self.nXPix*3/4]) - xStart
         baselineYOffs = np.median(sortedY[:self.nYPix*3/4]) - yStart
@@ -225,7 +224,7 @@ class BMAligner(object):
                 shiftedXs = (self.coords[:,0] - curXOffs).astype(int)
                 shiftedYs = (self.coords[:,1] - curYOffs).astype(int)
                 
-            validMask = isInCorrectFL(self.resIDs, shiftedXs, shiftedYs, self.instrument, flip=self.flip)
+            validMask = isInCorrectFL(self.resIDs, shiftedXs, shiftedYs, self.instrument, flip=False)
             validMask = validMask & (shiftedXs>=0) & (shiftedXs<self.nXPix) & (shiftedYs>=0) & (shiftedYs<self.nYPix)
                 
             shiftedXs = shiftedXs[validMask]
