@@ -359,6 +359,7 @@ class BMCleaner(object):
             unoccupiedCoordsCurFL = unoccupiedCoords[isInCorrectFL(10000*(i+1)*np.ones(len(unoccupiedCoords)), unoccupiedCoords[:, 0], unoccupiedCoords[:,1], self.instrument, flip=self.flip)]
             self.placedXs[toPlaceMaskCurFL] = unoccupiedCoordsCurFL[:, 0]
             self.placedYs[toPlaceMaskCurFL] = unoccupiedCoordsCurFL[:, 1]
+            self.beamMap.flags[toPlaceMaskCurFL & (self.beamMap.flags == beamMapFlags['good'])] = beamMapFlags['failed']
 
     def placeFailedPixelsQuick(self): 
         '''
