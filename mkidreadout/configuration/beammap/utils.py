@@ -280,6 +280,19 @@ def fitPeak(timestream, initialGuess=np.nan, fitWindow=20):
     except RuntimeError:
         return [providedInitialGuess, np.nan, np.nan, np.nan]
 
+def check_xy(xpix, ypix, good_region):
+    if len(good_region) != 4:
+        return
+
+    # calculates min/max every run (inefficient) but should be quick
+    good_region = np.asarray(good_region)
+    min_x = np.min(good_region[:, 0])
+    max_x = np.max(good_region[:, 0])
+    min_y = np.min(good_region[:, 1])
+    max_y = np.max(good_region[:, 1])
+    good_pixel = (min_x < xpix < max_x) and (min_y < ypix < max_y)
+
+    return good_pixel
 
 def check_timestream(timestream, peak_location):
     """
@@ -290,40 +303,47 @@ def check_timestream(timestream, peak_location):
         good_peak - True if all checks passed, False if any checks fail
 
     checks:
+        - check if all zeros
         - check if fitted peak and maximum value are in the same place, for both x and y
         - check if peak is 5 sigma (or any reasonable threshold) above the mean
         - check that the peak specified in the input argument is the only 'good' peak... no doubles allowed!
         - check if peak is > 3*mean
+
     """
-    good_peak = True
-    good_peak = np.logical_and(good_peak, np.abs(np.argmax(timestream) - peak_location) < 2)
+
+    good_peak = not np.all(timestream==0)
+    if not good_peak:
+        getLogger(__name__).info('timestream is all zeros')
+        return False
+
+    good_peak = np.abs(np.argmax(timestream) - peak_location) < 2
     if not good_peak:
         getLogger(__name__).info('peak_location is not close to actual maximum')
-        return good_peak
-    good_peak = np.logical_and(good_peak, np.amax(timestream) > 3 * np.mean(timestream))
+        return False
+
+    good_peak = np.amax(timestream) > 3 * np.mean(timestream)
     if not good_peak:
         getLogger(__name__).info('peak is < 3*mean')
-        return good_peak
+        return False
 
     # remove baseline from timestream
     timestream -= np.mean(timestream)
     sigma = np.std(timestream)
-    good_peak = np.logical_and(good_peak, np.amax(timestream) > 5 * sigma)
+    good_peak = good_peak, np.amax(timestream) > 5 * sigma
     if not good_peak:
         getLogger(__name__).info('peak is not > 5 sigma')
-        return good_peak
+        return False
 
     # check for other peaks. If there are others, then good_peak = False.
     mask = np.ones(len(timestream), dtype=bool)
     mask_window_width = 15
     mask[int(peak_location) - mask_window_width: int(peak_location) + mask_window_width] = False
-    good_peak = np.logical_and(good_peak, (
-        np.logical_and(timestream[mask] < 5 * sigma, timestream[mask] < .5 * np.amax(timestream))).all())
-
+    good_peak = np.logical_and(timestream[mask] < 5 * sigma, timestream[mask] < .5 * np.amax(timestream)).all()
     if not good_peak:
         getLogger(__name__).info('there are multiple peaks above 5 sigma or maximum/2')
+        return False
 
-    return good_peak
+    return True
 
 
 def getPeakCoM(timestream, initialGuess=np.nan, fitWindow=15):

@@ -47,7 +47,7 @@ import mkidreadout.config
 from mkidreadout.configuration.beammap import aligngrid as bmap_align
 from mkidreadout.configuration.beammap import clean as bmap_clean
 from mkidreadout.configuration.beammap.utils import crossCorrelateTimestreams, determineSelfconsistentPixelLocs2, \
-     minimizePixelLocationVariance, snapToPeak, shapeBeammapIntoImages, fitPeak, getPeakCoM, check_timestream
+     minimizePixelLocationVariance, snapToPeak, shapeBeammapIntoImages, fitPeak, getPeakCoM, check_timestream, check_xy
 from mkidreadout.configuration.beammap.flags import beamMapFlags
 
 
@@ -252,7 +252,7 @@ class CorrelateBeamSweep(object):
 
 
 class ManualTemporalBeammap(object):
-    def __init__(self, x_images, y_images, initialBeammap, temporalBeammapFN, fitType = None):
+    def __init__(self, x_images, y_images, initialBeammap, temporalBeammapFN, fitType = None, clicked_epilog='_clicked'):
         """
         Class for manually clicking through beammap.
         Saves a temporal beammap with filename temporalBeammapFN-HHMMSS.txt
@@ -270,34 +270,25 @@ class ManualTemporalBeammap(object):
         """
         self.x_images = x_images
         self.y_images = y_images
-        totalCounts_x = np.sum(self.x_images, axis=0)
-        totalCounts_y = np.sum(self.y_images, axis=0)
         self.nTime_x = len(self.x_images)
         self.nTime_y = len(self.y_images)
+        self.goodregion = [] # corner coordinates
 
         self.initialBeammapFN = initialBeammap
         self.temporalBeammapFN = temporalBeammapFN
         # self.outputBeammapFn = temporalBeammapFN.rsplit('.',1)[0]+time.strftime('-%H%M%S')+'.txt'
-        self.outputBeammapFn = temporalBeammapFN.rsplit('.', 1)[0] + '_clicked.bmap'
+        self.outputBeammapFn = temporalBeammapFN.rsplit('.', 1)[0] + clicked_epilog +'.bmap'
         if os.path.isfile(self.outputBeammapFn):
             self.temporalBeammapFN = self.outputBeammapFn
         self.resIDsMap, self.flagMap, self.x_loc, self.y_loc = shapeBeammapIntoImages(self.initialBeammapFN,
                                                                                       self.temporalBeammapFN)
+        self.flagMap[np.all(self.x_images==0, axis=0) | np.all(self.y_images==0, axis=0)] = beamMapFlags['noDacTone']
         if self.temporalBeammapFN is None or not os.path.isfile(self.temporalBeammapFN):
             self.flagMap[np.where(self.flagMap != beamMapFlags['noDacTone'])] = beamMapFlags['failed']
 
         self.fitType = fitType.lower()
 
-        ##Snap to peak
-        # for row in range(len(self.x_loc)):
-        #    for col in range(len(self.x_loc[0])):
-        #        self.x_loc[row, col] = snapToPeak(self.x_images[:,row,col],self.x_loc[row,col],10)
-        # for row in range(len(self.y_loc)):
-        #    for col in range(len(self.y_loc[0])):
-        #        self.y_loc[row, col] = snapToPeak(self.y_images[:,row,col],self.y_loc[row,col],10)
-        # self.saveTemporalBeammap()
-
-        self.goodPix = np.where((self.flagMap != beamMapFlags['noDacTone']) * (totalCounts_x + totalCounts_y) > 0)
+        self.goodPix = np.where(self.flagMap != beamMapFlags['noDacTone'])
         self.nGoodPix = len(self.goodPix[0])
         getLogger('Sweep').info('Pixels with light: {}'.format(self.nGoodPix))
         self.curPixInd = 0
@@ -424,6 +415,8 @@ class ManualTemporalBeammap(object):
         if fastforward or rewind:
             skip_timestream = True
             counter = 0
+            if len(self.goodregion) != 4:
+                log.info('Skipping xy position check until region selected')
             while skip_timestream and counter < self.nGoodPix:
                 counter += 1
                 y = self.goodPix[0][self.curPixInd]
@@ -432,13 +425,16 @@ class ManualTemporalBeammap(object):
                 yStream = self.y_images[:, y, x]
                 y_loc = self.y_loc[y, x]
                 x_loc = self.x_loc[y, x]
+                xy_good = check_xy(x_loc, y_loc, self.goodregion)  # returns True if self.goodregion is []
+                if not xy_good:
+                    getLogger('Sweep').info('pixel failed xy check')
                 xStream_good = check_timestream(xStream, x_loc)
                 if not xStream_good:
                     getLogger('Sweep').info('x failed check')
                 yStream_good = check_timestream(yStream, y_loc)
                 if not yStream_good:
                     getLogger('Sweep').info('y failed check')
-                skip_timestream = xStream_good and yStream_good
+                skip_timestream = xy_good and xStream_good and yStream_good
                 if skip_timestream:
                     if fastforward:
                         self.curPixInd += 1
@@ -582,12 +578,15 @@ class ManualTemporalBeammap(object):
 
     def plotXYscatter(self):
         self.fig_XY, self.ax_XY = plt.subplots()
-        self.ln_XY, = self.ax_XY.plot(self.x_loc.flatten(), self.y_loc.flatten(), 'b.')
+        self.ln_XY, = self.ax_XY.plot(self.x_loc[self.flagMap==0].flatten(), self.y_loc[self.flagMap==0].flatten(), 'b.', markersize=2)
+        self.ln_XY, = self.ax_XY.plot(self.x_loc[self.flagMap!=0].flatten(), self.y_loc[self.flagMap!=0].flatten(), 'b.', alpha=0.1, markersize=2)
         y = self.goodPix[0][self.curPixInd]
         x = self.goodPix[1][self.curPixInd]
         self.ln_XYcur, = self.ax_XY.plot([self.x_loc[y, x]], [self.y_loc[y, x]], 'go')
         self.ax_XY.set_title('Pixel Locations')
         self.fig_XY.canvas.mpl_connect('close_event', self.onCloseXY)
+        self.fig_XY.canvas.mpl_connect('button_press_event', self.onClickXY)
+        print('Make a rectangle around the feedline by clicking 4 points on the scatter plot')
 
     def onCloseXY(self, event):
         # self.fig_XY.show()
@@ -595,6 +594,16 @@ class ManualTemporalBeammap(object):
             self.plotXYscatter()
             plt.show()
 
+    def onClickXY(self, event):
+        if self.fig_XY.canvas.manager.toolbar._active is None:
+            log.info('Clicked point (x, y) = (%i, %i)'% (event.xdata, event.ydata))
+            if len(self.goodregion)==4:
+                log.info('Creating new region')
+                self.goodregion=[]
+
+            self.goodregion.append([event.xdata, event.ydata])
+            if len(self.goodregion) == 4:
+                log.info(('Good region coordinates', ['(%d,%d)' % (x,y) for x,y in self.goodregion]))
 
 class TemporalBeammap():
     def __init__(self, config):
@@ -772,7 +781,6 @@ class TemporalBeammap():
 
     def saveTemporalBeammap(self, copy_feedlines=True):
         """
-        #todo verify we index feedlines from 1
 
         :param copy_feedlines:
             Takes each feedline data and creates a new file
@@ -820,7 +828,7 @@ class TemporalBeammap():
                 log.info('Saving FL%i data in %s' % (fl, FL_filename))
                 args = np.int_(data[:, 0] / 10000) != fl  # identify resonators for feedline fl
                 FL_data = data*1
-                FL_data[args, 1] = 1
+                FL_data[args, 1] = beamMapFlags['noDacTone']
                 np.savetxt(FL_filename, FL_data, fmt='%7d %3d %7f %7f')
 
     def loadTemporalBeammap(self):
@@ -875,12 +883,12 @@ class TemporalBeammap():
         toClickbeammap = self.get_FL_filename(feedline)
         getLogger('Sweep').info('toClick: {}'.format(toClickbeammap))
         m = ManualTemporalBeammap(self.x_images, self.y_images, initialbeammap, toClickbeammap,
-                                  self.config.beammap.sweep.fittype)
+                                  self.config.beammap.sweep.fittype, clicked_epilog=self.config.paths.clicked_epilog)
 
     def get_FL_filename(self, FL):
         path = self.config.paths.beammapdirectory
         name, extension = self.config.paths.temporalbeammap.split('.')
-        rough_loc = name.find('_stage1')
+        rough_loc = name.find('-xcor')
         if rough_loc != -1:  # if the filename has this str at then end replace with FLx
             name = name[:rough_loc]
         return os.path.join(path, name + '_FL%s.' % FL + extension)
