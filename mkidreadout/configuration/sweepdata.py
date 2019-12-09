@@ -243,10 +243,15 @@ class SweepMetadata(object):
                 self.atten.size == self.mlfreq.size == self.ml_isgood_score.size ==
                 self.ml_isbad_score.size)
 
-    def genheader(self):
-        header = ('feedline={}\n'
-                  'wsatten={}\n'
-                  'rID\trFlag\twsFreq\tmlFreq\tatten\tmlGood\tmlBad')
+    def genheader(self, useSBSup=False):
+        if useSBSup:
+            header = ('feedline={}\n'
+                      'wsatten={}\n'
+                      'rID\trFlag\twsFreq\tmlFreq\tmlatten\tfreq\tatten\tmlGood\tmlBad\tphases\tiqratios')
+        else:
+            header = ('feedline={}\n'
+                      'wsatten={}\n'
+                      'rID\trFlag\twsFreq\tmlFreq\tmlatten\tfreq\tatten\tmlGood\tmlBad')
         return header.format(self.feedline, self.wsatten)
 
     def save(self, file='', saveSBSupData=False):
@@ -254,10 +259,10 @@ class SweepMetadata(object):
         self.vet()
         if saveSBSupData:
             np.savetxt(sf, self.toarray().T, fmt="%8d %1u %16.7f %16.7f %5.1f %16.7f %5.1f %6.4f %6.4f %6.4f %6.4f",
-                       header=self.genheader())
+                       header=self.genheader(True))
         else:
             np.savetxt(sf, self.toarray().T[:, :-2], fmt="%8d %1u %16.7f %16.7f %5.1f %16.7f %5.1f %6.4f %6.4f",
-                   header=self.genheader())
+                   header=self.genheader(False))
 
     def templar_data(self, lo):
         aResMask = self.lomask(lo)  #TODO URGENT add range assignment to each resonator
@@ -275,10 +280,10 @@ class SweepMetadata(object):
         assert (self.resIDs.size == self.wsfreq.size == self.flag.size == self.atten.size == self.freq.size ==
                 self.mlatten.size == self.mlfreq.size == self.ml_isgood_score.size == self.ml_isbad_score.size)
 
-        ## TEMPORARY REMOVAL 20180108 - CAUSING ISSUES W/ TRAINING ##
-        # for x in (self.freq, self.mlfreq, self.wsfreq):
-        #    use = ~np.isnan(x)
-        #    assert x[use].size == np.unique(x[use]).size, "Frequencies must be be unique."
+        for x in (self.freq, self.mlfreq, self.wsfreq):
+           use = ~np.isnan(x)
+           if x[use].size != np.unique(x[use]).size:
+               getLogger(__name__).warning("Found non-unique frequencies")
 
         self.flag = self.flag.astype(int)
         self.resIDs = self.resIDs.astype(int)
