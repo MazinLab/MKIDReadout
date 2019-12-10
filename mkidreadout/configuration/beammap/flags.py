@@ -17,3 +17,12 @@ beamMapFlags = {
                 'wrongFeedline':6,  #Beammap placed pixel in wrong feedline
                 'duplicatePixel':7  #Beammap placed pixel on top of another one, and no neighbor could be found
                 }
+
+timestream_flags = {
+                    'good':0,
+                    'empty':1,
+                    'misaligned':2,
+                    'small_peak':3,
+                    'high_noise':4,
+                    'double':5
+                    }

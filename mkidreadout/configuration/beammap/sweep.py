@@ -48,13 +48,28 @@ from mkidreadout.configuration.beammap import aligngrid as bmap_align
 from mkidreadout.configuration.beammap import clean as bmap_clean
 from mkidreadout.configuration.beammap.utils import crossCorrelateTimestreams, determineSelfconsistentPixelLocs2, \
      minimizePixelLocationVariance, snapToPeak, shapeBeammapIntoImages, fitPeak, getPeakCoM, check_timestream, check_xy
-from mkidreadout.configuration.beammap.flags import beamMapFlags
+from mkidreadout.configuration.beammap.flags import beamMapFlags, timestream_flags
 
 
-def bin2img((binfile, nrows, ncols)):
-    print("Making image for {}".format(binfile))
+def bin2img((binfile, nrows, ncols, get_phases)):
+    if not get_phases:
+        print("Making intensity map for {}. phasemap will be empty".format(binfile))
+    else:
+        print("Making intensity and phase maps for {}".format(binfile))
     photons = parse(binfile)
-    return np.histogram2d(photons['y'], photons['x'], bins=[range(nrows + 1), range(ncols + 1)])[0]
+
+    if get_phases:
+        intensitymap = np.zeros((nrows, ncols))
+        phasemap = np.zeros((nrows, ncols))
+        for x, y, p in zip(photons['x'], photons['y'], photons['phase']):  #
+            intensitymap[y, x] += 1
+            phasemap[y, x] += p
+        phasemap /= intensitymap
+    else:
+        intensitymap = np.histogram2d(photons['y'], photons['x'], bins=[range(nrows + 1), range(ncols + 1)])[0]
+        phasemap = []
+
+    return intensitymap, phasemap
 
 
 class FitBeamSweep(object):
@@ -252,7 +267,8 @@ class CorrelateBeamSweep(object):
 
 
 class ManualTemporalBeammap(object):
-    def __init__(self, x_images, y_images, initialBeammap, temporalBeammapFN, fitType = None, clicked_epilog='_clicked'):
+    def __init__(self, x_images, y_images, initialBeammap, temporalBeammapFN, fitType = None,
+                 xp_images = None, yp_images=None, clicked_epilog='_clicked'):
         """
         Class for manually clicking through beammap.
         Saves a temporal beammap with filename temporalBeammapFN-HHMMSS.txt
@@ -270,13 +286,15 @@ class ManualTemporalBeammap(object):
         """
         self.x_images = x_images
         self.y_images = y_images
+        self.xp_images = xp_images
+        self.yp_images = yp_images
         self.nTime_x = len(self.x_images)
         self.nTime_y = len(self.y_images)
-        self.goodregion = [] # corner coordinates
+        self.goodregion = []  # corner coordinates
 
         self.initialBeammapFN = initialBeammap
         self.temporalBeammapFN = temporalBeammapFN
-        # self.outputBeammapFn = temporalBeammapFN.rsplit('.',1)[0]+time.strftime('-%H%M%S')+'.txt'
+
         self.outputBeammapFn = temporalBeammapFN.rsplit('.', 1)[0] + clicked_epilog +'.bmap'
         if os.path.isfile(self.outputBeammapFn):
             self.temporalBeammapFN = self.outputBeammapFn
@@ -425,17 +443,32 @@ class ManualTemporalBeammap(object):
                 yStream = self.y_images[:, y, x]
                 y_loc = self.y_loc[y, x]
                 x_loc = self.x_loc[y, x]
-                xy_good = check_xy(x_loc, y_loc, self.goodregion)  # returns True if self.goodregion is []
+                if len(self.goodregion) == 4:
+                    xy_good = check_xy(x_loc, y_loc, self.goodregion)  # returns True if self.goodregion is []
+                else:
+                    xy_good = True
                 if not xy_good:
                     getLogger('Sweep').info('pixel failed xy check')
-                xStream_good = check_timestream(xStream, x_loc)
-                if not xStream_good:
+                xstream_flag = check_timestream(xStream, x_loc)
+                xstream_good = xstream_flag == timestream_flags['good']
+                if not xstream_good:
                     getLogger('Sweep').info('x failed check')
-                yStream_good = check_timestream(yStream, y_loc)
-                if not yStream_good:
+                ystream_flag = check_timestream(yStream, y_loc)
+                ystream_good = ystream_flag == timestream_flags['good']
+                if not ystream_good:
                     getLogger('Sweep').info('y failed check')
-                skip_timestream = xy_good and xStream_good and yStream_good
-                if skip_timestream:
+                skip_timestream = xy_good and xstream_good and ystream_good
+                if not skip_timestream:
+                    if xstream_flag == timestream_flags['double']:
+                        # print(self.x_loc[y, x])
+                        self.x_loc[y, x] = np.argmin(self.xp_images[:, y, x])
+                        # print(self.x_loc[y, x])
+                        # plt.figure()
+                        # plt.plot(self.xp_images[:, y, x])
+                        # plt.show(block=True)
+                    if ystream_flag == timestream_flags['double']:
+                        self.y_loc[y, x] = np.argmin(self.yp_images[:, y, x])
+                else:
                     if fastforward:
                         self.curPixInd += 1
                     else:
@@ -617,48 +650,64 @@ class TemporalBeammap():
         self.y_locs = None
         self.x_images = None
         self.y_images = None
+        self.xp_images = None
+        self.yp_images = None
 
     def stackImages(self, sweepType, median=True):
 
         sweepType = sweepType.lower()
         if sweepType not in ('x','y'):
             raise ValueError('sweepType must be x or y')
-        sweepList = None
+        inten_sweeps = None  # all the sweeps combined
+        phase_sweeps = None
         nTimes = 0
         nSweeps = 0
         for s in self.config.beammap.sweep.sweeps:
             if s.sweeptype in sweepType:
                 nSweeps += 1.
-                imList = self.loadSweepBins(s)
+                both_maps = self.loadSweepBins(s, get_phases=True)  # intensity and phase
+                intensity_maps = both_maps[:, 0]
+                phase_maps = both_maps[:, 1]
                 direction = -1 if s.sweepdirection is '-' else 1
-                if sweepList is None:
-                    sweepList = np.asarray([imList[::direction, :, :]])
-                    nTimes = len(imList)
+                if inten_sweeps is None:
+                    inten_sweeps = np.asarray([intensity_maps[::direction, :, :]])
+                    phase_sweeps = np.asarray([phase_maps[::direction, :, :]])
+                    nTimes = len(intensity_maps)
                 else:
-                    if len(imList) < nTimes:
-                        pad = np.empty((nTimes - len(imList), len(imList[0]), len(imList[0][0])))
+                    if len(intensity_maps) < nTimes:
+                        pad = np.empty((nTimes - len(intensity_maps), len(intensity_maps[0]), len(intensity_maps[0][0])))
                         pad[:] = np.nan
-                        imList = np.concatenate((imList[::direction, :, :], pad), 0)
-                    elif len(imList) > nTimes:
-                        pad = np.empty((len(sweepList), len(imList) - nTimes, len(imList[0]), len(imList[0][0])))
+                        intensity_maps = np.concatenate((intensity_maps[::direction, :, :], pad), 0)
+                        phase_maps = np.concatenate((phase_maps[::direction, :, :], pad), 0)
+                    elif len(intensity_maps) > nTimes:
+                        pad = np.empty((len(inten_sweeps), len(intensity_maps) - nTimes, len(intensity_maps[0]), len(intensity_maps[0][0])))
                         pad[:] = np.nan
-                        sweepList = np.concatenate((sweepList, pad), 1)
-                        imList = imList[::direction, :, :]
-                    sweepList = np.concatenate((sweepList, imList[np.newaxis, :, :, :]), 0)
+                        inten_sweeps = np.concatenate((inten_sweeps, pad), 1)
+                        phase_sweeps = np.concatenate((phase_sweeps, pad), 1)
+                        intensity_maps = intensity_maps[::direction, :, :]
+                        phase_maps = phase_maps[::direction, :, :]
+                    inten_sweeps = np.concatenate((inten_sweeps, intensity_maps[np.newaxis, :, :, :]), 0)
+                    phase_sweeps = np.concatenate((phase_sweeps, phase_maps[np.newaxis, :, :, :]), 0)
 
-                    # nTimes = min(len(imList), nTimes)
-                    # imageList=imageList[:nTimes] + (imList[::direction,:,:])[:nTimes]
+                    # nTimes = min(len(intensity_maps), nTimes)
+                    # imageList=imageList[:nTimes] + (intensity_maps[::direction,:,:])[:nTimes]
 
         if median:
-            images = np.nanmedian(sweepList, 0)
+            inten_images = np.nanmedian(inten_sweeps, 0)
+            phase_images = np.nanmedian(phase_sweeps, 0)
         else:
-            images = np.nanmean(sweepList, 0)
+            inten_images = np.nanmean(inten_sweeps, 0)
+            phase_images = np.nanmean(phase_sweeps, 0)
+
         if sweepType == 'x':
-            self.x_images = images
+            self.x_images = inten_images
+            self.xp_images = phase_images
         else:
-            self.y_images = images
+            self.y_images = inten_images
+            self.yp_images = phase_images
+
         getLogger('sweep.TemporalBeammap').info('Stacked {} {} sweeps', int(nSweeps), sweepType)
-        return images
+        return inten_images
 
     def concatImages(self, sweepType, removeBkg=True):
         """
@@ -671,7 +720,7 @@ class TemporalBeammap():
         for s in self.config.beammap.sweep.sweeps:
             if s.sweeptype in sweepType:
                 getLogger('Sweep').info('loading: ' + str(s))
-                imList = self.loadSweepBins(s).astype(np.float)
+                imList = self.loadSweepBins(s, get_phases=False).astype(np.float)[:,0]
                 if removeBkg:
                     bkgndList = np.median(imList, axis=0)
                     imList -= bkgndList
@@ -840,9 +889,18 @@ class TemporalBeammap():
 
         allResIDs_map, flag_map, self.x_locs, self.y_locs = shapeBeammapIntoImages(initial, temporal)
 
-    def loadSweepBins(self, s):
+    def loadSweepBins(self, s, get_phases=False):
+        """
+        todo verify cache works correctly after name change
+        :param s:
+        :param get_phases: bool
+            Tell bin2img to retrieve the phase images or just return an empty array (much faster)
+        :return:
+        """
+        # cachefile = os.path.join(self.config.paths.beammapdirectory,
+        #                          '_beamcache_{}{}_{}.npz'.format(s.starttime, s.duration, get_phases))
         cachefile = os.path.join(self.config.paths.beammapdirectory,
-                                 '_beamcache_{}{}.npz'.format(s.starttime, s.duration))
+                                 '_beamcache_{}{}_2.npz'.format(s.starttime, s.duration, get_phases))
         try:
             images = np.load(cachefile)
             msg = 'Restored sweep images for {} s starting at {} from {}'
@@ -860,10 +918,10 @@ class TemporalBeammap():
 
         arglist = [(os.path.join(self.config.paths.bin, '{}.bin'.format(start)),
                     self.config.beammap.numrows, self.config.beammap.numcols)
-                   for start in range(startTime, startTime+duration)]
+                   for start in range(startTime, startTime+duration, get_phases)]
 
         pool = mp.Pool(self.config.beammap.ncpu)
-        images = np.array(pool.map(bin2img, arglist))
+        images = np.array(pool.map(bin2img, arglist))  # intensity and phase maps
         pool.close()
         pool.join()
 
@@ -883,7 +941,8 @@ class TemporalBeammap():
         toClickbeammap = self.get_FL_filename(feedline)
         getLogger('Sweep').info('toClick: {}'.format(toClickbeammap))
         m = ManualTemporalBeammap(self.x_images, self.y_images, initialbeammap, toClickbeammap,
-                                  self.config.beammap.sweep.fittype, clicked_epilog=self.config.paths.clicked_epilog)
+                                  self.config.beammap.sweep.fittype, self.xp_images, self.yp_images,
+                                  clicked_epilog=self.config.paths.clicked_epilog)
 
     def get_FL_filename(self, FL):
         path = self.config.paths.beammapdirectory

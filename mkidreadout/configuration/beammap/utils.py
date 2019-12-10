@@ -11,7 +11,7 @@ from numba import jit
 
 from mkidcore.corelog import getLogger
 from mkidcore.instruments import DARKNESS_FEEDLINE_INFO, MEC_FEEDLINE_INFO
-from mkidreadout.configuration.beammap.flags import beamMapFlags
+from mkidreadout.configuration.beammap.flags import beamMapFlags, timestream_flags
 
 MEC_FL_WIDTH = MEC_FEEDLINE_INFO['width']
 MEC_FL_LENGTH = MEC_FEEDLINE_INFO['length']
@@ -300,7 +300,7 @@ def check_timestream(timestream, peak_location):
         timestream -
         peak_location - estimate of peak location returned by fitPeak
     OUTPUT:
-        good_peak - True if all checks passed, False if any checks fail
+        timestream_flags['good'] if all checks passed, another element of timestream_flags if any checks fail
 
     checks:
         - check if all zeros
@@ -311,39 +311,42 @@ def check_timestream(timestream, peak_location):
 
     """
 
-    good_peak = not np.all(timestream==0)
-    if not good_peak:
-        getLogger(__name__).info('timestream is all zeros')
-        return False
+    # remove baseline from timestream
+    timestream_base = timestream - np.mean(timestream)
+    sigma = np.std(timestream_base)
 
-    good_peak = np.abs(np.argmax(timestream) - peak_location) < 2
+    good_peak = not(np.all(timestream==0) or np.isnan(peak_location))
+    if not good_peak:
+        getLogger(__name__).info('timestream is emty')
+        return timestream_flags['empty']
+
+    # check for other peaks. If there are others, then good_peak = False.
+    mask = np.ones(len(timestream_base), dtype=bool)
+    mask_window_width = 15
+    print(np.isnan(peak_location), peak_location)
+    mask[int(peak_location) - mask_window_width: int(peak_location) + mask_window_width] = False
+    good_peak = np.logical_and(timestream_base[mask] < 5 * sigma,
+                               timestream_base[mask] < .5 * np.amax(timestream_base)).all()
+    if not good_peak:
+        getLogger(__name__).info('there are multiple peaks above 5 sigma or maximum/2')
+        return timestream_flags['double']
+
+    good_peak = np.amax(timestream_base) > 5 * sigma
+    if not good_peak:
+        getLogger(__name__).info('peak is not > 5 sigma')
+        return timestream_flags['high_noise']
+
+    good_peak = np.abs(np.argmax(timestream) - peak_location) < 3
     if not good_peak:
         getLogger(__name__).info('peak_location is not close to actual maximum')
-        return False
+        return timestream_flags['misaligned']
 
     good_peak = np.amax(timestream) > 3 * np.mean(timestream)
     if not good_peak:
         getLogger(__name__).info('peak is < 3*mean')
-        return False
+        return timestream_flags['small_peak']
 
-    # remove baseline from timestream
-    timestream -= np.mean(timestream)
-    sigma = np.std(timestream)
-    good_peak = good_peak, np.amax(timestream) > 5 * sigma
-    if not good_peak:
-        getLogger(__name__).info('peak is not > 5 sigma')
-        return False
-
-    # check for other peaks. If there are others, then good_peak = False.
-    mask = np.ones(len(timestream), dtype=bool)
-    mask_window_width = 15
-    mask[int(peak_location) - mask_window_width: int(peak_location) + mask_window_width] = False
-    good_peak = np.logical_and(timestream[mask] < 5 * sigma, timestream[mask] < .5 * np.amax(timestream)).all()
-    if not good_peak:
-        getLogger(__name__).info('there are multiple peaks above 5 sigma or maximum/2')
-        return False
-
-    return True
+    return timestream_flags['good']
 
 
 def getPeakCoM(timestream, initialGuess=np.nan, fitWindow=15):
