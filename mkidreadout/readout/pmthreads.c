@@ -544,7 +544,7 @@ void* reader(void *prms){
     //If the system will not allow this size buffer, you will need
     //to use sysctl to change the max buffer size
     int retval = 0;
-    int bufferSize = 33554432;
+    int bufferSize = 536870912;
     retval = setsockopt(s, SOL_SOCKET, SO_RCVBUF, &bufferSize, sizeof(bufferSize));
     if (retval == -1)
         diep("set receive buffer size");
@@ -729,13 +729,13 @@ void* binWriter(void *prms)
              }
 
 	         // write all data in shared memory to disk
-	         sem_wait(streamSem);
-	         if( rptr->unread > 0 ) {
+	         if( rptr->unread > 8080 ) {
+	            sem_wait(streamSem);
 	            fwrite( rptr->data, 1, rptr->unread, wp);    // could probably speed this up by copying data to new array and doing the fwrite after setting busy to 0
 	            outcount += rptr->unread; 
 	            rptr->unread = 0;
+	            sem_post(streamSem);
 	         }
-	         sem_post(streamSem);
           }
        }
 
