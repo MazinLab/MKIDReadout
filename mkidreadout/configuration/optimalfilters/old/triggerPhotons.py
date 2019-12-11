@@ -1,7 +1,7 @@
 import matplotlib.pyplot as plt
 import numpy as np
 
-import smooth
+from mkidreadout.configuration.optimalfilters.old import smooth
 
 
 def calcThreshold(phase,nSigma=2.5,nSamples=5000):
@@ -145,7 +145,7 @@ def findSigmaThresh(data, initSigmaThresh=2., tailSlack=0., isPlot=False):
         plt.title('Unsmoothed Plot')
         plt.show()
     print('peaksHistLen:', len(peaksHist))
-    peaksHist = smooth.smooth(peaksHist,(len(peaksHistBins)/20)*2+1)
+    peaksHist = smooth.smooth(peaksHist, (len(peaksHistBins) / 20) * 2 + 1)
     print('peaksHistSmoothLen:', len(peaksHist))
     if(isPlot):
         plt.plot(peaksHistBins[0:len(peaksHist)], peaksHist)

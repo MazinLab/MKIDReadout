@@ -1,0 +1,18 @@
+!configdict
+ncpu: 7
+
+paths: !configdict
+  data:
+  out:
+
+beammap: !bmap  # include beammap for summary plots
+  default: MEC
+
+filter: !configdict
+  default_template: template_15us.txt  # location of the default template file
+  offset: 5  # number of samples to offset the template peak from the right
+  nfilter: 50  # number of coefficients in the filter
+  nwindow: 500  # window size used to estimate the noise auto-correlation function
+  npulse: 500  # window size used to estimate the template
+  dt: 1e-6  # time sample spacing (inverse sample rate used for plotting)
+  summary_plot: True  # make a summary plot at the end of the calculation

@@ -39,6 +39,7 @@ dependencies:
   - mkl_random
   - mkl-include
   - boost
+  - progressbar2
 #Fix warnings
   - tornado
   - certifi
