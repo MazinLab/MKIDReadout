@@ -358,33 +358,6 @@ def check_timestream(timestream, peak_location):
 
     return timestream_flags['good']
 
-# def check_pixel(x_loc, y_loc, xstream, ystream, x_pstream, y_pstream, goodregion):
-#     xy_good = check_xy(x_loc, y_loc, goodregion)  # returns True if self.goodregion is []
-#     if not xy_good:
-#         getLogger('Sweep').info('pixel failed xy check')
-#
-#     xstream_flag = check_timestream(xstream, x_loc)
-#     xstream_good = xstream_flag == timestream_flags['good']
-#     if not xstream_good:
-#         getLogger('Sweep').info('x failed check')
-#
-#     ystream_flag = check_timestream(ystream, y_loc)
-#     ystream_good = ystream_flag == timestream_flags['good']
-#     if not ystream_good:
-#         getLogger('Sweep').info('y failed check')
-#
-#     xp_good, yp_good = check_phasestreams(x_pstream, y_pstream, x_loc, y_loc)
-#
-#     good_pixel = {'xy_good': xy_good,
-#                   'xstream_good': xstream_good,
-#                   'ystream_good': ystream_good,
-#                   'xp_good': xp_good,
-#                   'yp_good': yp_good
-#                   }
-#
-#     return good_pixel
-
-
 def getPeakCoM(timestream, initialGuess=np.nan, fitWindow=15):
     """
     This function determines the center of mass moment of the peak around fitWindow
