@@ -47,15 +47,15 @@ import mkidreadout.config
 from mkidreadout.configuration.beammap import aligngrid as bmap_align
 from mkidreadout.configuration.beammap import clean as bmap_clean
 from mkidreadout.configuration.beammap.utils import crossCorrelateTimestreams, determineSelfconsistentPixelLocs2, \
-     minimizePixelLocationVariance, snapToPeak, shapeBeammapIntoImages, fitPeak, getPeakCoM, check_timestream, check_xy
+     minimizePixelLocationVariance, snapToPeak, shapeBeammapIntoImages, fitPeak, getPeakCoM, check_xy, check_timestream, check_phasestreams
 from mkidreadout.configuration.beammap.flags import beamMapFlags, timestream_flags
 
 
 def bin2img((binfile, nrows, ncols, get_phases)):
     if not get_phases:
-        print("Making intensity map for {}. phasemap will be empty".format(binfile))
+        log.info("Making intensity map for {}. phasemap will be empty".format(binfile))
     else:
-        print("Making intensity and phase maps for {}".format(binfile))
+        log.info("Making intensity and phase maps for {}".format(binfile))
     photons = parse(binfile)
 
     if get_phases:
@@ -346,24 +346,32 @@ class ManualTemporalBeammap(object):
         if np.logical_not(np.isfinite(y_loc)): y_loc = -1
         ln_yLoc = self.ax_time_y.axvline(y_loc, c='r')
 
+        self.ax_xp = self.ax_time_x.twinx()
+        ln_xphasestream, = self.ax_xp.plot(self.xp_images[:, y, x], alpha=0.35)
+        self.ax_yp = self.ax_time_y.twinx()
+        ln_yphasestream, = self.ax_yp.plot(self.yp_images[:, y, x], alpha=0.35)
+
         # self.ax_time_x.set_title('Pix '+str(self.curPixInd)+' resID'+str(int(self.resIDsMap[y,x]))+' ('+str(x)+', '+str(y)+')')
         flagStr = [key for key, value in beamMapFlags.items() if value == self.flagMap[y, x]][0]
         self.ax_time_x.set_title(
             'Pix ' + str(self.curPixInd) + '; resID' + str(int(self.resIDsMap[y, x])) + '; (' + str(x) + ', ' + str(
                 y) + '); flag ' + str(flagStr))
         self.ax_time_x.set_ylabel('X counts')
+        self.ax_xp.set_ylabel('X phase')
         self.ax_time_y.set_ylabel('Y counts')
+        self.ax_yp.set_ylabel('Y phase')
         self.ax_time_y.set_xlabel('Timesteps')
         self.ax_time_x.set_xlim(-2, self.nTime_x + 2)
         self.ax_time_y.set_xlim(-2, self.nTime_y + 2)
         self.ax_time_x.set_ylim(0, None)
         self.ax_time_y.set_ylim(0, None)
 
-        self.timestreamPlots = [ln_xLoc, ln_yLoc, ln_xStream, ln_yStream]
+        self.timestreamPlots = [ln_xLoc, ln_yLoc, ln_xStream, ln_yStream, ln_xphasestream, ln_yphasestream]
 
         self.fig_time.canvas.mpl_connect('button_press_event', self.onClickTime)
         self.fig_time.canvas.mpl_connect('close_event', self.onCloseTime)
         self.fig_time.canvas.mpl_connect('key_press_event', self.onKeyTime)
+        plt.tight_layout()
 
     def onKeyTime(self, event):
         getLogger('Sweep').info('Pressed '+event.key)
@@ -409,7 +417,9 @@ class ManualTemporalBeammap(object):
             x = self.goodPix[1][self.curPixInd]
             if self.flagMap[y, x] != beamMapFlags['double']:
                 self.flagMap[y, x] = beamMapFlags['double']
-                getLogger('Sweep').info('Pix {} ({}, {}) Marked as double'.format(int(self.resIDsMap[y, x]), x, y))
+                getLogger('Sweep').info('Pix {} ({}, {}) Marked as double and moved offset to larger phase dip'.format(int(self.resIDsMap[y, x]), x, y))
+                self.y_loc[y, x] = np.argmin(self.yp_images[:, y, x])
+                self.x_loc[y, x] = np.argmin(self.xp_images[:, y, x])
             else:
                 self.flagMap[y, x] = beamMapFlags['good']
                 getLogger('Sweep').info('Pix {} ({}, {}) Un-Marked as double'.format(int(self.resIDsMap[y, x]), x, y))
@@ -439,36 +449,32 @@ class ManualTemporalBeammap(object):
                 counter += 1
                 y = self.goodPix[0][self.curPixInd]
                 x = self.goodPix[1][self.curPixInd]
-                xStream = self.x_images[:, y, x]
-                yStream = self.y_images[:, y, x]
-                y_loc = self.y_loc[y, x]
-                x_loc = self.x_loc[y, x]
-                if len(self.goodregion) == 4:
-                    xy_good = check_xy(x_loc, y_loc, self.goodregion)  # returns True if self.goodregion is []
-                else:
-                    xy_good = True
+                log.info('\n-- Checking pixel {} --'.format(self.curPixInd))
+
+                xy_good = check_xy(self.x_loc[y, x], self.y_loc[y, x], self.goodregion)  # returns True if self.goodregion is []
                 if not xy_good:
-                    getLogger('Sweep').info('pixel failed xy check')
-                xstream_flag = check_timestream(xStream, x_loc)
-                xstream_good = xstream_flag == timestream_flags['good']
-                if not xstream_good:
-                    getLogger('Sweep').info('x failed check')
-                ystream_flag = check_timestream(yStream, y_loc)
-                ystream_good = ystream_flag == timestream_flags['good']
-                if not ystream_good:
-                    getLogger('Sweep').info('y failed check')
-                skip_timestream = xy_good and xstream_good and ystream_good
-                if not skip_timestream:
-                    if xstream_flag == timestream_flags['double']:
-                        # print(self.x_loc[y, x])
-                        self.x_loc[y, x] = np.argmin(self.xp_images[:, y, x])
-                        # print(self.x_loc[y, x])
-                        # plt.figure()
-                        # plt.plot(self.xp_images[:, y, x])
-                        # plt.show(block=True)
-                    if ystream_flag == timestream_flags['double']:
-                        self.y_loc[y, x] = np.argmin(self.yp_images[:, y, x])
-                else:
+                    self.x_loc[y, x] = np.nan
+                    self.y_loc[y, x] = np.nan
+                    getLogger('Sweep').info('pixel failed xy check. setting flag to bad')
+                    self.updateFlagMap(self.curPixInd)
+                    self.updateXYPlot(2)
+                    self.updateFlagMapPlot()
+
+                xstream_flag = check_timestream(self.x_images[:, y, x], self.x_loc[y, x])
+                xstream_good = xstream_flag == timestream_flags['good'] #or (xstream_flag == timestream_flags['double'] and xp_good)
+
+                ystream_flag = check_timestream(self.y_images[:, y, x], self.y_loc[y, x])
+                ystream_good = ystream_flag == timestream_flags['good'] #or (ystream_flag == timestream_flags['double'] and yp_good)
+
+                xp_good, yp_good = check_phasestreams(self.xp_images[:, y, x], self.yp_images[:, y, x],
+                                                      self.x_loc[y, x], self.y_loc[y, x])
+                if not xp_good:
+                    getLogger('Sweep').info('x failed phase location check')
+                if not yp_good:
+                    getLogger('Sweep').info('y failed phase location check')
+
+                skip_timestream = xy_good and xstream_good and ystream_good and xp_good and yp_good
+                if skip_timestream:
                     if fastforward:
                         self.curPixInd += 1
                     else:
@@ -488,11 +494,15 @@ class ManualTemporalBeammap(object):
             # self.ax_time_x.autoscale(True,'y',True)
             self.ax_time_x.set_ylim(0, 1.05 * np.amax(self.x_images[:, y, x]))
             self.ax_time_x.set_xlim(-2, self.nTime_x + 2)
+            self.timestreamPlots[4].set_ydata(self.xp_images[:, y, x])
+            self.ax_xp.set_ylim(1.05 * np.nanmin(self.xp_images[:, y, x]), 0)
         if lineNum == 3 or lineNum >= 4:
             self.timestreamPlots[3].set_ydata(self.y_images[:, y, x])
             # self.ax_time_y.autoscale(True,'y',True)
             self.ax_time_y.set_ylim(0, 1.05 * np.amax(self.y_images[:, y, x]))
             self.ax_time_y.set_xlim(-2, self.nTime_y + 2)
+            self.timestreamPlots[5].set_ydata(self.yp_images[:, y, x])
+            self.ax_yp.set_ylim(1.05 * np.nanmin(self.yp_images[:, y, x]), 0)
         if lineNum == 2 or lineNum == 3 or lineNum == 4 or lineNum == 5:
             flagStr = [key for key, value in beamMapFlags.items() if value == self.flagMap[y, x]][0]
             self.ax_time_x.set_title(
@@ -508,7 +518,7 @@ class ManualTemporalBeammap(object):
             offset = event.xdata
             if offset < 0: offset = np.nan
 
-            if event.inaxes == self.ax_time_x:
+            if event.inaxes == self.ax_time_x or event.inaxes == self.ax_xp:
                 offset = snapToPeak(self.x_images[:, y, x], offset)
                 if self.fitType == 'gaussian':
                     fitParams=fitPeak(self.x_images[:,y,x],offset,20)
@@ -521,7 +531,7 @@ class ManualTemporalBeammap(object):
                 getLogger('Sweep').info('x: {}'.format(offset))
                 self.updateTimestreamPlot(0)
 
-            elif event.inaxes == self.ax_time_y:
+            elif event.inaxes == self.ax_time_y or event.inaxes == self.ax_yp:
                 offset = snapToPeak(self.y_images[:, y, x], offset)
                 if self.fitType == 'gaussian':
                     fitParams=fitPeak(self.y_images[:,y,x],offset,20)
@@ -539,11 +549,15 @@ class ManualTemporalBeammap(object):
 
     def updateXYPlot(self, lines):
         if lines == 0 or lines == 2:
-            self.ln_XY.set_data(self.x_loc.flatten(), self.y_loc.flatten())
+            self.ln_XY.set_data(self.x_loc[self.flagMap==0].flatten(), self.y_loc[self.flagMap==0].flatten())
+            self.ln_XY_bad.set_data(self.x_loc[self.flagMap!=0].flatten(), self.y_loc[self.flagMap!=0].flatten())
         if lines == 1 or lines == 2:
             y = self.goodPix[0][self.curPixInd]
             x = self.goodPix[1][self.curPixInd]
             self.ln_XYcur.set_data([self.x_loc[y, x]], [self.y_loc[y, x]])
+
+        self.ax_XY.set_title(self.goodregionon) if len(self.goodregion) == 4 else self.ax_XY.set_title(
+            self.goodregionoff)
 
         self.ax_XY.autoscale(True)
         self.fig_XY.canvas.draw()
@@ -612,14 +626,15 @@ class ManualTemporalBeammap(object):
     def plotXYscatter(self):
         self.fig_XY, self.ax_XY = plt.subplots()
         self.ln_XY, = self.ax_XY.plot(self.x_loc[self.flagMap==0].flatten(), self.y_loc[self.flagMap==0].flatten(), 'b.', markersize=2)
-        self.ln_XY, = self.ax_XY.plot(self.x_loc[self.flagMap!=0].flatten(), self.y_loc[self.flagMap!=0].flatten(), 'b.', alpha=0.1, markersize=2)
+        self.ln_XY_bad, = self.ax_XY.plot(self.x_loc[self.flagMap!=0].flatten(), self.y_loc[self.flagMap!=0].flatten(), 'b.', alpha=0.1, markersize=2)
         y = self.goodPix[0][self.curPixInd]
         x = self.goodPix[1][self.curPixInd]
         self.ln_XYcur, = self.ax_XY.plot([self.x_loc[y, x]], [self.y_loc[y, x]], 'go')
-        self.ax_XY.set_title('Pixel Locations')
+        self.goodregionon = 'Good region set'
+        self.goodregionoff = 'Make a rectangle around the feedline by clicking 4 locations'
+        self.ax_XY.set_title(self.goodregionon) if len(self.goodregion) == 4 else self.ax_XY.set_title(self.goodregionoff)
         self.fig_XY.canvas.mpl_connect('close_event', self.onCloseXY)
         self.fig_XY.canvas.mpl_connect('button_press_event', self.onClickXY)
-        print('Make a rectangle around the feedline by clicking 4 points on the scatter plot')
 
     def onCloseXY(self, event):
         # self.fig_XY.show()
@@ -637,6 +652,7 @@ class ManualTemporalBeammap(object):
             self.goodregion.append([event.xdata, event.ydata])
             if len(self.goodregion) == 4:
                 log.info(('Good region coordinates', ['(%d,%d)' % (x,y) for x,y in self.goodregion]))
+            self.updateXYPlot(-1)
 
 class TemporalBeammap():
     def __init__(self, config):

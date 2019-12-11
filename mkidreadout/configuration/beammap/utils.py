@@ -282,7 +282,7 @@ def fitPeak(timestream, initialGuess=np.nan, fitWindow=20):
 
 def check_xy(xpix, ypix, good_region):
     if len(good_region) != 4:
-        return
+        return True
 
     # calculates min/max every run (inefficient) but should be quick
     good_region = np.asarray(good_region)
@@ -293,6 +293,16 @@ def check_xy(xpix, ypix, good_region):
     good_pixel = (min_x < xpix < max_x) and (min_y < ypix < max_y)
 
     return good_pixel
+
+def check_phasestreams(xp_stream, yp_stream, xloc, yloc):
+    xp_good = True
+    yp_good = True
+    if xloc != 0 and not np.isnan(xloc):
+        xp_good = True if abs(np.argmin(xp_stream) - xloc) < 7 else False
+    if yloc != 0 and not np.isnan(yloc):
+        yp_good = True if abs(np.argmin(yp_stream) - yloc) < 7 else False
+
+    return xp_good, yp_good
 
 def check_timestream(timestream, peak_location):
     """
@@ -317,13 +327,12 @@ def check_timestream(timestream, peak_location):
 
     good_peak = not(np.all(timestream==0) or np.isnan(peak_location))
     if not good_peak:
-        getLogger(__name__).info('timestream is emty')
+        getLogger(__name__).info('timestream is empty')
         return timestream_flags['empty']
 
     # check for other peaks. If there are others, then good_peak = False.
     mask = np.ones(len(timestream_base), dtype=bool)
     mask_window_width = 15
-    print(np.isnan(peak_location), peak_location)
     mask[int(peak_location) - mask_window_width: int(peak_location) + mask_window_width] = False
     good_peak = np.logical_and(timestream_base[mask] < 5 * sigma,
                                timestream_base[mask] < .5 * np.amax(timestream_base)).all()
@@ -336,17 +345,44 @@ def check_timestream(timestream, peak_location):
         getLogger(__name__).info('peak is not > 5 sigma')
         return timestream_flags['high_noise']
 
-    good_peak = np.abs(np.argmax(timestream) - peak_location) < 3
+    good_peak = np.abs(np.argmax(timestream_base) - peak_location) < 3
     if not good_peak:
         getLogger(__name__).info('peak_location is not close to actual maximum')
         return timestream_flags['misaligned']
 
-    good_peak = np.amax(timestream) > 3 * np.mean(timestream)
+    good_peak = np.amax(timestream_base) > 3 * np.mean(timestream_base)
     if not good_peak:
+        print(np.amax(timestream_base), 3 * np.mean(timestream_base), np.amax(timestream_base) > 3 * np.mean(timestream_base))
         getLogger(__name__).info('peak is < 3*mean')
         return timestream_flags['small_peak']
 
     return timestream_flags['good']
+
+# def check_pixel(x_loc, y_loc, xstream, ystream, x_pstream, y_pstream, goodregion):
+#     xy_good = check_xy(x_loc, y_loc, goodregion)  # returns True if self.goodregion is []
+#     if not xy_good:
+#         getLogger('Sweep').info('pixel failed xy check')
+#
+#     xstream_flag = check_timestream(xstream, x_loc)
+#     xstream_good = xstream_flag == timestream_flags['good']
+#     if not xstream_good:
+#         getLogger('Sweep').info('x failed check')
+#
+#     ystream_flag = check_timestream(ystream, y_loc)
+#     ystream_good = ystream_flag == timestream_flags['good']
+#     if not ystream_good:
+#         getLogger('Sweep').info('y failed check')
+#
+#     xp_good, yp_good = check_phasestreams(x_pstream, y_pstream, x_loc, y_loc)
+#
+#     good_pixel = {'xy_good': xy_good,
+#                   'xstream_good': xstream_good,
+#                   'ystream_good': ystream_good,
+#                   'xp_good': xp_good,
+#                   'yp_good': yp_good
+#                   }
+#
+#     return good_pixel
 
 
 def getPeakCoM(timestream, initialGuess=np.nan, fitWindow=15):
