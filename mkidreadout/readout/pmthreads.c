@@ -336,10 +336,10 @@ void *shmImageWriter(void *prms)
                                printf("SharedImageWriter: done image at %lu\n", curTs);
                                printf("SharedImageWriter: int time %lu\n", curTs-sharedImages[imgIdx].md->integrationTime);
                                printf("SharedImageWriter: real time %ld ms\n", (nsElapsed)/1000000);
-                               printf("SharedImageWriter: Parse rate = %lu pkts/img. Data in buffer = %lu\n",pcount,oldbr); fflush(stdout);
+                               //printf("SharedImageWriter: Parse rate = %lu pkts/img. Data in buffer = %lu\n",pcount,oldbr); fflush(stdout);
                                //printf("SharedImageWriter: forLoopIters %d\n", forLoopIters);
                                //printf("SharedImageWriter: whileLoopIters %d\n", whileLoopIters);
-                               printf("SharedImageWriter: oldbr: %lu\n\n", oldbr);
+                               //printf("SharedImageWriter: oldbr: %lu\n\n", oldbr);
                                #endif
                                pcount = 0;
 
