@@ -155,10 +155,11 @@ cdef class ImageCube(object):
             integrationTime: double
                 integration time in seconds
         """
-        curYr = datetime.datetime.utcnow().year
-        yrStart = datetime.date(curYr, 1, 1)
-        tsOffs = calendar.timegm(yrStart.timetuple())
-        startTime -= tsOffs
+        if startTime != 0:
+            curYr = datetime.datetime.utcnow().year
+            yrStart = datetime.date(curYr, 1, 1)
+            tsOffs = calendar.timegm(yrStart.timetuple())
+            startTime -= tsOffs
 
         startTime = int(startTime*2000)
         integrationTime = int(integrationTime*2000) #convert to half-ms
