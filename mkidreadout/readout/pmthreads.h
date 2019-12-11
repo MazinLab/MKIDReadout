@@ -25,10 +25,12 @@
 #include <byteswap.h>
 #include <sys/mman.h>
 #include <sched.h>
+#include <assert.h>
 #include "mkidshm.h"
 
 #define _POSIX_C_SOURCE 200809L
 #define BUFLEN 1504
+#define MAX_PACKSIZE 12928
 #define DEFAULT_PORT 50000
 #define SHAREDBUF 536870912
 #define RINGBUF_SIZE 536870912
@@ -93,7 +95,6 @@ typedef struct{
 typedef struct{
     int port;
     RINGBUFFER *packBuf;
-    char streamSemBaseName[STRBUF]; //append 0, 1, 2, etc for each name
     char quitSemName[STRBUF];
 
     int cpu; //if cpu=-1 then don't maximize priority
@@ -105,7 +106,6 @@ typedef struct{
     char writerPath[STRBUF];
     RINGBUFFER *packBuf;
     char quitSemName[STRBUF];
-    char streamSemName[STRBUF];
 
     int cpu; //if cpu=-1 then don't maximize priority
 
@@ -119,7 +119,6 @@ typedef struct{
     WAVECAL_BUFFER *wavecal; //if NULL don't use wavecal
 
     char quitSemName[STRBUF];
-    char streamSemName[STRBUF];
 
     int cpu; //if cpu=-1 then don't maximize priority
     

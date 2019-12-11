@@ -91,22 +91,23 @@ int startEventBuffWriterThread(EVENT_BUFF_WRITER_PARAMS *rparams, THREAD_PARAMS 
 
 void *shmImageWriter(void *prms)
 {
-    int64_t br,i,j,ret,imgIdx;
-    char packet[808*16];
+    int64_t i,j,ret,imgIdx;
+    char packet[MAX_PACKSIZE];
     struct timespec startSpec;
     struct timespec stopSpec;
     struct timeval tv;
     unsigned long long sysTs;
     long nsElapsed;
-    uint64_t oldbr = 0;     // number of bytes of unparsed data sitting in olddata
     uint64_t pcount = 0;
     STREAM_HEADER *hdr;
     uint64_t swp,swp1;
-    uint64_t pstart;
+    uint64_t pStartInd;
+    uint64_t pStartCycle;
     RINGBUFFER *packBuf;
     uint64_t bufReadInd = 0;
     uint64_t lastCycle = 0;
-    int nUnread, maxNToRead;
+    int nUnread;
+    int packSize;
 
     uint64_t curTs;
     uint64_t prevTs;
@@ -160,6 +161,9 @@ void *shmImageWriter(void *prms)
     printf("SharedImageWriter done initializing\n");
     curRoachInd = 0;
     prevRoachInd = 0;
+    pStartInd = 0;
+    pStartCycle = 0;
+    bufReadInd = 8; // first pack is header
 
     while (sem_trywait(quitSem) == -1)
     {
@@ -170,10 +174,19 @@ void *shmImageWriter(void *prms)
         else if(nUnread > RINGBUF_SIZE){
             printf("SharedImageWriter: Missed %d bytes\n", nUnread - RINGBUF_SIZE);
             nUnread = RINGBUF_SIZE;
-            bufReadInd = (packBuf->writeInd + 1)%RINGBUF_SIZE;
+            bufReadInd = (packBuf->writeInd + 8)%RINGBUF_SIZE;
+            if(bufReadInd % 8 > 0){
+                printf("Misalign in shmImageWriter\n");
+                bufReadInd -= bufReadInd%8;
+
+            }
+
             lastCycle = packBuf->nCycles - 1;
 
         }
+
+        if(nUnread % 8 >0)
+            printf("Misalign in shmImageWriter\n");
 
         //if(nUnread > (RINGBUF_SIZE - bufReadInd))
         //    maxNToRead = RINGBUF_SIZE - bufReadInd;
@@ -183,177 +196,175 @@ void *shmImageWriter(void *prms)
         
         
 
-        //if(maxNToRead > 0) {               
-        //   // we may be in the middle of a packet so put together a full packet from old data and new data
-        //   // and only parse when the packet is complete
-
-        //   // append current data to existing data if old data is present
-        //   // NOTE !!!  olddata must start with a packet header
-        //   if( oldbr > 0 ) {
-        //      memmove(&olddata[oldbr],rptr->data,br);
-        //      oldbr+=br;
-        //      rptr->unread = 0;
-        //      if (oldbr > SHAREDBUF-2000) {
-        //         printf("oldbr = %d!  Dumping data!\n",(int)oldbr); fflush(stdout);
-        //         br = 0;
-        //         oldbr=0;          
-        //      }
-        //   } 
-        //   else {
-        //      memmove(olddata,rptr->data,br);
-        //      oldbr=br;          
-        //      rptr->unread = 0;     
-        //   }
-        //}
-
-
-       // if there is data waiting, process it
-       pstart = 0;
-       if(nUnread >= 808 ) {       
-          // search the available data for a packet boundary
-          for( i=1; (uint64_t)i<oldbr/8; i++) { 
-              for(imgIdx=0; imgIdx<params->nSharedImages; imgIdx++)
-              {
-                  //printf("looping through image %d\n", imgIdx); fflush(stdout);
-                  //printf("Shared Image %d: %d\n", sharedImages[imgIdx]);
-                  if(sem_trywait(sharedImages[imgIdx].takeImageSem)==0)
-                  {
-                      //printf("SharedImageWriter: taking image %s\n", params->sharedImageNames[imgIdx]);
-                      #ifdef _DEBUG_OUTPUT
-                      clock_gettime(CLOCK_REALTIME, &startSpec);
-                      #endif
-                      sharedImages[imgIdx].md->takingImage = 1;
-                      doneIntegrating[imgIdx] = 0;   
-                      strcpy(sharedImages[imgIdx].md->wavecalID, params->wavecal->solutionFile);
-                      //sharedImages[imgIdx].md->valid = 1;
-                      // zero out array:
-                      memset(sharedImages[imgIdx].image, 0, sizeof(*(sharedImages[imgIdx].image)) * sharedImages[imgIdx].md->nCols * sharedImages[imgIdx].md->nRows); 
-                      if(sharedImages[imgIdx].md->startTime==0)
-                          sharedImages[imgIdx].md->startTime = curTs;
-                      #ifdef _DEBUG_OUTPUT
-                      printf("SharedImageWriter: starting image at %lu, roach: %d\n", curTs, boardNums[curRoachInd]);
-                      printf("                   startTime: %lu, int time: %lu\n", sharedImages[imgIdx].md->startTime, sharedImages[imgIdx].md->integrationTime);
-                      #endif
-                   
-                  }
-
-             }
-             
-             swp = *((uint64_t *) (&olddata[i*8]));
-             swp1 = __bswap_64(swp);
-             hdr = (STREAM_HEADER *) (&swp1);             
-
-             if (hdr->start == 0b11111111) {        // found new packet header!
-                // fill packet and parse
-                memmove(packet,&olddata[pstart],i*8 - pstart);
-                prevRoachInd = curRoachInd;
-                curRoachInd = 0;
-
-                prevTs = curTs;
-                curTs = (uint64_t)hdr->timestamp;
-
-                #ifdef _TIMING_TEST
-                gettimeofday(&tv, NULL);
-                sysTs = (unsigned long long)(tv.tv_sec)*2000 + (unsigned long long)(tv.tv_usec)/500 - (unsigned long long)TSOFFS*2000;
-                #endif
-               
-                
-                //Figure out index corresponding to roach number (index of roachNum in boardNums)
-                //If this doesn't exist, assign it
-                for(j=0; j<params->nRoach; j++)
-                {
-                    if(boardNums[j]==hdr->roach)
-                    {
-                        curRoachInd = j;
-                        break;
-
-                    }
-                    if(boardNums[j]==0)
-                    {
-                        boardNums[j] = hdr->roach;
-                        curRoachInd = j;
-                        break;
-
-                    }
-
-                }
-
-
-                #ifdef _TIMING_TEST
-                fprintf(timeFile, "%llu %llu %d\n", curTs, sysTs, boardNums[curRoachInd]);
-                #endif
-
-                //if(curTs < prevTs)
-                //    printf("Packet out of order. dt = %lu, curRoach = %d, prevRoach=%d \n", 
-                //          prevTs-curTs, boardNums[curRoachInd], boardNums[prevRoachInd]);
-                
+        // if there is data waiting, process it
+        if(nUnread > 0) {       
+            // search the available data for a packet boundary
+            for(i=0; i<nUnread; i+=8) { 
                 for(imgIdx=0; imgIdx<params->nSharedImages; imgIdx++)
                 {
-                   if(sharedImages[imgIdx].md->takingImage)
-                   {
-                       //printf("curRoachTs: %lld\n", curTs);
-                       if((curTs>sharedImages[imgIdx].md->startTime)&&(curTs<=(sharedImages[imgIdx].md->startTime+sharedImages[imgIdx].md->integrationTime))){
-                           addPacketToImage(sharedImages+imgIdx,packet,i*8 - pstart, params->wavecal);
-                           if((doneIntegrating[imgIdx] & (1<<curRoachInd)) == (1<<curRoachInd))
-                               printf("Packet out of order! roach: %d\n", boardNums[curRoachInd]);
-
-                       }
-
-                       else if(curTs>(sharedImages[imgIdx].md->startTime+sharedImages[imgIdx].md->integrationTime))
-                       {
-                           #ifdef _DEBUG_OUTPUT
-                           if(!((doneIntegrating[imgIdx]>>curRoachInd)&1))
-                               printf("SharedImageWriter: Roach %d done Integrating\n", boardNums[curRoachInd]);
-                           #endif
-                           doneIntegrating[imgIdx] |= (1<<curRoachInd);
-
-                       }
-
-                       //printf("SharedImageWriter: curTs %lld\n", curTs);
-                       pcount++;
-
-                       if(doneIntegrating[imgIdx]==doneIntMask) //check to see if all boards are done integrating
-                       {
-                           sharedImages[imgIdx].md->takingImage = 0;
-                           MKIDShmImage_postDoneSem(sharedImages + imgIdx, -1);
-                           #ifdef _DEBUG_OUTPUT
-                           clock_gettime(CLOCK_REALTIME, &stopSpec);
-                           nsElapsed = 1000000000*(stopSpec.tv_sec - startSpec.tv_sec);
-                           nsElapsed += (long)stopSpec.tv_nsec - startSpec.tv_nsec;
-                           printf("SharedImageWriter: done image at %lu\n", curTs);
-                           printf("SharedImageWriter: int time %lu\n", curTs-sharedImages[imgIdx].md->integrationTime);
-                           printf("SharedImageWriter: real time %ld ms\n", (nsElapsed)/1000000);
-                           printf("SharedImageWriter: Parse rate = %lu pkts/img. Data in buffer = %lu\n",pcount,oldbr); fflush(stdout);
-                           //printf("SharedImageWriter: forLoopIters %d\n", forLoopIters);
-                           //printf("SharedImageWriter: whileLoopIters %d\n", whileLoopIters);
-                           printf("SharedImageWriter: oldbr: %lu\n\n", oldbr);
-                           #endif
-                           pcount = 0;
-
-                       }
-                   
-                   }
+                    //printf("looping through image %d\n", imgIdx); fflush(stdout);
+                    //printf("Shared Image %d: %d\n", sharedImages[imgIdx]);
+                    if(sem_trywait(sharedImages[imgIdx].takeImageSem)==0)
+                    {
+                        //printf("SharedImageWriter: taking image %s\n", params->sharedImageNames[imgIdx]);
+                        #ifdef _DEBUG_OUTPUT
+                        clock_gettime(CLOCK_REALTIME, &startSpec);
+                        #endif
+                        sharedImages[imgIdx].md->takingImage = 1;
+                        doneIntegrating[imgIdx] = 0;   
+                        strcpy(sharedImages[imgIdx].md->wavecalID, params->wavecal->solutionFile);
+                        //sharedImages[imgIdx].md->valid = 1;
+                        // zero out array:
+                        memset(sharedImages[imgIdx].image, 0, sizeof(*(sharedImages[imgIdx].image)) * sharedImages[imgIdx].md->nCols * sharedImages[imgIdx].md->nRows); 
+                        if(sharedImages[imgIdx].md->startTime==0)
+                            sharedImages[imgIdx].md->startTime = curTs;
+                        #ifdef _DEBUG_OUTPUT
+                        printf("SharedImageWriter: starting image at %lu, roach: %d\n", curTs, boardNums[curRoachInd]);
+                        printf("                   startTime: %lu, int time: %lu\n", sharedImages[imgIdx].md->startTime, sharedImages[imgIdx].md->integrationTime);
+                        #endif
+                     
+                    }
 
                }
-		       pstart = i*8;   // move start location for next packet	                      
-             }
-          }
+               
+               assert(bufReadInd % 8 == 0);
 
-	  // if there is data remaining save it for next run through
-          memmove(olddata,&olddata[pstart],oldbr-pstart);
-          oldbr = oldbr-pstart;          
+               swp = *((uint64_t *) (&packBuf->data[bufReadInd]));
+               swp1 = __bswap_64(swp);
+               hdr = (STREAM_HEADER *) (&swp1);             
 
-       }                           
+               if (hdr->start == 0b11111111) {        // found new packet header!
+                   // fill packet and parse
+                   if(lastCycle == pStartCycle){
+                       memmove(packet, &packBuf->data[pStartInd], bufReadInd - pStartInd);
+                       packSize = bufReadInd - pStartInd;
+                       pStartInd = bufReadInd;
+
+                   }
+                   else if(lastCycle == (pStartCycle + 1)){
+                       if(bufReadInd > pStartInd)
+                           printf("Shared mem overflow - skipped packet boundary\n");
+                       assert(RINGBUF_SIZE - pStartInd <= MAX_PACKSIZE);
+                       memmove(packet, &packBuf->data[pStartInd], RINGBUF_SIZE - pStartInd);
+                       memmove(packet + (RINGBUF_SIZE - pStartInd), packBuf->data, bufReadInd);
+                       packSize = RINGBUF_SIZE + (int)bufReadInd - pStartInd;
+                       pStartInd = bufReadInd;
+                       pStartCycle = lastCycle;
+
+                   }
+
+                   else
+                       printf("Severe shared mem overflow!\n");
+
+                   prevRoachInd = curRoachInd;
+                   curRoachInd = 0;
+
+                   prevTs = curTs;
+                   curTs = (uint64_t)hdr->timestamp;
+
+                   #ifdef _TIMING_TEST
+                   gettimeofday(&tv, NULL);
+                   sysTs = (unsigned long long)(tv.tv_sec)*2000 + (unsigned long long)(tv.tv_usec)/500 - (unsigned long long)TSOFFS*2000;
+                   #endif
+                  
+                   
+                   //Figure out index corresponding to roach number (index of roachNum in boardNums)
+                   //If this doesn't exist, assign it
+                   for(j=0; j<params->nRoach; j++)
+                   {
+                       if(boardNums[j]==hdr->roach)
+                       {
+                           curRoachInd = j;
+                           break;
+
+                       }
+                       if(boardNums[j]==0)
+                       {
+                           boardNums[j] = hdr->roach;
+                           curRoachInd = j;
+                           break;
+
+                       }
+
+                   }
+
+
+                   #ifdef _TIMING_TEST
+                   fprintf(timeFile, "%llu %llu %d\n", curTs, sysTs, boardNums[curRoachInd]);
+                   #endif
+
+                   //if(curTs < prevTs)
+                   //    printf("Packet out of order. dt = %lu, curRoach = %d, prevRoach=%d \n", 
+                   //          prevTs-curTs, boardNums[curRoachInd], boardNums[prevRoachInd]);
+                   
+                   for(imgIdx=0; imgIdx<params->nSharedImages; imgIdx++)
+                   {
+                       if(sharedImages[imgIdx].md->takingImage)
+                       {
+                           //printf("curRoachTs: %lld\n", curTs);
+                           if((curTs>sharedImages[imgIdx].md->startTime)&&(curTs<=(sharedImages[imgIdx].md->startTime+sharedImages[imgIdx].md->integrationTime))){
+                               addPacketToImage(sharedImages+imgIdx, packet, packSize, params->wavecal);
+                               if((doneIntegrating[imgIdx] & (1<<curRoachInd)) == (1<<curRoachInd))
+                                   printf("Packet out of order! roach: %d\n", boardNums[curRoachInd]);
+
+                           }
+
+                           else if(curTs>(sharedImages[imgIdx].md->startTime+sharedImages[imgIdx].md->integrationTime))
+                           {
+                               #ifdef _DEBUG_OUTPUT
+                               if(!((doneIntegrating[imgIdx]>>curRoachInd)&1))
+                                   printf("SharedImageWriter: Roach %d done Integrating\n", boardNums[curRoachInd]);
+                               #endif
+                               doneIntegrating[imgIdx] |= (1<<curRoachInd);
+
+                           }
+
+                           //printf("SharedImageWriter: curTs %lld\n", curTs);
+                           pcount++;
+
+                           if(doneIntegrating[imgIdx]==doneIntMask) //check to see if all boards are done integrating
+                           {
+                               sharedImages[imgIdx].md->takingImage = 0;
+                               MKIDShmImage_postDoneSem(sharedImages + imgIdx, -1);
+                               #ifdef _DEBUG_OUTPUT
+                               clock_gettime(CLOCK_REALTIME, &stopSpec);
+                               nsElapsed = 1000000000*(stopSpec.tv_sec - startSpec.tv_sec);
+                               nsElapsed += (long)stopSpec.tv_nsec - startSpec.tv_nsec;
+                               printf("SharedImageWriter: done image at %lu\n", curTs);
+                               printf("SharedImageWriter: int time %lu\n", curTs-sharedImages[imgIdx].md->integrationTime);
+                               printf("SharedImageWriter: real time %ld ms\n", (nsElapsed)/1000000);
+                               printf("SharedImageWriter: Parse rate = %lu pkts/img. Data in buffer = %lu\n",pcount,oldbr); fflush(stdout);
+                               //printf("SharedImageWriter: forLoopIters %d\n", forLoopIters);
+                               //printf("SharedImageWriter: whileLoopIters %d\n", whileLoopIters);
+                               printf("SharedImageWriter: oldbr: %lu\n\n", oldbr);
+                               #endif
+                               pcount = 0;
+
+                           }
+                       
+                       }
+
+                  }
+	              //pStart = i*8;   // move start location for next packet	                      
+               }
+
+               bufReadInd += 8;
+               if(bufReadInd >= RINGBUF_SIZE){
+                   bufReadInd = 0;
+                   lastCycle += 1;
+
+               }
+           }
+
+        }                           
     }
 
     printf("SharedImageWriter: Freeing stuff\n");
-    free(olddata);
     free(boardNums);
     for(imgIdx=0; imgIdx<params->nSharedImages; imgIdx++)
         MKIDShmImage_close(sharedImages+imgIdx);
     free(sharedImages);
     free(doneIntegrating);
-    sem_close(streamSem);
     sem_close(quitSem);
 
     #ifdef _TIMING_TEST
@@ -365,143 +376,9 @@ void *shmImageWriter(void *prms)
 
 void *eventBuffWriter(void *prms)
 {
-    int64_t br,i,j,ret,imgIdx;
-    char data[1024];
-    char *olddata;
-    char packet[808*16];
-    struct timespec startSpec;
-    struct timespec stopSpec;
-    struct timeval tv;
-    unsigned long long sysTs;
-    long nsElapsed;
-    uint64_t oldbr = 0;     // number of bytes of unparsed data sitting in olddata
-    uint64_t pcount = 0;
-    STREAM_HEADER *hdr;
-    uint64_t swp,swp1;
-    READOUT_STREAM *rptr;
-    uint64_t pstart;
-
-    uint64_t curTs;
-    uint64_t prevTs;
-    uint16_t curRoachInd;
-    uint16_t prevRoachInd;
-    uint32_t *doneIntegrating; //Array of bitmasks (one for each image, bits are roaches)
-    uint32_t doneIntMask; //constant - each place value corresponds to a roach board
-    EVENT_BUFF_WRITER_PARAMS *params;
-    MKID_EVENT_BUFFER eventBuffer;
-    sem_t *quitSem;
-    sem_t *streamSem;
-
-    params = (EVENT_BUFF_WRITER_PARAMS*)prms; //cast param struct
-
-    if(params->cpu != -1)
-        ret = MaximizePriority(params->cpu);
-    printf("EventBuffWriter online.\n");
-
-
-    quitSem = sem_open(params->quitSemName, O_CREAT, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP, 0);
-    streamSem = sem_open(params->streamSemName, O_CREAT, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP, 0);
-    rptr = params->roachStream;
-    sem_post(streamSem);
-        
-    olddata = (char *) malloc(sizeof(char)*SHAREDBUF);
-    
-    memset(olddata, 0, sizeof(olddata[0])*2048);    // zero out array
-    memset(data, 0, sizeof(data[0]) * 1024);    // zero out array
-    memset(packet, 0, sizeof(packet[0]) * 808 * 2);    // zero out array
-
-    prevTs = 0;
-
-    #ifdef _TIMING_TEST
-    FILE *timeFile = fopen("timetestcb.txt", "w");
-    #endif
-
-    MKIDShmEventBuffer_open(&eventBuffer, params->bufferName);
-    MKIDShmEventBuffer_reset(&eventBuffer);
-
-    printf("EventBuffer done initializing\n");
-    curRoachInd = 0;
-    prevRoachInd = 0;
-
-    while (sem_trywait(quitSem) == -1)
-    {
-       // read in new data and parse it
-       sem_wait(streamSem);        
-       br = rptr->unread;
-       if( br%8 != 0 ) printf("Misalign in SharedImageWriter - %d\n",(int)br); 
-	   	    
-       if( br > 0) {               
-          // we may be in the middle of a packet so put together a full packet from old data and new data
-          // and only parse when the packet is complete
-
-          // append current data to existing data if old data is present
-          // NOTE !!!  olddata must start with a packet header
-          if( oldbr > 0 ) {
-             memmove(&olddata[oldbr],rptr->data,br);
-             oldbr+=br;
-             rptr->unread = 0;
-             if (oldbr > SHAREDBUF-2000) {
-                printf("oldbr = %d!  Dumping data!\n",(int)oldbr); fflush(stdout);
-                br = 0;
-                oldbr=0;          
-             }
-          } 
-          else {
-             memmove(olddata,rptr->data,br);
-             oldbr=br;          
-             rptr->unread = 0;     
-          }
-       }
-       sem_post(streamSem);  
-
-
-       // if there is data waiting, process it
-       pstart = 0;
-       if( oldbr >= 808 ) {       
-           // search the available data for a packet boundary
-           for( i=1; (uint64_t)i<oldbr/8; i++) {  
-               swp = *((uint64_t *) (&olddata[i*8]));
-               swp1 = __bswap_64(swp);
-               hdr = (STREAM_HEADER *) (&swp1);             
-
-               if (hdr->start == 0b11111111) {        // found new packet header!
-                   // fill packet and parse
-                   memmove(packet,&olddata[pstart],i*8 - pstart);
-                   prevRoachInd = curRoachInd;
-                   curRoachInd = 0;
-
-                   prevTs = curTs;
-                   curTs = (uint64_t)hdr->timestamp;
-
-                   #ifdef _TIMING_TEST
-                   gettimeofday(&tv, NULL);
-                   sysTs = (unsigned long long)(tv.tv_sec)*2000 + (unsigned long long)(tv.tv_usec)/500 - (unsigned long long)TSOFFS*2000;
-                   fprintf(timeFile, "%llu %llu %d\n", curTs, sysTs, hdr->roach);
-                   #endif
-
-                   addPacketToEventBuffer(&eventBuffer, packet,i*8 - pstart, hdr->timestamp, params->wavecal, params->nRows, params->nCols);
-		           pstart = i*8;   // move start location for next packet	                      
-
-              }
-          }
-
-	  // if there is data remaining save it for next run through
-          memmove(olddata,&olddata[pstart],oldbr-pstart);
-          oldbr = oldbr-pstart;          
-
-       }                           
-    }
-
-    printf("EventBufferWriter: Freeing stuff\n");
-    free(olddata);
-    sem_close(streamSem);
-    sem_close(quitSem);
-
-    #ifdef _TIMING_TEST
-    fclose(timeFile);
-    #endif
     printf("EventBufferWriter: Closing\n");
     return NULL;
+
 }
 
 void* reader(void *prms){
