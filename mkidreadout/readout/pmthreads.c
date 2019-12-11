@@ -92,8 +92,6 @@ int startEventBuffWriterThread(EVENT_BUFF_WRITER_PARAMS *rparams, THREAD_PARAMS 
 void *shmImageWriter(void *prms)
 {
     int64_t br,i,j,ret,imgIdx;
-    char data[1024];
-    char *olddata;
     char packet[808*16];
     struct timespec startSpec;
     struct timespec stopSpec;
@@ -104,8 +102,11 @@ void *shmImageWriter(void *prms)
     uint64_t pcount = 0;
     STREAM_HEADER *hdr;
     uint64_t swp,swp1;
-    READOUT_STREAM *rptr;
     uint64_t pstart;
+    RINGBUFFER *packBuf;
+    uint64_t bufReadInd = 0;
+    uint64_t lastCycle = 0;
+    int nUnread, maxNToRead;
 
     uint64_t curTs;
     uint64_t prevTs;
@@ -117,7 +118,6 @@ void *shmImageWriter(void *prms)
     SHM_IMAGE_WRITER_PARAMS *params;
     MKID_IMAGE *sharedImages;
     sem_t *quitSem;
-    sem_t *streamSem;
 
     params = (SHM_IMAGE_WRITER_PARAMS*)prms; //cast param struct
 
@@ -125,19 +125,15 @@ void *shmImageWriter(void *prms)
         ret = MaximizePriority(params->cpu);
     printf("SharedImageWriter online.\n");
 
+    packBuf = params->packBuf;
+
     doneIntMask = (1<<(params->nRoach))-1;
     printf("DONE INT MASK: %x\n", doneIntMask);
     printf("NROACH: %x\n", params->nRoach);
-    rptr = params->roachStream;
 
     quitSem = sem_open(params->quitSemName, O_CREAT, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP, 0);
-    streamSem = sem_open(params->streamSemName, O_CREAT, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP, 0);
-    sem_post(streamSem);
         
-    olddata = (char *) malloc(sizeof(char)*SHAREDBUF);
     
-    memset(olddata, 0, sizeof(olddata[0])*2048);    // zero out array
-    memset(data, 0, sizeof(data[0]) * 1024);    // zero out array
     memset(packet, 0, sizeof(packet[0]) * 808 * 2);    // zero out array
     boardNums = calloc(params->nRoach, sizeof(uint16_t));
 
@@ -167,39 +163,53 @@ void *shmImageWriter(void *prms)
 
     while (sem_trywait(quitSem) == -1)
     {
-       // read in new data and parse it
-       sem_wait(streamSem);        
-       br = rptr->unread;
-       if( br%8 != 0 ) printf("Misalign in SharedImageWriter - %d\n",(int)br); 
-	   	    
-       if( br > 0) {               
-          // we may be in the middle of a packet so put together a full packet from old data and new data
-          // and only parse when the packet is complete
+        nUnread = (RINGBUF_SIZE)*(packBuf->nCycles - lastCycle) + (int)packBuf->writeInd - bufReadInd;
 
-          // append current data to existing data if old data is present
-          // NOTE !!!  olddata must start with a packet header
-          if( oldbr > 0 ) {
-             memmove(&olddata[oldbr],rptr->data,br);
-             oldbr+=br;
-             rptr->unread = 0;
-             if (oldbr > SHAREDBUF-2000) {
-                printf("oldbr = %d!  Dumping data!\n",(int)oldbr); fflush(stdout);
-                br = 0;
-                oldbr=0;          
-             }
-          } 
-          else {
-             memmove(olddata,rptr->data,br);
-             oldbr=br;          
-             rptr->unread = 0;     
-          }
-       }
-       sem_post(streamSem);  
+        if(nUnread < 0)
+            printf("SharedImageWriter: nUnread < 0, unspecified glitch in ring buffer. Have fun!\n");
+        else if(nUnread > RINGBUF_SIZE){
+            printf("SharedImageWriter: Missed %d bytes\n", nUnread - RINGBUF_SIZE);
+            nUnread = RINGBUF_SIZE;
+            bufReadInd = (packBuf->writeInd + 1)%RINGBUF_SIZE;
+            lastCycle = packBuf->nCycles - 1;
+
+        }
+
+        //if(nUnread > (RINGBUF_SIZE - bufReadInd))
+        //    maxNToRead = RINGBUF_SIZE - bufReadInd;
+
+        //else
+        //    maxNToRead = nUnread;
+        
+        
+
+        //if(maxNToRead > 0) {               
+        //   // we may be in the middle of a packet so put together a full packet from old data and new data
+        //   // and only parse when the packet is complete
+
+        //   // append current data to existing data if old data is present
+        //   // NOTE !!!  olddata must start with a packet header
+        //   if( oldbr > 0 ) {
+        //      memmove(&olddata[oldbr],rptr->data,br);
+        //      oldbr+=br;
+        //      rptr->unread = 0;
+        //      if (oldbr > SHAREDBUF-2000) {
+        //         printf("oldbr = %d!  Dumping data!\n",(int)oldbr); fflush(stdout);
+        //         br = 0;
+        //         oldbr=0;          
+        //      }
+        //   } 
+        //   else {
+        //      memmove(olddata,rptr->data,br);
+        //      oldbr=br;          
+        //      rptr->unread = 0;     
+        //   }
+        //}
 
 
        // if there is data waiting, process it
        pstart = 0;
-       if( oldbr >= 808 ) {       
+       if(nUnread >= 808 ) {       
           // search the available data for a packet boundary
           for( i=1; (uint64_t)i<oldbr/8; i++) { 
               for(imgIdx=0; imgIdx<params->nSharedImages; imgIdx++)
@@ -498,13 +508,12 @@ void* reader(void *prms){
     //set up a socket connection
     struct sockaddr_in si_me, si_other;
     int s, ret, i;
-    unsigned char buf[BUFLEN];
     ssize_t nBytesReceived = 0;
     ssize_t nTotalBytes = 0;
-    READOUT_STREAM *rptrs;
+    size_t nBytesToReceive;
+    RINGBUFFER *packBuf;
     READER_PARAMS *params;
     sem_t *quitSem;
-    sem_t **streamSems;
     char streamSemName[80];
 
     params = (READER_PARAMS*) prms;
@@ -514,16 +523,10 @@ void* reader(void *prms){
 
     printf("READER: Connecting to Socket!\n"); fflush(stdout);
 
-    rptrs = params->roachStreamList; //pointer to list of stream buffers, assume this is allocated
+    packBuf = params->packBuf; //pointer to list of stream buffers, assume this is allocated
 
     //open semaphores
     quitSem = sem_open(params->quitSemName, O_CREAT, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP, 0);
-    streamSems = (sem_t**) malloc(params->nRoachStreams * sizeof(sem_t*));
-    for(i=0; i<params->nRoachStreams; i++){
-        snprintf(streamSemName, 80, "%s%d", params->streamSemBaseName, i);
-        streamSems[i] = sem_open(streamSemName, O_CREAT, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP, 0);
-    
-    }
         
 
     if ((s=socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP))==-1)
@@ -574,7 +577,13 @@ void* reader(void *prms){
         }
         #endif
 
-        nBytesReceived = recv(s, buf, BUFLEN, 0);
+        if((RINGBUF_SIZE - packBuf->writeInd) > BUFLEN)
+            nBytesToReceive = BUFLEN;
+        else 
+            nBytesToReceive = RINGBUF_SIZE - packBuf->writeInd;
+
+
+        nBytesReceived = recv(s, packBuf->data + packBuf->writeInd, nBytesToReceive, 0);
         //printf("read from socket %d %d!\n",nFrames, nBytesReceived); fflush(stdout);
         if (nBytesReceived == -1)
         {
@@ -588,7 +597,17 @@ void* reader(void *prms){
         }
         
         if (nBytesReceived == 0 ) continue;
-        
+
+        if((nBytesReceived + packBuf->writeInd) > RINGBUF_SIZE)
+            printf("READER: RINGBUFFER MEMORY OVERFLOW\n");
+        else if((nBytesReceived + packBuf->writeInd) == RINGBUF_SIZE){
+            packBuf->writeInd = 0;
+            packBuf->nCycles += 1;
+
+        }
+        else
+            packBuf->writeInd += 1;
+
         nTotalBytes += nBytesReceived;
         //printf("Received packet from %s:%d\nData: %s\n\n", 
         //        inet_ntoa(si_other.sin_addr), ntohs(si_other.sin_port), buf);
@@ -600,32 +619,12 @@ void* reader(void *prms){
 
         ++nFrames; 
 
-        //printf("read from socket %d %d!\n",nFrames, nBytesReceived);
-        
-        // write the socket data to shared memory
-        for(i=0; i<params->nRoachStreams; i++){
-            sem_wait(streamSems[i]);
-            if(rptrs[i].unread >= (SHAREDBUF - BUFLEN)) {
-                perror("Data overflow in reader.\n");
-
-            }
-
-            else{
-                memmove(&(rptrs[i].data[rptrs[i].unread]), buf, nBytesReceived);
-                rptrs[i].unread += nBytesReceived;
-            }
-            sem_post(streamSems[i]);
-
-        }
 
     }
 
     //fclose(dump_file);
     printf("received %ld frames, %ld bytes\n",nFrames,nTotalBytes);
     close(s);
-
-    for(i=0; i<params->nRoachStreams; i++)
-        sem_close(streamSems[i]);
 
     sem_close(quitSem);
 
@@ -645,7 +644,10 @@ void* binWriter(void *prms)
     FILE *wp;
     //char data[1024];
     char fname[120];
-    READOUT_STREAM *rptr;
+    RINGBUFFER *packBuf;
+    uint64_t bufReadInd = 0;
+    uint64_t lastCycle = 0;
+    int nUnread;
     BIN_WRITER_PARAMS *params;
     sem_t *quitSem;
     sem_t *streamSem;
@@ -654,17 +656,15 @@ void* binWriter(void *prms)
     if(params->cpu!=-1)
         ret = MaximizePriority(params->cpu);
 
+    packBuf = params->packBuf;
+
     wp = NULL;
 
     printf("Rev up the RAID array, WRITER is active!\n");
 
     quitSem = sem_open(params->quitSemName, O_CREAT, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP, 0);
-    streamSem = sem_open(params->streamSemName, O_CREAT, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP, 0);
-    sem_post(streamSem);
-
     
     // open shared memory block 1 for photon data
-    rptr = params->roachStream;
     
     //  Write looks for a file on /home/ramdisk named "START" which contains the write path.  
     //  If this file is present, enter writing mode
@@ -679,9 +679,9 @@ void* binWriter(void *prms)
     while (sem_trywait(quitSem) == -1){
        // keep the shared mem clean!       
        if( mode == 0 ) {
-          sem_wait(streamSem);
-	      rptr->unread = 0;
-	      sem_post(streamSem);
+           bufReadInd = packBuf->writeInd;
+           lastCycle = packBuf->nCycles;
+
        }
 
        if(mode == 0 && params->writing == 1) {
@@ -729,13 +729,36 @@ void* binWriter(void *prms)
              }
 
 	         // write all data in shared memory to disk
-	         if( rptr->unread > 8080 ) {
-	            sem_wait(streamSem);
-	            fwrite( rptr->data, 1, rptr->unread, wp);    // could probably speed this up by copying data to new array and doing the fwrite after setting busy to 0
-	            outcount += rptr->unread; 
-	            rptr->unread = 0;
-	            sem_post(streamSem);
-	         }
+             nUnread = (RINGBUF_SIZE)*(packBuf->nCycles - lastCycle) + (int)packBuf->writeInd - bufReadInd;
+             if(nUnread < 0)
+                 printf("Writer: nUnread < 0, unspecified glitch in ring buffer. Have fun!\n");
+             else if(nUnread > RINGBUF_SIZE){
+                 printf("Writer: Missed %d bytes\n", nUnread - RINGBUF_SIZE);
+                 nUnread = RINGBUF_SIZE;
+                 bufReadInd = (packBuf->writeInd + 1)%RINGBUF_SIZE;
+                 lastCycle = packBuf->nCycles - 1;
+
+             }
+             if(nUnread >= BINWRITER_CHUNKSIZE){
+                 if(BINWRITER_CHUNKSIZE >= (RINGBUF_SIZE - bufReadInd)){ //could write nUnread bytes instead..
+	                fwrite(packBuf->data + bufReadInd, 1, RINGBUF_SIZE - bufReadInd, wp);    	         
+	                fwrite(packBuf->data, 1, BINWRITER_CHUNKSIZE - (RINGBUF_SIZE - bufReadInd), wp);
+                    lastCycle += 1;
+                    bufReadInd = BINWRITER_CHUNKSIZE - (RINGBUF_SIZE - bufReadInd);
+
+                 }
+
+                else{
+	                   fwrite(packBuf->data + bufReadInd, 1, BINWRITER_CHUNKSIZE, wp);    	         
+                       bufReadInd += BINWRITER_CHUNKSIZE;
+
+                    }
+
+             }
+
+
+                
+
           }
        }
 
