@@ -163,14 +163,17 @@ void *shmImageWriter(void *prms)
     prevRoachInd = 0;
     pStartInd = 0;
     pStartCycle = 0;
-    bufReadInd = 8; // first pack is header
+    bufReadInd = 0; // first pack is header
 
     while (sem_trywait(quitSem) == -1)
     {
         nUnread = (RINGBUF_SIZE)*(packBuf->nCycles - lastCycle) + (int)packBuf->writeInd - bufReadInd;
 
-        if(nUnread < 0)
-            printf("SharedImageWriter: nUnread < 0, unspecified glitch in ring buffer. Have fun!\n");
+        if((nUnread + 8) < 0){
+            printf("SharedImageWriter: nUnread < 0, unspecified glitch in ring buffer. Have fun! nUnread: %d writeInd: %d nCycles: %d\n", nUnread, packBuf->writeInd, packBuf->nCycles);
+            printf("    bufReadInd: %d lastCycle %d\n", bufReadInd, lastCycle);
+
+        }
         else if(nUnread > RINGBUF_SIZE){
             printf("SharedImageWriter: Missed %d bytes\n", nUnread - RINGBUF_SIZE);
             nUnread = RINGBUF_SIZE;
@@ -483,7 +486,7 @@ void* reader(void *prms){
 
         }
         else
-            packBuf->writeInd += 1;
+            packBuf->writeInd += nBytesReceived;
 
         nTotalBytes += nBytesReceived;
         //printf("Received packet from %s:%d\nData: %s\n\n", 
