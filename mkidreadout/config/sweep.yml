@@ -11,7 +11,7 @@ beammap: !configdict
     stage2_bmaps: '20191211_stage2_FL{}.txt'  # {date}_stage2_FL{x}.txt
     stage3_bmap: '20191211_stage3.txt'  # {date}_stage3.txt
     stage4_bmap: '20191211_stage4.txt'  # {date}_stage4.txt
-    stage5_bmap: '20191211_stage5.bmap'  # {date}_stage5.bmap
+    final_bmap: '20191211_final.bmap'  # {date}_final.bmap
 
   instrument: MEC
   flip: False

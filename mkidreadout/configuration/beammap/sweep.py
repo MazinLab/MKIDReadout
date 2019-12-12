@@ -1,5 +1,5 @@
 """
-#Todo update the wiki
+#Todo implement handling of unused feedlines in combo
 
 Author: Alex Walter, Rupert Dodkins
 Date: Dec 11, 2019
@@ -16,7 +16,7 @@ resID   flag    time_x  time_y
 
 2) --manual {#fl} opens the GUI for the user to check the location and apply the relevant flags
 
-3) --combo simply takes the relevant FL from each file and combines them
+3) --combo takes the relevant FL from each file and combines them
 
 4) --align see top of aligngrid.py
 
@@ -992,10 +992,16 @@ class TemporalBeammap():
 
     def combineClicked(self):
         """
-        Concatenate all relevant info from FL files after they've been verified by a human, and output to file masterTemporalBeammap
+        Concatenate all relevant info from FL files after they've been verified by a human, and output to file
+        stage3_bmap
 
-        :return:
-        masterTemporalBeammap a .bmap file containing the contents of all the manual clickthroughs
+        Currently, for unused feedlines duplicate and rename each one eg stage1_bmap_FL2.txt -> stage2_bmap_FL2.txt,
+        run --combo, and then in stage3_bmap swap those feedlines for their equivalent data with the noDacTone flag
+        applied from one of the stage1_bmap_FL{}.txt files.
+
+        Return
+        ------
+            stage3_bmap a .txt file containing the contents of all the manual clickthroughs
         """
 
         stage3_bmap = os.path.join(self.beammapdirectory, self.config.beammap.filenames.stage3_bmap)

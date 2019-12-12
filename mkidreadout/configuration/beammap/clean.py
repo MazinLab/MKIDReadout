@@ -390,7 +390,7 @@ def main(config):
 
     beammapDirectory = config.paths.beammapdirectory
     alignedbeammap = os.path.join(beammapDirectory, config.beammap.filenames.stage4_bmap)
-    quantizedbeammap = os.path.join(beammapDirectory, config.beammap.filenames.stage5_bmap)
+    finalbeammap = os.path.join(beammapDirectory, config.beammap.filenames.final_bmap)
     designFile = config.beammap.clean.designmapfile
 
     useFreqs = config.beammap.clean.usefreqs
@@ -422,11 +422,11 @@ def main(config):
     if useFreqs:
         cleaner.resolveOverlapWithFrequency()
         cleaner.placeFailedPixels()
-        cleaner.saveBeammap(quantizedbeammap)
+        cleaner.saveBeammap(finalbeammap)
     else:
         cleaner.resolveOverlaps()
         cleaner.placeFailedPixels()
-        cleaner.saveBeammap(quantizedbeammap)
+        cleaner.saveBeammap(finalbeammap)
 
     fig2 = plt.figure()
     ax2 = fig2.add_subplot(111)
