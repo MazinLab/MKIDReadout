@@ -33,7 +33,7 @@ class Solution(object):
     def cfg(self):
         return self._cfg
 
-    @cfg.seterr
+    @cfg.setter
     def cfg(self, config):
         self._cfg = config
         for resonator in self.resonators:
