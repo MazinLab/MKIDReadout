@@ -56,11 +56,7 @@ def map_async_progress(pool, func, iterable, callback=None, error_callback=None,
     progress = progress and HAS_PB
     if progress:
         ii = 0
-        percentage = pb.Percentage()
-        bar = pb.Bar()
-        timer = pb.Timer()
-        eta = pb.ETA()
-        pbar = pb.ProgressBar(widgets=[percentage, bar, '  (', timer, ') ', eta, ' '], max_value=len(iterable)).start()
+        pbar = setup_progress(iterable)
 
         def update(*args):
             if callback is not None:
@@ -86,3 +82,12 @@ def map_progress(pool, *args, **kwargs):
 class MapResult(list):
     def get(self, *args, **kwargs):
         return [r.get(*args, **kwargs) for r in self]
+
+
+def setup_progress(iterable):
+    percentage = pb.Percentage()
+    bar = pb.Bar()
+    timer = pb.Timer()
+    eta = pb.ETA()
+    pbar = pb.ProgressBar(widgets=[percentage, bar, '  (', timer, ') ', eta, ' '], max_value=len(iterable)).start()
+    return pbar
