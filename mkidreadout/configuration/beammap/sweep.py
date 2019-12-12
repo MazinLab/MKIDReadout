@@ -920,13 +920,15 @@ class TemporalBeammap():
     def loadSweepBins(self, s, get_phases=True):
         """
 
-        :param s:
+        :param s: configdict!
+            object containing single sweep info
         :param get_phases: bool
-            Tell bin2img to retrieve the phase images or just return an empty array (much faster)
+            Make phase images in addition to the intensity images (much slower)
         :return:
         """
         cachefile = os.path.join(self.beammapdirectory,
-                                 '_beamcache_{}{}_phase={}.npz'.format(s.starttime, s.duration, get_phases))
+                                 self.config.beammap.sweep.cachename.format(s.starttime, s.duration, get_phases))
+
         try:
             images = np.load(cachefile)
             msg = 'Restored sweep images for {} s starting at {} from {}'
@@ -956,9 +958,6 @@ class TemporalBeammap():
 
         np.savez(cachefile, images)
 
-        # for image in images:
-        #     plt.imshow(image)
-        #     plt.show(block=True)
         return images
 
     def manualSweepCleanup(self, feedline):
@@ -1064,7 +1063,7 @@ if __name__ == '__main__':
     elif args.use_combo:  # Combine clicked FL beam files
         b.combineClicked()
     elif args.align:
-        aligner = bmap_align.BMAligner(os.path.join(config.paths.beammapdirectory, config.beammap.filenames.stage3_bmap),
+        aligner = bmap_align.BMAligner(config.paths.beammapdirectory, config.beammap.filenames.stage3_bmap, config.beammap.align.cachename,
                                        config.beammap.numcols, config.beammap.numrows, config.beammap.instrument, config.beammap.flip)
         aligner.makeTemporalImage()
         aligner.loadFFT()
