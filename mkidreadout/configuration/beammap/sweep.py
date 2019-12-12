@@ -1,4 +1,6 @@
 """
+#Todo update the docs
+
 Author: Alex Walter
 Date: June 5, 2018
 
@@ -14,7 +16,7 @@ resID   flag    loc_x   loc_y
 
 Classes in this file:
 BeamSweep1D(imageList, pixelComputationMask=None, minCounts=5, maxCountRate=2499)
-ManualTemporalBeammap(x_images, y_images, initialbeammap, temporalBeammapFN)
+ManualTemporalBeammap(x_images, y_images, initial_bmap, stage1_bmap, stage2_bmap)
 TemporalBeammap(configFN)
 BeamSweepGaussFit(imageList, initialGuessImage)
 
@@ -72,7 +74,6 @@ def bin2img((binfile, nrows, ncols)):
     intensitymap = np.histogram2d(photons['y'], photons['x'], bins=[range(nrows + 1), range(ncols + 1)])[0]
 
     return intensitymap
-
 
 
 class FitBeamSweep(object):
@@ -270,18 +271,19 @@ class CorrelateBeamSweep(object):
 
 
 class ManualTemporalBeammap(object):
-    def __init__(self, x_images, y_images, initialBeammap, temporalBeammapFN, fitType = None,
-                 xp_images = None, yp_images=None, clicked_epilog='_clicked'):
+    def __init__(self, x_images, y_images, initial_bmap, stage1_bmap, stage2_bmap, fitType = None,
+                 xp_images = None, yp_images=None):
         """
         Class for manually clicking through beammap.
+        #todo update docs
         Saves a temporal beammap with filename temporalBeammapFN-HHMMSS.txt
         A 'temporal' beammap is one that doesn't have x/y but instead the peak location in time from the swept light beam.
 
         INPUTS:
             x_images - list of images for sweep(s) in x-direction
             y_images -
-            initialBeammap - path+filename of initial beammap used for making the images
-            temporalBeammapFN - path+filename of the temporal beammap (time at peak instead of x/y value)
+            initial_bmap - path+filename of initial beammap used for making the images
+            stage1_bmap - path+filename of the temporal beammap (time at peak instead of x/y value)
                              If the temporalBeammap doesn't exist then it will be instantiated with nans
                              We append a timestamp to this string as the output file
             fitType - Type of fit to use when finding exact peak location from click. Current options are
@@ -295,16 +297,16 @@ class ManualTemporalBeammap(object):
         self.nTime_y = len(self.y_images)
         self.goodregion = []  # corner coordinates
 
-        self.initialBeammapFN = initialBeammap
-        self.temporalBeammapFN = temporalBeammapFN
+        self.initial_bmap = initial_bmap  # mec.bmap
+        self.stage1_bmap = stage1_bmap
+        self.stage2_bmap = stage2_bmap
 
-        self.outputBeammapFn = temporalBeammapFN.rsplit('.', 1)[0] + clicked_epilog +'.bmap'
-        if os.path.isfile(self.outputBeammapFn):
-            self.temporalBeammapFN = self.outputBeammapFn
-        self.resIDsMap, self.flagMap, self.x_loc, self.y_loc = bmu.shapeBeammapIntoImages(self.initialBeammapFN,
-                                                                                      self.temporalBeammapFN)
+        if os.path.isfile(self.stage2_bmap):  # has a clicked file already been made? Load that instead
+            self.stage1_bmap = self.stage2_bmap
+        self.resIDsMap, self.flagMap, self.x_loc, self.y_loc = bmu.shapeBeammapIntoImages(self.initial_bmap,
+                                                                                          self.stage1_bmap)
         self.flagMap[np.all(self.x_images==0, axis=0) | np.all(self.y_images==0, axis=0)] = beamMapFlags['noDacTone']
-        if self.temporalBeammapFN is None or not os.path.isfile(self.temporalBeammapFN):
+        if self.stage1_bmap is None or not os.path.isfile(self.stage1_bmap):
             self.flagMap[np.where(self.flagMap != beamMapFlags['noDacTone'])] = beamMapFlags['failed']
 
         self.fitType = fitType.lower()
@@ -323,14 +325,14 @@ class ManualTemporalBeammap(object):
         plt.show()
 
     def saveTemporalBeammap(self):
-        getLogger('Sweep').info('Saving: '.format(self.outputBeammapFn))
+        getLogger('Sweep').info('Saving: {}'.format(self.stage2_bmap))
         allResIDs = self.resIDsMap.flatten()
         flags = self.flagMap.flatten()
         x = self.x_loc.flatten()
         y = self.y_loc.flatten()
         args = np.argsort(allResIDs)
         data = np.asarray([allResIDs[args], flags[args], x[args], y[args]]).T
-        np.savetxt(self.outputBeammapFn, data, fmt='%7d %3d %7f %7f')
+        np.savetxt(self.stage2_bmap, data, fmt='%7d %3d %7f %7f')
 
     def plotTimestream(self):
         self.fig_time, (self.ax_time_x, self.ax_time_y) = plt.subplots(2)
@@ -672,6 +674,11 @@ class TemporalBeammap():
         self.xp_images = None
         self.yp_images = None
 
+        self.beammapdirectory = self.config.paths.beammapdirectory
+        self.initial_bmap = self.config.beammap.filenames.initial_bmap
+        self.stage1_bmaps = self.config.beammap.filenames.stage1_bmaps
+        self.stage2_bmaps = self.config.beammap.filenames.stage2_bmaps
+
     def stackImages(self, sweepType, median=True):
 
         sweepType = sweepType.lower()
@@ -739,7 +746,7 @@ class TemporalBeammap():
         for s in self.config.beammap.sweep.sweeps:
             if s.sweeptype in sweepType:
                 getLogger('Sweep').info('loading: ' + str(s))
-                # phase info not used in step 1 but may as well make the cache by default for later steps
+                # phase info used by later steps so include phase data in the created cache
                 imList = self.loadSweepBins(s, get_phases=True).astype(np.float)[:, 0]
                 if removeBkg:
                     bkgndList = np.median(imList, axis=0)
@@ -775,7 +782,7 @@ class TemporalBeammap():
         """
         imageList = self.concatImages(sweepType)
         dur = [s.duration for s in self.config.beammap.sweep.sweeps if s.sweeptype in sweepType.lower()]
-        # FLMap = getFLMap(self.config.beammap.sweep.initialbeammap)
+        # FLMap = getFLMap(self.config.beammap.sweep.initial_bmap)
 
         sweep = CorrelateBeamSweep(imageList, pixelComputationMask)
         locs = sweep.findRelativePixelLocations(locLimit=dur[0])
@@ -858,11 +865,11 @@ class TemporalBeammap():
 
         getLogger('Sweep').info('Saving')
 
-        if self.config.paths.initialbeammap is not None:
-            initial = os.path.join(self.config.paths.beammapdirectory, self.config.paths.initialbeammap)
+        if self.initial_bmap is not None:
+            initial = os.path.join(self.beammapdirectory, self.initial_bmap)
         else:
             initial = Beammap(default=self.config.beammap.instrument).file
-        temporal = os.path.join(self.config.paths.beammapdirectory, self.config.paths.temporalbeammap)
+        temporal = os.path.join(self.beammapdirectory, self.stage1_bmaps)
 
         allResIDs_map, flag_map, x_map, y_map = bmu.shapeBeammapIntoImages(initial, temporal)
         otherFlagArgs = np.where((flag_map != beamMapFlags['good']) * (flag_map != beamMapFlags['failed']) * (
@@ -888,37 +895,37 @@ class TemporalBeammap():
         y = y_map.flatten()
         args = np.argsort(allResIDs)
         data = np.asarray([allResIDs[args], flags[args], x[args], y[args]]).T
-        outfile = os.path.join(self.config.paths.beammapdirectory, self.config.paths.temporalbeammap)
 
         if split_feedlines:
             for fl in range(1, self.config.beammap.numfeedlines + 1):
-                FL_filename = self.get_FL_filename(fl)
+                FL_filename = self.get_FL_filename(self.stage1_bmaps, fl)
                 log.info('Saving FL%i data in %s' % (fl, FL_filename))
                 args = np.int_(data[:, 0] / 10000) != fl  # identify resonators for feedline fl
                 FL_data = data*1
                 FL_data[args, 1] = beamMapFlags['noDacTone']
                 np.savetxt(FL_filename, FL_data, fmt='%7d %3d %7f %7f')
         else:
-            np.savetxt(outfile, data, fmt='%7d %3d %7f %7f')
+            outfile = self.get_FL_filename(self.stage1_bmaps, 'all')
+            np.savetxt(outfile.format('all'), data, fmt='%7d %3d %7f %7f')
 
     def loadTemporalBeammap(self):
-        if self.config.paths.initialbeammap is not None:
-            initial = os.path.join(self.config.paths.beammapdirectory, self.config.paths.initialbeammap)
+        if self.initial_bmap is not None:
+            initial = os.path.join(self.beammapdirectory, self.initial_bmap)
         else:
             initial = Beammap(default=self.config.beammap.instrument).file
-        temporal = os.path.join(self.config.paths.beammapdirectory, self.config.paths.temporalbeammap)
+        temporal = os.path.join(self.beammapdirectory, self.stage1_bmaps)
 
-        allResIDs_map, flag_map, self.x_locs, self.y_locs = bmu.shapeBeammapIntoImages(initial, temporal)
+        _, _, self.x_locs, self.y_locs = bmu.shapeBeammapIntoImages(initial, temporal)
 
     def loadSweepBins(self, s, get_phases=True):
         """
-        todo verify cache works correctly after name change
+
         :param s:
         :param get_phases: bool
             Tell bin2img to retrieve the phase images or just return an empty array (much faster)
         :return:
         """
-        cachefile = os.path.join(self.config.paths.beammapdirectory,
+        cachefile = os.path.join(self.beammapdirectory,
                                  '_beamcache_{}{}_phase={}.npz'.format(s.starttime, s.duration, get_phases))
         try:
             images = np.load(cachefile)
@@ -955,24 +962,22 @@ class TemporalBeammap():
         return images
 
     def manualSweepCleanup(self, feedline):
-        if self.config.paths.initialbeammap is None:
-            initialbeammap = Beammap(default=self.config.beammap.instrument).file
+        if self.initial_bmap is None:
+            initial_bmap = Beammap(default=self.config.beammap.instrument).file
         else:
-            initialbeammap = os.path.join(self.config.paths.beammapdirectory, self.config.paths.initialbeammap)
+            initial_bmap = os.path.join(self.beammapdirectory, self.initial_bmap)
 
-        toClickbeammap = self.get_FL_filename(feedline)
-        getLogger('Sweep').info('toClick: {}'.format(toClickbeammap))
-        m = ManualTemporalBeammap(self.x_images, self.y_images, initialbeammap, toClickbeammap,
-                                  self.config.beammap.sweep.fittype, self.xp_images, self.yp_images,
-                                  clicked_epilog=self.config.paths.clicked_epilog)
+        stage1_bmap = self.get_FL_filename(self.stage1_bmaps, feedline)
+        stage2_bmap = self.get_FL_filename(self.stage2_bmaps, feedline)
+        getLogger('Sweep').info('beammap to click: {}'.format(stage1_bmap))
+        m = ManualTemporalBeammap(self.x_images, self.y_images, initial_bmap, stage1_bmap, stage2_bmap,
+                                  self.config.beammap.sweep.fittype, self.xp_images, self.yp_images)
 
-    def get_FL_filename(self, FL):
-        path = self.config.paths.beammapdirectory
-        name, extension = self.config.paths.temporalbeammap.split('.')
-        rough_loc = name.find('-xcor')
-        if rough_loc != -1:  # if the filename has this str at then end replace with FLx
-            name = name[:rough_loc]
-        return os.path.join(path, name + '_FL%s.' % FL + extension)
+    def get_FL_filename(self, fn, FL):
+        path = self.beammapdirectory
+        name, extension = fn.split('.')
+        name = name.format(FL)
+        return os.path.join(path, '.'.join([name, extension]))
 
     def combineClicked(self):
         """
@@ -982,18 +987,17 @@ class TemporalBeammap():
         masterTemporalBeammap a .bmap file containing the contents of all the manual clickthroughs
         """
 
-        mastertemporalbeammap = os.path.join(self.config.paths.beammapdirectory, self.config.paths.mastertemporalbeammap)
+        stage3_bmap = os.path.join(self.beammapdirectory, self.config.beammap.filenames.stage3_bmap)
 
-        filenames = [self.get_FL_filename(str(fl).split('.')[0]+str(self.config.paths.clicked_epilog))
-                     for fl in range(1, self.config.beammap.numfeedlines+1)]
+        filenames = [self.get_FL_filename(self.stage2_bmaps, fl) for fl in range(1, self.config.beammap.numfeedlines+1)]
 
-        masterfile = open(mastertemporalbeammap,'a')
+        masterfile = open(stage3_bmap,'a')
         for fl, fname in enumerate(filenames, 1):
             FL_data = np.loadtxt(fname)
             args = np.int_(FL_data[:, 0] / 10000) == fl
             np.savetxt(masterfile, FL_data[args], fmt='%7d %3d %7f %7f')
 
-        log.info('Combined contents of the clicked FL beammaps to %s' % mastertemporalbeammap)
+        log.info('Combined contents of the clicked FL beammaps to {}'.format(stage3_bmap))
 
     def plotTimestream(self):
         pass
@@ -1060,8 +1064,7 @@ if __name__ == '__main__':
     elif args.use_combo:  # Combine clicked FL beam files
         b.combineClicked()
     elif args.align:
-        log.info('Using "{}" for masterdoubleslist'.format(config.paths.masterdoubleslist))
-        aligner = bmap_align.BMAligner(os.path.join(config.paths.beammapdirectory, config.paths.mastertemporalbeammap),
+        aligner = bmap_align.BMAligner(os.path.join(config.paths.beammapdirectory, config.beammap.filenames.stage3_bmap),
                                        config.beammap.numcols, config.beammap.numrows, config.beammap.instrument, config.beammap.flip)
         aligner.makeTemporalImage()
         aligner.loadFFT()
@@ -1070,9 +1073,9 @@ if __name__ == '__main__':
         aligner.rotateAndScaleCoords()
         aligner.findOffset(50000)
         aligner.plotCoords()
-        aligner.saveTemporalMap(os.path.join(config.paths.beammapdirectory, config.paths.alignedbeammap))
-        if config.paths.masterdoubleslist is not None:
-            aligner.makeDoublesTemporalMap(os.path.join(config.paths.beammapdirectory, config.paths.masterdoubleslist),
-                                           os.path.join(config.paths.beammapdirectory, config.paths.outputdoublename))
+        aligner.saveTemporalMap(os.path.join(config.paths.beammapdirectory, config.beammap.filenames.stage4_bmap))
+        # if config.paths.masterdoubleslist is not None:
+        #     aligner.makeDoublesTemporalMap(os.path.join(config.paths.beammapdirectory, config.paths.masterdoubleslist),
+        #                                    os.path.join(config.paths.beammapdirectory, config.paths.outputdoublename))
     elif args.clean:
         bmap_clean.main(config)

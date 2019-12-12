@@ -388,9 +388,9 @@ class BMCleaner(object):
 def main(config):
 
     beammapDirectory = config.paths.beammapdirectory
-    quantizedbeammap = os.path.join(beammapDirectory, config.paths.quantizedbeammap)
-    alignedbeammap = os.path.join(beammapDirectory, config.paths.alignedbeammap)
-    designFile = config.paths.designmapfile
+    alignedbeammap = os.path.join(beammapDirectory, config.beammap.filenames.stage4_bmap)
+    quantizedbeammap = os.path.join(beammapDirectory, config.beammap.filenames.stage5_bmap)
+    designFile = config.beammap.clean.designmapfile
 
     useFreqs = config.beammap.clean.usefreqs
     psFiles = config.beammap.clean.psfiles

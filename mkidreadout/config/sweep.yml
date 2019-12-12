@@ -1,19 +1,17 @@
 !configdict
 paths: !configdict
-  bin: /home/data/ScienceData/Subaru/20191204/
-  beammapDirectory: /home/data/MEC/20191204/sweep/  # The location of the intermediate and final beammap files
-  initialBeammap:   # flags all = 0. resID and row/col pixel nums all monotonically increase None to use the default for instrument
-  # resID has associated times (not row col ints yet) (formerly roughbeammap) This is the stage 1 output file
-  temporalBeammap: beammap_20191204_stage1.bmap
-  masterTemporalBeammap: beammap_20191204_stage1_copy.bmap  # input for aligngrid. Concatenation of many feedlines manually clicked
-  masterDoublesList:   #leave empty for case None
-  alignedBeammap: RawMap20191204.txt  #aligned flagged beam map in pixel units. This is the stage 2 output
-  outputDoubleName:   #leave empty for case None
-  designMapFile: /home/data/MEC/20191204/mec_feedline.txt
-  quantizedBeammap: finalMapV1_1.txt  # quantized beammap
-  clicked_epilog: _clicked
+  bin: /mnt/data0/ScienceData/Subaru/20191204/
+  beammapdirectory: /mnt/data0/MEC/20191211/  # The location of the intermediate and final beammap files
 
 beammap: !configdict
+
+  filenames: !configdict
+    initial_bmap:  # default mec.bmap in MKIDCore/mkidcore
+    stage1_bmaps: '20191211_stage1_FL{}.txt'  # {date}_stage1_FL{x}.txt
+    stage2_bmaps: '20191211_stage2_FL{}.txt'  # {date}_stage2_FL{x}.txt
+    stage3_bmap: '20191211_stage3.txt'  # {date}_stage3.txt
+    stage4_bmap: '20191211_stage4.txt'  # {date}_stage4.txt
+    stage5_bmap: '20191211_stage5.bmap'  # {date}_stage5.bmap
 
   instrument: 'MEC'
   numCols: 140
@@ -21,7 +19,7 @@ beammap: !configdict
   flip: False
   numfeedlines: 10
 
-  ncpu: 6
+  ncpu: 12
 
   sweep: !configdict
     fittype: gaussian
@@ -78,5 +76,6 @@ beammap: !configdict
 
   clean: !configdict
     usefreqs: False
+    designMapFile: /home/data/MEC/20191204/mec_feedline.txt
     psFiles: /home/data/MEC/20191204/data/psData_*clipped.txt
 

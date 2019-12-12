@@ -36,7 +36,7 @@ from mkidreadout.configuration.beammap.utils import DARKNESS_FL_WIDTH, MEC_FL_WI
 
 
 class BMAligner(object):
-    def __init__(self, beamListFn, nXPix, nYPix, instrument, flip=False, usFactor=50):
+    def __init__(self, beamListFn, nXPix, nYPix, instrument, flip=False, usFactor=50, suffix='_temporalImageFFT.npz'):
         self.beamListFn = beamListFn
         self.usFactor = usFactor
         self.nXPix = nXPix
@@ -48,7 +48,7 @@ class BMAligner(object):
         self.temporalImage = None
         self.temporalImageFFT = None
         self.temporalImageFreqs = None
-        self.temporalImageFFTFile = beamListFn.split('.')[0] + '_temporalImageFFT.npz'
+        self.temporalImageFFTFile = beamListFn.split('.')[0] + suffix
 
         if instrument.lower()=='mec':
             self.flWidth = MEC_FL_WIDTH
