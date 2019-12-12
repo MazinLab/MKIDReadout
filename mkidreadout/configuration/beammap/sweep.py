@@ -1,18 +1,26 @@
 """
-#Todo update the docs
+#Todo update the wiki
 
-Author: Alex Walter
-Date: June 5, 2018
+Author: Alex Walter, Rupert Dodkins
+Date: Dec 11, 2019
 
-This file contains classes and functions used to create a temporal beammap
-A temporal beammap is the following format:
-resID   flag    time_x  time_y
-[int    int     float   float]
-
-A regular beammap is:
+This file contains all the calls to create a beammap file with format:
 resID   flag    loc_x   loc_y
 [int    int     int     int]
 
+This is accomplished in 5 stages.
+
+1) --xcor or --simple-locate creates an unverified temporal beammap split across the number of feedlines with format:
+resID   flag    time_x  time_y
+[int    int     float   float]
+
+2) --manual {#fl} opens the GUI for the user to check the location and apply the relevant flags
+
+3) --combo simply takes the relevant FL from each file and combines them
+
+4) --align see top of aligngrid.py
+
+5) --clean see top of clean.py
 
 Classes in this file:
 BeamSweep1D(imageList, pixelComputationMask=None, minCounts=5, maxCountRate=2499)
@@ -22,10 +30,9 @@ BeamSweepGaussFit(imageList, initialGuessImage)
 
 Usage:
     From the commandline:
-    $ python sweep.py sweep.cfg [-cc]
+    $ python sweep.py [sweep.cfg] <stage>
 
-    The optional -cc option will run the crosscorellation and create a new temporal beammap
-    Otherwise, it will run the manual click GUI
+$ python sweep.py --help  #for details on calling the different steps
 
 """
 
@@ -275,7 +282,6 @@ class ManualTemporalBeammap(object):
                  xp_images = None, yp_images=None):
         """
         Class for manually clicking through beammap.
-        #todo update docs
         Saves a temporal beammap with filename temporalBeammapFN-HHMMSS.txt
         A 'temporal' beammap is one that doesn't have x/y but instead the peak location in time from the swept light beam.
 
@@ -285,7 +291,10 @@ class ManualTemporalBeammap(object):
             initial_bmap - path+filename of initial beammap used for making the images
             stage1_bmap - path+filename of the temporal beammap (time at peak instead of x/y value)
                              If the temporalBeammap doesn't exist then it will be instantiated with nans
-                             We append a timestamp to this string as the output file
+                             Flags set to noDacTone (currently 1) will be skipped. b.saveTemporalBeammap() will produce
+                             a series of files with all but one FL flagged to noDacTone
+
+            stage2_bmap  - output file
             fitType - Type of fit to use when finding exact peak location from click. Current options are
                              com and gaussian. Ignored if None (default).
         """
