@@ -22,6 +22,7 @@ import numpy as np
 
 from mkidcore.objects import Beammap
 from mkidcore.config import load
+from mkidcore.instruments import DEFAULT_ARRAY_SIZES
 from mkidreadout.configuration.beammap import shift
 from mkidreadout.configuration.beammap.flags import beamMapFlags
 from mkidreadout.configuration.beammap.utils import generateCoords, getFLFromCoords, getFLFromID, isInCorrectFL, \
@@ -395,12 +396,11 @@ def main(config):
     useFreqs = config.beammap.clean.usefreqs
     psFiles = config.beammap.clean.psfiles
 
-    numRows = config.beammap.numrows
-    numCols = config.beammap.numcols
+    numCols, numRows = DEFAULT_ARRAY_SIZES[config.beammap.instrument.lower()]
     flipParam = False #config.beammap.flip ... we've fixed in aligngrid
     inst = config.beammap.instrument
 
-    rawBeamMap = Beammap(alignedbeammap, (146, 140), 'MEC')
+    rawBeamMap = Beammap(alignedbeammap, (numRows, numCols), 'MEC')
     if useFreqs:
         rawBeamMap.loadFrequencies(psFiles)
         cleaner = BMCleaner(beamMap=rawBeamMap, nRows=numRows, nCols=numCols,

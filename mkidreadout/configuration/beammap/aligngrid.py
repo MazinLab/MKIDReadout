@@ -28,6 +28,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import scipy.ndimage as sciim
 
+from mkidcore.instruments import DEFAULT_ARRAY_SIZES
 from mkidcore.config import load
 from mkidcore.corelog import getLogger
 from mkidreadout.configuration.beammap.flags import beamMapFlags
@@ -36,11 +37,9 @@ from mkidreadout.configuration.beammap.utils import DARKNESS_FL_WIDTH, MEC_FL_WI
 
 
 class BMAligner(object):
-    def __init__(self, beamdir, beamListFn, cachename, nXPix, nYPix, instrument, flip=False, usFactor=50):
+    def __init__(self, beamdir, beamListFn, cachename, instrument, flip=False, usFactor=50):
         self.beamListFn = os.path.join(beamdir, beamListFn)
         self.usFactor = usFactor
-        self.nXPix = nXPix
-        self.nYPix = nYPix
         self.instrument = instrument.lower()
         self.flip = flip
         self.resIDs, self.flags, self.temporalXs, self.temporalYs = np.loadtxt(self.beamListFn, unpack=True)
@@ -49,6 +48,8 @@ class BMAligner(object):
         self.temporalImageFFT = None
         self.temporalImageFreqs = None
         self.temporalImageFFTFile = os.path.join(beamdir, cachename)
+
+        self.nXPix, self.nYPix = DEFAULT_ARRAY_SIZES[config.beammap.instrument.lower()]
 
         if instrument.lower()=='mec':
             self.flWidth = MEC_FL_WIDTH

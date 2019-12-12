@@ -13,11 +13,8 @@ beammap: !configdict
     stage4_bmap: '20191211_stage4.txt'  # {date}_stage4.txt
     stage5_bmap: '20191211_stage5.bmap'  # {date}_stage5.bmap
 
-  instrument: 'MEC'
-  numCols: 140
-  numRows: 146
+  instrument: MEC
   flip: False
-  numfeedlines: 10
 
   ncpu: 12
 

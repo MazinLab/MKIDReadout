@@ -43,7 +43,7 @@ from mkidcore.config import load
 from mkidcore.corelog import getLogger, create_log
 from mkidcore.hdf.mkidbin import parse
 from mkidcore.objects import Beammap
-
+from mkidcore.instruments import DEFAULT_ARRAY_SIZES, MEC_FEEDLINE_INFO, DARKNESS_FEEDLINE_INFO
 
 import mkidreadout.config
 from mkidreadout.configuration.beammap import aligngrid as bmap_align
@@ -674,10 +674,13 @@ class TemporalBeammap():
         self.xp_images = None
         self.yp_images = None
 
-        self.beammapdirectory = self.config.paths.beammapdirectory
-        self.initial_bmap = self.config.beammap.filenames.initial_bmap
-        self.stage1_bmaps = self.config.beammap.filenames.stage1_bmaps
-        self.stage2_bmaps = self.config.beammap.filenames.stage2_bmaps
+        self.beammapdirectory = config.paths.beammapdirectory
+        self.initial_bmap = config.beammap.filenames.initial_bmap
+        self.stage1_bmaps = config.beammap.filenames.stage1_bmaps
+        self.stage2_bmaps = config.beammap.filenames.stage2_bmaps
+
+        self.numcols, self.numrows = DEFAULT_ARRAY_SIZES[config.beammap.instrument.lower()]
+        self.numfeed = eval(config.beammap.instrument.upper()+'_FEEDLINE_INFO')['num']
 
     def stackImages(self, sweepType, median=True):
 
@@ -897,7 +900,7 @@ class TemporalBeammap():
         data = np.asarray([allResIDs[args], flags[args], x[args], y[args]]).T
 
         if split_feedlines:
-            for fl in range(1, self.config.beammap.numfeedlines + 1):
+            for fl in range(1, self.numfeed + 1):
                 FL_filename = self.get_FL_filename(self.stage1_bmaps, fl)
                 log.info('Saving FL%i data in %s' % (fl, FL_filename))
                 args = np.int_(data[:, 0] / 10000) != fl  # identify resonators for feedline fl
@@ -945,7 +948,7 @@ class TemporalBeammap():
             duration -= 1
 
         arglist = [(os.path.join(self.config.paths.bin, '{}.bin'.format(start)),
-                    self.config.beammap.numrows, self.config.beammap.numcols)
+                    self.numrows, self.numcols)
                    for start in range(startTime, startTime+duration)]
 
         pool = mp.Pool(self.config.beammap.ncpu)
@@ -988,7 +991,7 @@ class TemporalBeammap():
 
         stage3_bmap = os.path.join(self.beammapdirectory, self.config.beammap.filenames.stage3_bmap)
 
-        filenames = [self.get_FL_filename(self.stage2_bmaps, fl) for fl in range(1, self.config.beammap.numfeedlines+1)]
+        filenames = [self.get_FL_filename(self.stage2_bmaps, fl) for fl in range(1, self.numfeed+1)]
 
         masterfile = open(stage3_bmap,'a')
         for fl, fname in enumerate(filenames, 1):
@@ -1063,8 +1066,8 @@ if __name__ == '__main__':
     elif args.use_combo:  # Combine clicked FL beam files
         b.combineClicked()
     elif args.align:
-        aligner = bmap_align.BMAligner(config.paths.beammapdirectory, config.beammap.filenames.stage3_bmap, config.beammap.align.cachename,
-                                       config.beammap.numcols, config.beammap.numrows, config.beammap.instrument, config.beammap.flip)
+        aligner = bmap_align.BMAligner(config.paths.beammapdirectory, config.beammap.filenames.stage3_bmap,
+                                       config.beammap.align.cachename, config.beammap.instrument, config.beammap.flip)
         aligner.makeTemporalImage()
         aligner.loadFFT()
         aligner.findKvecsManual()
