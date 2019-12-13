@@ -494,7 +494,7 @@ class MKIDDashboard(QMainWindow):
         """
         for roach in self.roachList:
             roach.startSendingPhotons(self.config.packetmaster.ip, self.config.packetmaster.captureport)
-            roach.setMaxCountRate(self.config.dashboard.max_count_rate)
+            roach.setMaxCountRate(self.config.dashboard.roach_cpslim)
         getLogger('Dashboard').info('Roaches sending photon packets!')
 
     def loadBeammap(self):
