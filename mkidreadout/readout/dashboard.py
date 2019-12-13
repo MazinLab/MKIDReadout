@@ -344,9 +344,8 @@ class MKIDDashboard(QMainWindow):
             forwarding = dict(self.config.packetmaster.forwarding)
         else:
             forwarding = None
-        debugimgcfg = {'use_wave':False}
         self.packetmaster = Packetmaster(len(roachNums), self.config.packetmaster.captureport,
-                                         useWriter=not self.offline, sharedImageCfg={'dashboard': imgcfg, 'debug':debugimgcfg},
+                                         useWriter=not self.offline, sharedImageCfg={'dashboard': imgcfg},
                                          beammap=self.config.beammap, forwarding=forwarding, recreate_images=True)
         self.liveimage = self.packetmaster.sharedImages['dashboard']
 
