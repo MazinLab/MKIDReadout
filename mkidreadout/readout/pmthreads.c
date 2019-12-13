@@ -625,12 +625,14 @@ void* binWriter(void *prms)
 	                fwrite(packBuf->data, 1, BINWRITER_CHUNKSIZE - (RINGBUF_SIZE - bufReadInd), wp);
                     lastCycle += 1;
                     bufReadInd = BINWRITER_CHUNKSIZE - (RINGBUF_SIZE - bufReadInd);
+                    outcount += RINGBUF_SIZE - bufReadInd;
 
                  }
 
                 else{
 	                   fwrite(packBuf->data + bufReadInd, 1, BINWRITER_CHUNKSIZE, wp);    	         
                        bufReadInd += BINWRITER_CHUNKSIZE;
+                       outcount += BINWRITER_CHUNKSIZE;
 
                     }
 
