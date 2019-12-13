@@ -281,7 +281,7 @@ class SweepMetadata(object):
                 self.mlatten.size == self.mlfreq.size == self.ml_isgood_score.size == self.ml_isbad_score.size)
 
         for x in (self.freq, self.mlfreq, self.wsfreq):
-           use = ~np.isnan(x)
+           use = (~np.isnan(x)) & ((self.flag & ISGOOD) == ISGOOD)
            if x[use].size != np.unique(x[use]).size:
                getLogger(__name__).warning("Found non-unique frequencies")
 

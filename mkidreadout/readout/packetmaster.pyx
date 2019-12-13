@@ -28,46 +28,45 @@ QUIT_SEM_NAME = 'packetmaster_quitSem'
 cdef extern from "<stdint.h>":
     ctypedef unsigned int uint32_t
     ctypedef unsigned long long uint64_t
+    ctypedef unsigned char uint8_t
 
 cdef extern from "pmthreads.h":
     cdef int STRBUF
     cdef int SHAREDBUF
+    cdef int RINGBUF_SIZE
     ctypedef float wvlcoeff_t
     ctypedef struct READER_PARAMS:
         int port;
         int nRoachStreams;
-        READOUT_STREAM *roachStreamList;
-        char streamSemBaseName[80]; #append 0, 1, 2, etc for each name
+        RINGBUFFER *packBuf;
 
         char quitSemName[80];
 
         int cpu; #if cpu=-1 then don't maximize priority
     
     ctypedef struct BIN_WRITER_PARAMS:
-        READOUT_STREAM *roachStream;
+        RINGBUFFER *packBuf;
 
         int writing;
         char writerPath[80];
 
         char quitSemName[80];
-        char streamSemName[80];
 
         int cpu; 
     
     ctypedef struct SHM_IMAGE_WRITER_PARAMS:
-        READOUT_STREAM *roachStream;
+        RINGBUFFER *packBuf;
         int nRoach;
         int nSharedImages;
         char **sharedImageNames;
         WAVECAL_BUFFER *wavecal; #if NULL don't use wavecal
 
         char quitSemName[80];
-        char streamSemName[80];
 
         int cpu; #if cpu=-1 then don't maximize priority
     
     ctypedef struct EVENT_BUFF_WRITER_PARAMS:
-        READOUT_STREAM *roachStream;
+        RINGBUFFER *packBuf;
         char bufferName[80];
         WAVECAL_BUFFER *wavecal; #if NULL don't use wavecal
 
@@ -92,6 +91,11 @@ cdef extern from "pmthreads.h":
         uint64_t unread;
         char data[536870912];
     
+    ctypedef struct RINGBUFFER:
+        uint8_t data[536870912];
+        uint64_t writeInd;
+        uint64_t nCycles;
+    
     ctypedef struct THREAD_PARAMS:
         pass
 
@@ -112,11 +116,10 @@ cdef class Packetmaster(object):
     cdef EVENT_BUFF_WRITER_PARAMS eventBuffParams
     cdef READER_PARAMS readerParams
     cdef WAVECAL_BUFFER wavecal
-    cdef READOUT_STREAM *streams
+    cdef RINGBUFFER packBuf
     cdef THREAD_PARAMS *threads
     cdef int nRows
     cdef int nCols
-    cdef int nStreams
     cdef int nThreads
     cdef int nSharedImages
     cdef readonly object sharedImages
@@ -232,37 +235,7 @@ cdef class Packetmaster(object):
                 raise Exception('Must provide a beammap to use a wavecal')
             self.applyWvlSol(wvlSol, beammap)
 
-        #INITIALIZE READOUT STREAMS 
-        print 'initializing streams...'
-        self.nStreams = 0
-        if self.sharedImages:
-            self.nStreams += 1
-        if useWriter:
-            self.nStreams += 1
-        if self.eventBuffer:
-            self.nStreams += 1
-        self.streams = <READOUT_STREAM*>malloc(self.nStreams*sizeof(READOUT_STREAM))
-        self.readerParams.roachStreamList = self.streams
-        self.readerParams.nRoachStreams = self.nStreams
 
-        print 'copying streams to params...'
-        streamNum = 0
-        if self.sharedImages:
-            self.imageParams.roachStream = &self.streams[streamNum]
-            strcpy(self.imageParams.streamSemName, (STREAM_SEM_BASENAME + str(streamNum)).encode('UTF-8'))
-            streamNum += 1
-
-        if self.eventBuffer:
-            self.eventBuffParams.roachStream = &self.streams[streamNum]
-            strcpy(self.eventBuffParams.streamSemName, (STREAM_SEM_BASENAME + str(streamNum)).encode('UTF-8'))
-            streamNum += 1
-
-        if useWriter:
-            self.writerParams.roachStream = &self.streams[streamNum]
-            strcpy(self.writerParams.streamSemName, (STREAM_SEM_BASENAME + str(streamNum)).encode('UTF-8'))
-            streamNum += 1
-
-        strcpy(self.readerParams.streamSemBaseName, STREAM_SEM_BASENAME.encode('UTF-8'))
 
         #INITIALIZE QUIT SEM
         strcpy(self.imageParams.quitSemName, QUIT_SEM_NAME.encode('UTF-8'))
@@ -282,11 +255,20 @@ cdef class Packetmaster(object):
             
         #INITIALIZE REMAINING PARAMS
         self.readerParams.port = port
+        self.readerParams.packBuf = &self.packBuf
+        self.nThreads = 1
         if useWriter:
             self.writerParams.writing = 0
+            self.writerParams.packBuf = &self.packBuf
+            self.nThreads += 1
+        if self.sharedImages:
+            self.imageParams.packBuf = &self.packBuf
+            self.nThreads += 1
+        if self.eventBuffer:
+            self.nThreads += 1
+            self.eventBuffParams.packBuf = &self.packBuf
 
         #START THREADS
-        self.nThreads = self.nStreams + 1
         self.threads = <THREAD_PARAMS*>malloc((self.nThreads)*sizeof(THREAD_PARAMS))
 
         resetSem(QUIT_SEM_NAME.encode('UTF-8'))
@@ -374,7 +356,6 @@ cdef class Packetmaster(object):
             self.samplicatorProcess.terminate()
 
     def __dealloc__(self):
-        free(self.streams)
         for i in range(len(self.sharedImages)):
             free(self.imageParams.sharedImageNames[i])
         free(self.imageParams.sharedImageNames)
