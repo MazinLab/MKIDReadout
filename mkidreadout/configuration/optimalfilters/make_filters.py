@@ -4,10 +4,11 @@ import pickle
 import logging
 import argparse
 import numpy as np
+import multiprocessing as mp
+
 import mkidcore.config
 import mkidcore.objects  # must be imported for beam map to load from yaml
-import mkidcore.pixelflags
-import multiprocessing as mp
+import flag_dict as flag_dict
 
 import mkidreadout.configuration.optimalfilters.utils as utils
 
@@ -192,10 +193,10 @@ class Resonator(object):
         # only delete filter since the template isn't stored elsewhere
         self.result["filter"] = None
         # if the filter was flagged reset the flag bitmask
-        if self.result["flag"] & mkidcore.pixelflags.filters["bad_filter"]:
-            self.result["flag"] = self.result["flag"] ^ mkidcore.pixelflags.filters["bad_filter"]
-        if self.result["flag"] & mkidcore.pixelflags.filters["filter_computed"]:
-            self.result["flag"] = self.result["flag"] ^ mkidcore.pixelflags.filters["filter_computed"]
+        if self.result["flag"] & flag_dict["bad_filter"]:
+            self.result["flag"] = self.result["flag"] ^ flag_dict["bad_filter"]
+        if self.result["flag"] & flag_dict["filter_computed"]:
+            self.result["flag"] = self.result["flag"] ^ flag_dict["filter_computed"]
 
     def find_pulse_indices(self):
         """Find the pulse index locations in the time stream."""
@@ -203,28 +204,38 @@ class Resonator(object):
 
     def make_noise(self):
         """Make the noise spectrum for the resonator."""
-        if self.result['flag'] & mkidcore.pixelflags.filters['noise_computed']:
+        if self.result['flag'] & flag_dict['noise_computed']:
             return
+
         self.result['psd'] = np.zeros(self.cfg.nwindow)
-        self.result['flag'] = self.result['flag'] | mkidcore.pixelflags.filters['noise_computed']
+        self.result['flag'] = self.result['flag'] | flag_dict['noise_computed']
 
     def make_template(self):
         """Make the template for the photon pulse."""
-        if self.result['flag'] & mkidcore.pixelflags.filters['template_computed']:
+        if self.result['flag'] & flag_dict['template_computed']:
             return
+        self._flag_checks(noise=True)
+
         self.result['template'] = np.zeros(self.cfg.ntemplate)
-        self.result['flag'] = self.result['flag'] | mkidcore.pixelflags.filters['template_computed']
+        self.result['flag'] = self.result['flag'] | flag_dict['template_computed']
 
     def make_filter(self):
         """Make the filter for the resonator."""
-        if self.result['flag'] & mkidcore.pixelflags.filters['filter_computed']:
+        if self.result['flag'] & flag_dict['filter_computed']:
             return
+        self._flag_checks(noise=True, template=True)
+
         self.result['filter'] = np.zeros(self.cfg.nfilter)
-        self.result['flag'] = self.result['flag'] | mkidcore.pixelflags.filters['filter_computed']
+        self.result['flag'] = self.result['flag'] | flag_dict['filter_computed']
 
     def _init_results(self):
-        self.result = {"template": None, "filter": None, "psd": None,
-                       "flag": mkidcore.pixelflags.filters["not_started"]}
+        self.result = {"template": None, "filter": None, "psd": None, "flag": flag_dict["not_started"]}
+
+    def _flag_checks(self, noise=False, template=False):
+        if noise:
+            assert self.result['flag'] & flag_dict['noise_computed'], "run self.make_noise() first."
+        if template:
+            assert self.result['flag'] & flag_dict['template_computed'], "run self.make_template first."
 
 
 def initialize_worker():
@@ -240,7 +251,7 @@ def process_resonator(resonator):
     resonator.make_filter()
     print(resonator.index)
     from time import sleep
-    sleep(1)
+    sleep(.01)
     return resonator
 
 
@@ -270,7 +281,7 @@ def run(config, progress=False, force=False, save_name=None):
         log.info("Creating new solution object")
         # get file name list
         # file_names = utils.get_file_list(config.paths.data)  # TODO: remove
-        file_names = ["snap_112_resID10000_3212323-2323232.npz" for _ in range(100)]
+        file_names = ["snap_112_resID10000_3212323-2323232.npz" for _ in range(2000)]
         # set up solution file
         sol = Solution(config, file_names, save_name=save_name)
     else:
