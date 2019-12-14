@@ -276,8 +276,12 @@ def run(config, progress=False, force=False, save_name=None):
             Otherwise, a default name will be used. See 'force' for details
             on when the file 'save_name' already exists.
     """
+    # set default save_name
+    # use None in the kwargs so that config parser can input None in __main__
+    save_name = "filter_solution.p" if save_name is None else save_name
+
     # set up the Solution object
-    if force or save_name is None or not os.path.isfile(save_name):
+    if force or not os.path.isfile(save_name):
         log.info("Creating new solution object")
         # get file name list
         # file_names = utils.get_file_list(config.paths.data)  # TODO: remove
