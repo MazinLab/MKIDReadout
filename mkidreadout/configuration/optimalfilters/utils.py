@@ -3,6 +3,7 @@ import os
 import glob
 import logging
 import numpy as np
+import multiprocessing as mp
 
 try:
     import progressbar as pb
@@ -14,13 +15,18 @@ log = logging.getLogger(__name__)
 log.addHandler(logging.NullHandler())
 
 
-def load_default_template(config):
-    template = np.loadtxt(config.filter.default_template)
+def load_fallback_template(config):
+    if config.fallback_template == "default":
+        directory = os.path.dirname(os.path.realpath(__file__))
+        fallback_template = os.path.join(directory, "template_15us.txt")
+    else:
+        fallback_template = config.fallback_template
+    template = np.loadtxt(fallback_template)
     min_index = np.argmin(template)
-    start = min_index - config.filter.offset
-    stop = start + config.filter.npulse
+    start = min_index - config.offset
+    stop = start + config.ntemplate
     default_template = template[start:stop]
-    if default_template.size != config.filter.npulse:  # slicing can return a different sized array
+    if default_template.size != config.ntemplate:  # slicing can return a different sized array
         raise ValueError("The default template is not the right size. The 'npulse' parameter may be too large.")
     return default_template[start:stop]
 
@@ -38,7 +44,7 @@ def natural_sort_key(s, _re=re.compile(r'(\d*\.\d+|\d+)')):
 
 
 def res_id_from_file_name(file_name):
-    return file_name.split("_")[2][5:]
+    return int(file_name.split("_")[-2][5:])
 
 
 def get_file_list(directory):
@@ -51,7 +57,7 @@ def get_file_list(directory):
     return file_list
 
 
-def map_async_progress(pool, func, iterable, callback=None, error_callback=None, progress=True):
+def map_async_progress(pool, func, iterable, callback=None, progress=True):
     # setup progress bar
     progress = progress and HAS_PB
     if progress:
@@ -69,7 +75,7 @@ def map_async_progress(pool, func, iterable, callback=None, error_callback=None,
     # add jobs to pool
     results = MapResult()
     for ii in iterable:
-        results.append(pool.apply_async(func, ii, callback=update, error_callback=error_callback))
+        results.append(pool.apply_async(func, (ii,), callback=update))
     return results
 
 
@@ -81,7 +87,13 @@ def map_progress(pool, *args, **kwargs):
 
 class MapResult(list):
     def get(self, *args, **kwargs):
-        return [r.get(*args, **kwargs) for r in self]
+        results = []
+        for r in self:
+            try:
+                results.append(r.get(*args, **kwargs))
+            except mp.TimeoutError:
+                results.append(None)
+        return results
 
 
 def setup_progress(iterable):
