@@ -8,7 +8,7 @@ import multiprocessing as mp
 
 import mkidcore.config
 import mkidcore.objects  # must be imported for beam map to load from yaml
-import flag_dict as flag_dict
+from mkidcore.pixelflags import filters as flag_dict
 
 import mkidreadout.configuration.optimalfilters.utils as utils
 
