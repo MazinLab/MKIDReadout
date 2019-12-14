@@ -6,6 +6,7 @@ import argparse
 import numpy as np
 import mkidcore.config
 import mkidcore.objects  # must be imported for beam map to load from yaml
+import mkidcore.pixelflags
 import multiprocessing as mp
 
 import mkidreadout.configuration.optimalfilters.utils as utils
@@ -86,17 +87,12 @@ class Solution(object):
         np.savetxt(file_path, self.filters[self.cfg.filter.filter_type])
         log.info("Filter coefficients saved to {}".format(file_path))
 
-    def process(self, ncpu=1, progress=True, force=False):
+    def process(self, ncpu=1, progress=True):
         """Process all of the files and compute the filters."""
-        if force:
-            self.clear_resonator_data()
-
         if ncpu > 1:
             pool = mp.Pool(min(self.cfg.ncpu, mp.cpu_count()), initializer=initialize_worker)
-            # pool = mp.Pool(min(self.cfg.ncpu, mp.cpu_count()))
             results = utils.map_async_progress(pool, process_resonator, self.resonators, progress=progress)
             pool.close()
-            error = None
             try:
                 # TODO: Python 2.7 bug: hangs on pool.join() with KeyboardInterrupt. The workaround is to use a really
                 #  long timeout that hopefully never gets triggered. The 'better' code is:
@@ -112,9 +108,7 @@ class Solution(object):
                 #  (timeout may need to be rethought)
                 resonators = results.get(timeout=0.001)
                 self._add_resonators(resonators)
-            finally:
-                if error is not None:
-                    raise error  # propagate error to the main program
+                raise error  # propagate error to the main program
         else:
             pbar = utils.setup_progress(self.resonators) if progress and utils.HAS_PB else None
             for index, resonator in enumerate(self.resonators):
@@ -126,7 +120,7 @@ class Solution(object):
         self.clear_resonator_data()
 
     def clear_resonator_data(self):
-        """Clear all data from the Resonator sub-objects."""
+        """Clear all unnecessary data from the Resonator sub-objects."""
         for resonator in self.resonators:
             resonator.clear_results()
 
@@ -186,7 +180,7 @@ class Resonator(object):
         if self._time_stream is None:
             # npz = np.load(self.file_name)
             # self._time_stream = npz[npz.keys()[0]]  # TODO: remove
-            self._time_stream = np.zeros(100)
+            self._time_stream = np.zeros(int(60e6))
         return self._time_stream
 
     def clear_attributes(self):
@@ -195,32 +189,42 @@ class Resonator(object):
 
     def clear_results(self):
         """Delete computed results from the resonator."""
-        self._init_results()
+        # only delete filter since the template isn't stored elsewhere
+        self.result["filter"] = None
+        # if the filter was flagged reset the flag bitmask
+        if self.result["flag"] & mkidcore.pixelflags.filters["bad_filter"]:
+            self.result["flag"] = self.result["flag"] ^ mkidcore.pixelflags.filters["bad_filter"]
+        if self.result["flag"] & mkidcore.pixelflags.filters["filter_computed"]:
+            self.result["flag"] = self.result["flag"] ^ mkidcore.pixelflags.filters["filter_computed"]
 
     def find_pulse_indices(self):
         """Find the pulse index locations in the time stream."""
         self.pulse_indices = None
 
-    def make_spectrum(self):
+    def make_noise(self):
         """Make the noise spectrum for the resonator."""
-        if self.result['psd'] is not None:
+        if self.result['flag'] & mkidcore.pixelflags.filters['noise_computed']:
             return
         self.result['psd'] = np.zeros(self.cfg.nwindow)
+        self.result['flag'] = self.result['flag'] | mkidcore.pixelflags.filters['noise_computed']
 
     def make_template(self):
         """Make the template for the photon pulse."""
-        if self.result['template'] is not None:
+        if self.result['flag'] & mkidcore.pixelflags.filters['template_computed']:
             return
         self.result['template'] = np.zeros(self.cfg.ntemplate)
+        self.result['flag'] = self.result['flag'] | mkidcore.pixelflags.filters['template_computed']
 
     def make_filter(self):
         """Make the filter for the resonator."""
-        if self.result['filter'] is not None:
+        if self.result['flag'] & mkidcore.pixelflags.filters['filter_computed']:
             return
         self.result['filter'] = np.zeros(self.cfg.nfilter)
+        self.result['flag'] = self.result['flag'] | mkidcore.pixelflags.filters['filter_computed']
 
     def _init_results(self):
-        self.result = {"template": None, "filter": None, "psd": None, "flag": 0}
+        self.result = {"template": None, "filter": None, "psd": None,
+                       "flag": mkidcore.pixelflags.filters["not_started"]}
 
 
 def initialize_worker():
@@ -231,7 +235,7 @@ def initialize_worker():
 def process_resonator(resonator):
     """Process the resonator object and compute it's filter."""
     resonator.find_pulse_indices()
-    resonator.make_spectrum()
+    resonator.make_noise()
     resonator.make_template()
     resonator.make_filter()
     print(resonator.index)
@@ -283,14 +287,17 @@ def run(config, progress=False, force=False, save_name=None):
 
     # make the filters
     try:
-        sol.process(ncpu=ncpu, progress=progress, force=force)
-    except KeyboardInterrupt as error:
+        if force or config.filter.filter_type not in sol.filters.keys():
+            sol.process(ncpu=ncpu, progress=progress)
+            sol.save()
+        else:
+            log.info("Filter type '{}' has already been computed".format(config.filter.filter_type))
+    except KeyboardInterrupt:
         log.error("Keyboard Interrupt encountered: saving the partial solution before exiting")
         sol.save()
-        raise error
+        return
 
-    # save the filters and the solution
-    sol.save()
+    # save the filters
     sol.save_filters()
 
     # plot summary
