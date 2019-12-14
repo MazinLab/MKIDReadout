@@ -15,15 +15,29 @@ log.addHandler(logging.NullHandler())
 
 
 class Solution(object):
-    def __init__(self, config, file_names, default_template, save_name):
+    """
+    Solution class for the filter generation.
+
+    Args:
+        config: yaml config object
+            The configuration object for the calculation loaded by
+            mkidcore.config.load().
+        file_names: list of strings
+            The file names for the resonator phase snaps.
+        save_name: string
+            The name to use for saving the file. The prefix will be used for
+            saving its output products.
+    """
+    def __init__(self, config, file_names, save_name=None):
         # input attributes
         self._cfg = config
+        self.fallback_template = utils.load_fallback_template(config.filter)
         self.file_names = file_names
-        self.default_template = default_template
-        self.save_name = save_name
+        # use None so that config parser can input None in __main__
+        self.save_name = "filter_solution.p" if save_name is None else save_name
         # computation attributes
         self.res_ids = np.array([utils.res_id_from_file_name(file_name) for file_name in file_names])
-        self.resonators = np.array([Resonator(self.cfg.filter, file_name, self.default_template, index=index)
+        self.resonators = np.array([Resonator(self.cfg.filter, file_name, self.fallback_template, index=index)
                                     for index, file_name in enumerate(file_names)])
         # output products
         self.filters = {}
@@ -31,6 +45,7 @@ class Solution(object):
 
     @property
     def cfg(self):
+        """The configuration object."""
         return self._cfg
 
     @cfg.setter
@@ -47,6 +62,7 @@ class Solution(object):
 
     @classmethod
     def load(cls, file_path):
+        """Load in the solution object from a file."""
         with open(file_path, 'rb') as f:
             solution = pickle.load(f)
         solution.save_name = os.path.basename(file_path)
@@ -54,6 +70,7 @@ class Solution(object):
         return solution
 
     def save(self, file_name=None):
+        """Save the solution object to a file."""
         if file_name is None:
             file_name = self.save_name
         file_path = os.path.join(self.cfg.paths.out, file_name)
@@ -62,6 +79,7 @@ class Solution(object):
         log.info("Filter solution saved to {}".format(file_path))
 
     def save_filters(self, file_name=None):
+        """Save the filters to a file readable by the firmware."""
         if file_name is None:
             file_name = os.path.splitext(self.save_name)[0] + "_coefficients.txt"
         file_path = os.path.join(self.cfg.paths.out, file_name)
@@ -69,6 +87,7 @@ class Solution(object):
         log.info("Filter coefficients saved to {}".format(file_path))
 
     def process(self, ncpu=1, progress=True, force=False):
+        """Process all of the files and compute the filters."""
         if force:
             self.clear_resonator_data()
 
@@ -107,10 +126,12 @@ class Solution(object):
         self.clear_resonator_data()
 
     def clear_resonator_data(self):
+        """Clear all data from the Resonator sub-objects."""
         for resonator in self.resonators:
-            resonator.clear_data()
+            resonator.clear_results()
 
     def plot_summary(self):
+        """Plot a summary of the filter computation."""
         pass
 
     def _add_resonators(self, resonators):
@@ -127,36 +148,54 @@ class Solution(object):
 
 
 class Resonator(object):
-    def __init__(self, config, file_name, default_template, index=None):
+    """
+    Class for holding and manipulating a resonator's phase time-stream.
+
+    Args:
+        config: yaml config object
+            The filter configuration object for the calculation loaded by
+            mkidcore.config.load().
+        file_name: string
+            The file name containing the phase time-stream.
+        fallback_template: numpy.ndarray
+            A 1D numpy array of size config.ntemplate that will be used for the
+            resonator template if it cannot be computed from the phase
+            time-stream.
+        index: integer (optional)
+            An integer used to index the resonator objects. It is not used
+            directly by this class.
+    """
+    def __init__(self, config, file_name, fallback_template, index=None):
         self.index = index
         self.file_name = file_name
         self.cfg = config
-        self.default_template = default_template
+        self.fallback_template = fallback_template
         self._time_stream = None
 
-        self._reset_result()
+        self._init_results()
 
         self.pulse_indices = None
 
     def __getstate__(self):
-        self.clean()
+        self.clear_attributes()
         return self.__dict__
 
     @property
     def time_stream(self):
+        """The phase time-stream of the resonator."""
         if self._time_stream is None:
             # npz = np.load(self.file_name)
             # self._time_stream = npz[npz.keys()[0]]  # TODO: remove
             self._time_stream = np.zeros(100)
         return self._time_stream
 
-    def clean(self):
+    def clear_attributes(self):
         """Free up memory by removing attributes that can be reloaded from files."""
         self._time_stream = None
 
-    def clear_data(self):
+    def clear_results(self):
         """Delete computed results from the resonator."""
-        self._reset_result()
+        self._init_results()
 
     def find_pulse_indices(self):
         """Find the pulse index locations in the time stream."""
@@ -180,15 +219,17 @@ class Resonator(object):
             return
         self.result['filter'] = np.zeros(self.cfg.nfilter)
 
-    def _reset_result(self):
+    def _init_results(self):
         self.result = {"template": None, "filter": None, "psd": None, "flag": 0}
 
 
 def initialize_worker():
+    """Initialize multiprocessing.pool worker to ignore keyboard interrupts."""
     signal.signal(signal.SIGINT, signal.SIG_IGN)  # ignore keyboard interrupt in worker process
 
 
 def process_resonator(resonator):
+    """Process the resonator object and compute it's filter."""
     resonator.find_pulse_indices()
     resonator.make_spectrum()
     resonator.make_template()
@@ -200,20 +241,34 @@ def process_resonator(resonator):
 
 
 def run(config, progress=False, force=False, save_name=None):
-    if save_name is None:
-        save_name = "filter_solution.p"  # use none so that config parser can input None in __main__
+    """
+    Run the main logic for the filter generation.
 
-    if force or not os.path.isfile(save_name):
+    Args:
+        config: yaml config object
+            The configuration object for the calculation loaded by
+            mkidcore.config.load().
+        progress: boolean (optional)
+            If progressbar is installed and progress=True, a progress bar will
+            be displayed showing the progress of the computation.
+        force: boolean (optional)
+            If force is True, a new solution object will be made. If False and
+            'save_name' is a real file, the solution from 'save_name' will be
+            loaded in and the computation will be continued from where it left
+            off.
+        save_name: string (optional)
+            If provided, the solution object will be saved with this name.
+            Otherwise, a default name will be used. See 'force' for details
+            on when the file 'save_name' already exists.
+    """
+    # set up the Solution object
+    if force or (save_name is not None and not os.path.isfile(save_name)):
         log.info("Creating new solution object")
-        # get/make default template
-        default_template = utils.load_fallback_template(config.filter)
-
         # get file name list
         # file_names = utils.get_file_list(config.paths.data)  # TODO: remove
         file_names = ["snap_112_resID10000_3212323-2323232.npz" for _ in range(100)]
-
         # set up solution file
-        sol = Solution(config, file_names, default_template, save_name)
+        sol = Solution(config, file_names, save_name=save_name)
     else:
         log.info("Loading solution object from {}".format(save_name))
         sol = Solution.load(save_name)
