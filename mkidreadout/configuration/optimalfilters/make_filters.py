@@ -249,7 +249,7 @@ def process_resonator(resonator):
     resonator.make_noise()
     resonator.make_template()
     resonator.make_filter()
-    print(resonator.index)
+    # print(resonator.index)
     from time import sleep
     sleep(.01)
     return resonator
@@ -277,7 +277,7 @@ def run(config, progress=False, force=False, save_name=None):
             on when the file 'save_name' already exists.
     """
     # set up the Solution object
-    if force or (save_name is not None and not os.path.isfile(save_name)):
+    if force or save_name is None or not os.path.isfile(save_name):
         log.info("Creating new solution object")
         # get file name list
         # file_names = utils.get_file_list(config.paths.data)  # TODO: remove
