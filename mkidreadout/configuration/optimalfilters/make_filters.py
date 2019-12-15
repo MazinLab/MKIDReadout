@@ -15,6 +15,8 @@ import mkidreadout.configuration.optimalfilters.utils as utils
 log = logging.getLogger(__name__)
 log.addHandler(logging.NullHandler())
 
+DEFAULT_SAVE_NAME = "filter_solution.p"
+
 
 class Solution(object):
     """
@@ -26,17 +28,16 @@ class Solution(object):
             mkidcore.config.load().
         file_names: list of strings
             The file names for the resonator phase snaps.
-        save_name: string
+        save_name: string (optional)
             The name to use for saving the file. The prefix will be used for
             saving its output products.
     """
-    def __init__(self, config, file_names, save_name=None):
+    def __init__(self, config, file_names, save_name=DEFAULT_SAVE_NAME):
         # input attributes
         self._cfg = config
         self.fallback_template = utils.load_fallback_template(config.filter)
         self.file_names = file_names
-        # use None so that config parser can input None in __main__
-        self.save_name = "filter_solution.p" if save_name is None else save_name
+        self.save_name = save_name
         # computation attributes
         self.res_ids = np.array([utils.res_id_from_file_name(file_name) for file_name in file_names])
         self.resonators = np.array([Resonator(self.cfg.filter, file_name, self.fallback_template, index=index)
@@ -255,7 +256,7 @@ def process_resonator(resonator):
     return resonator
 
 
-def run(config, progress=False, force=False, save_name=None):
+def run(config, progress=False, force=False, save_name=DEFAULT_SAVE_NAME):
     """
     Run the main logic for the filter generation.
 
@@ -276,10 +277,6 @@ def run(config, progress=False, force=False, save_name=None):
             Otherwise, a default name will be used. See 'force' for details
             on when the file 'save_name' already exists.
     """
-    # set default save_name
-    # use None in the kwargs so that config parser can input None in __main__
-    save_name = "filter_solution.p" if save_name is None else save_name
-
     # set up the Solution object
     if force or not os.path.isfile(save_name):
         log.info("Creating new solution object")
@@ -330,7 +327,7 @@ if __name__ == "__main__":
     parser.add_argument('-p', '--progress', action='store_true', dest='progress', help='Enable the progress bar.')
     parser.add_argument('-f', '--force', action='store_true', dest='force',
                         help='Force the recomputation of all of the computation steps.')
-    parser.add_argument('-n', '--name', type=str, dest='name',
+    parser.add_argument('-n', '--name', type=str, dest='name', default=DEFAULT_SAVE_NAME,
                         help='The name of the saved solution. The default is used if a name is not supplied.')
     args = parser.parse_args()
 
