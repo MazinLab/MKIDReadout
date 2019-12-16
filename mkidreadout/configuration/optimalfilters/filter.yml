@@ -1,19 +1,23 @@
 !configdict
-ncpu: 7
+ncpu: 7  # number of cores to use for the computation
 
 paths: !configdict
-  data:
-  out:
+  data:  # path to the folder containing the phase time-stream data
+  out:  # path to the folder where the output filters will be saved
 
 beammap: !bmap  # include beammap for summary plots
   default: MEC
 
-filter: !configdict
-  filter_type: standard  # type of filter to compute
-  fallback_template: default  # use the default fallback template file (a path supplies a custom file)
-  offset: 5  # number of samples to offset the template peak from the right
-  nfilter: 50  # number of coefficients in the filter
-  nwindow: 500  # window size used to estimate the noise auto-correlation function
-  ntemplate: 500  # window size used to estimate the template
-  dt: 1e-6  # time sample spacing (inverse sample rate used for plotting)
-  summary_plot: True  # make a summary plot at the end of the calculation
+filters: !configdict
+  peak_finding: !configdict
+    fallback_template: default  # used to find peak indices and as a fallback template  [default | path to custom file]
+  noise: !configdict
+    nwindow: 500  # window size used to estimate the noise auto-correlation function  [int]
+  template: !configdict
+    offset: 5  # number of samples to offset the template peak from the left  [int]
+    ntemplate: 500 # window size used to estimate the template  [int]
+  filter: !configdict
+    filter_type: standard  # type of filter to compute  [function names in filters.py]
+    nfilter: 50  # number of coefficients in the filter  [int]
+  dt: 1e-6  # time sample spacing (inverse sample rate used for plotting)  [float]
+  summary_plot: True  # make a summary plot at the end of the calculation  [bool]

@@ -35,12 +35,12 @@ class Solution(object):
     def __init__(self, config, file_names, save_name=DEFAULT_SAVE_NAME):
         # input attributes
         self._cfg = config
-        self.fallback_template = utils.load_fallback_template(config.filter)
+        self.fallback_template = utils.load_fallback_template(self.cfg.filters)
         self.file_names = file_names
         self.save_name = save_name
         # computation attributes
         self.res_ids = np.array([utils.res_id_from_file_name(file_name) for file_name in file_names])
-        self.resonators = np.array([Resonator(self.cfg.filter, file_name, self.fallback_template, index=index)
+        self.resonators = np.array([Resonator(self.cfg.filters, file_name, self.fallback_template, index=index)
                                     for index, file_name in enumerate(file_names)])
         # output products
         self.filters = {}
@@ -54,13 +54,24 @@ class Solution(object):
     @cfg.setter
     def cfg(self, config):
         self._cfg = config
-        for index, resonator in enumerate(self.resonators):
+        for resonator in self.resonators:
+            cfg = resonator.cfg
+            # overload all the results if the peak finding configuration changed
+            if any([getattr(self.cfg.filters.peak_finding, key) != item for key, item in cfg.peak_finding.items()]):
+                resonator.clear_results()
+            # overload template & filter if the template configuration changed
+            if any([getattr(self.cfg.filters.template, key) != item for key, item in cfg.template.items()]):
+                resonator.clear_templates()
+                resotator.clear_filters()
+            # overload noise & filter if the noise configuration changed
+            if any([getattr(self.cfg.filters.noise, key) != item for key, item in cfg.noise.items()]):
+                resonator.clear_noise()
+                resotator.clear_filters()
+            # overload filter if the filter configuration changed
+            if any([getattr(self.cfg.filters.filter, key) != item for key, item in cfg.filter.items()]):
+                resotator.clear_filters()
             # overload resonator configurations
-            resonator.cfg = self.cfg.filter
-            # overload resonator filter if the configuration filter types don't match
-            if self.cfg.filter.filter_type != resonator.cfg.filter_type:
-                resonator.result["filter"] = None
-                log.debug("Res ID {} filter overloaded".format(self.res_ids[index]))
+            resonator.cfg = self.cfg.filters
         log.info("Configuration file updated")
 
     @classmethod
@@ -86,7 +97,7 @@ class Solution(object):
         if file_name is None:
             file_name = os.path.splitext(self.save_name)[0] + "_coefficients.txt"
         file_path = os.path.join(self.cfg.paths.out, file_name)
-        np.savetxt(file_path, self.filters[self.cfg.filter.filter_type])
+        np.savetxt(file_path, self.filters[self.cfg.filters.filter.filter_type])
         log.info("Filter coefficients saved to {}".format(file_path))
 
     def process(self, ncpu=1, progress=True):
@@ -136,11 +147,11 @@ class Solution(object):
                 self.resonators[resonator.index] = resonator
 
     def _collect_data(self):
-        filter_array = np.empty((self.res_ids.size, self.cfg.filter.nfilter))
+        filter_array = np.empty((self.res_ids.size, self.cfg.filters.filter.nfilter))
         for index, resonator in enumerate(self.resonators):
             filter_array[index, :] = resonator.result["filter"]
-        self.filters.update({self.cfg.filter.filter_type: filter_array})
-        self.flags.update({self.cfg.filter.filter_type: [resonator.result["flag"] for resonator in self.resonators]})
+        self.filters.update({self.cfg.filters.filter.filter_type: filter_array})
+        self.flags.update({self.cfg.filters.filter.filter_type: [r.result["flag"] for r in self.resonators]})
 
 
 class Resonator(object):
@@ -239,7 +250,7 @@ class Resonator(object):
         if self.result['flag'] & flag_dict['noise_computed']:
             return
 
-        self.result['psd'] = np.zeros(self.cfg.nwindow)
+        self.result['psd'] = np.zeros(self.cfg.noise.nwindow)
         self.result['flag'] = self.result['flag'] | flag_dict['noise_computed']
 
     def make_template(self):
@@ -248,7 +259,7 @@ class Resonator(object):
             return
         self._flag_checks(noise=True)
 
-        self.result['template'] = np.zeros(self.cfg.ntemplate)
+        self.result['template'] = np.zeros(self.cfg.template.ntemplate)
         self.result['flag'] = self.result['flag'] | flag_dict['template_computed']
 
     def make_filter(self):
@@ -257,7 +268,7 @@ class Resonator(object):
             return
         self._flag_checks(noise=True, template=True)
 
-        self.result['filter'] = np.zeros(self.cfg.nfilter)
+        self.result['filter'] = np.zeros(self.cfg.filter.nfilter)
         self.result['flag'] = self.result['flag'] | flag_dict['filter_computed']
 
     def _init_results(self):

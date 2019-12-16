@@ -16,17 +16,17 @@ log.addHandler(logging.NullHandler())
 
 
 def load_fallback_template(config):
-    if config.fallback_template == "default":
+    if config.peak_finding.fallback_template == "default":
         directory = os.path.dirname(os.path.realpath(__file__))
         fallback_template = os.path.join(directory, "template_15us.txt")
     else:
-        fallback_template = config.fallback_template
+        fallback_template = config.peak_finding.fallback_template
     template = np.loadtxt(fallback_template)
     min_index = np.argmin(template)
-    start = min_index - config.offset
-    stop = start + config.ntemplate
+    start = min_index - config.template.offset
+    stop = start + config.template.ntemplate
     default_template = template[start:stop]
-    if default_template.size != config.ntemplate:  # slicing can return a different sized array
+    if default_template.size != config.template.ntemplate:  # slicing can return a different sized array
         raise ValueError("The default template is not the right size. The 'npulse' parameter may be too large.")
     return default_template[start:stop]
 
@@ -49,11 +49,12 @@ def res_id_from_file_name(file_name):
 
 def get_file_list(directory):
     # get all npz files in the directory
-    file_list = glob.glob(os.path.join(directory, "snap_*_resID*_*-*.npz"))
-    file_list = file_list.sort(key=natural_sort_key, reverse=True)  # high numbers first
-
-    _, indices = np.unique(["_".join(name.split("_")[:2]) for name in file_list], return_index=True)
-    file_list = list(np.array(file_list)[indices])  # remove duplicate res IDs with older time stamps
+    file_list = glob.glob(os.path.join(directory, "*_resID*_*-*.npz"))
+    # sort them with higher numbers first (newest times on top)
+    file_list = file_list.sort(key=natural_sort_key, reverse=True)
+    # find and remove older files with duplicate names (excluding the timestamp)
+    _, indices = np.unique(["_".join(name.split("_")[:-1]) for name in file_list], return_index=True)
+    file_list = list(np.array(file_list)[indices])
     return file_list
 
 
