@@ -62,14 +62,14 @@ class Solution(object):
             # overload template & filter if the template configuration changed
             if any([getattr(self.cfg.filters.template, key) != item for key, item in cfg.template.items()]):
                 resonator.clear_templates()
-                resotator.clear_filters()
+                resotator.clear_filter()
             # overload noise & filter if the noise configuration changed
             if any([getattr(self.cfg.filters.noise, key) != item for key, item in cfg.noise.items()]):
                 resonator.clear_noise()
-                resotator.clear_filters()
+                resotator.clear_filter()
             # overload filter if the filter configuration changed
             if any([getattr(self.cfg.filters.filter, key) != item for key, item in cfg.filter.items()]):
-                resotator.clear_filters()
+                resotator.clear_filter()
             # overload resonator configurations
             resonator.cfg = self.cfg.filters
         log.info("Configuration file updated")
@@ -135,7 +135,7 @@ class Solution(object):
     def clear_resonator_data(self):
         """Clear all unnecessary data from the Resonator sub-objects."""
         for resonator in self.resonators:
-            resonator.clear_filters()
+            resonator.clear_filter()
 
     def plot_summary(self):
         """Plot a summary of the filter computation."""
@@ -341,11 +341,11 @@ def run(config, progress=False, force=False, save_name=DEFAULT_SAVE_NAME):
 
     # make the filters
     try:
-        if force or config.filter.filter_type not in sol.filters.keys():
+        if force or config.filters.filter.filter_type not in sol.filters.keys():
             sol.process(ncpu=ncpu, progress=progress)
             sol.save()
         else:
-            log.info("Filter type '{}' has already been computed".format(config.filter.filter_type))
+            log.info("Filter type '{}' has already been computed".format(config.filters.filter.filter_type))
     except KeyboardInterrupt:
         log.error("Keyboard Interrupt encountered: saving the partial solution before exiting")
         sol.save()
@@ -355,7 +355,7 @@ def run(config, progress=False, force=False, save_name=DEFAULT_SAVE_NAME):
     sol.save_filters()
 
     # plot summary
-    if config.filter.summary_plot:
+    if config.filters.summary_plot:
         sol.plot_summary()
 
 
