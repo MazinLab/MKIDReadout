@@ -8,15 +8,18 @@ paths: !configdict
 beammap: !bmap  # include beammap for summary plots
   default: MEC
 
-filters: !configdict
-  peak_finding: !configdict
-    fallback_template: default  # used to find peak indices and as a fallback template  [default | path to custom file]
-  noise: !configdict
+filters: !configdict  # main configuration section for the filter computation
+  pulses: !configdict # configuration for finding pulse indices in the phase time-stream
+    fallback_template: default  # used as pulse finding filter and fallback template [default | path to custom file]
+    unwrap: True  # unwrap the phase time-stream data  [bool]
+    threshold: 5  # number of standard deviations to use as a threshold for pulse finding [int]
+    separation: 500  # minimum separation between pulses in units of dt [int]
+  noise: !configdict  # configuration for computing the noise
     nwindow: 500  # window size used to estimate the noise auto-correlation function  [int]
-  template: !configdict
+  template: !configdict  # configuration for computing the template
     offset: 5  # number of samples to offset the template peak from the left  [int]
     ntemplate: 500 # window size used to estimate the template  [int]
-  filter: !configdict
+  filter: !configdict  # configuration for computing the filter
     filter_type: standard  # type of filter to compute  [function names in filters.py]
     nfilter: 50  # number of coefficients in the filter  [int]
   dt: 1e-6  # time sample spacing (inverse sample rate used for plotting)  [float]

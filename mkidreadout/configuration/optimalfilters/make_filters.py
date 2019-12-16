@@ -56,8 +56,8 @@ class Solution(object):
         self._cfg = config
         for resonator in self.resonators:
             cfg = resonator.cfg
-            # overload all the results if the peak finding configuration changed
-            if any([getattr(self.cfg.filters.peak_finding, key) != item for key, item in cfg.peak_finding.items()]):
+            # overload all the results if the pulse finding configuration changed
+            if any([getattr(self.cfg.filters.pulses, key) != item for key, item in cfg.pulses.items()]):
                 resonator.clear_results()
             # overload template & filter if the template configuration changed
             if any([getattr(self.cfg.filters.template, key) != item for key, item in cfg.template.items()]):
@@ -241,7 +241,7 @@ class Resonator(object):
             self.result["flag"] = self.result["flag"] ^ flag_dict["filter_computed"]
             log.debug("Resonator {}: filter status flag reset.".format(self.index))
 
-    def find_pulse_indices(self):
+    def make_pulses(self):
         """Find the pulse index locations in the time stream."""
         self.pulse_indices = None
 
@@ -249,17 +249,20 @@ class Resonator(object):
         """Make the noise spectrum for the resonator."""
         if self.result['flag'] & flag_dict['noise_computed']:
             return
+        cfg = self.cfg.noise
+        self._flag_checks(pulses=True)
 
-        self.result['psd'] = np.zeros(self.cfg.noise.nwindow)
+        self.result['psd'] = np.zeros(cfg.nwindow)
         self.result['flag'] = self.result['flag'] | flag_dict['noise_computed']
 
     def make_template(self):
         """Make the template for the photon pulse."""
         if self.result['flag'] & flag_dict['template_computed']:
             return
-        self._flag_checks(noise=True)
+        self._flag_checks(pulses=True, noise=True)
+        cfg = self.cfg.template
 
-        self.result['template'] = np.zeros(self.cfg.template.ntemplate)
+        self.result['template'] = np.zeros(cfg.ntemplate)
         self.result['flag'] = self.result['flag'] | flag_dict['template_computed']
 
     def make_filter(self):
@@ -267,14 +270,17 @@ class Resonator(object):
         if self.result['flag'] & flag_dict['filter_computed']:
             return
         self._flag_checks(noise=True, template=True)
+        cfg = self.cfg.filter
 
-        self.result['filter'] = np.zeros(self.cfg.filter.nfilter)
+        self.result['filter'] = np.zeros(cfg.nfilter)
         self.result['flag'] = self.result['flag'] | flag_dict['filter_computed']
 
     def _init_results(self):
         self.result = {"template": None, "filter": None, "psd": None, "flag": flag_dict["not_started"]}
 
-    def _flag_checks(self, noise=False, template=False):
+    def _flag_checks(self, pulses=False, noise=False, template=False):
+        if pulses:
+            assert self.result['flag'] & flag_dict['pulses_computed'], "run self.make_pulses() first."
         if noise:
             assert self.result['flag'] & flag_dict['noise_computed'], "run self.make_noise() first."
         if template:
@@ -288,7 +294,7 @@ def initialize_worker():
 
 def process_resonator(resonator):
     """Process the resonator object and compute it's filter."""
-    resonator.find_pulse_indices()
+    resonator.make_pulses()
     resonator.make_noise()
     resonator.make_template()
     resonator.make_filter()
