@@ -124,7 +124,7 @@ class Solution(object):
     def clear_resonator_data(self):
         """Clear all unnecessary data from the Resonator sub-objects."""
         for resonator in self.resonators:
-            resonator.clear_results()
+            resonator.clear_filters()
 
     def plot_summary(self):
         """Plot a summary of the filter computation."""
@@ -191,13 +191,44 @@ class Resonator(object):
 
     def clear_results(self):
         """Delete computed results from the resonator."""
-        # only delete filter since the template isn't stored elsewhere
+        self._init_results()
+        log.debug("Resonator {}: results reset.")
+
+    def clear_noise(self):
+        """Delete computed noise from the resonator."""
+        self.result["psd"] = None
+        log.debug("Resonator {}: noise reset.".format(self.index))
+        # if the filter was flagged reset the flag bitmask
+        if self.result["flag"] & flag_dict["bad_noise"]:
+            self.result["flag"] = self.result["flag"] ^ flag_dict["bad_noise"]
+            log.debug("Resonator {}: noise problem flag reset.".format(self.index))
+        if self.result["flag"] & flag_dict["noise_computed"]:
+            self.result["flag"] = self.result["flag"] ^ flag_dict["noise_computed"]
+            log.debug("Resonator {}: noise status flag reset.".format(self.index))
+
+    def clear_template(self):
+        """Delete computed template from the resonator."""
+        self.result["template"] = None
+        log.debug("Resonator {}: template reset.".format(self.index))
+        # if the filter was flagged reset the flag bitmask
+        if self.result["flag"] & flag_dict["bad_template"]:
+            self.result["flag"] = self.result["flag"] ^ flag_dict["bad_template"]
+            log.debug("Resonator {}: template problem flag reset.".format(self.index))
+        if self.result["flag"] & flag_dict["template_computed"]:
+            self.result["flag"] = self.result["flag"] ^ flag_dict["template_computed"]
+            log.debug("Resonator {}: template status flag reset.".format(self.index))
+
+    def clear_filter(self):
+        """Delete computed filter from the resonator."""
         self.result["filter"] = None
+        log.debug("Resonator {}: filter reset.".format(self.index))
         # if the filter was flagged reset the flag bitmask
         if self.result["flag"] & flag_dict["bad_filter"]:
             self.result["flag"] = self.result["flag"] ^ flag_dict["bad_filter"]
+            log.debug("Resonator {}: filter problem flag reset.".format(self.index))
         if self.result["flag"] & flag_dict["filter_computed"]:
             self.result["flag"] = self.result["flag"] ^ flag_dict["filter_computed"]
+            log.debug("Resonator {}: filter status flag reset.".format(self.index))
 
     def find_pulse_indices(self):
         """Find the pulse index locations in the time stream."""
