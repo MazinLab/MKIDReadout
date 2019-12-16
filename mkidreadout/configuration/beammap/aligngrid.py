@@ -179,6 +179,7 @@ class BMAligner(object):
         # find a good starting point for search, using median of 100 minimum "good" points
         if self.instrument.lower() == 'mec' and self.flip:
             self.coords[:,0] = -self.coords[:,0]
+            self.coords[:,1] = -self.coords[:,1] #flip y too to keep beammap consistent
         elif self.instrument.lower() == 'darkness' and self.flip:
             self.coords[:,1] = -self.coords[:,1]
 
@@ -214,7 +215,7 @@ class BMAligner(object):
         optNGoodPix = 0
         optI = 0
 
-        optSearchIters = 1000 #after this many iters around max go back to baseline
+        optSearchIters = 2000 #after this many iters around max go back to baseline
 
         # do monte-carlo search around the baseline to find which offset has the most filled in pixels
         for i in range(nMCIters):

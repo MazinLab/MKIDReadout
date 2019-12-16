@@ -1088,7 +1088,7 @@ if __name__ == '__main__':
         aligner.findKvecsManual()
         aligner.findAngleAndScale()
         aligner.rotateAndScaleCoords()
-        aligner.findOffset(50000)
+        aligner.findOffset(100000)
         aligner.plotCoords()
         aligner.saveTemporalMap(os.path.join(config.paths.beammapdirectory, config.beammap.filenames.stage4_bmap))
         # if config.paths.masterdoubleslist is not None:
