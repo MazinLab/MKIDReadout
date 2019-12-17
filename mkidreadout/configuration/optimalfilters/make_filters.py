@@ -5,6 +5,7 @@ import logging
 import argparse
 import numpy as np
 import scipy as sp
+import scipy.signal
 import multiprocessing as mp
 from astropy.stats import mad_std
 
@@ -264,17 +265,17 @@ class Resonator(object):
 
         # filter the time stream
         fallback_filter = self.fallback_template - np.mean(self.fallback_template)  # Ignore DC component for the filter
-        filtered_stream = sp.signal.convolve(self.time_stream, fallback_filter, mode='same')
+        filtered_stream = sp.signal.convolve(self.time_stream, fallback_filter, mode='same')  # pulses are positive
 
         # find pulse indices
         sigma = mad_std(filtered_stream)
         characteristic_time = -np.trapz(self.fallback_template)  # ~decay time in units of dt for a perfect exponential
-        indices, _ = sp.signal.find_peaks(-filtered_stream, height=cfg.threshold * sigma, distance=characteristic_time)
+        indices, _ = sp.signal.find_peaks(filtered_stream, height=cfg.threshold * sigma, distance=characteristic_time)
         self.result["pulses"] = indices.copy()
         self.result["mask"] = np.ones_like(self.result["pulses"], dtype=bool)
 
         # mask piled up pulses
-        indices = np.insert(np.append(indices, filtered_stream.size), 0, 0)  # assume pulses are at the ends
+        indices = np.insert(np.append(indices, filtered_stream.size + 1), 0, 0)  # assume pulses are at the ends
         diff = np.diff(indices)
         bad_previous = (diff < cfg.separation)[:-1]  # far from previous previous pulse (remove last)
         bad_next = (diff < cfg.ntemplate - cfg.offset)[1:]  # far from next pulse  (remove first)
@@ -295,7 +296,28 @@ class Resonator(object):
         self._flag_checks(pulses=True)
         cfg = self.cfg.noise
 
-        self.result['psd'] = np.zeros(cfg.nwindow)
+        # add pulses to the ends so that the bounds are treated correctly
+        pulses = np.insert(np.append(self.results["pulses"], self.time_stream.size + 1), 0, 0)
+
+        # loop space between peaks and compute noise
+        n = 0
+        self.result['psd'] = np.zeros(np.floor(cfg.nwindow / 2. + 1))
+        for peak1, peak2 in zip(pulses[:-1], pulses[1:]):
+            if n > cfg.max_noise:
+                break  # no more noise is needed
+            if peak2 + peak1 < 2 * cfg.isolation + cfg.nwindow:
+                continue  # not enough space between peaks
+            data = self.time_stream[peak1 + cfg.isolation: peak2 - cfg.isolation]
+            self.result['psd'] += sp.signal.welch(data, fs=1. / self.cfg.dt, nperseg=cfg.nwindow, detrend="constant",
+                                                  return_onesided=True, scaling="density")[1]
+            n += 1
+
+        # set flags and results
+        if n == 0:
+            self.result['flag'] |= flag_dict['bad_noise']
+            self.result['psd'][:] = 1.  # set to white noise
+        else:
+            self.result['psd'] /= n  # finish the average
         self.result['flag'] |= flag_dict['noise_computed']
 
     def make_template(self):
@@ -310,10 +332,15 @@ class Resonator(object):
                        np.arange(-cfg.offset, cfg.ntemplate - cfg.offset)[:, np.newaxis])
         pulses = self.time_stream[index_array]
 
-        # compute a rough template
-        weights = 1 / np.abs(pulses[:, cfg.offset]) / pulses.shape[0]
+        # weight the pulses by pulse height and remove those that are outside the middle percent of the data
+        weights = 1 / np.abs(pulses[:, cfg.offset])
+        percentiles = np.percentile(pulses[:, cfg.offset], [cfg.percent / 2., 100 - cfg.percent / 2.])
+        weights[(pulses[:, cfg.offset] < percentiles[0]) | (pulses[:, cfg.offset] > percentiles[1])] = 0
+
+        # compute the template
         template = np.sum(pulses * weights[:, np.newaxis], axis=0)
-        template /= np.abs(template.min())  # correct for floating point errors
+        if template.min() != 0:  # all weights could be zero
+            template /= np.abs(template.min())  # correct over all template height
 
         # TODO: make filter and recompute? (don't use make_filter code)
         # TODO: fit template?

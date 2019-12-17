@@ -110,3 +110,11 @@ def setup_progress(iterable):
     eta = pb.ETA()
     pbar = pb.ProgressBar(widgets=[percentage, bar, '  (', timer, ') ', eta, ' '], max_value=len(iterable)).start()
     return pbar
+
+
+def covariance_from_psd(psd, size=None, dt=1.):
+    autocovariance = np.real(np.fft.irfft(psd) / dt)
+    if size is not None:
+        autocovariance = autocovariance[:size]
+    covariance = sp.linalg.toeplitz(autocovariance)
+    return covariance
