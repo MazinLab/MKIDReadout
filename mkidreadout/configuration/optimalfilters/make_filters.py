@@ -260,10 +260,6 @@ class Resonator(object):
         """Find the pulse index locations in the time stream."""
         cfg = self.cfg.pulses
 
-        # unwrap the time stream
-        if cfg.unwrap:
-            self.time_stream = np.unwrap(self.time_stream)
-
         # filter the time stream
         fallback_filter = self.fallback_template - np.mean(self.fallback_template)  # Ignore DC component for the filter
         filtered_stream = sp.signal.convolve(self.time_stream, fallback_filter, mode='same')
@@ -281,6 +277,8 @@ class Resonator(object):
         bad_previous = (diff < cfg.separation)[:-1]  # far from previous previous pulse (remove last)
         bad_next = (diff < cfg.ntemplate - cfg.offset)[1:]  # far from next pulse  (remove first)
         self.mask[bad_next | bad_previous] = False
+
+        # TODO: mask wrapped pulses?
 
         # set flags
         self.result['flag'] |= flag_dict['pulses_computed']
