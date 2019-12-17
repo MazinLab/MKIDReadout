@@ -4,7 +4,9 @@ import pickle
 import logging
 import argparse
 import numpy as np
+import scipy as sp
 import multiprocessing as mp
+from astropy.stats import mad_std
 
 import mkidcore.config
 import mkidcore.objects  # must be imported for beam map to load from yaml
@@ -182,6 +184,7 @@ class Resonator(object):
         self._init_results()
 
         self.pulse_indices = None
+        self.mask = None
 
     def __getstate__(self):
         self.clear_attributes()
@@ -247,14 +250,42 @@ class Resonator(object):
 
     def make_pulses(self):
         """Find the pulse index locations in the time stream."""
-        self.pulse_indices = None
+        cfg = self.cfg.pulses
+
+        # unwrap the time stream
+        if cfg.unwrap:
+            self.time_stream = np.unwrap(self.time_stream)
+
+        # filter the time stream
+        fallback_filter = self.fallback_template - np.mean(self.fallback_template)  # Ignore DC component for the filter
+        filtered_stream = sp.signal.convolve(self.time_stream, fallback_filter, mode='same')
+
+        # find pulse indices
+        sigma = mad_std(filtered_stream)
+        characteristic_time = -np.trapz(self.fallback_template)  # ~decay time in units of dt for a perfect exponential
+        indices, _ = sp.signal.find_peaks(-filtered_stream, height=cfg.threshold * sigma, distance=characteristic_time)
+        self.pulse_indices = indices.copy()
+        self.mask = np.ones_like(self.pulse_indices, dtype=bool)
+
+        # mask piled up pulses
+        indices = np.insert(np.append(indices, filtered_stream.size), 0, 0)  # assume pulses are at the ends
+        diff = np.diff(indices)
+        bad_previous = (diff < cfg.separation)[:-1]  # far from previous previous pulse (remove last)
+        bad_next = (diff < cfg.ntemplate - cfg.offset)[1:]  # far from next pulse  (remove first)
+        self.mask[bad_next | bad_previous] = False
+
+        # set flags
+        self.result['flag'] |= flag_dict['pulses_computed']
+        if self.mask.sum() < cfg.min_pulses:  # not enough good pulses to make a reliable template
+            self.result['template'] = self.fallback_template
+            self.result['flag'] |= flag_dict['bad_pulses'] | flag_dict['bad_template'] | flag_dict['template_completed']
 
     def make_noise(self):
         """Make the noise spectrum for the resonator."""
         if self.result['flag'] & flag_dict['noise_computed']:
             return
-        cfg = self.cfg.noise
         self._flag_checks(pulses=True)
+        cfg = self.cfg.noise
 
         self.result['psd'] = np.zeros(cfg.nwindow)
         self.result['flag'] |= flag_dict['noise_computed']
