@@ -215,10 +215,10 @@ class Resonator(object):
         log.debug("Resonator {}: noise reset.".format(self.index))
         # if the filter was flagged reset the flag bitmask
         if self.result["flag"] & flag_dict["bad_noise"]:
-            self.result["flag"] = self.result["flag"] ^ flag_dict["bad_noise"]
+            self.result["flag"] ^= flag_dict["bad_noise"]
             log.debug("Resonator {}: noise problem flag reset.".format(self.index))
         if self.result["flag"] & flag_dict["noise_computed"]:
-            self.result["flag"] = self.result["flag"] ^ flag_dict["noise_computed"]
+            self.result["flag"] ^= flag_dict["noise_computed"]
             log.debug("Resonator {}: noise status flag reset.".format(self.index))
 
     def clear_template(self):
@@ -227,10 +227,10 @@ class Resonator(object):
         log.debug("Resonator {}: template reset.".format(self.index))
         # if the filter was flagged reset the flag bitmask
         if self.result["flag"] & flag_dict["bad_template"]:
-            self.result["flag"] = self.result["flag"] ^ flag_dict["bad_template"]
+            self.result["flag"] ^= flag_dict["bad_template"]
             log.debug("Resonator {}: template problem flag reset.".format(self.index))
         if self.result["flag"] & flag_dict["template_computed"]:
-            self.result["flag"] = self.result["flag"] ^ flag_dict["template_computed"]
+            self.result["flag"] ^= flag_dict["template_computed"]
             log.debug("Resonator {}: template status flag reset.".format(self.index))
 
     def clear_filter(self):
@@ -239,10 +239,10 @@ class Resonator(object):
         log.debug("Resonator {}: filter reset.".format(self.index))
         # if the filter was flagged reset the flag bitmask
         if self.result["flag"] & flag_dict["bad_filter"]:
-            self.result["flag"] = self.result["flag"] ^ flag_dict["bad_filter"]
+            self.result["flag"] ^= flag_dict["bad_filter"]
             log.debug("Resonator {}: filter problem flag reset.".format(self.index))
         if self.result["flag"] & flag_dict["filter_computed"]:
-            self.result["flag"] = self.result["flag"] ^ flag_dict["filter_computed"]
+            self.result["flag"] ^= flag_dict["filter_computed"]
             log.debug("Resonator {}: filter status flag reset.".format(self.index))
 
     def make_pulses(self):
@@ -257,7 +257,7 @@ class Resonator(object):
         self._flag_checks(pulses=True)
 
         self.result['psd'] = np.zeros(cfg.nwindow)
-        self.result['flag'] = self.result['flag'] | flag_dict['noise_computed']
+        self.result['flag'] |= flag_dict['noise_computed']
 
     def make_template(self):
         """Make the template for the photon pulse."""
@@ -277,7 +277,7 @@ class Resonator(object):
         cfg = self.cfg.filter
 
         self.result['filter'] = np.zeros(cfg.nfilter)
-        self.result['flag'] = self.result['flag'] | flag_dict['filter_computed']
+        self.result['flag'] |= flag_dict['filter_computed']
 
     def _init_results(self):
         self.result = {"template": None, "filter": None, "psd": None, "flag": flag_dict["not_started"]}
