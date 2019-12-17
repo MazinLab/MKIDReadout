@@ -16,11 +16,11 @@ log.addHandler(logging.NullHandler())
 
 
 def load_fallback_template(config):
-    if config.peak_finding.fallback_template == "default":
+    if config.pulses.fallback_template == "default":
         directory = os.path.dirname(os.path.realpath(__file__))
         file_name = os.path.join(directory, "template_15us.txt")
     else:
-        file_name = config.peak_finding.fallback_template
+        file_name = config.pulses.fallback_template
     template = np.loadtxt(file_name)
     min_index = np.argmin(template)
     start = min_index - config.template.offset
