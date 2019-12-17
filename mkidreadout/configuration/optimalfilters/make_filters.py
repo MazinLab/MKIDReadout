@@ -189,7 +189,7 @@ class Resonator(object):
         self.mask = None
 
     def __getstate__(self):
-        self.clear_attributes()
+        self.clear_file_properties()
         return self.__dict__
 
     @property
@@ -208,8 +208,8 @@ class Resonator(object):
     def time_stream(self, value):
         self._time_stream = value
 
-    def clear_attributes(self):
-        """Free up memory by removing attributes that can be reloaded from files."""
+    def clear_file_properties(self):
+        """Free up memory by removing properties that can be reloaded from files."""
         self.time_stream = None
 
     def clear_results(self):
