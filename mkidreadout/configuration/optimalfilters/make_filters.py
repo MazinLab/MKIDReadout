@@ -297,8 +297,25 @@ class Resonator(object):
         self._flag_checks(pulses=True, noise=True)
         cfg = self.cfg.template
 
-        self.result['template'] = np.zeros(cfg.ntemplate)
-        self.result['flag'] = self.result['flag'] | flag_dict['template_computed']
+        # make a pulse array
+        index_array = self.pulse_indices[self.mask] + np.arange(-cfg.offset, cfg.ntemplate - cfg.offset)[:, np.newaxis]
+        pulses = self.time_stream[index_array]
+
+        # compute a rough template
+        weights = 1 / np.abs(pulses[:, cfg.offset]) / pulses.shape[0]
+        template = np.average(pulses, axis=0, weights=weights) * weights.sum()
+
+        # TODO: make filter and recompute? (don't use make_filter code)
+        # TODO: fit template?
+
+        # set flags and results
+        tau = -np.trapz(template)
+        if tau < cfg.min_tau or tau > cfg.max_tau:
+            self.result['flag'] |= flag_dict['bad_template']
+            self.result['template'] = self.fallback_template
+        else:
+            self.result['template'] = template
+        self.result['flag'] |= flag_dict['template_computed']
 
     def make_filter(self):
         """Make the filter for the resonator."""
