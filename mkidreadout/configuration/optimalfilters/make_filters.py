@@ -309,7 +309,7 @@ class Resonator(object):
 
         # compute a rough template
         weights = 1 / np.abs(pulses[:, cfg.offset]) / pulses.shape[0]
-        template = np.sum(pulses * weights, axis=0)
+        template = np.sum(pulses * weights[:, np.newaxis], axis=0)
         template /= np.abs(template.min())  # correct for floating point errors
 
         # TODO: make filter and recompute? (don't use make_filter code)
