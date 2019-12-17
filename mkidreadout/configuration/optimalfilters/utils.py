@@ -18,17 +18,17 @@ log.addHandler(logging.NullHandler())
 def load_fallback_template(config):
     if config.peak_finding.fallback_template == "default":
         directory = os.path.dirname(os.path.realpath(__file__))
-        fallback_template = os.path.join(directory, "template_15us.txt")
+        file_name = os.path.join(directory, "template_15us.txt")
     else:
-        fallback_template = config.peak_finding.fallback_template
-    template = np.loadtxt(fallback_template)
+        file_name = config.peak_finding.fallback_template
+    template = np.loadtxt(file_name)
     min_index = np.argmin(template)
     start = min_index - config.template.offset
     stop = start + config.template.ntemplate
-    default_template = template[start:stop]
-    if default_template.size != config.template.ntemplate:  # slicing can return a different sized array
-        raise ValueError("The default template is not the right size. The 'npulse' parameter may be too large.")
-    return default_template[start:stop]
+    fallback_template = template[start:stop]
+    if fallback_template.size != config.template.ntemplate:  # slicing can return a different sized array
+        raise ValueError("The fallback template is not the right size. The 'ntemplate' parameter may be too large.")
+    return fallback_template
 
 
 def is_number(s):

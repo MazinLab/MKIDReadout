@@ -42,7 +42,8 @@ class Solution(object):
         self.save_name = save_name
         # computation attributes
         self.res_ids = np.array([utils.res_id_from_file_name(file_name) for file_name in file_names])
-        self.resonators = np.array([Resonator(self.cfg.filters, file_name, self.fallback_template, index=index)
+        self.resonators = np.array([Resonator(self.cfg.filters, file_name,
+                                              fallback_template=self.fallback_template, index=index)
                                     for index, file_name in enumerate(file_names)])
         # output products
         self.filters = {}
@@ -168,19 +169,24 @@ class Resonator(object):
             mkidcore.config.load().
         file_name: string
             The file name containing the phase time-stream.
-        fallback_template: numpy.ndarray
-            A 1D numpy array of size config.ntemplate that will be used for the
-            resonator template if it cannot be computed from the phase
-            time-stream.
+        fallback_template: numpy.ndarray (optional)
+            A 1D numpy array of size config.template.ntemplate with the correct
+            config.template.offset that will be used for the resonator template
+            if it cannot be computed from the phase time-stream. If not
+            supplied, the template is loaded in according to the config.
         index: integer (optional)
             An integer used to index the resonator objects. It is not used
             directly by this class.
     """
-    def __init__(self, config, file_name, fallback_template, index=None):
-        self.index = index
-        self.file_name = file_name
+    def __init__(self, config, file_name, fallback_template=None, index=None):
         self.cfg = config
-        self.fallback_template = fallback_template
+        self.file_name = file_name
+        if fallback_template is None:
+            self.fallback_template = utils.load_fallback_template(self.cfg)
+        else:
+            self.fallback_template = fallback_template
+        self.index = index
+
         self._time_stream = None
 
         self._init_results()
