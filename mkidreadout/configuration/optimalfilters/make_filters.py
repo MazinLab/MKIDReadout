@@ -295,6 +295,7 @@ class Resonator(object):
             return
         self._flag_checks(pulses=True)
         cfg = self.cfg.noise
+        pulse_cfg = self.cfg.pulses
 
         # add pulses to the ends so that the bounds are treated correctly
         pulses = np.insert(np.append(self.results["pulses"], self.time_stream.size + 1), 0, 0)
@@ -305,9 +306,9 @@ class Resonator(object):
         for peak1, peak2 in zip(pulses[:-1], pulses[1:]):
             if n > cfg.max_noise:
                 break  # no more noise is needed
-            if peak2 + peak1 < 2 * cfg.isolation + cfg.nwindow:
+            if peak2 - peak1 < cfg.isolation + pulse_cfg.offset + cfg.nwindow:
                 continue  # not enough space between peaks
-            data = self.time_stream[peak1 + cfg.isolation: peak2 - cfg.isolation]
+            data = self.time_stream[peak1 + pulse_cfg.isolation: peak2 - pulse_cfg.offset]
             self.result['psd'] += sp.signal.welch(data, fs=1. / self.cfg.dt, nperseg=cfg.nwindow, detrend="constant",
                                                   return_onesided=True, scaling="density")[1]
             n += 1

@@ -18,7 +18,7 @@ filters: !configdict  # main configuration section for the filter computation
     min_pulses: 1000  # minimum number of good pulses required to be found before using the fallback template [int]
   noise: !configdict  # configuration for computing the noise
     nwindow: 500  # window size used to estimate the power spectral density  [int]
-    isolation: 100  # noise is computed from data isolated from pulses by this amount of time in units of dt [int]
+    isolation: 100  # only use data isolated from pulses by this amount of time after the pulse in units of dt [int]
     max_noise: 2000  # maximum number of noise samples needed before moving on [int]
   template: !configdict  # configuration for computing the template
     percent: 80  # use only the middle x% of the data to compute the template [float]
