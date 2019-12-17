@@ -196,9 +196,13 @@ class Resonator(object):
             self._time_stream = np.zeros(int(60e6))
         return self._time_stream
 
+    @time_stream.setter
+    def time_stream(self, value):
+        self._time_stream = value
+
     def clear_attributes(self):
         """Free up memory by removing attributes that can be reloaded from files."""
-        self._time_stream = None
+        self.time_stream = None
 
     def clear_results(self):
         """Delete computed results from the resonator."""
