@@ -194,9 +194,9 @@ class Resonator(object):
     def time_stream(self):
         """The phase time-stream of the resonator."""
         if self._time_stream is None:
-            # npz = np.load(self.file_name)
-            # self._time_stream = npz[npz.keys()[0]]  # TODO: remove
-            self._time_stream = np.zeros(int(60e6))
+            npz = np.load(self.file_name)
+            self._time_stream = npz[npz.keys()[0]]
+            # self._time_stream = np.zeros(int(60e6))  # TODO: remove
         return self._time_stream
 
     @time_stream.setter
@@ -381,8 +381,8 @@ def run(config, progress=False, force=False, save_name=DEFAULT_SAVE_NAME):
     if force or not os.path.isfile(save_name):
         log.info("Creating new solution object")
         # get file name list
-        # file_names = utils.get_file_list(config.paths.data)  # TODO: remove
-        file_names = ["snap_112_resID10000_3212323-2323232.npz" for _ in range(2000)]
+        file_names = utils.get_file_list(config.paths.data)
+        # file_names = ["snap_112_resID10000_3212323-2323232.npz" for _ in range(2000)]  # TODO: remove
         # set up solution file
         sol = Solution(config, file_names, save_name=save_name)
     else:
