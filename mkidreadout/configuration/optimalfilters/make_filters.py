@@ -191,9 +191,6 @@ class Resonator(object):
 
         self._init_results()
 
-        self.pulse_indices = None
-        self.mask = None
-
     def __getstate__(self):
         self.clear_file_properties()
         return self.__dict__
@@ -221,8 +218,6 @@ class Resonator(object):
     def clear_results(self):
         """Delete computed results from the resonator."""
         self._init_results()
-        self.pulse_indices = None
-        self.mask = None
         self.time_stream = None  # technically computed since it is unwrapped
         log.debug("Resonator {}: results reset.")
 
@@ -274,21 +269,21 @@ class Resonator(object):
         sigma = mad_std(filtered_stream)
         characteristic_time = -np.trapz(self.fallback_template)  # ~decay time in units of dt for a perfect exponential
         indices, _ = sp.signal.find_peaks(-filtered_stream, height=cfg.threshold * sigma, distance=characteristic_time)
-        self.pulse_indices = indices.copy()
-        self.mask = np.ones_like(self.pulse_indices, dtype=bool)
+        self.result["pulses"] = indices.copy()
+        self.result["mask"] = np.ones_like(self.result["pulses"], dtype=bool)
 
         # mask piled up pulses
         indices = np.insert(np.append(indices, filtered_stream.size), 0, 0)  # assume pulses are at the ends
         diff = np.diff(indices)
         bad_previous = (diff < cfg.separation)[:-1]  # far from previous previous pulse (remove last)
         bad_next = (diff < cfg.ntemplate - cfg.offset)[1:]  # far from next pulse  (remove first)
-        self.mask[bad_next | bad_previous] = False
+        self.result["mask"][bad_next | bad_previous] = False
 
         # TODO: mask wrapped pulses?
 
         # set flags
         self.result['flag'] |= flag_dict['pulses_computed']
-        if self.mask.sum() < cfg.min_pulses:  # not enough good pulses to make a reliable template
+        if self.result["mask"].sum() < cfg.min_pulses:  # not enough good pulses to make a reliable template
             self.result['template'] = self.fallback_template
             self.result['flag'] |= flag_dict['bad_pulses'] | flag_dict['bad_template'] | flag_dict['template_completed']
 
@@ -310,7 +305,8 @@ class Resonator(object):
         cfg = self.cfg.template
 
         # make a pulse array
-        index_array = self.pulse_indices[self.mask] + np.arange(-cfg.offset, cfg.ntemplate - cfg.offset)[:, np.newaxis]
+        index_array = (self.result["pulses"][self.result["mask"]] +
+                       np.arange(-cfg.offset, cfg.ntemplate - cfg.offset)[:, np.newaxis])
         pulses = self.time_stream[index_array]
 
         # compute a rough template
@@ -341,7 +337,8 @@ class Resonator(object):
         self.result['flag'] |= flag_dict['filter_computed']
 
     def _init_results(self):
-        self.result = {"template": None, "filter": None, "psd": None, "flag": flag_dict["not_started"]}
+        self.result = {"pulses": None, "mask": None, "template": None, "filter": None, "psd": None,
+                       "flag": flag_dict["not_started"]}
 
     def _flag_checks(self, pulses=False, noise=False, template=False):
         if pulses:
