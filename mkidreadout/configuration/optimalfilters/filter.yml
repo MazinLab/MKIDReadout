@@ -11,7 +11,6 @@ beammap: !bmap  # include beammap for summary plots
 filters: !configdict  # main configuration section for the filter computation
   pulses: !configdict # configuration for finding pulse indices in the phase time-stream
     fallback_template: default  # used as pulse finding filter and fallback template [default | path to custom file]
-    unwrap: True  # unwrap the phase time-stream data  [bool]
     threshold: 5  # number of standard deviations to use as a threshold for pulse finding [int]
     separation: 500  # minimum separation between pulses in units of dt [int]
     min_pulses: 1000  # minimum number of good pulses required to be found before using the fallback template [int]
@@ -25,5 +24,6 @@ filters: !configdict  # main configuration section for the filter computation
   filter: !configdict  # configuration for computing the filter
     filter_type: standard  # type of filter to compute  [function names in filters.py]
     nfilter: 50  # number of coefficients in the filter  [int]
+  unwrap: True  # unwrap the phase time-stream data  [bool]
   dt: 1e-6  # time sample spacing (inverse sample rate used for plotting)  [float]
   summary_plot: True  # make a summary plot at the end of the calculation  [bool]

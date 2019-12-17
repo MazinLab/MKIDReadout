@@ -56,18 +56,20 @@ class Solution(object):
     @cfg.setter
     def cfg(self, config):
         self._cfg = config
+        # change each resonator config and delete data that become invalid with the new settings
         for resonator in self.resonators:
             cfg = resonator.cfg
-            # overload all the results if the pulse finding configuration changed
+            # overload pulses, noise, template & filter if the pulse finding configuration changed
             if any([getattr(self.cfg.filters.pulses, key) != item for key, item in cfg.pulses.items()]):
                 resonator.clear_results()
             # overload template & filter if the template configuration changed
             if any([getattr(self.cfg.filters.template, key) != item for key, item in cfg.template.items()]):
-                resonator.clear_templates()
+                resonator.clear_template()
                 resotator.clear_filter()
-            # overload noise & filter if the noise configuration changed
+            # overload noise, template & filter the results if the noise configuration changed
             if any([getattr(self.cfg.filters.noise, key) != item for key, item in cfg.noise.items()]):
                 resonator.clear_noise()
+                resonator.clear_template()
                 resotator.clear_filter()
             # overload filter if the filter configuration changed
             if any([getattr(self.cfg.filters.filter, key) != item for key, item in cfg.filter.items()]):
@@ -196,6 +198,9 @@ class Resonator(object):
         if self._time_stream is None:
             npz = np.load(self.file_name)
             self._time_stream = npz[npz.keys()[0]]
+            # unwrap the time stream
+            if self.cfg.unwrap:
+                self._time_stream = np.unwrap(self._time_stream)
             # self._time_stream = np.zeros(int(60e6))  # TODO: remove
         return self._time_stream
 
@@ -210,6 +215,9 @@ class Resonator(object):
     def clear_results(self):
         """Delete computed results from the resonator."""
         self._init_results()
+        self.pulse_indices = None
+        self.mask = None
+        self.time_stream = None  # technically computed since it is unwrapped
         log.debug("Resonator {}: results reset.")
 
     def clear_noise(self):
@@ -321,7 +329,7 @@ class Resonator(object):
         """Make the filter for the resonator."""
         if self.result['flag'] & flag_dict['filter_computed']:
             return
-        self._flag_checks(noise=True, template=True)
+        self._flag_checks(pulses=True, noise=True, template=True)
         cfg = self.cfg.filter
 
         self.result['filter'] = np.zeros(cfg.nfilter)
