@@ -16,24 +16,24 @@ log.addHandler(logging.NullHandler())
 
 
 def load_fallback_template(config):
-    if config.pulses.fallback_template == "default":
+    if config.fallback_template == "default":
         directory = os.path.dirname(os.path.realpath(__file__))
         file_name = os.path.join(directory, "template_15us.txt")
     else:
-        file_name = config.pulses.fallback_template
+        file_name = config.fallback_template
     template = np.loadtxt(file_name)
     min_index = np.argmin(template)
-    start = min_index - config.template.offset
-    stop = start + config.template.ntemplate
+    start = min_index - config.offset
+    stop = start + config.ntemplate
     fallback_template = template[start:stop]
     check_template(config, fallback_template)
     return fallback_template
 
 
 def check_template(config, template):
-    if template.size != config.template.ntemplate:  # slicing can return a different sized array
+    if template.size != config.ntemplate:  # slicing can return a different sized array
         raise ValueError("The fallback template is not the right size. The 'ntemplate' parameter may be too large.")
-    if np.argmin(template) != config.template.offset:
+    if np.argmin(template) != config.offset:
         raise ValueError("The fallback template peak is not at the right 'offset' index.")
 
 

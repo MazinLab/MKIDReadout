@@ -11,6 +11,8 @@ beammap: !bmap  # include beammap for summary plots
 filters: !configdict  # main configuration section for the filter computation
   pulses: !configdict # configuration for finding pulse indices in the phase time-stream
     fallback_template: default  # used as pulse finding filter and fallback template [default | path to custom file]
+    ntemplate: 500  # window size used to estimate the template  [int]
+    offset: 10  # peak index from the left  [int]
     threshold: 4  # number of standard deviations to use as a threshold for pulse finding [int]
     separation: 500  # minimum separation between pulses in units of dt [int]
     min_pulses: 1000  # minimum number of good pulses required to be found before using the fallback template [int]
@@ -19,8 +21,6 @@ filters: !configdict  # main configuration section for the filter computation
     isolation: 100  # noise is computed from data isolated from pulses by this amount of time in units of dt [int]
     max_noise: 2000  # maximum number of noise samples needed before moving on [int]
   template: !configdict  # configuration for computing the template
-    offset: 10  # peak index from the left  [int]
-    ntemplate: 500  # window size used to estimate the template  [int]
     percent: 80  # use only the middle x% of the data to compute the template [float]
     min_tau: 5  # minimum allowed template time constant in units of dt [float]
     max_tau: 50  # maximum allowed template time constant in units of dt [float]

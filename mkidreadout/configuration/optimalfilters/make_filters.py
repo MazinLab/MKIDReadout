@@ -38,7 +38,7 @@ class Solution(object):
     def __init__(self, config, file_names, save_name=DEFAULT_SAVE_NAME):
         # input attributes
         self._cfg = config
-        self.fallback_template = utils.load_fallback_template(self.cfg.filters)
+        self.fallback_template = utils.load_fallback_template(self.cfg.filters.pulses)
         self.file_names = file_names
         self.save_name = save_name
         # computation attributes
@@ -171,8 +171,8 @@ class Resonator(object):
         file_name: string
             The file name containing the phase time-stream.
         fallback_template: numpy.ndarray (optional)
-            A 1D numpy array of size config.template.ntemplate with the correct
-            config.template.offset that will be used for the resonator template
+            A 1D numpy array of size config.pulses.ntemplate with the correct
+            config.pulses.offset that will be used for the resonator template
             if it cannot be computed from the phase time-stream. If not
             supplied, the template is loaded in according to the config.
         index: integer (optional)
@@ -183,9 +183,9 @@ class Resonator(object):
         self.cfg = config
         self.file_name = file_name
         if fallback_template is None:
-            self.fallback_template = utils.load_fallback_template(self.cfg)
+            self.fallback_template = utils.load_fallback_template(self.cfg.pulses)
         else:
-            utils.check_template(config, fallback_template)
+            utils.check_template(self.cfg.pulses, fallback_template)
             self.fallback_template = fallback_template
         self.index = index
 
@@ -326,16 +326,17 @@ class Resonator(object):
             return
         self._flag_checks(pulses=True, noise=True)
         cfg = self.cfg.template
+        pulse_cfg = self.cfg.pulses
 
         # make a pulse array
         index_array = (self.result["pulses"][self.result["mask"]] +
-                       np.arange(-cfg.offset, cfg.ntemplate - cfg.offset)[:, np.newaxis])
+                       np.arange(-pulse_cfg.offset, pulse_cfg.ntemplate - pulse_cfg.offset)[:, np.newaxis])
         pulses = self.time_stream[index_array]
 
         # weight the pulses by pulse height and remove those that are outside the middle percent of the data
-        weights = 1 / np.abs(pulses[:, cfg.offset])
-        percentiles = np.percentile(pulses[:, cfg.offset], [cfg.percent / 2., 100 - cfg.percent / 2.])
-        weights[(pulses[:, cfg.offset] < percentiles[0]) | (pulses[:, cfg.offset] > percentiles[1])] = 0
+        weights = 1 / np.abs(pulses[:, pulse_cfg.offset])
+        percentiles = np.percentile(pulses[:, pulse_cfg.offset], [cfg.percent / 2., 100 - cfg.percent / 2.])
+        weights[(pulses[:, pulse_cfg.offset] < percentiles[0]) | (pulses[:, pulse_cfg.offset] > percentiles[1])] = 0
 
         # compute the template
         template = np.sum(pulses * weights[:, np.newaxis], axis=0)
