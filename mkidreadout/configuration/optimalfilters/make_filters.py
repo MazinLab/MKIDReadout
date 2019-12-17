@@ -184,6 +184,7 @@ class Resonator(object):
         if fallback_template is None:
             self.fallback_template = utils.load_fallback_template(self.cfg)
         else:
+            utils.check_template(config, fallback_template)
             self.fallback_template = fallback_template
         self.index = index
 

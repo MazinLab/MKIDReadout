@@ -26,9 +26,15 @@ def load_fallback_template(config):
     start = min_index - config.template.offset
     stop = start + config.template.ntemplate
     fallback_template = template[start:stop]
-    if fallback_template.size != config.template.ntemplate:  # slicing can return a different sized array
-        raise ValueError("The fallback template is not the right size. The 'ntemplate' parameter may be too large.")
+    check_template(config, fallback_template)
     return fallback_template
+
+
+def check_template(config, template):
+    if template.size != config.template.ntemplate:  # slicing can return a different sized array
+        raise ValueError("The fallback template is not the right size. The 'ntemplate' parameter may be too large.")
+    if np.argmin(template) != config.template.offset:
+        raise ValueError("The fallback template peak is not at the right 'offset' index.")
 
 
 def is_number(s):

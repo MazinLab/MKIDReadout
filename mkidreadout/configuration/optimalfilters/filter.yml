@@ -17,7 +17,7 @@ filters: !configdict  # main configuration section for the filter computation
   noise: !configdict  # configuration for computing the noise
     nwindow: 500  # window size used to estimate the noise auto-correlation function  [int]
   template: !configdict  # configuration for computing the template
-    offset: 10  # number of samples to offset the template peak from the left  [int]
+    offset: 10  # peak index from the left  [int]
     ntemplate: 500  # window size used to estimate the template  [int]
     min_tau: 5  # minimum allowed template time constant in units of dt [float]
     max_tau: 50  # maximum allowed template time constant in units of dt [float]
