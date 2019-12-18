@@ -3,6 +3,7 @@ import os
 import glob
 import logging
 import numpy as np
+import scipy as sp
 import multiprocessing as mp
 
 try:
@@ -113,7 +114,7 @@ def setup_progress(iterable):
 
 
 def covariance_from_psd(psd, size=None, dt=1.):
-    autocovariance = np.real(np.fft.irfft(psd) / dt)
+    autocovariance = np.real(np.fft.irfft(psd / 2) / dt)  # divide by 2 for single sided PSD
     if size is not None:
         autocovariance = autocovariance[:size]
     covariance = sp.linalg.toeplitz(autocovariance)
