@@ -390,11 +390,12 @@ void* reader(void *prms){
     int s, ret, i;
     ssize_t nBytesReceived = 0;
     ssize_t nTotalBytes = 0;
-    size_t nBytesToReceive;
+    size_t lastWriteSize;
     RINGBUFFER *packBuf;
     READER_PARAMS *params;
     sem_t *quitSem;
     char streamSemName[80];
+    char overFlowBuf[BUFLEN];
 
     params = (READER_PARAMS*) prms;
     
@@ -457,36 +458,70 @@ void* reader(void *prms){
         }
         #endif
 
-        if((RINGBUF_SIZE - packBuf->writeInd) > BUFLEN)
-            nBytesToReceive = BUFLEN;
-        else 
-            nBytesToReceive = RINGBUF_SIZE - packBuf->writeInd;
+        if((RINGBUF_SIZE - packBuf->writeInd) >= BUFLEN){ //Need to use overflow buffer since we might cross ringbuffer boundary
+            nBytesReceived = recv(s, overFlowBuf, BUFLEN, 0);
+            if (nBytesReceived == -1)
+            {
+                if (errno == EAGAIN || errno == EWOULDBLOCK)
+                {// recv timed out, clear the error and check again
+                    errno = 0;
+                    continue;
+                }
+                else
+                    diep("recvfrom()");
+            }
+
+            else if (nBytesReceived == 0 ) continue;
+            
+            else if(nBytesReceived >= (RINGBUF_SIZE - packBuf->writeInd)){ //We've hit ringbuffer boundary
+                memcpy(packBuf->data + packBuf->writeInd, overFlowBuf, RINGBUF_SIZE - packBuf->writeInd);
+                lastWriteSize = RINGBUF_SIZE - packBuf->writeInd;
+                packBuf->writeInd = 0;
+                packBuf->nCycles += 1;
+                memcpy(packBuf->data + packBuf->writeInd, overFlowBuf + lastWriteSize, 
+                        nBytesReceived - lastWriteSize); 
+                packBuf->writeInd += nBytesReceived - lastWriteSize;
+
+            }
+
+            else{
+                memcpy(packBuf->data + packBuf->writeInd, overFlowBuf, nBytesReceived);
+                packBuf->writeInd += nBytesReceived;
+                assert(packBuf->writeInd < RINGBUF_SIZE);
+
+            }
+
+        }
 
 
-        nBytesReceived = recv(s, packBuf->data + packBuf->writeInd, nBytesToReceive, 0);
-        //printf("read from socket %d %d!\n",nFrames, nBytesReceived); fflush(stdout);
-        if (nBytesReceived == -1)
-        {
-            if (errno == EAGAIN || errno == EWOULDBLOCK)
-            {// recv timed out, clear the error and check again
-                errno = 0;
-                continue;
+
+        else{
+            nBytesReceived = recv(s, packBuf->data + packBuf->writeInd, BUFLEN, 0);
+            if (nBytesReceived == -1)
+            {
+                if (errno == EAGAIN || errno == EWOULDBLOCK)
+                {// recv timed out, clear the error and check again
+                    errno = 0;
+                    continue;
+                }
+                else
+                    diep("recvfrom()");
+            }
+            else if (nBytesReceived == 0 ) continue;
+
+
+            //else if((nBytesReceived + packBuf->writeInd) > RINGBUF_SIZE)
+            //    printf("READER: RINGBUFFER MEMORY OVERFLOW\n");
+            else if((nBytesReceived + packBuf->writeInd) == RINGBUF_SIZE){
+                printf("READER: line 518 shouldn't happen\n");
+                packBuf->writeInd = 0;
+                packBuf->nCycles += 1;
+
             }
             else
-                diep("recvfrom()");
-        }
-        
-        if (nBytesReceived == 0 ) continue;
-
-        if((nBytesReceived + packBuf->writeInd) > RINGBUF_SIZE)
-            printf("READER: RINGBUFFER MEMORY OVERFLOW\n");
-        else if((nBytesReceived + packBuf->writeInd) == RINGBUF_SIZE){
-            packBuf->writeInd = 0;
-            packBuf->nCycles += 1;
+                packBuf->writeInd += nBytesReceived;
 
         }
-        else
-            packBuf->writeInd += nBytesReceived;
 
         nTotalBytes += nBytesReceived;
         //printf("Received packet from %s:%d\nData: %s\n\n", 
@@ -619,20 +654,20 @@ void* binWriter(void *prms)
                  lastCycle = packBuf->nCycles - 1;
 
              }
-             if(nUnread >= BINWRITER_CHUNKSIZE){
-                 if(BINWRITER_CHUNKSIZE >= (RINGBUF_SIZE - bufReadInd)){ //could write nUnread bytes instead..
+             if(nUnread >= BINWRITER_MINSIZE){
+                 if(nUnread >= (RINGBUF_SIZE - bufReadInd)){ 
 	                fwrite(packBuf->data + bufReadInd, 1, RINGBUF_SIZE - bufReadInd, wp);    	         
-	                fwrite(packBuf->data, 1, BINWRITER_CHUNKSIZE - (RINGBUF_SIZE - bufReadInd), wp);
+	                fwrite(packBuf->data, 1, nUnread - (RINGBUF_SIZE - bufReadInd), wp);
                     lastCycle += 1;
                     outcount += RINGBUF_SIZE - bufReadInd;
-                    bufReadInd = BINWRITER_CHUNKSIZE - (RINGBUF_SIZE - bufReadInd);
+                    bufReadInd = nUnread - (RINGBUF_SIZE - bufReadInd);
 
                  }
 
                 else{
-	                   fwrite(packBuf->data + bufReadInd, 1, BINWRITER_CHUNKSIZE, wp);    	         
-                       bufReadInd += BINWRITER_CHUNKSIZE;
-                       outcount += BINWRITER_CHUNKSIZE;
+	                   fwrite(packBuf->data + bufReadInd, 1, nUnread, wp);    	         
+                       bufReadInd += nUnread;
+                       outcount += nUnread;
 
                     }
 
