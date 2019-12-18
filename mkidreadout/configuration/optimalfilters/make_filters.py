@@ -191,7 +191,7 @@ class Resonator(object):
 
         self._time_stream = None
 
-        self._init_results()
+        self._init_result()
 
     def __getstate__(self):
         self.clear_file_properties()
@@ -219,7 +219,7 @@ class Resonator(object):
 
     def clear_results(self):
         """Delete computed results from the resonator."""
-        self._init_results()
+        self._init_result()
         self.time_stream = None  # technically computed since it is unwrapped
         log.debug("Resonator {}: results reset.")
 
@@ -263,15 +263,17 @@ class Resonator(object):
         """Find the pulse index locations in the time stream."""
         cfg = self.cfg.pulses
 
-        # filter the time stream
-        fallback_filter = self.fallback_template - np.mean(self.fallback_template)  # Ignore DC component for the filter
+        # filter the time stream (ignore DC component)
+        fallback_filter = self.fallback_template[::-1] - np.mean(self.fallback_template)
         filtered_stream = sp.signal.convolve(self.time_stream, fallback_filter, mode='same')  # pulses are positive
 
         # find pulse indices
         sigma = mad_std(filtered_stream)
         characteristic_time = -np.trapz(self.fallback_template)  # ~decay time in units of dt for a perfect exponential
         indices, _ = sp.signal.find_peaks(filtered_stream, height=cfg.threshold * sigma, distance=characteristic_time)
-        self.result["pulses"] = indices.copy()
+
+        # correct for correlation offset and save results
+        self.result["pulses"] = indices - cfg.ntemplate // 2 + cfg.offset
         self.result["mask"] = np.ones_like(self.result["pulses"], dtype=bool)
 
         # mask piled up pulses
@@ -298,17 +300,17 @@ class Resonator(object):
         pulse_cfg = self.cfg.pulses
 
         # add pulses to the ends so that the bounds are treated correctly
-        pulses = np.insert(np.append(self.results["pulses"], self.time_stream.size + 1), 0, 0)
+        pulses = np.insert(np.append(self.result["pulses"], self.time_stream.size + 1), 0, 0)
 
         # loop space between peaks and compute noise
         n = 0
-        self.result['psd'] = np.zeros(np.floor(cfg.nwindow / 2. + 1))
+        self.result['psd'] = np.zeros(int(cfg.nwindow / 2. + 1))
         for peak1, peak2 in zip(pulses[:-1], pulses[1:]):
             if n > cfg.max_noise:
                 break  # no more noise is needed
             if peak2 - peak1 < cfg.isolation + pulse_cfg.offset + cfg.nwindow:
                 continue  # not enough space between peaks
-            data = self.time_stream[peak1 + pulse_cfg.isolation: peak2 - pulse_cfg.offset]
+            data = self.time_stream[peak1 + cfg.isolation: peak2 - pulse_cfg.offset]
             self.result['psd'] += sp.signal.welch(data, fs=1. / self.cfg.dt, nperseg=cfg.nwindow, detrend="constant",
                                                   return_onesided=True, scaling="density")[1]
             n += 1
@@ -331,18 +333,23 @@ class Resonator(object):
 
         # make a pulse array
         index_array = (self.result["pulses"][self.result["mask"]] +
-                       np.arange(-pulse_cfg.offset, pulse_cfg.ntemplate - pulse_cfg.offset)[:, np.newaxis])
-        pulses = self.time_stream[index_array]
+                       np.arange(-pulse_cfg.offset, pulse_cfg.ntemplate - pulse_cfg.offset)[:, np.newaxis]).T
+        pulses = (self.time_stream - np.median(self.time_stream))[index_array]
 
         # weight the pulses by pulse height and remove those that are outside the middle percent of the data
         weights = 1 / np.abs(pulses[:, pulse_cfg.offset])
-        percentiles = np.percentile(pulses[:, pulse_cfg.offset], [cfg.percent / 2., 100 - cfg.percent / 2.])
+        percentiles = np.percentile(pulses[:, pulse_cfg.offset], [(100 - cfg.percent) / 2., (100 + cfg.percent) / 2.])
         weights[(pulses[:, pulse_cfg.offset] < percentiles[0]) | (pulses[:, pulse_cfg.offset] > percentiles[1])] = 0
 
         # compute the template
         template = np.sum(pulses * weights[:, np.newaxis], axis=0)
         if template.min() != 0:  # all weights could be zero
             template /= np.abs(template.min())  # correct over all template height
+
+        # shift template (max may not be exactly at offset due to the default template not being a perfect match)
+        start = 10 + np.argmin(template) - pulse_cfg.offset
+        stop = start + pulse_cfg.ntemplate
+        template = np.pad(template, 10, mode='constant')[start:stop]
 
         # TODO: make filter and recompute? (don't use make_filter code)
         # TODO: fit template?
@@ -366,7 +373,7 @@ class Resonator(object):
         self.result['filter'] = np.zeros(cfg.nfilter)
         self.result['flag'] |= flag_dict['filter_computed']
 
-    def _init_results(self):
+    def _init_result(self):
         self.result = {"pulses": None, "mask": None, "template": None, "filter": None, "psd": None,
                        "flag": flag_dict["not_started"]}
 
