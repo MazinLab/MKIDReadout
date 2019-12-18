@@ -257,7 +257,7 @@ void *shmImageWriter(void *prms)
                    }
 
                    else
-                       printf("Severe shared mem overflow!\n");
+                       printf("Severe shared mem overflow! lastCycle: %llu, pStartCycle: %llu, nCycles %llu\n", lastCycle, pStartCycle, packBuf->nCycles);
 
                    prevRoachInd = curRoachInd;
                    curRoachInd = 0;
@@ -405,6 +405,8 @@ void* reader(void *prms){
     printf("READER: Connecting to Socket!\n"); fflush(stdout);
 
     packBuf = params->packBuf; //pointer to list of stream buffers, assume this is allocated
+    packBuf->writeInd = 0;
+    packBuf->nCycles = 0;
 
     //open semaphores
     quitSem = sem_open(params->quitSemName, O_CREAT, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP, 0);
@@ -458,7 +460,7 @@ void* reader(void *prms){
         }
         #endif
 
-        if((RINGBUF_SIZE - packBuf->writeInd) >= BUFLEN){ //Need to use overflow buffer since we might cross ringbuffer boundary
+        if((RINGBUF_SIZE - packBuf->writeInd) <= BUFLEN){ //Need to use overflow buffer since we might cross ringbuffer boundary
             nBytesReceived = recv(s, overFlowBuf, BUFLEN, 0);
             if (nBytesReceived == -1)
             {
@@ -481,6 +483,7 @@ void* reader(void *prms){
                 memcpy(packBuf->data + packBuf->writeInd, overFlowBuf + lastWriteSize, 
                         nBytesReceived - lastWriteSize); 
                 packBuf->writeInd += nBytesReceived - lastWriteSize;
+                printf("Reader: nRingBufCycles: %llu", packBuf->nCycles);
 
             }
 
