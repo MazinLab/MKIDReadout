@@ -170,8 +170,8 @@ void *shmImageWriter(void *prms)
         nUnread = (RINGBUF_SIZE)*(packBuf->nCycles - lastCycle) + (int)packBuf->writeInd - bufReadInd;
 
         if((nUnread + 8) < 0){
-            printf("SharedImageWriter: nUnread < 0, unspecified glitch in ring buffer. Have fun! nUnread: %d writeInd: %d nCycles: %d\n", nUnread, packBuf->writeInd, packBuf->nCycles);
-            printf("    bufReadInd: %d lastCycle %d\n", bufReadInd, lastCycle);
+            printf("SharedImageWriter: nUnread < 0, unspecified glitch in ring buffer. Have fun! nUnread: %d writeInd: %lu nCycles: %lu\n", nUnread, packBuf->writeInd, packBuf->nCycles);
+            printf("    bufReadInd: %lu lastCycle %lu\n", bufReadInd, lastCycle);
 
         }
         else if(nUnread > RINGBUF_SIZE){
@@ -257,7 +257,7 @@ void *shmImageWriter(void *prms)
                    }
 
                    else
-                       printf("Severe shared mem overflow! lastCycle: %llu, pStartCycle: %llu, nCycles %llu\n", lastCycle, pStartCycle, packBuf->nCycles);
+                       printf("Severe shared mem overflow! lastCycle: %lu, pStartCycle: %lu, nCycles %lu\n", lastCycle, pStartCycle, packBuf->nCycles);
 
                    prevRoachInd = curRoachInd;
                    curRoachInd = 0;
@@ -483,7 +483,7 @@ void* reader(void *prms){
                 memcpy(packBuf->data + packBuf->writeInd, overFlowBuf + lastWriteSize, 
                         nBytesReceived - lastWriteSize); 
                 packBuf->writeInd += nBytesReceived - lastWriteSize;
-                printf("Reader: nRingBufCycles: %llu", packBuf->nCycles);
+                printf("Reader: nRingBufCycles: %lu\n", packBuf->nCycles);
 
             }
 
