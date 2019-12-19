@@ -13,7 +13,7 @@ from skimage.restoration import unwrap_phase
 
 import mkidcore.config
 import mkidcore.objects  # must be imported for beam map to load from yaml
-from mkidcore.pixelflags import filters as flag_dict
+from mkidcore.pixelflags import filters as flags
 
 import mkidreadout.configuration.optimalfilters.utils as utils
 import mkidreadout.configuration.optimalfilters.filters as filter_functions
@@ -160,7 +160,7 @@ class Solution(object):
         for index, stream in enumerate(self.time_streams):
             filter_array[index, :] = stream.result["filter"]
         self.filters.update({self.cfg.filters.filter.filter_type: filter_array})
-        self.flags.update({self.cfg.filters.filter.filter_type: [r.result["flag"] for r in self.time_streams]})
+        self.flags.update({self.cfg.filters.filter.filter_type: [ts.result["flag"] for ts in self.time_streams]})
 
 
 class TimeStream(object):
@@ -232,11 +232,11 @@ class TimeStream(object):
         self.result["psd"] = None
         log.debug("Resonator {}: noise reset.".format(self.index))
         # if the filter was flagged reset the flag bitmask
-        if self.result["flag"] & flag_dict["bad_noise"]:
-            self.result["flag"] ^= flag_dict["bad_noise"]
+        if self.result["flag"] & flags["bad_noise"]:
+            self.result["flag"] ^= flags["bad_noise"]
             log.debug("Resonator {}: noise problem flag reset.".format(self.index))
-        if self.result["flag"] & flag_dict["noise_computed"]:
-            self.result["flag"] ^= flag_dict["noise_computed"]
+        if self.result["flag"] & flags["noise_computed"]:
+            self.result["flag"] ^= flags["noise_computed"]
             log.debug("Resonator {}: noise status flag reset.".format(self.index))
 
     def clear_template(self):
@@ -244,11 +244,11 @@ class TimeStream(object):
         self.result["template"] = None
         log.debug("Resonator {}: template reset.".format(self.index))
         # if the filter was flagged reset the flag bitmask
-        if self.result["flag"] & flag_dict["bad_template"]:
-            self.result["flag"] ^= flag_dict["bad_template"]
+        if self.result["flag"] & flags["bad_template"]:
+            self.result["flag"] ^= flags["bad_template"]
             log.debug("Resonator {}: template problem flag reset.".format(self.index))
-        if self.result["flag"] & flag_dict["template_computed"]:
-            self.result["flag"] ^= flag_dict["template_computed"]
+        if self.result["flag"] & flags["template_computed"]:
+            self.result["flag"] ^= flags["template_computed"]
             log.debug("Resonator {}: template status flag reset.".format(self.index))
 
     def clear_filter(self):
@@ -256,50 +256,81 @@ class TimeStream(object):
         self.result["filter"] = None
         log.debug("Resonator {}: filter reset.".format(self.index))
         # if the filter was flagged reset the flag bitmask
-        if self.result["flag"] & flag_dict["bad_filter"]:
-            self.result["flag"] ^= flag_dict["bad_filter"]
+        if self.result["flag"] & flags["bad_filter"]:
+            self.result["flag"] ^= flags["bad_filter"]
             log.debug("Resonator {}: filter problem flag reset.".format(self.index))
-        if self.result["flag"] & flag_dict["filter_computed"]:
-            self.result["flag"] ^= flag_dict["filter_computed"]
+        if self.result["flag"] & flags["filter_computed"]:
+            self.result["flag"] ^= flags["filter_computed"]
             log.debug("Resonator {}: filter status flag reset.".format(self.index))
 
-    def make_pulses(self):
-        """Find the pulse index locations in the time stream."""
-        if self.result['flag'] & flag_dict['pulses_computed']:
+    def make_pulses(self, save=True, use_filter=False):
+        """
+        Find the pulse index locations in the time stream.
+
+        Args:
+            save: boolean (optional)
+                Save the result in the result attribute when done. If save is
+                False, none of the flags or results will change.
+            use_filter: boolean, numpy.ndarray (optional)
+                Use a pre-computed filter to find the pulse indices. If True,
+                the filter from the result attribute is used. If False, the
+                fallback template is used to make a filter. Otherwise,
+                use_filter is assumed to be a pre-computed filter and is used.
+
+        Returns:
+            pulses: numpy.ndarray
+                An array of indices corresponding to the pulse peak locations.
+            mask: numpy.ndarray
+                A boolean mask that filters out bad pulses from the pulse
+                indices.
+        """
+        if self.result['flag'] & flags['pulses_computed'] and save:
             return
         cfg = self.cfg.pulses
 
         # filter the time stream (ignore DC component)
-        fallback_filter = self.fallback_template[::-1] - np.mean(self.fallback_template)
-        filtered_phase = sp.signal.convolve(self.phase, fallback_filter, mode='same')  # pulses are positive
+        if use_filter is True:
+            filter_ = self.result["filter"]
+        elif use_filter is not False:
+            filter_ = use_filter
+        else:
+            filter_ = filter_functions.matched(self.cfg, self.fallback_template, nfilter=cfg.ntemplate, dc=True)
+        filtered_phase = sp.signal.convolve(self.phase, filter_, mode='same')  # pulses are positive
 
         # find pulse indices
         sigma = mad_std(filtered_phase)
         characteristic_time = -np.trapz(self.fallback_template)  # ~decay time in units of dt for a perfect exponential
-        indices, _ = sp.signal.find_peaks(filtered_phase, height=cfg.threshold * sigma, distance=characteristic_time)
+        pulses, _ = sp.signal.find_peaks(filtered_phase, height=cfg.threshold * sigma, distance=characteristic_time)
 
         # correct for correlation offset and save results
-        self.result["pulses"] = indices - cfg.ntemplate // 2 + cfg.offset
-        self.result["mask"] = np.ones_like(self.result["pulses"], dtype=bool)
+        pulses -= cfg.ntemplate // 2 + cfg.offset
+        mask = np.ones_like(pulses, dtype=bool)
 
         # mask piled up pulses
-        indices = np.insert(np.append(indices, filtered_phase.size + 1), 0, 0)  # assume pulses are at the ends
-        diff = np.diff(indices)
+        diff = np.diff(np.insert(np.append(pulses, filtered_phase.size + 1), 0, 0))  # assume pulses are at the ends
         bad_previous = (diff < cfg.separation)[:-1]  # far from previous previous pulse (remove last)
         bad_next = (diff < cfg.ntemplate - cfg.offset)[1:]  # far from next pulse  (remove first)
-        self.result["mask"][bad_next | bad_previous] = False
+        mask[bad_next | bad_previous] = False
 
         # TODO: mask wrapped pulses?
 
-        # set flags
-        self.result['flag'] |= flag_dict['pulses_computed']
-        if self.result["mask"].sum() < cfg.min_pulses:  # not enough good pulses to make a reliable template
-            self.result['template'] = self.fallback_template
-            self.result['flag'] |= flag_dict['bad_pulses'] | flag_dict['bad_template'] | flag_dict['template_completed']
+        # save and return the pulse indices and mask
+        if save:
+            self.result["pulses"] = pulses
+            self.result["mask"] = mask
+
+            # set flags
+            self.result['flag'] |= flags['pulses_computed']
+            if self.result["mask"].sum() < cfg.min_pulses:  # not enough good pulses to make a reliable template
+                self.result['template'] = self.fallback_template
+                self.result['flag'] |= flags['bad_pulses'] | flags['bad_template'] | flags['template_completed']
+            return self.result['pulses'], self.result['mask']
+        else:
+            return pulses, mask
 
     def make_noise(self):
         """Make the noise spectrum for the time stream."""
-        if self.result['flag'] & flag_dict['noise_computed']:
+        if self.result['flag'] & flags['noise_computed']:
             return
         self._flag_checks(pulses=True)
         cfg = self.cfg.noise
@@ -323,15 +354,15 @@ class TimeStream(object):
 
         # set flags and results
         if n == 0:
-            self.result['flag'] |= flag_dict['bad_noise']
+            self.result['flag'] |= flags['bad_noise']
             self.result['psd'][:] = 1.  # set to white noise
         else:
             self.result['psd'] /= n  # finish the average
-        self.result['flag'] |= flag_dict['noise_computed']
+        self.result['flag'] |= flags['noise_computed']
 
     def make_template(self):
         """Make the template for the photon pulse."""
-        if self.result['flag'] & flag_dict['template_computed']:
+        if self.result['flag'] & flags['template_computed']:
             return
         self._flag_checks(pulses=True, noise=True)
         cfg = self.cfg.template
@@ -364,15 +395,15 @@ class TimeStream(object):
         # set flags and results
         tau = -np.trapz(template)
         if tau < cfg.min_tau or tau > cfg.max_tau:
-            self.result['flag'] |= flag_dict['bad_template']
+            self.result['flag'] |= flags['bad_template']
             self.result['template'] = self.fallback_template
         else:
             self.result['template'] = template
-        self.result['flag'] |= flag_dict['template_computed']
+        self.result['flag'] |= flags['template_computed']
 
     def make_filter(self):
         """Make the filter for the time stream."""
-        if self.result['flag'] & flag_dict['filter_computed']:
+        if self.result['flag'] & flags['filter_computed']:
             return
         self._flag_checks(pulses=True, noise=True, template=True)
         cfg = self.cfg.filter
@@ -380,19 +411,19 @@ class TimeStream(object):
         filter_ = getattr(filter_functions, cfg.filter_type)(cfg, self.result["template"], self.result["psd"])
 
         self.result['filter'] = filter_
-        self.result['flag'] |= flag_dict['filter_computed']
+        self.result['flag'] |= flags['filter_computed']
 
     def _init_result(self):
         self.result = {"pulses": None, "mask": None, "template": None, "filter": None, "psd": None,
-                       "flag": flag_dict["not_started"]}
+                       "flag": flags["not_started"]}
 
     def _flag_checks(self, pulses=False, noise=False, template=False):
         if pulses:
-            assert self.result['flag'] & flag_dict['pulses_computed'], "run self.make_pulses() first."
+            assert self.result['flag'] & flags['pulses_computed'], "run self.make_pulses() first."
         if noise:
-            assert self.result['flag'] & flag_dict['noise_computed'], "run self.make_noise() first."
+            assert self.result['flag'] & flags['noise_computed'], "run self.make_noise() first."
         if template:
-            assert self.result['flag'] & flag_dict['template_computed'], "run self.make_template first."
+            assert self.result['flag'] & flags['template_computed'], "run self.make_template first."
 
 
 def initialize_worker():

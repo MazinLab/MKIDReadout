@@ -16,13 +16,19 @@ def matched(*args, **kwargs):
         nfilter: integer (optional)
             The number of taps to use in the filter. The default is to use the
             value specified in config.
+        dc: boolean (optional)
+            If True, the mean of the template is subtracted to make the
+            template insensitive to a DC baseline. The default is False.
     """
     # collect inputs
     config, template = args[0], args[1]
     nfilter = kwargs.get("nfilter", config.nfilter)
+    dc = kwargs.get("dc", False)
 
     # compute filter
     filter_ = template[:nfilter][::-1].copy()
+    if dc:
+        filter_ -= filter_.mean()
     filter_ /= -np.matmul(template[:nfilter], filter_[::-1])  # "-" to give negative pulse heights after filtering
 
     return filter_

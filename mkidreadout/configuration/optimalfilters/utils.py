@@ -36,6 +36,8 @@ def check_template(config, template):
         raise ValueError("The fallback template is not the right size. The 'ntemplate' parameter may be too large.")
     if np.argmin(template) != config.offset:
         raise ValueError("The fallback template peak is not at the right 'offset' index.")
+    if np.min(template) != -1:
+        raise ValueError("The fallback template must have a peak height of -1.")
 
 
 def is_number(s):
