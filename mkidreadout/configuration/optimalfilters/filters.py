@@ -1,3 +1,4 @@
+from __future__ import division
 import numpy as np
 
 import mkidreadout.configuration.optimalfilters.utils as utils
