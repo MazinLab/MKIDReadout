@@ -34,7 +34,7 @@ class Solution(object):
             The configuration object for the calculation loaded by
             mkidcore.config.load().
         file_names: list of strings
-            The file names for the resonator phase snaps.
+            The file names for the resonator time streams.
         save_name: string (optional)
             The name to use for saving the file. The prefix will be used for
             saving its output products.
@@ -47,9 +47,9 @@ class Solution(object):
         self.save_name = save_name
         # computation attributes
         self.res_ids = np.array([utils.res_id_from_file_name(file_name) for file_name in file_names])
-        self.resonators = np.array([TimeStream(self.cfg.filters, file_name,
-                                               fallback_template=self.fallback_template, index=index)
-                                    for index, file_name in enumerate(file_names)])
+        self.time_streams = np.array([TimeStream(self.cfg.filters, file_name,
+                                                 fallback_template=self.fallback_template, index=index)
+                                      for index, file_name in enumerate(file_names)])
         # output products
         self.filters = {}
         self.flags = {}
@@ -62,26 +62,26 @@ class Solution(object):
     @cfg.setter
     def cfg(self, config):
         self._cfg = config
-        # change each resonator config and delete data that become invalid with the new settings
-        for resonator in self.resonators:
-            cfg = resonator.cfg
+        # change each stream config and delete data that become invalid with the new settings
+        for stream in self.time_streams:
+            cfg = stream.cfg
             # overload pulses, noise, template & filter if the pulse finding configuration changed
             if any([getattr(self.cfg.filters.pulses, key) != item for key, item in cfg.pulses.items()]):
-                resonator.clear_results()
+                stream.clear_results()
             # overload template & filter if the template configuration changed
             if any([getattr(self.cfg.filters.template, key) != item for key, item in cfg.template.items()]):
-                resonator.clear_template()
+                stream.clear_template()
                 resotator.clear_filter()
             # overload noise, template & filter the results if the noise configuration changed
             if any([getattr(self.cfg.filters.noise, key) != item for key, item in cfg.noise.items()]):
-                resonator.clear_noise()
-                resonator.clear_template()
+                stream.clear_noise()
+                stream.clear_template()
                 resotator.clear_filter()
             # overload filter if the filter configuration changed
             if any([getattr(self.cfg.filters.filter, key) != item for key, item in cfg.filter.items()]):
                 resotator.clear_filter()
-            # overload resonator configurations
-            resonator.cfg = self.cfg.filters
+            # overload stream configurations
+            stream.cfg = self.cfg.filters
         log.info("Configuration file updated")
 
     @classmethod
@@ -114,53 +114,53 @@ class Solution(object):
         """Process all of the files and compute the filters."""
         if ncpu > 1:
             pool = mp.Pool(min(self.cfg.ncpu, mp.cpu_count()), initializer=initialize_worker)
-            results = utils.map_async_progress(pool, process_resonator, self.resonators, progress=progress)
+            results = utils.map_async_progress(pool, process_time_stream, self.time_streams, progress=progress)
             pool.close()
             try:
                 # TODO: Python 2.7 bug: hangs on pool.join() with KeyboardInterrupt. The workaround is to use a really
                 #  long timeout that hopefully never gets triggered. The 'better' code is:
                 #  > pool.join()
-                #  > resonators = results.get()
-                resonators = results.get(1e5)
-                self._add_resonators(resonators)
+                #  > time_streams = results.get()
+                time_streams = results.get(1e5)
+                self._add_streams(time_streams)
             except KeyboardInterrupt as error:
                 log.error("Keyboard Interrupt encountered: retrieving computed filters before exiting")
                 pool.terminate()
                 pool.join()
                 # TODO: not sure how long it will take to get() Resonator objects (don't use timeout?)
-                resonators = results.get(timeout=0.001)
-                self._add_resonators(resonators)
+                time_streams = results.get(timeout=0.001)
+                self._add_streams(time_streams)
                 raise error  # propagate error to the main program
         else:
-            pbar = utils.setup_progress(self.resonators) if progress and utils.HAS_PB else None
-            for index, resonator in enumerate(self.resonators):
-                result = process_resonator(resonator)
-                self._add_resonators([result])
+            pbar = utils.setup_progress(self.time_streams) if progress and utils.HAS_PB else None
+            for index, stream in enumerate(self.time_streams):
+                result = process_time_stream(stream)
+                self._add_streams([result])
                 if progress and utils.HAS_PB:
                     pbar.update(index)
         self._collect_data()
-        self.clear_resonator_data()
+        self.clear_time_stream_data()
 
-    def clear_resonator_data(self):
+    def clear_time_stream_data(self):
         """Clear all unnecessary data from the Resonator sub-objects."""
-        for resonator in self.resonators:
-            resonator.clear_filter()
+        for stream in self.time_streams:
+            stream.clear_filter()
 
     def plot_summary(self):
         """Plot a summary of the filter computation."""
         pass
 
-    def _add_resonators(self, resonators):
-        for resonator in resonators:
-            if resonator is not None:
-                self.resonators[resonator.index] = resonator
+    def _add_streams(self, time_streams):
+        for stream in time_streams:
+            if stream is not None:
+                self.time_streams[stream.index] = stream
 
     def _collect_data(self):
         filter_array = np.empty((self.res_ids.size, self.cfg.filters.filter.nfilter))
-        for index, resonator in enumerate(self.resonators):
-            filter_array[index, :] = resonator.result["filter"]
+        for index, stream in enumerate(self.time_streams):
+            filter_array[index, :] = stream.result["filter"]
         self.filters.update({self.cfg.filters.filter.filter_type: filter_array})
-        self.flags.update({self.cfg.filters.filter.filter_type: [r.result["flag"] for r in self.resonators]})
+        self.flags.update({self.cfg.filters.filter.filter_type: [r.result["flag"] for r in self.time_streams]})
 
 
 class TimeStream(object):
@@ -175,11 +175,11 @@ class TimeStream(object):
             The file name containing the phase time-stream.
         fallback_template: numpy.ndarray (optional)
             A 1D numpy array of size config.pulses.ntemplate with the correct
-            config.pulses.offset that will be used for the resonator template
+            config.pulses.offset that will be used for the time stream template
             if it cannot be computed from the phase time-stream. If not
             supplied, the template is loaded in according to the config.
         index: integer (optional)
-            An integer used to index the resonator objects. It is not used
+            An integer used to index the time stream objects. It is not used
             directly by this class.
     """
     def __init__(self, config, file_name, fallback_template=None, index=None):
@@ -222,13 +222,13 @@ class TimeStream(object):
         self.phase = None
 
     def clear_results(self):
-        """Delete computed results from the resonator."""
+        """Delete computed results from the time stream."""
         self._init_result()
         self.phase = None  # technically computed since it is unwrapped
         log.debug("Resonator {}: results reset.")
 
     def clear_noise(self):
-        """Delete computed noise from the resonator."""
+        """Delete computed noise from the time stream."""
         self.result["psd"] = None
         log.debug("Resonator {}: noise reset.".format(self.index))
         # if the filter was flagged reset the flag bitmask
@@ -240,7 +240,7 @@ class TimeStream(object):
             log.debug("Resonator {}: noise status flag reset.".format(self.index))
 
     def clear_template(self):
-        """Delete computed template from the resonator."""
+        """Delete computed template from the time stream."""
         self.result["template"] = None
         log.debug("Resonator {}: template reset.".format(self.index))
         # if the filter was flagged reset the flag bitmask
@@ -252,7 +252,7 @@ class TimeStream(object):
             log.debug("Resonator {}: template status flag reset.".format(self.index))
 
     def clear_filter(self):
-        """Delete computed filter from the resonator."""
+        """Delete computed filter from the time stream."""
         self.result["filter"] = None
         log.debug("Resonator {}: filter reset.".format(self.index))
         # if the filter was flagged reset the flag bitmask
@@ -298,7 +298,7 @@ class TimeStream(object):
             self.result['flag'] |= flag_dict['bad_pulses'] | flag_dict['bad_template'] | flag_dict['template_completed']
 
     def make_noise(self):
-        """Make the noise spectrum for the resonator."""
+        """Make the noise spectrum for the time stream."""
         if self.result['flag'] & flag_dict['noise_computed']:
             return
         self._flag_checks(pulses=True)
@@ -371,7 +371,7 @@ class TimeStream(object):
         self.result['flag'] |= flag_dict['template_computed']
 
     def make_filter(self):
-        """Make the filter for the resonator."""
+        """Make the filter for the time stream."""
         if self.result['flag'] & flag_dict['filter_computed']:
             return
         self._flag_checks(pulses=True, noise=True, template=True)
@@ -400,16 +400,16 @@ def initialize_worker():
     signal.signal(signal.SIGINT, signal.SIG_IGN)  # ignore keyboard interrupt in worker process
 
 
-def process_resonator(resonator):
-    """Process the resonator object and compute it's filter."""
-    resonator.make_pulses()
-    resonator.make_noise()
-    resonator.make_template()
-    resonator.make_filter()
-    # print(resonator.index)
+def process_time_stream(time_stream):
+    """Process the time stream object and compute it's filter."""
+    time_stream.make_pulses()
+    time_stream.make_noise()
+    time_stream.make_template()
+    time_stream.make_filter()
+    # print(time stream.index)
     from time import sleep
     sleep(.01)
-    return resonator
+    return time_stream
 
 
 def run(config, progress=False, force=False, save_name=DEFAULT_SAVE_NAME):
