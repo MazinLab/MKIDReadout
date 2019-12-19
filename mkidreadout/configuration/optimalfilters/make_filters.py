@@ -47,8 +47,8 @@ class Solution(object):
         self.save_name = save_name
         # computation attributes
         self.res_ids = np.array([utils.res_id_from_file_name(file_name) for file_name in file_names])
-        self.resonators = np.array([Resonator(self.cfg.filters, file_name,
-                                              fallback_template=self.fallback_template, index=index)
+        self.resonators = np.array([TimeStream(self.cfg.filters, file_name,
+                                               fallback_template=self.fallback_template, index=index)
                                     for index, file_name in enumerate(file_names)])
         # output products
         self.filters = {}
@@ -163,7 +163,7 @@ class Solution(object):
         self.flags.update({self.cfg.filters.filter.filter_type: [r.result["flag"] for r in self.resonators]})
 
 
-class Resonator(object):
+class TimeStream(object):
     """
     Class for holding and manipulating a resonator's phase time-stream.
 
@@ -192,7 +192,7 @@ class Resonator(object):
             self.fallback_template = fallback_template
         self.index = index
 
-        self._time_stream = None
+        self._phase = None
 
         self._init_result()
 
@@ -201,30 +201,30 @@ class Resonator(object):
         return self.__dict__
 
     @property
-    def time_stream(self):
+    def phase(self):
         """The phase time-stream of the resonator."""
-        if self._time_stream is None:
+        if self._phase is None:
             npz = np.load(self.file_name)
-            self._time_stream = npz[npz.keys()[0]]
-            # unwrap the time stream
+            self._phase = npz[npz.keys()[0]]
+            # unwrap the phase
             if self.cfg.unwrap:
-                self._time_stream = unwrap_phase(self._time_stream)  # much faster than np.unwrap
+                self._phase = unwrap_phase(self._phase)  # much faster than np.unwrap
 
-            # self._time_stream = np.zeros(int(60e6))  # TODO: remove
-        return self._time_stream
+            # self._phase = np.zeros(int(60e6))  # TODO: remove
+        return self._phase
 
-    @time_stream.setter
-    def time_stream(self, value):
-        self._time_stream = value
+    @phase.setter
+    def phase(self, value):
+        self._phase = value
 
     def clear_file_properties(self):
         """Free up memory by removing properties that can be reloaded from files."""
-        self.time_stream = None
+        self.phase = None
 
     def clear_results(self):
         """Delete computed results from the resonator."""
         self._init_result()
-        self.time_stream = None  # technically computed since it is unwrapped
+        self.phase = None  # technically computed since it is unwrapped
         log.debug("Resonator {}: results reset.")
 
     def clear_noise(self):
@@ -271,19 +271,19 @@ class Resonator(object):
 
         # filter the time stream (ignore DC component)
         fallback_filter = self.fallback_template[::-1] - np.mean(self.fallback_template)
-        filtered_stream = sp.signal.convolve(self.time_stream, fallback_filter, mode='same')  # pulses are positive
+        filtered_phase = sp.signal.convolve(self.phase, fallback_filter, mode='same')  # pulses are positive
 
         # find pulse indices
-        sigma = mad_std(filtered_stream)
+        sigma = mad_std(filtered_phase)
         characteristic_time = -np.trapz(self.fallback_template)  # ~decay time in units of dt for a perfect exponential
-        indices, _ = sp.signal.find_peaks(filtered_stream, height=cfg.threshold * sigma, distance=characteristic_time)
+        indices, _ = sp.signal.find_peaks(filtered_phase, height=cfg.threshold * sigma, distance=characteristic_time)
 
         # correct for correlation offset and save results
         self.result["pulses"] = indices - cfg.ntemplate // 2 + cfg.offset
         self.result["mask"] = np.ones_like(self.result["pulses"], dtype=bool)
 
         # mask piled up pulses
-        indices = np.insert(np.append(indices, filtered_stream.size + 1), 0, 0)  # assume pulses are at the ends
+        indices = np.insert(np.append(indices, filtered_phase.size + 1), 0, 0)  # assume pulses are at the ends
         diff = np.diff(indices)
         bad_previous = (diff < cfg.separation)[:-1]  # far from previous previous pulse (remove last)
         bad_next = (diff < cfg.ntemplate - cfg.offset)[1:]  # far from next pulse  (remove first)
@@ -306,7 +306,7 @@ class Resonator(object):
         pulse_cfg = self.cfg.pulses
 
         # add pulses to the ends so that the bounds are treated correctly
-        pulses = np.insert(np.append(self.result["pulses"], self.time_stream.size + 1), 0, 0)
+        pulses = np.insert(np.append(self.result["pulses"], self.phase.size + 1), 0, 0)
 
         # loop space between peaks and compute noise
         n = 0
@@ -316,7 +316,7 @@ class Resonator(object):
                 break  # no more noise is needed
             if peak2 - peak1 < cfg.isolation + pulse_cfg.offset + cfg.nwindow:
                 continue  # not enough space between peaks
-            data = self.time_stream[peak1 + cfg.isolation: peak2 - pulse_cfg.offset]
+            data = self.phase[peak1 + cfg.isolation: peak2 - pulse_cfg.offset]
             self.result['psd'] += sp.signal.welch(data, fs=1. / self.cfg.dt, nperseg=cfg.nwindow, detrend="constant",
                                                   return_onesided=True, scaling="density")[1]
             n += 1
@@ -340,7 +340,7 @@ class Resonator(object):
         # make a pulse array
         index_array = (self.result["pulses"][self.result["mask"]] +
                        np.arange(-pulse_cfg.offset, pulse_cfg.ntemplate - pulse_cfg.offset)[:, np.newaxis]).T
-        pulses = (self.time_stream - np.median(self.time_stream))[index_array]
+        pulses = (self.phase - np.median(self.phase))[index_array]
 
         # weight the pulses by pulse height and remove those that are outside the middle percent of the data
         weights = 1 / np.abs(pulses[:, pulse_cfg.offset])
