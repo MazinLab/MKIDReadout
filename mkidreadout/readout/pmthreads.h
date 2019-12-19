@@ -34,12 +34,13 @@
 #define DEFAULT_PORT 50000
 #define SHAREDBUF 536870912
 #define RINGBUF_SIZE 536870912
+#define RAD_TO_DEG 57.2957795131
 #define BINWRITER_MINSIZE 808
 #define TSOFFS 1546300800 //Jan 1 2019 UTC
 #define STRBUF 80
 #define SHM_NAME_LEN 80
 #define ENERGY_BIN_PT 16384 //2^14
-#define PHASE_BIN_PT 32768 //2^14
+#define PHASE_BIN_PT 32768.0 //2^14
 #define H_TIMES_C 1239.842 // units: eV*nm
 #define READER_THREAD 0
 #define BIN_WRITER_THREAD 1
@@ -55,8 +56,8 @@
 typedef float wvlcoeff_t;
 
 typedef struct {
-    unsigned int baseline:17;
-    unsigned int phase:18;
+    int baseline:17;
+    int phase:18;
     unsigned int timestamp:9;
     unsigned int ycoord:10;
     unsigned int xcoord:10;

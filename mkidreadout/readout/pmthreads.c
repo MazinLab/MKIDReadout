@@ -484,6 +484,9 @@ void* reader(void *prms){
                         nBytesReceived - lastWriteSize); 
                 packBuf->writeInd += nBytesReceived - lastWriteSize;
                 printf("Reader: nRingBufCycles: %lu\n", packBuf->nCycles);
+                printf("    nBytesReceived: %d\n", nBytesReceived);
+                printf("    lastWriteSize: %d\n", lastWriteSize);
+                printf("    writeInd: %lu\n", packBuf->writeInd);
 
             }
 
@@ -813,10 +816,11 @@ void addPacketToEventBuffer(MKID_EVENT_BUFFER *buffer, char *photonWord,
 }
 
 float getWavelength(PHOTON_WORD *photon, WAVECAL_BUFFER *wavecal){
-    float phase = (float)photon->phase/PHASE_BIN_PT;
+    float phase = (float)photon->phase*RAD_TO_DEG/PHASE_BIN_PT;
     int bufferInd = 3*(wavecal->nCols * photon->ycoord + photon->xcoord);
     float energy = phase*phase*wavecal->data[bufferInd] + phase*wavecal->data[bufferInd+1]
         + wavecal->data[bufferInd+2];
+    //printf("%f %f | ", phase, energy);
     return H_TIMES_C/energy;
 
 }
