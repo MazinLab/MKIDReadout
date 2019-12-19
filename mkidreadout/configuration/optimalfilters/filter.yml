@@ -28,10 +28,10 @@ filters: !configdict  # main configuration section for the filter computation
 
   template: !configdict  # configuration for computing the template
     percent: 80  # use only the middle x% of the data to compute the template [float]
+    cutoff: .1  # when filtering with the template ignore frequencies above this value in units of 1 / dt [False, float]
     min_tau: 5  # minimum allowed template time constant in units of dt [float]
     max_tau: 50  # maximum allowed template time constant in units of dt [float]
 
   filter: !configdict  # configuration for computing the filter
     filter_type: dc_orthogonal  # type of filter to compute  [function names in filters.py]
     nfilter: 50  # number of coefficients in the filter  [int]
-    cutoff: .1  # remove filter contribution above this frequency in units of 1 / dt, skipped if False [False | float]

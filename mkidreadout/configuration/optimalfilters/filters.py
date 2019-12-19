@@ -9,22 +9,19 @@ def matched(*args, **kwargs):
     Create a filter matched to a template.
 
     Args:
-        config: yaml config object
-            The configuration object for the calculation loaded by
-            mkidcore.config.load().
         template:  numpy.ndarray
             The template with which to construct the filter.
         nfilter: integer (optional)
-            The number of taps to use in the filter. The default is to use the
-            value specified in config.
+            The number of taps to use in the filter. The default is to use
+            template.size.
         dc: boolean (optional)
             If True, the mean of the template is subtracted to make the
-            template insensitive to a DC baseline. The default is False.
+            template insensitive to a DC baseline. The default is True.
     """
     # collect inputs
-    config, template = args[0], args[1]
-    nfilter = kwargs.get("nfilter", config.nfilter)
-    dc = kwargs.get("dc", False)
+    template = args[0]
+    nfilter = kwargs.get("nfilter", template.size)
+    dc = kwargs.get("dc", True)
 
     # compute filter
     filter_ = template[:nfilter][::-1].copy()
@@ -41,30 +38,27 @@ def wiener(*args, **kwargs):
     the data.
 
     Args:
-        config: yaml config object
-            The configuration object for the calculation loaded by
-            mkidcore.config.load().
         template:  numpy.ndarray
             The template with which to construct the filter.
         psd:  numpy.ndarray
             The power spectral density of the noise.
         nfilter: integer (optional)
-            The number of taps to use in the filter. The default is to use the
-            value specified in config.
+            The number of taps to use in the filter. The default is to use
+            template.size.
         cutoff: float (optional)
             Set the filter response to zero above this frequency (in units of
-            1 / dt). If False, no cutoff is applied. The default is to use the
-            value specified in config.
+            1 / dt). If False, no cutoff is applied. The default is False.
         fft: boolean (optional)
             If True, the filter will be computed in the Fourier domain, which
             could be faster for very long filters but will also introduce
-            assumptions about periodicity of the signal. The default is False,
+            assumptions about periodicity of the signal. In this case, the
+            template and the psd must be the same size. The default is False,
             and the filter is computed in the time domain.
     """
     # collect inputs
-    config, template, psd = args[0], args[1], args[2]
-    nfilter = kwargs.get("nfilter", config.nfilter)
-    cutoff = kwargs.get("cutoff", config.cutoff)
+    template, psd = args[0], args[1]
+    nfilter = kwargs.get("nfilter", template.size)
+    cutoff = kwargs.get("cutoff", False)
     fft = kwargs.get("fft", False)
 
     if fft:  # compute the filter in the frequency domain (introduces periodicity assumption)
@@ -98,30 +92,28 @@ def dc_orthogonal(*args, **kwargs):
     the data, while also being insensitive to a drifting baseline.
 
     Args:
-        config: yaml config object
-            The configuration object for the calculation loaded by
-            mkidcore.config.load().
         template:  numpy.ndarray
             The template with which to construct the filter.
         psd:  numpy.ndarray
             The power spectral density of the noise.
         nfilter: integer (optional)
-            The number of taps to use in the filter. The default is to use the
-            value specified in config.
+            The number of taps to use in the filter. The default is to use
+            2 * psd.size // 3.
         cutoff: float (optional)
             Set the filter response to zero above this frequency (in units of
-            1 / dt). If False, no cutoff is applied. The default is to use the
-            value specified in config.
+            1 / dt). If False, no cutoff is applied. The default is False.
         fft: boolean (optional)
             If True, the filter will be computed in the Fourier domain, which
             could be faster for very long filters but will also introduce
-            assumptions about periodicity of the signal. The default is False,
+            assumptions about periodicity of the signal. In this case, the
+            template and the psd must be the same size. The default is False,
             and the filter is computed in the time domain.
     """
     # collect inputs
-    config, template, psd = args[0], args[1], args[2]
-    nfilter = kwargs.get("nfilter", config.nfilter)
-    cutoff = kwargs.get("cutoff", config.cutoff)
+    template, psd = args[0], args[1]
+    ntemplate = 2 * psd.size // 3
+    nfilter = kwargs.get("nfilter", ntemplate)
+    cutoff = kwargs.get("cutoff", False)
     fft = kwargs.get("fft", False)
 
     if fft:  # compute the filter in the frequency domain (introduces periodicity assumption)
@@ -131,10 +123,10 @@ def dc_orthogonal(*args, **kwargs):
 
     else:  # compute filter in the time domain
         # only use the first third of the covariance matrix since computing from the PSD assumes periodicity
-        if template.size // 3 < nfilter:
-            raise ValueError("ntemplate must be at least 3x the size of nfilter")
-        covariance = utils.covariance_from_psd(psd, size=template.size // 3)
-        template = template[:template.size // 3]
+        if ntemplate < nfilter:
+            raise ValueError("psd must be at least 1.5x the size of nfilter")
+        covariance = utils.covariance_from_psd(psd, size=ntemplate)
+        template = template[:ntemplate]
         vbar = np.vstack((template, np.ones_like(template))).T  # DC orthogonality vector
 
         # compute the filter from the covariance matrix

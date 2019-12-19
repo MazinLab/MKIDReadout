@@ -69,13 +69,13 @@ class Solution(object):
             # overload pulses, noise, template & filter if the pulse finding configuration changed
             if any([getattr(self.cfg.filters.pulses, key) != item for key, item in cfg.pulses.items()]):
                 stream.clear_results()
-            # overload template & filter if the template configuration changed
-            if any([getattr(self.cfg.filters.template, key) != item for key, item in cfg.template.items()]):
-                stream.clear_template()
-                resotator.clear_filter()
             # overload noise, template & filter the results if the noise configuration changed
             if any([getattr(self.cfg.filters.noise, key) != item for key, item in cfg.noise.items()]):
                 stream.clear_noise()
+                stream.clear_template()
+                resotator.clear_filter()
+            # overload template & filter if the template configuration changed
+            if any([getattr(self.cfg.filters.template, key) != item for key, item in cfg.template.items()]):
                 stream.clear_template()
                 resotator.clear_filter()
             # overload filter if the filter configuration changed
@@ -297,16 +297,17 @@ class TimeStream(object):
         elif use_filter is not False:
             filter_ = use_filter
         else:
-            filter_ = filter_functions.matched(self.cfg.filter, self.fallback_template, nfilter=cfg.ntemplate, dc=True)
+            filter_ = filter_functions.matched(self.fallback_template, nfilter=cfg.ntemplate, dc=True)
         filtered_phase = sp.signal.convolve(self.phase, -filter_, mode='same')  # "-" so that pulses are positive
 
         # find pulse indices
         sigma = mad_std(filtered_phase)
         characteristic_time = -np.trapz(self.fallback_template)  # ~decay time in units of dt for a perfect exponential
         pulses, _ = sp.signal.find_peaks(filtered_phase, height=cfg.threshold * sigma, distance=characteristic_time)
+        # TODO: skimage.feature.peak_local_max may be faster?
 
         # correct for correlation offset and save results
-        pulses += cfg.offset - cfg.ntemplate // 2
+        pulses += cfg.offset - filter_.size // 2
         mask = np.ones_like(pulses, dtype=bool)
 
         # mask piled up pulses
@@ -369,41 +370,29 @@ class TimeStream(object):
             return
         self._flag_checks(pulses=True, noise=True)
         cfg = self.cfg.template
-        pulse_cfg = self.cfg.pulses
-
-        # make a pulse array
-        index_array = (self.result["pulses"][self.result["mask"]] +
-                       np.arange(-pulse_cfg.offset, pulse_cfg.ntemplate - pulse_cfg.offset)[:, np.newaxis]).T
-        pulses = (self.phase - np.median(self.phase))[index_array]
-
-        # weight the pulses by pulse height and remove those that are outside the middle percent of the data
-        pulse_heights = np.abs(np.min(pulses, axis=1))
-        percentiles = np.percentile(pulse_heights, [(100 - cfg.percent) / 2., (100 + cfg.percent) / 2.])
-        logic = (pulse_heights != 0) & (pulse_heights <= percentiles[1]) & (percentiles[0] <= pulse_heights)
-        weights = np.zeros_like(pulse_heights)
-        weights[logic] = 1. / pulse_heights[logic]
 
         # compute the template
-        template = np.sum(pulses * weights[:, np.newaxis], axis=0)
+        phase = self.phase - np.median(self.phase)
+        template = self._average_pulses(phase, self.result['pulses'], self.result['mask'])
+
+        # shift and normalize template
+        template = self._shift_and_normalize(template)
+
+        # filter again to get the best possible pulse locations
+        if self._good_template(template):
+            filter_ = filter_functions.dc_orthogonal(template, self.result['psd'], cutoff=cfg.cutoff)
+            pulses, mask = self.make_pulses(save=False, use_filter=filter_)
+            template = self._average_pulses(phase, pulses, mask)
+            template = self._shift_and_normalize(template)
 
         # TODO: fit template?
 
-        # normalize template
-        if template.min() != 0:  # all weights could be zero
-            template /= np.abs(template.min())  # correct over all template height
-
-        # shift template (max may not be exactly at offset due to filtering and imperfect default template)
-        start = 10 + np.argmin(template) - pulse_cfg.offset
-        stop = start + pulse_cfg.ntemplate
-        template = np.pad(template, 10, mode='wrap')[start:stop]  # use wrap to not change the frequency content
-
         # set flags and results
-        tau = -np.trapz(template)
-        if tau < cfg.min_tau or tau > cfg.max_tau:
+        if self._good_template(template):
+            self.result['template'] = template
+        else:
             self.result['flag'] |= flags['bad_template']
             self.result['template'] = self.fallback_template
-        else:
-            self.result['template'] = template
         self.result['flag'] |= flags['template_computed']
 
     def make_filter(self):
@@ -413,7 +402,13 @@ class TimeStream(object):
         self._flag_checks(pulses=True, noise=True, template=True)
         cfg = self.cfg.filter
 
-        filter_ = getattr(filter_functions, cfg.filter_type)(cfg, self.result["template"], self.result["psd"])
+        # compute filter (some options may be ignored by the filter function)
+        filter_ = getattr(filter_functions, cfg.filter_type)(
+            self.result["template"],
+            self.result["psd"],
+            nfilter=cfg.nfilter,
+            cutoff=self.cfg.template.cutoff
+        )
 
         self.result['filter'] = filter_
         self.result['flag'] |= flags['filter_computed']
@@ -429,6 +424,42 @@ class TimeStream(object):
             assert self.result['flag'] & flags['noise_computed'], "run self.make_noise() first."
         if template:
             assert self.result['flag'] & flags['template_computed'], "run self.make_template first."
+
+    def _average_pulses(self, phase, indices, mask):
+        # get parameters
+        offset = self.cfg.pulses.offset
+        ntemplate = self.cfg.pulses.ntemplate
+        percent = self.cfg.template.percent
+
+        # make a pulse array
+        index_array = (indices[mask] + np.arange(-offset, ntemplate - offset)[:, np.newaxis]).T
+        pulses = phase[index_array]
+
+        # weight the pulses by pulse height and remove those that are outside the middle percent of the data
+        pulse_heights = np.abs(np.min(pulses, axis=1))
+        percentiles = np.percentile(pulse_heights, [(100. - percent) / 2., (100. + percent) / 2.])
+        logic = (pulse_heights != 0) & (pulse_heights <= percentiles[1]) & (percentiles[0] <= pulse_heights)
+        weights = np.zeros_like(pulse_heights)
+        weights[logic] = 1. / pulse_heights[logic]
+
+        # compute the template
+        template = np.sum(pulses * weights[:, np.newaxis], axis=0)
+        return template
+
+    def _shift_and_normalize(self, template):
+        template = template.copy()
+        if template.min() != 0:  # all weights could be zero
+            template /= np.abs(template.min())  # correct over all template height
+
+        # shift template (max may not be exactly at offset due to filtering and imperfect default template)
+        start = 10 + np.argmin(template) - self.cfg.pulses.offset
+        stop = start + self.cfg.pulses.ntemplate
+        template = np.pad(template, 10, mode='wrap')[start:stop]  # use wrap to not change the frequency content
+        return template
+
+    def _good_template(self, template):
+        tau = -np.trapz(template)
+        return  self.cfg.template.min_tau < tau < self.cfg.template.max_tau
 
 
 def initialize_worker():
