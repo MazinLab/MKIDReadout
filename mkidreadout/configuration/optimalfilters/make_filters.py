@@ -304,7 +304,6 @@ class TimeStream(object):
         sigma = mad_std(filtered_phase)
         characteristic_time = -np.trapz(self.fallback_template)  # ~decay time in units of dt for a perfect exponential
         pulses, _ = sp.signal.find_peaks(filtered_phase, height=cfg.threshold * sigma, distance=characteristic_time)
-        # TODO: skimage.feature.peak_local_max may be faster?
 
         # correct for correlation offset and save results
         pulses += cfg.offset - filter_.size // 2
@@ -328,13 +327,22 @@ class TimeStream(object):
             if self.result["mask"].sum() < cfg.min_pulses:  # not enough good pulses to make a reliable template
                 self.result['template'] = self.fallback_template
                 self.result['flag'] |= flags['bad_pulses'] | flags['bad_template'] | flags['template_computed']
-            return self.result['pulses'], self.result['mask']
-        else:
-            return pulses, mask
+        return pulses, mask
 
-    def make_noise(self):
-        """Make the noise spectrum for the time stream."""
-        if self.result['flag'] & flags['noise_computed']:
+    def make_noise(self, save=True):
+        """
+        Make the noise spectrum for the time stream.
+
+        Args:
+            save: boolean (optional)
+                Save the result in the result attribute when done. If save is
+                False, none of the flags or results will change.
+
+        Returns:
+            psd: numpy.ndarray
+                The computed power spectral density.
+        """
+        if self.result['flag'] & flags['noise_computed'] and save:
             return
         self._flag_checks(pulses=True)
         cfg = self.cfg.noise
@@ -345,73 +353,128 @@ class TimeStream(object):
 
         # loop space between peaks and compute noise
         n = 0
-        self.result['psd'] = np.zeros(int(cfg.nwindow / 2. + 1))
+        psd = np.zeros(int(cfg.nwindow / 2. + 1))
         for peak1, peak2 in zip(pulses[:-1], pulses[1:]):
             if n > cfg.max_noise:
                 break  # no more noise is needed
             if peak2 - peak1 < cfg.isolation + pulse_cfg.offset + cfg.nwindow:
                 continue  # not enough space between peaks
             data = self.phase[peak1 + cfg.isolation: peak2 - pulse_cfg.offset]
-            self.result['psd'] += sp.signal.welch(data, fs=1. / self.cfg.dt, nperseg=cfg.nwindow, detrend="constant",
-                                                  return_onesided=True, scaling="density")[1]
+            psd += sp.signal.welch(data, fs=1. / self.cfg.dt, nperseg=cfg.nwindow, detrend="constant",
+                                   return_onesided=True, scaling="density")[1]
             n += 1
 
-        # set flags and results
+        # finish the average, assume white noise if there was no data
         if n == 0:
-            self.result['flag'] |= flags['bad_noise']
-            self.result['psd'][:] = 1.  # set to white noise
+            psd[:] = 1.
         else:
-            self.result['psd'] /= n  # finish the average
-        self.result['flag'] |= flags['noise_computed']
+            psd /= n
 
-    def make_template(self):
-        """Make the template for the photon pulse."""
-        if self.result['flag'] & flags['template_computed']:
+        if save:
+            # set flags and results
+            self.result['psd'] = psd
+            if n == 0:
+                self.result['flag'] |= flags['bad_noise']
+            self.result['flag'] |= flags['noise_computed']
+        return psd
+
+    def make_template(self, save=True, refilter=True, pulses=None, mask=None, phase=None):
+        """
+        Make the template for the photon pulse.
+
+        Args:
+            save: boolean (optional)
+                Save the result in the result attribute when done. If save is
+                False, none of the flags or results will change.
+            refilter: boolean (optional)
+                Recompute the pulse indices and remake the template with a
+                filter computed from the data.
+            pulses: numpy.ndarray
+                A list of pulse indices corresponding to phase to use in
+                computing the template. The default is to use the value in
+                the result.
+            mask: numpy.ndarray
+                A boolean array that picks out good indices from pulses.
+            phase: numpy.ndarray
+                The phase data to use to compute the template. The default
+                is to use the median subtracted phase time-stream.
+
+        Returns:
+            template: numpy.ndarray
+                A template for the pulse shape.
+        """
+        if self.result['flag'] & flags['template_computed'] and save:
             return
         self._flag_checks(pulses=True, noise=True)
         cfg = self.cfg.template
+        if pulses is None:
+            pulses = self.result['pulses']
+        if mask is None:
+            mask = self.result['mask']
+        if phase is None:
+            phase = self.phase - np.median(self.phase)
 
         # compute the template
-        phase = self.phase - np.median(self.phase)
-        template = self._average_pulses(phase, self.result['pulses'], self.result['mask'])
+        template = self._average_pulses(phase, pulses, mask)
 
         # shift and normalize template
         template = self._shift_and_normalize(template)
 
-        # filter again to get the best possible pulse locations
-        if self._good_template(template):
-            filter_ = filter_functions.dc_orthogonal(template, self.result['psd'], cutoff=cfg.cutoff)
-            pulses, mask = self.make_pulses(save=False, use_filter=filter_)
-            template = self._average_pulses(phase, pulses, mask)
-            template = self._shift_and_normalize(template)
-
         # TODO: fit template?
 
-        # set flags and results
-        if self._good_template(template):
-            self.result['template'] = template
-        else:
-            self.result['flag'] |= flags['bad_template']
-            self.result['template'] = self.fallback_template
-        self.result['flag'] |= flags['template_computed']
+        # filter again to get the best possible pulse locations
+        if self._good_template(template) and refilter:
+            filter_ = filter_functions.dc_orthogonal(template, self.result['psd'], cutoff=cfg.cutoff)
+            pulses, mask = self.make_pulses(save=False, use_filter=filter_)
+            template = self.make_template(save=False, refilter=False, pulses=pulses, mask=mask, phase=phase)
 
-    def make_filter(self):
-        """Make the filter for the time stream."""
-        if self.result['flag'] & flags['filter_computed']:
+        # save and return the template
+        if save:
+            if self._good_template(template):
+                self.result['template'] = template
+            else:
+                self.result['flag'] |= flags['bad_template']
+                self.result['template'] = self.fallback_template
+            self.result['flag'] |= flags['template_computed']
+        return template
+
+    def make_filter(self, save=True, filter_type=None):
+        """
+        Make the filter for the time stream.
+
+        Args:
+            save: boolean (optional)
+                Save the result in the result attribute when done. If save is
+                False, none of the flags or results will change.
+            filter_type: string (optional)
+                Create a filter of this type. The default is to use the value
+                in the configuration file. Valid filters are function names in
+                filters.py.
+
+        Returns:
+            filter_: numpy.ndarray
+                The computed filter.
+        """
+        if self.result['flag'] & flags['filter_computed'] and save:
             return
         self._flag_checks(pulses=True, noise=True, template=True)
         cfg = self.cfg.filter
+        if filter_type is None:
+            filter_type = cfg.filter_type
 
         # compute filter (some options may be ignored by the filter function)
-        filter_ = getattr(filter_functions, cfg.filter_type)(
+        filter_ = getattr(filter_functions, filter_type)(
             self.result["template"],
             self.result["psd"],
             nfilter=cfg.nfilter,
             cutoff=self.cfg.template.cutoff
         )
 
-        self.result['filter'] = filter_
-        self.result['flag'] |= flags['filter_computed']
+        # save and return the filter
+        if save:
+            self.result['filter'] = filter_
+            self.result['flag'] |= flags['filter_computed']
+        return filter_
 
     def _init_result(self):
         self.result = {"pulses": None, "mask": None, "template": None, "filter": None, "psd": None,
