@@ -343,16 +343,18 @@ class Resonator(object):
 
         # compute the template
         template = np.sum(pulses * weights[:, np.newaxis], axis=0)
-        if template.min() != 0:  # all weights could be zero
-            template /= np.abs(template.min())  # correct over all template height
-
-        # shift template (max may not be exactly at offset due to the default template not being a perfect match)
-        start = 10 + np.argmin(template) - pulse_cfg.offset
-        stop = start + pulse_cfg.ntemplate
-        template = np.pad(template, 10, mode='constant')[start:stop]
 
         # TODO: make filter and recompute? (don't use make_filter code)
         # TODO: fit template?
+
+        # normalize template
+        if template.min() != 0:  # all weights could be zero
+            template /= np.abs(template.min())  # correct over all template height
+
+        # shift template (max may not be exactly at offset due to filtering and imperfect default template)
+        start = 10 + np.argmin(template) - pulse_cfg.offset
+        stop = start + pulse_cfg.ntemplate
+        template = np.pad(template, 10, mode='wrap')[start:stop]  # use wrap to not change the frequency content
 
         # set flags and results
         tau = -np.trapz(template)

@@ -114,8 +114,30 @@ def setup_progress(iterable):
 
 
 def covariance_from_psd(psd, size=None, dt=1.):
-    autocovariance = np.real(np.fft.irfft(psd / 2) / dt)  # divide by 2 for single sided PSD
+    autocovariance = np.real(np.fft.irfft(psd / 2.) / dt)  # divide by 2 for single sided PSD
     if size is not None:
         autocovariance = autocovariance[:size]
     covariance = sp.linalg.toeplitz(autocovariance)
     return covariance
+
+
+def filter_cutoff(filter_, cutoff):
+    """
+    This function addresses a problem encountered when generating filters from
+    oversampled data. The high frequency content of the filters can be
+    artificially large due to poor estimation of the noise and template.
+
+    In this case it is useful to remove frequencies above the cutoff from the
+    filter. Only use this function when addressing the above issue and if the
+    majority of the signal frequencies are < cutoff.
+
+    It is best to avoid this procedure if possible since removing the high
+    frequency content will artificially make the filter periodic, throws away
+    some information in the signal, and may negatively influence some of the
+    intended filter properties.
+    """
+    freq = np.fft.rfftfreq(filter_.shape[0], d=1)
+    filter_fft = np.fft.rfft(filter_, axis=0)
+    filter_fft[freq > cutoff, ...] = 0
+    filter_ = np.fft.irfft(filter_fft, filter_.shape[0], axis=0)
+    return filter_
