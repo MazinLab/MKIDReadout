@@ -8,6 +8,8 @@ import scipy as sp
 import scipy.signal
 import multiprocessing as mp
 from astropy.stats import mad_std
+from skimage.restoration import unwrap_phase
+
 
 import mkidcore.config
 import mkidcore.objects  # must be imported for beam map to load from yaml
@@ -206,7 +208,8 @@ class Resonator(object):
             self._time_stream = npz[npz.keys()[0]]
             # unwrap the time stream
             if self.cfg.unwrap:
-                self._time_stream = np.unwrap(self._time_stream)
+                self._time_stream = unwrap_phase(self._time_stream)  # much faster than np.unwrap
+
             # self._time_stream = np.zeros(int(60e6))  # TODO: remove
         return self._time_stream
 
