@@ -14,6 +14,8 @@ import mkidcore.objects  # must be imported for beam map to load from yaml
 from mkidcore.pixelflags import filters as flag_dict
 
 import mkidreadout.configuration.optimalfilters.utils as utils
+import mkidreadout.configuration.optimalfilters.filters as filter_functions
+
 
 log = logging.getLogger(__name__)
 log.addHandler(logging.NullHandler())
@@ -123,8 +125,7 @@ class Solution(object):
                 log.error("Keyboard Interrupt encountered: retrieving computed filters before exiting")
                 pool.terminate()
                 pool.join()
-                # TODO: not sure how long it will take to transfer real Resonator objects
-                #  (timeout may need to be rethought)
+                # TODO: not sure how long it will take to get() Resonator objects (don't use timeout?)
                 resonators = results.get(timeout=0.001)
                 self._add_resonators(resonators)
                 raise error  # propagate error to the main program
@@ -261,6 +262,8 @@ class Resonator(object):
 
     def make_pulses(self):
         """Find the pulse index locations in the time stream."""
+        if self.result['flag'] & flag_dict['pulses_computed']:
+            return
         cfg = self.cfg.pulses
 
         # filter the time stream (ignore DC component)
@@ -344,7 +347,6 @@ class Resonator(object):
         # compute the template
         template = np.sum(pulses * weights[:, np.newaxis], axis=0)
 
-        # TODO: make filter and recompute? (don't use make_filter code)
         # TODO: fit template?
 
         # normalize template
@@ -372,7 +374,9 @@ class Resonator(object):
         self._flag_checks(pulses=True, noise=True, template=True)
         cfg = self.cfg.filter
 
-        self.result['filter'] = np.zeros(cfg.nfilter)
+        filter_ = getattr(filter_functions, cfg.filter_type)(cfg, self.result["template"], self.result["psd"])
+
+        self.result['filter'] = filter_
         self.result['flag'] |= flag_dict['filter_computed']
 
     def _init_result(self):
