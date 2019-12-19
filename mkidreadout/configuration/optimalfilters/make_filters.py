@@ -277,6 +277,8 @@ class TimeStream(object):
                 the filter from the result attribute is used. If False, the
                 fallback template is used to make a filter. Otherwise,
                 use_filter is assumed to be a pre-computed filter and is used.
+                Any precomputed filter should have the same offset and size as
+                specified in the configuration to get the right peak indices.
 
         Returns:
             pulses: numpy.ndarray
@@ -295,8 +297,8 @@ class TimeStream(object):
         elif use_filter is not False:
             filter_ = use_filter
         else:
-            filter_ = filter_functions.matched(self.cfg, self.fallback_template, nfilter=cfg.ntemplate, dc=True)
-        filtered_phase = sp.signal.convolve(self.phase, filter_, mode='same')  # pulses are positive
+            filter_ = filter_functions.matched(self.cfg.filter, self.fallback_template, nfilter=cfg.ntemplate, dc=True)
+        filtered_phase = sp.signal.convolve(self.phase, -filter_, mode='same')  # "-" so that pulses are positive
 
         # find pulse indices
         sigma = mad_std(filtered_phase)
@@ -304,7 +306,7 @@ class TimeStream(object):
         pulses, _ = sp.signal.find_peaks(filtered_phase, height=cfg.threshold * sigma, distance=characteristic_time)
 
         # correct for correlation offset and save results
-        pulses -= cfg.ntemplate // 2 + cfg.offset
+        pulses += cfg.offset - cfg.ntemplate // 2
         mask = np.ones_like(pulses, dtype=bool)
 
         # mask piled up pulses
@@ -324,7 +326,7 @@ class TimeStream(object):
             self.result['flag'] |= flags['pulses_computed']
             if self.result["mask"].sum() < cfg.min_pulses:  # not enough good pulses to make a reliable template
                 self.result['template'] = self.fallback_template
-                self.result['flag'] |= flags['bad_pulses'] | flags['bad_template'] | flags['template_completed']
+                self.result['flag'] |= flags['bad_pulses'] | flags['bad_template'] | flags['template_computed']
             return self.result['pulses'], self.result['mask']
         else:
             return pulses, mask
@@ -375,9 +377,11 @@ class TimeStream(object):
         pulses = (self.phase - np.median(self.phase))[index_array]
 
         # weight the pulses by pulse height and remove those that are outside the middle percent of the data
-        weights = 1 / np.abs(pulses[:, pulse_cfg.offset])
-        percentiles = np.percentile(pulses[:, pulse_cfg.offset], [(100 - cfg.percent) / 2., (100 + cfg.percent) / 2.])
-        weights[(pulses[:, pulse_cfg.offset] < percentiles[0]) | (pulses[:, pulse_cfg.offset] > percentiles[1])] = 0
+        pulse_heights = np.abs(np.min(pulses, axis=1))
+        percentiles = np.percentile(pulse_heights, [(100 - cfg.percent) / 2., (100 + cfg.percent) / 2.])
+        logic = (pulse_heights != 0) & (pulse_heights <= percentiles[1]) & (percentiles[0] <= pulse_heights)
+        weights = np.zeros_like(pulse_heights)
+        weights[logic] = 1. / pulse_heights[logic]
 
         # compute the template
         template = np.sum(pulses * weights[:, np.newaxis], axis=0)
