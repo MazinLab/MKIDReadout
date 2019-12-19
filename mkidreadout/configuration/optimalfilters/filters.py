@@ -85,7 +85,7 @@ def wiener(*args, **kwargs):
     return filter_
 
 
-def baseline_insensitive(*args, **kwargs):
+def dc_orthogonal(*args, **kwargs):
     """
     Create a filter that minimizes the squared error between the template and
     the data, while also being insensitive to a drifting baseline.
@@ -147,9 +147,9 @@ def baseline_insensitive(*args, **kwargs):
     return filter_
 
 
-def exponential_insensitive(*args, **kwargs):
+def exp_orthogonal(*args, **kwargs):
     raise NotImplementedError
 
 
-def baseline_exponential_insensitive(*args, **kwargs):
+def dc_exp_orthogonal(*args, **kwargs):
     raise NotImplementedError
