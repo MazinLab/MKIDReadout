@@ -15,14 +15,14 @@ filters: !configdict  # main configuration section for the filter computation
 
   pulses: !configdict # configuration for finding pulse indices in the phase time-stream
     fallback_template: default  # used as pulse finding filter and fallback template [default | path to custom file]
-    ntemplate: 500  # window size used to estimate the template  [int]
+    ntemplate: 500  # template length in units of dt  [int]
     offset: 10  # peak index from the left  [int]
     threshold: 4  # number of standard deviations to use as a threshold for pulse finding [int]
     separation: 500  # minimum separation between pulses in units of dt [int]
     min_pulses: 1000  # minimum number of good pulses required to be found before using the fallback template [int]
 
   noise: !configdict  # configuration for computing the noise
-    nwindow: 500  # window size used to estimate the power spectral density  [int]
+    nwindow: 500  # window size used to estimate the power spectral density in units of dt [int]
     isolation: 100  # only use data isolated from pulses by this amount of time after the pulse in units of dt [int]
     max_noise: 2000  # maximum number of noise samples needed before moving on [int]
 
@@ -32,6 +32,6 @@ filters: !configdict  # main configuration section for the filter computation
     max_tau: 50  # maximum allowed template time constant in units of dt [float]
 
   filter: !configdict  # configuration for computing the filter
-    filter_type: standard  # type of filter to compute  [function names in filters.py]
+    filter_type: baseline_insensitive  # type of filter to compute  [function names in filters.py]
     nfilter: 50  # number of coefficients in the filter  [int]
     cutoff: .1  # remove filter contribution above this frequency in units of 1 / dt, skipped if False [False | float]
