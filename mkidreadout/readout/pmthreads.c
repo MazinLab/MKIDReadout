@@ -483,10 +483,12 @@ void* reader(void *prms){
                 memcpy(packBuf->data + packBuf->writeInd, overFlowBuf + lastWriteSize, 
                         nBytesReceived - lastWriteSize); 
                 packBuf->writeInd += nBytesReceived - lastWriteSize;
+                #ifdef _DEBUG_READER_OUTPUT
                 printf("Reader: nRingBufCycles: %lu\n", packBuf->nCycles);
-                printf("    nBytesReceived: %d\n", nBytesReceived);
-                printf("    lastWriteSize: %d\n", lastWriteSize);
+                printf("    nBytesReceived: %ld\n", nBytesReceived);
+                printf("    lastWriteSize: %ld\n", lastWriteSize);
                 printf("    writeInd: %lu\n", packBuf->writeInd);
+                #endif 
 
             }
 
