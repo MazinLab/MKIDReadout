@@ -501,9 +501,9 @@ class TimeStream(object):
         # weight the pulses by pulse height and remove those that are outside the middle percent of the data
         pulse_heights = np.abs(np.min(pulses, axis=1))
         percentiles = np.percentile(pulse_heights, [(100. - percent) / 2., (100. + percent) / 2.])
-        logic = (pulse_heights != 0) & (pulse_heights <= percentiles[1]) & (percentiles[0] <= pulse_heights)
+        logic = (pulse_heights <= percentiles[1]) & (percentiles[0] <= pulse_heights)
         weights = np.zeros_like(pulse_heights)
-        weights[logic] = 1. / pulse_heights[logic]
+        weights[logic] = pulse_heights[logic]
 
         # compute the template
         template = np.sum(pulses * weights[:, np.newaxis], axis=0)
