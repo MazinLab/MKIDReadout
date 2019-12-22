@@ -6,6 +6,8 @@ import pkg_resources as pkg
 from astropy.stats import mad_std
 from skimage.restoration import unwrap_phase
 
+import mkidcore.config
+import mkidcore.objects  # must be imported for beam map to load from yaml
 from mkidcore.pixelflags import filters as flags
 from mkidreadout.configuration.optimalfilters import utils
 from mkidreadout.configuration.optimalfilters import filters as filter_functions
@@ -38,7 +40,7 @@ class TimeStream(object):
 
     def __init__(self, file_name, config=None, fallback_template=None, name=None):
         if config is None:
-            self._cfg = mkidcore.config.load(pkg.resource_filename(__name__, 'filter.yml')).filters
+            self._cfg = None
         else:
             self._cfg = config
         self.file_name = file_name
@@ -83,6 +85,8 @@ class TimeStream(object):
         The filter computation configuration. Resetting it will clear parts of
         the filter result that are not consistent with the new settings.
         """
+        if self._cfg is None:
+            self._cfg = mkidcore.config.load(pkg.resource_filename(__name__, 'filter.yml')).filters
         return self._cfg
 
     @cfg.setter
@@ -473,3 +477,6 @@ class TimeStream(object):
     def _good_template(self, template):
         tau = -np.trapz(template)
         return self.cfg.template.min_tau < tau < self.cfg.template.max_tau
+
+
+mkidcore.config.yaml.register_class(TimeStream)

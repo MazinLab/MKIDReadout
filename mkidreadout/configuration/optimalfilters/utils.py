@@ -5,6 +5,7 @@ import glob
 import logging
 import numpy as np
 import scipy as sp
+import pkg_resources as pkg
 import multiprocessing as mp
 
 try:
@@ -19,8 +20,7 @@ log.addHandler(logging.NullHandler())
 
 def load_fallback_template(config):
     if config.fallback_template == "default":
-        directory = os.path.dirname(os.path.realpath(__file__))
-        file_name = os.path.join(directory, "template_15us.txt")
+        file_name = pkg.resource_filename(__name__, "template_15us.txt")
     else:
         file_name = config.fallback_template
     template = np.loadtxt(file_name)
