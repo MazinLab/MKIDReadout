@@ -4,6 +4,9 @@ import numpy as np
 import mkidreadout.configuration.optimalfilters.utils as utils
 
 
+__all__ = ["matched", "wiener", "dc_orthogonal", "exp_orthogonal", "dc_exp_orthogonal"]
+
+
 def matched(*args, **kwargs):
     """
     Create a filter matched to a template.

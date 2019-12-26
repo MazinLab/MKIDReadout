@@ -16,6 +16,7 @@ from pkg_resources import resource_filename
 
 import mkidreadout.configuration.sweepdata as sweepdata
 from mkidcore.corelog import getLogger
+from mkidcore.objects import TimeStream
 from mkidreadout.channelizer.Roach2Controls import Roach2Controls
 from mkidreadout.utils import iqsweep
 
@@ -690,16 +691,11 @@ class RoachStateMachine(QtCore.QObject):  # Extends QObject for use with QThread
         el = 'resID{:.0f}_{}'.format(resID, time.strftime("%Y%m%d-%H%M%S", time.localtime()))
         longSnapFN = self.roachController.tagfile(self.config.roaches.get('r{}.longsnaproot'.format(self.num)),
                                                   dir=self.config.paths.data, epilog=el)
+
+        ts = TimeStream(longSnapFN)
+        ts.phase = data
         try:
-            np.savez(longSnapFN, data)
-        except IOError:
-            path = longSnapFN.rsplit('/', 1)
-            if len(path) <= 1:
-                raise
-            getLogger(__name__).info('Making directory: ' + path[0])
-            os.mkdir(path[0])
-        try:
-            np.savez(longSnapFN, data)
+            ts.save()
         except Exception:
             getLogger(__name__).error('Failed to save long snap file to {}'.format(longSnapFN), exc_info=True)
 

@@ -144,15 +144,3 @@ def filter_cutoff(filter_, cutoff):
     filter_fft[freq > cutoff, ...] = 0
     filter_ = np.fft.irfft(filter_fft, filter_.shape[0], axis=0)
     return filter_
-
-
-def process_time_stream(time_stream):
-    """Process the time stream object and compute it's filter."""
-    time_stream.make_pulses()
-    time_stream.make_noise()
-    time_stream.make_template()
-    time_stream.make_filter()
-    # print(time stream.index)
-    from time import sleep
-    sleep(.01)
-    return time_stream
