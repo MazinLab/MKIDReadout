@@ -10,7 +10,7 @@ beammap: !bmap  # include beammap for summary plots
 
 filters: !configdict  # main configuration section for the filter computation
   unwrap: True  # unwrap the phase time-stream data  [bool]
-  dt: 1e-6  # time sample spacing (used for PSD units and plotting)  [float]
+  dt: 1e-6  # time sample spacing in seconds (used for PSD units and plotting)  [float]
   summary_plot: True  # make a summary plot at the end of the calculation  [bool]
 
   pulses: !configdict # configuration for finding pulse indices in the phase time-stream

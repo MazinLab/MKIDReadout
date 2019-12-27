@@ -144,3 +144,17 @@ def filter_cutoff(filter_, cutoff):
     filter_fft[freq > cutoff, ...] = 0
     filter_ = np.fft.irfft(filter_fft, filter_.shape[0], axis=0)
     return filter_
+
+
+def init_plot(axes):
+    if axes is None:
+        from matplotlib import pyplot as plt
+        figure, axes = plt.subplots()
+    else:
+        figure = axes.figure
+    return figure, axes
+
+
+def finish_plot(axes, tighten=True):
+    if tighten:
+        axes.figure.tight_layout()

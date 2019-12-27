@@ -8,6 +8,7 @@ import numpy as np
 import scipy as sp
 import pkg_resources as pkg
 import multiprocessing as mp
+from matplotlib import ticker
 from astropy.stats import mad_std
 from skimage.restoration import unwrap_phase
 
@@ -161,6 +162,9 @@ class Calculator(object):
         if self.result["flag"] & flags["bad_template"]:
             self.result["flag"] ^= flags["bad_template"]
             log.debug("Calculator {}: template problem flag reset.".format(self.name))
+        if self.result["flag"] & flags["bad_template_fit"]:
+            self.result["flag"] ^= flags["bad_template_fit"]
+            log.debug("Calculator {}: template fit problem flag reset.".format(self.name))
         if self.result["flag"] & flags["template_computed"]:
             self.result["flag"] ^= flags["template_computed"]
             log.debug("Calculator {}: template status flag reset.".format(self.name))
@@ -297,19 +301,22 @@ class Calculator(object):
             refilter: boolean (optional)
                 Recompute the pulse indices and remake the template with a
                 filter computed from the data.
-            pulses: numpy.ndarray
+            pulses: numpy.ndarray (optional)
                 A list of pulse indices corresponding to phase to use in
                 computing the template. The default is to use the value in
                 the result.
-            mask: numpy.ndarray
+            mask: numpy.ndarray (optional)
                 A boolean array that picks out good indices from pulses.
-            phase: numpy.ndarray
+            phase: numpy.ndarray (optional)
                 The phase data to use to compute the template. The default
                 is to use the median subtracted phase time-stream.
 
         Returns:
             template: numpy.ndarray
                 A template for the pulse shape.
+            template_fit: lmfit.ModelResult, None
+                The template fit result. If the template was not fit, None is
+                returned.
         """
         if self.result['flag'] & flags['template_computed'] and save:
             return
@@ -330,13 +337,16 @@ class Calculator(object):
 
         # fit the template
         if cfg.fit is not False:
-            template = self._fit_template(template)
+            template, fit_result, success = self._fit_template(template)
+        else:
+            fit_result = None
+            success = None
 
         # filter again to get the best possible pulse locations
         if self._good_template(template) and refilter:
             filter_ = filter_functions.dc_orthogonal(template, self.result['psd'], cutoff=cfg.cutoff)
             pulses, mask = self.make_pulses(save=False, use_filter=filter_)
-            template = self.make_template(save=False, refilter=False, pulses=pulses, mask=mask, phase=phase)
+            template, fit_result = self.make_template(save=False, refilter=False, pulses=pulses, mask=mask, phase=phase)
 
         # save and return the template
         if save:
@@ -345,8 +355,11 @@ class Calculator(object):
             else:
                 self.result['flag'] |= flags['bad_template']
                 self.result['template'] = self.fallback_template
+            self.result['template_fit'] = fit_result
+            if success is False:
+                self.result['flag'] |= flags['bad_template_fit']
             self.result['flag'] |= flags['template_computed']
-        return template
+        return template, fit_result
 
     def make_filter(self, save=True, filter_type=None):
         """
@@ -389,6 +402,21 @@ class Calculator(object):
         return filter_
 
     def apply_filter(self, filter_=None, positive=False):
+        """
+        Apply a filter to the time-stream.
+
+        Args:
+            filter_: numpy.ndarray (optional)
+                The filter to apply. If not provided, the filter from the saved
+                result is used.
+            positive: boolean (optional)
+                If True, the filter will be negated so that the filtered pulses
+                have a positive amplitude.
+
+        Returns:
+            filtered_phase: numpy.ndarray
+                The filtered phase time-stream.
+        """
         if filter_ is None:
             filter_ = self.result["filter"]
         if positive:
@@ -404,7 +432,7 @@ class Calculator(object):
             threshold: float
                 Only pulses above threshold sigma in the filtered time stream
                 are included.
-            filter_: numpy.ndarray
+            filter_: numpy.ndarray (optional)
                 A filter to use to calculate the responses. If None, the filter
                 from the result attribute is used.
 
@@ -422,6 +450,140 @@ class Calculator(object):
                                          distance=self.characteristic_time)
         responses = -filtered_phase[pulses]
         return responses, pulses
+
+    def plot(self, tighten=True, axes_list=None):
+        """
+        Plot the results of the calculation.
+
+        Args:
+            tighten: boolean (optional)
+                If true, figure.tight_layout() is called after the plot is
+                generated.
+            axes_list: iterable of matplotlib.axes.Axes
+                The axes on which to plot. If not provided, they are generated
+                using pyplot.
+        """
+        if axes_list is None:
+            from matplotlib import pyplot as plt
+            figure, axes_list = plt.subplots(nrows=2, ncols=2, figsize=(9, 9))
+            axes_list = axes_list.flatten()
+        else:
+            figure = axes_list[0].figure
+
+        self.plot_noise(axes=axes_list[0], tighten=False)
+        self.plot_filter(axes=axes_list[1], tighten=False)
+        self.plot_template(axes=axes_list[2], tighten=False)
+        if len(axes_list) > 3:
+            self.plot_template_fit(axes=axes_list[3], tighten=False)
+
+        if tighten:
+            figure.tight_layout()
+
+    def plot_noise(self, tighten=True, axes=None):
+        """
+        Plot the results of the noise calculation.
+
+        Args:
+            tighten: boolean (optional)
+                If true, figure.tight_layout() is called after the plot is
+                generated.
+            axes:  matplotlib.axes.Axes
+                The axes on which to plot. If not provided, they are generated
+                using pyplot.
+        """
+        figure, axes = utils.init_plot(axes)
+        axes.set_xlabel("frequency [Hz]")
+        axes.set_ylabel("PSD [dBc / Hz]")
+        if self.result['psd'] is not None:
+            f = np.fft.rfftfreq(self.cfg.noise.nwindow, d=self.cfg.dt)
+            psd = self.result['psd']
+            axes.semilogx(f, 10 * np.log10(psd))
+            if self.result["flag"] & flags["bad_noise"]:
+                axes.set_title("failed: using white noise", color='red')
+            else:
+                axes.set_title("successful", color='green')
+        else:
+            axes.set_title("noise not computed", color='red')
+        utils.finish_plot(axes, tighten=tighten)
+
+    def plot_template(self, tighten=True, axes=None):
+        """
+        Plot the results of the template calculation.
+
+        Args:
+            tighten: boolean (optional)
+                If true, figure.tight_layout() is called after the plot is
+                generated.
+            axes:  matplotlib.axes.Axes
+                The axes on which to plot. If not provided, they are generated
+                using pyplot.
+        """
+        axes.set_xlabel(r"time [$\mu$s]")
+        axes.set_ylabel("template [arb.]")
+        if self.result['template'] is not None:
+            template = self.result['template']
+            t = np.arange(template.size) * self.cfg.dt * 1e6
+            axes.plot(t, template)
+            if self.result["flag"] & flags["bad_template"]:
+                axes.set_title("failed: using fallback template", color='red')
+            else:
+                axes.set_title("successful", color='green')
+        else:
+            axes.set_title("template not computed", color='red')
+        utils.finish_plot(axes, tighten=tighten)
+
+    def plot_template_fit(self, tighten=True, axes=None):
+        """
+        Plot the results of the template fit.
+
+        Args:
+            tighten: boolean (optional)
+                If true, figure.tight_layout() is called after the plot is
+                generated.
+            axes:  matplotlib.axes.Axes
+                The axes on which to plot. If not provided, they are generated
+                using pyplot.
+        """
+        if self.result['template_fit'] is not None:
+            fit = self.result['template_fit']
+            formatter = ticker.FuncFormatter(lambda x, y: "{:g}".format(x * self.cfg.dt * 1e6))
+            axes.xaxis.set_major_formatter(formatter)
+            fit.plot_fit(ax=axes, show_init=True, xlabel=r"time [$\mu$s]", ylabel="template [arb.]")
+            if self.result["flag"] & flags["bad_template_fit"]:
+                axes.set_title("failed: using data", color='red')
+            else:
+                axes.set_title("successful", color='green')
+        else:
+            axes.set_xlabel(r"time [$\mu$s]")
+            axes.set_ylabel("template [arb.]")
+            axes.set_title("template not fit", color='red')
+        utils.finish_plot(axes, tighten=tighten)
+
+    def plot_filter(self, tighten=True, axes=None):
+        """
+        Plot the results of the filter calculation.
+
+        Args:
+            tighten: boolean (optional)
+                If true, figure.tight_layout() is called after the plot is
+                generated.
+            axes:  matplotlib.axes.Axes
+                The axes on which to plot. If not provided, they are generated
+                using pyplot.
+        """
+        axes.set_xlabel(r"time [$\mu$s]")
+        axes.set_ylabel("filter coefficient [radians]")
+        if self.result['filter'] is not None:
+            filter_ = self.result['filter']
+            t = np.arange(filter_.size) * self.cfg.dt * 1e6
+            axes.plot(t, filter_)
+            if self.result["flag"] & flags["bad_filter"]:
+                axes.set_title("failed", color='red')
+            else:
+                axes.set_title("successful", color='green')
+        else:
+            axes.set_title("filter not computed", color='red')
+        utils.finish_plot(axes, tighten=tighten)
 
     def _init_result(self):
         self.result = {"pulses": None, "mask": None, "template": None, "template_fit": None, "filter": None,
@@ -482,9 +644,11 @@ class Calculator(object):
         if template_fit.min() != 0:
             template_fit /= np.abs(np.min(template_fit))
         # only modify template if it was a good fit
+        success = False
         if result.success and result.errorbars and self._good_template(template_fit):
             template = template_fit
-        return template
+            success = True
+        return template, result, success
 
     def _good_template(self, template):
         tau = -np.trapz(template)
