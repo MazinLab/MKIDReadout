@@ -337,10 +337,9 @@ class Calculator(object):
 
         # fit the template
         if cfg.fit is not False:
-            template, fit_result, success = self._fit_template(template)
+            template, fit_result = self._fit_template(template)
         else:
             fit_result = None
-            success = None
 
         # filter again to get the best possible pulse locations
         if self._good_template(template) and refilter:
@@ -356,7 +355,7 @@ class Calculator(object):
                 self.result['flag'] |= flags['bad_template']
                 self.result['template'] = self.fallback_template
             self.result['template_fit'] = fit_result
-            if success is False:
+            if fit_result is not None and fit_result.success is False:
                 self.result['flag'] |= flags['bad_template_fit']
             self.result['flag'] |= flags['template_computed']
         return template, fit_result
@@ -638,6 +637,7 @@ class Calculator(object):
         result = model.fit(template, guess, t=t)
         # get the template data vector
         template_fit = result.eval(t=t)
+        good_peak_height = -1.2 < template_fit.min() < -0.8
         peak = np.argmin(template_fit)
         # ensure the template is properly shifted and normalized
         template_fit = result.eval(t=t - peak + self.cfg.pulses.offset)
@@ -645,13 +645,14 @@ class Calculator(object):
             template_fit /= np.abs(np.min(template_fit))
         # only modify template if it was a good fit
         success = False
-        if result.success and result.errorbars and self._good_template(template_fit):
+        if result.success and result.errorbars and good_peak_height and self._good_template(template_fit):
             template = template_fit
             success = True
-        return template, result, success
+        result.success = success
+        return template, result
 
     def _good_template(self, template):
-        tau = -np.trapz(template)
+        tau = np.trapz(template / template.min())  # normalize because fit may not be
         return self.cfg.template.min_tau < tau < self.cfg.template.max_tau
 
 

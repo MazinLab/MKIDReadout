@@ -9,9 +9,11 @@ EPS = np.finfo(np.float64).eps
 __all__ = ["exponential", "double_exponential", "triple_exponential"]
 
 
-def _compute_t0(data, t=None):
+def _compute_t0(data, t=None, rise_time=None):
     peak = np.argmin(data)
     t0 = t[peak] if t is not None else float(peak)
+    if rise_time is not None:
+        t0 -= rise_time
     return t0
 
 
@@ -58,8 +60,8 @@ def _double_exponential(t, a, t0, rise_time, fall_time):
 
 def _double_exponential_guess(self, data, t=None, **kwargs):
     """Estimate initial model parameter values from data."""
-    t0 = kwargs.get("t0", _compute_t0(data, t=t))
     rise_time = kwargs.get("rise_time", _compute_rise_time(data, t=t))
+    t0 = kwargs.get("t0", _compute_t0(data, t=t, rise_time=rise_time))
     fall_time = kwargs.get("fall_time", _compute_fall_time(data, t=t))
 
     params = self.make_params(a=-1., t0=t0, rise_time=rise_time, fall_time=fall_time)
@@ -81,11 +83,11 @@ def _triple_exponential(t, a, t0, rise_time, fall_time1, fall_time2):
 
 def _triple_exponential_guess(self, data, t=None, **kwargs):
     """Estimate initial model parameter values from data."""
-    t0 = kwargs.get("t0", _compute_t0(data, t=t))
     rise_time = kwargs.get("rise_time", _compute_rise_time(data, t=t))
+    t0 = kwargs.get("t0", _compute_t0(data, t=t, rise_time=rise_time))
     fall_time = kwargs.get("fall_time", _compute_fall_time(data, t=t))
 
-    params = self.make_params(a=-1., t0=t0, rise_time=rise_time, fall_time1=fall_time / 2., fall_time2=2. * fall_time)
+    params = self.make_params(a=-1., t0=t0, rise_time=rise_time, fall_time1=fall_time / 2., fall_time2=fall_time)
     params["a"].set(max=0.)
     params["t0"].set(min=0. if t is None else np.min(t), max=float(len(data)) if t is None else np.max(t))
     params["rise_time"].set(min=0.)
