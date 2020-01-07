@@ -37,8 +37,8 @@ def matched(*args, **kwargs):
 
 def wiener(*args, **kwargs):
     """
-    Create a filter that minimizes the squared error between the template and
-    the data.
+    Create a filter that minimizes the chi squared statistic when aligned
+    with a photon pulse.
 
     Args:
         template:  numpy.ndarray
@@ -47,7 +47,7 @@ def wiener(*args, **kwargs):
             The power spectral density of the noise.
         nfilter: integer (optional)
             The number of taps to use in the filter. The default is to use
-            template.size.
+            2 * psd.size // 3.
         cutoff: float (optional)
             Set the filter response to zero above this frequency (in units of
             1 / dt). If False, no cutoff is applied. The default is False.
@@ -60,7 +60,8 @@ def wiener(*args, **kwargs):
     """
     # collect inputs
     template, psd = args[0], args[1]
-    nfilter = kwargs.get("nfilter", template.size)
+    ntemplate = 2 * psd.size // 3
+    nfilter = kwargs.get("nfilter", ntemplate)
     cutoff = kwargs.get("cutoff", False)
     fft = kwargs.get("fft", False)
 
@@ -71,10 +72,11 @@ def wiener(*args, **kwargs):
 
     else:  # compute filter in the time domain
         # only use the first third of the covariance matrix since computing from the PSD assumes periodicity
-        if template.size // 3 < nfilter:
-            raise ValueError("ntemplate must be at least 3x the size of nfilter")
-        covariance = utils.covariance_from_psd(psd, size=template.size // 3)
-        filter_ = np.linalg.solve(covariance, template[:template.size // 3])[::-1]
+        if ntemplate < nfilter:
+            raise ValueError("psd must be at least 1.5x the size of nfilter")
+        covariance = utils.covariance_from_psd(psd, size=ntemplate)
+        template = template[:ntemplate]
+        filter_ = np.linalg.solve(covariance, template)[::-1]
 
     # remove high frequency filter content
     if cutoff:
@@ -91,8 +93,8 @@ def wiener(*args, **kwargs):
 
 def dc_orthogonal(*args, **kwargs):
     """
-    Create a filter that minimizes the squared error between the template and
-    the data, while also being insensitive to a drifting baseline.
+    Create a filter that minimizes the chi squared statistic when aligned
+    with a photon pulse, while also being insensitive to a drifting baseline.
 
     Args:
         template:  numpy.ndarray

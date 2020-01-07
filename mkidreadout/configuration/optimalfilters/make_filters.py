@@ -458,9 +458,13 @@ class Calculator(object):
             tighten: boolean (optional)
                 If true, figure.tight_layout() is called after the plot is
                 generated.
-            axes_list: iterable of matplotlib.axes.Axes
+            axes_list: iterable of matplotlib.axes.Axes (optional)
                 The axes on which to plot. If not provided, they are generated
                 using pyplot.
+
+        Returns:
+            axes_list: iterable of matplotlib.axes.Axes
+                The axes with the plotted results.
         """
         if axes_list is None:
             from matplotlib import pyplot as plt
@@ -477,6 +481,7 @@ class Calculator(object):
 
         if tighten:
             figure.tight_layout()
+        return axes_list
 
     def plot_noise(self, tighten=True, axes=None):
         """
@@ -486,9 +491,13 @@ class Calculator(object):
             tighten: boolean (optional)
                 If true, figure.tight_layout() is called after the plot is
                 generated.
-            axes:  matplotlib.axes.Axes
+            axes:  matplotlib.axes.Axes (optional)
                 The axes on which to plot. If not provided, they are generated
                 using pyplot.
+
+        Returns:
+            axes: matplotlib.axes.Axes
+                An Axes class with the plotted noise.
         """
         figure, axes = utils.init_plot(axes)
         axes.set_xlabel("frequency [Hz]")
@@ -504,6 +513,7 @@ class Calculator(object):
         else:
             axes.set_title("noise not computed", color='red')
         utils.finish_plot(axes, tighten=tighten)
+        return axes
 
     def plot_template(self, tighten=True, axes=None):
         """
@@ -513,9 +523,13 @@ class Calculator(object):
             tighten: boolean (optional)
                 If true, figure.tight_layout() is called after the plot is
                 generated.
-            axes:  matplotlib.axes.Axes
+            axes:  matplotlib.axes.Axes (optional)
                 The axes on which to plot. If not provided, they are generated
                 using pyplot.
+
+        Returns:
+            axes: matplotlib.axes.Axes
+                An Axes class with the plotted template.
         """
         axes.set_xlabel(r"time [$\mu$s]")
         axes.set_ylabel("template [arb.]")
@@ -530,6 +544,7 @@ class Calculator(object):
         else:
             axes.set_title("template not computed", color='red')
         utils.finish_plot(axes, tighten=tighten)
+        return axes
 
     def plot_template_fit(self, tighten=True, axes=None):
         """
@@ -539,9 +554,13 @@ class Calculator(object):
             tighten: boolean (optional)
                 If true, figure.tight_layout() is called after the plot is
                 generated.
-            axes:  matplotlib.axes.Axes
+            axes:  matplotlib.axes.Axes (optional)
                 The axes on which to plot. If not provided, they are generated
                 using pyplot.
+
+        Returns:
+            axes: matplotlib.axes.Axes
+                An Axes class with the plotted template fit.
         """
         if self.result['template_fit'] is not None:
             fit = self.result['template_fit']
@@ -557,6 +576,7 @@ class Calculator(object):
             axes.set_ylabel("template [arb.]")
             axes.set_title("template not fit", color='red')
         utils.finish_plot(axes, tighten=tighten)
+        return axes
 
     def plot_filter(self, tighten=True, axes=None):
         """
@@ -566,9 +586,13 @@ class Calculator(object):
             tighten: boolean (optional)
                 If true, figure.tight_layout() is called after the plot is
                 generated.
-            axes:  matplotlib.axes.Axes
+            axes:  matplotlib.axes.Axes (optional)
                 The axes on which to plot. If not provided, they are generated
                 using pyplot.
+
+        Returns:
+            axes: matplotlib.axes.Axes
+                An Axes class with the plotted filter.
         """
         axes.set_xlabel(r"time [$\mu$s]")
         axes.set_ylabel("filter coefficient [radians]")
@@ -583,6 +607,7 @@ class Calculator(object):
         else:
             axes.set_title("filter not computed", color='red')
         utils.finish_plot(axes, tighten=tighten)
+        return axes
 
     def _init_result(self):
         self.result = {"pulses": None, "mask": None, "template": None, "template_fit": None, "filter": None,
