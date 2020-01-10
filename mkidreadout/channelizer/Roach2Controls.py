@@ -1189,7 +1189,7 @@ class Roach2Controls(object):
         if not hasattr(self, 'LOFreq'):
             raise ValueError("Need to set LO freq by calling setLOFreq()")
         dacFreqList = self.freqList-self.LOFreq
-        dacFreqList[np.where(dacFreqList<0.)] += self.params['dacSampleRate']  #For +/- freq
+        dacFreqList[dacFreqList<0.] += self.params['dacSampleRate']  #For +/- freq
 
         # Make sure dac tones are unique
         dacFreqList, args, args_inv = np.unique(dacFreqList, return_index=True, return_inverse=True)

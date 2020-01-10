@@ -177,7 +177,6 @@ class HighTemplar(QMainWindow):
         if command == RoachStateMachine.LOADFREQ:
             self.sweepWindows[roachArg].initFreqs()
             self.phaseWindows[roachArg].initFreqs()
-
         if command == RoachStateMachine.DEFINEROACHLUT:
             self.sweepWindows[roachArg].initFreqs()  # initialize LO freq
         if command == RoachStateMachine.DEFINEDACLUT:
