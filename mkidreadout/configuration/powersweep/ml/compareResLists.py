@@ -122,6 +122,7 @@ if __name__=='__main__':
 
         attenAMatched, attenBMatched = matchAttens(attenA, attenB, atob)
         freqAMatched, freqBMatched = matchAttens(freqA, freqB, atob)
+        resIDAMatched, resIDBMatched = matchAttens(resIDA, resIDB, atob)
 
     else:
         matchedMask = goodMaskA & goodMaskB
@@ -131,6 +132,8 @@ if __name__=='__main__':
         attenBMatched = attenB[matchedMask]
         freqAMatched = freqA[matchedMask]
         freqBMatched = freqB[matchedMask]
+        resIDAMatched = resIDA[matchedMask]
+        resIDBMatched = resIDB[matchedMask]
         print np.sum(matchedMask), 'resonators matched between files'
         print np.sum(aNotInBMask), 'resonators in', aFileName, 'not found in', bFileName
         print np.sum(bNotInAMask), 'resonators in', bFileName, 'not found in', aFileName
@@ -141,6 +144,14 @@ if __name__=='__main__':
 
     attenDiff = attenBMatched - attenAMatched
     freqDiff = freqBMatched - freqAMatched
+
+    if args.verbose:
+        diffAttenMask = np.abs(attenDiff) > 0.5
+        resIDPairDiffs = np.vstack((resIDAMatched, resIDBMatched, attenDiff)).T
+        print 'ResID discrepancies: A B Diff'
+        print resIDPairDiffs[diffAttenMask].astype(int)
+        
+        
 
     plt.hist(attenDiff, bins=11, range=(-5,5))
     plt.title(plotTitle)
@@ -162,7 +173,7 @@ if __name__=='__main__':
         for i in range(len(attenAMatched)):
             confImage[attenAMatched[i], attenBMatched[i]] += 1
     
-        plt.imshow(np.transpose(confImage))#, vmax=30)
+        plt.imshow(np.transpose(confImage), vmax=55)
         if usingML:
             plt.xlabel('True Atten')
             plt.ylabel('Guess Atten')

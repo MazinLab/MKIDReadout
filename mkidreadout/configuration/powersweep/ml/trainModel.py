@@ -10,7 +10,7 @@ modelDir specified in config file.
 
 from wpsnn import *
 
-from mkidcore.utils.readdict import ReadDict
+from mkidcore.readdict import ReadDict
 
 if len(sys.argv)<2:
     print 'Must supply config file!'

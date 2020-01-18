@@ -150,17 +150,17 @@ def findResonators(wpsmap, freqs, attens, peakThresh=0.97, minPeakDist=40.e3, nR
         largestMagInds = largestMagInds[:nRes]
         print 'Res mag cutoff:', resMags[largestMagInds[-1]]
         resCoords = resCoords[largestMagInds]
-        plt.hist(resMags, bins=30)
-        plt.show()
+        #plt.hist(resMags, bins=30)
+        #plt.show()
 
     elif nRes is not None:
         resCoords = skf.peak_local_max(wpsmap[:,:,0], min_distance=minPeakDist, threshold_abs=peakThresh, num_peaks=nRes, exclude_border=False)
         resCoords = prominenceCut(wpsmap, resCoords)
-        if len(resCoords) < nRes:
-            nRes += nRes - len(resCoords)
-            print 'Running peak seearch again with', nRes, 'resonators'
-            resCoords = skf.peak_local_max(wpsmap[:,:,0], min_distance=minPeakDist, threshold_abs=peakThresh, num_peaks=nRes, exclude_border=False)
-            resCoords = prominenceCut(wpsmap, resCoords)
+        #if len(resCoords) < nRes:
+        #    nRes += nRes - len(resCoords)
+        #    print 'Running peak seearch again with', nRes, 'resonators'
+        #    resCoords = skf.peak_local_max(wpsmap[:,:,0], min_distance=minPeakDist, threshold_abs=peakThresh, num_peaks=nRes, exclude_border=False)
+        #    resCoords = prominenceCut(wpsmap, resCoords)
 
     else:
         resCoords = skf.peak_local_max(wpsmap[:,:,0], min_distance=minPeakDist, threshold_abs=peakThresh, exclude_border=False)
@@ -191,8 +191,8 @@ def prominenceCut(wpsmap, resCoords, minThresh=0.88):
         valleys[i] = np.max(image)#image[coords[0], coords[1]]
         #valleys[i] = wpsmap[int(np.ceil((attenInds[0]+attenInds[1])/2.)), (resCoords[i,1]+resCoords[i+1,1])/2, 0]
 
-    plt.hist(valleys, bins=20)
-    plt.show()
+    #plt.hist(valleys, bins=20)
+    #plt.show()
     shallowMask = valleys > minThresh #there isn't a deep enough valley between this peak and the one after it
     clusterStartMask = np.diff(np.roll(shallowMask.astype(int), 1)) > 0
     clusterInds = np.where(clusterStartMask)[0]

@@ -436,8 +436,8 @@ class WPSNeuralNet(object):
             for k, v in self.mlDict.items():
                 lf.write(k + ': ' + str(v) + '\n')
 
-        globalLogfile = os.path.join(modelSavePath, '..', 'train.log')
-        with open(logfile, 'a') as lf:
+        globalLogfile = os.path.join(os.path.dirname(modelSavePath), '..', 'train.log')
+        with open(globalLogfile, 'a') as lf:
             lf.write(self.mlDict['modelName'] + ': ' + self.mlDict['comment'] + '\n')
 
             
