@@ -1,6 +1,8 @@
 from __future__ import division
 import os
 import signal
+import logging
+import argparse
 import threading
 import numpy as np
 import multiprocessing as mp
@@ -10,20 +12,27 @@ from tkinter import ttk, font, filedialog
 from mkidcore.config import yaml
 from mkidreadout.configuration.optimalfilters import filters, make_filters
 
+log = logging.getLogger(__name__)
+log.addHandler(logging.NullHandler())
+
 MIN_HEIGHT = 100
 MIN_WIDTH = 500
 START_HEIGHT = 200
 START_WIDTH = 865
 MAX_SUBDIRECTORIES = 25
-DEFAULT_CONFIG = "filter.yml"
+DEFAULT_CONFIG = os.path.join(os.path.abspath(os.path.dirname(__file__)), "filter.yml")
 DEFAULT_FILTER = filters.__all__[1]
 
 
 class ConfigurationTab(tk.Frame):
     def __init__(self, *args, **kwargs):
+        # optional kwargs
+        self.config_file = kwargs.pop("config_file", None)
+
         tk.Frame.__init__(self, *args, **kwargs)
         self._setup_ui()
         self._layout()
+        log.info("ConfigurationTab built.")
 
     def _setup_ui(self):
         self.hscrollbar = ttk.Scrollbar(self, orient=tk.HORIZONTAL)
@@ -32,7 +41,7 @@ class ConfigurationTab(tk.Frame):
 
         self.hscrollbar.config(command=self.text.xview)
         self.vscrollbar.config(command=self.text.yview)
-        file_name = os.path.join(os.path.abspath(os.path.dirname(__file__)), DEFAULT_CONFIG)
+        file_name = self.config_file if self.config_file is not None else DEFAULT_CONFIG
         with open(file_name, "r") as f:
             text = f.read()
             self.text.insert(tk.END, text)
@@ -61,6 +70,7 @@ class CalculationRow(tk.Frame):
         tk.Frame.__init__(self, *args, **kwargs)
         self._setup_ui()
         self._layout()
+        log.info("CalculationRow built.")
 
     def _setup_ui(self):
         self.label = tk.Label(self, text="All Directories:" if self.all else os.path.basename(self.directory) + ":")
@@ -78,15 +88,17 @@ class CalculationRow(tk.Frame):
         if not self.all:
             self.stop.config(state=tk.DISABLED)
         self.progress = ttk.Progressbar(self, orient=tk.HORIZONTAL, mode='determinate')
+        self.plot = tk.Button(self, text="Plot", command=self.plot)
 
     def _layout(self):
-        self.label.pack(side="left", fill=tk.X)
-        self.force_check.pack(side="left", fill=tk.X)
-        self.filter_options.pack(side="left", fill=tk.X)
-        self.start.pack(side="left", fill=tk.X)
-        self.stop.pack(side="left", fill=tk.X)
+        self.label.pack(side=tk.LEFT, fill=tk.X)
+        self.force_check.pack(side=tk.LEFT, fill=tk.X)
+        self.filter_options.pack(side=tk.LEFT, fill=tk.X)
+        self.start.pack(side=tk.LEFT, fill=tk.X)
+        self.stop.pack(side=tk.LEFT, fill=tk.X)
         if not self.all:
-            self.progress.pack(side="right", fill=tk.X, expand=tk.TRUE)
+            self.plot.pack(side=tk.RIGHT, fill=tk.X)
+            self.progress.pack(side=tk.RIGHT, fill=tk.X, expand=tk.TRUE)
 
     def run(self):
         self.start.config(state=tk.DISABLED)
@@ -106,7 +118,19 @@ class CalculationRow(tk.Frame):
         def callback():
             self.progress_queue.put({"step": True})
 
-        self.process = mp.Process(target=make_filters.run, args=[config],
+        def stand_in(config, force=None, progress_setup=None, progress_callback=None):
+            try:
+                import time
+                progress_setup(100)
+                for i in range(100):
+                    time.sleep(.1)
+                    progress_callback()
+            except KeyboardInterrupt:
+                pass
+
+        # self.process = mp.Process(target=make_filters.run, args=[config],
+        #                           kwargs={"force": force, "progress_setup": setup, "progress_callback": callback})
+        self.process = mp.Process(target=stand_in, args=[config],
                                   kwargs={"force": force, "progress_setup": setup, "progress_callback": callback})
         self.progress_thread = threading.Thread(target=self.update_progress)
         self.process_cleanup = threading.Thread(target=self.finish_process)
@@ -121,12 +145,13 @@ class CalculationRow(tk.Frame):
         self.progress_thread.start()  # update progress bar
         self.process_cleanup.start()  # return button states after progress is done
         self.stop.config(state=tk.NORMAL)
+        log.info("{}: calculation process started".format(os.path.basename(self.directory)))
 
     def abort(self):
+        log.info("{}: aborting calculation process".format(os.path.basename(self.directory)))
         self.stop.config(state=tk.DISABLED)  # can't stop twice
         os.kill(self.process.pid, signal.SIGINT)  # send keyboard interrupt to process
         self.process.join()  # wait for it to stop
-        self.progress_queue.put({"value": 0, "stop": True})  # stop the progress thread
 
     def update_progress(self):
         while True:
@@ -152,8 +177,20 @@ class CalculationRow(tk.Frame):
 
     def finish_process(self):
         self.process.join()  # wait for process to finish
-        self.stop.config(state=tk.DISABLED)
-        self.progress_queue.put({"value": self.progress['maximum'], "stop": True})
+        if self.stop['state'] == tk.DISABLED:
+            value = 0  # process was aborted
+        else:
+            value = self.progress['maximum']  # process finished
+            self.stop.config(state=tk.DISABLED)
+        self.progress_queue.put({"value": value, "stop": True})
+        log.info("{}: calculation process finished".format(os.path.basename(self.directory)))
+
+    def plot(self):
+        solution = make_filters.Solution.load(os.path.join(self.directory, make_filters.DEFAULT_SAVE_NAME))
+        thread = threading.Thread(target=solution.plot)
+        thread.daemon = True
+        thread.start()
+        log.info("{}: plot thread started".format(os.path.basename(self.directory)))
 
 
 class DirectoryRow(tk.Frame):
@@ -164,6 +201,7 @@ class DirectoryRow(tk.Frame):
         tk.Frame.__init__(self, *args, **kwargs)
         self._setup_ui()
         self._layout()
+        log.info("DirectoryRow built.")
 
     def _setup_ui(self):
         self.button = tk.Button(self, text="Choose Directory", command=self.get_directory)
@@ -172,8 +210,8 @@ class DirectoryRow(tk.Frame):
         self.entry.bind('<Return>', lambda *args: self.set_directory(self.directory.get()))
 
     def _layout(self):
-        self.button.pack(side="left", fill=tk.X)
-        self.entry.pack(side="right", fill=tk.X, expand=tk.TRUE)
+        self.button.pack(side=tk.LEFT, fill=tk.X)
+        self.entry.pack(side=tk.RIGHT, fill=tk.X, expand=tk.TRUE)
 
     def get_directory(self):
         directory = filedialog.askdirectory(initialdir=self.directory.get())
@@ -185,6 +223,7 @@ class DirectoryRow(tk.Frame):
             self.directory.set(directory)
             if self.directory_callback is not None:
                 self.directory_callback(directory)
+            log.info("Changed main directory to {}".format(directory))
 
 
 class CalculationTab(tk.Frame):
@@ -199,6 +238,7 @@ class CalculationTab(tk.Frame):
         tk.Frame.__init__(self, *args, **kwargs)
         self._setup_ui()
         self._layout()
+        log.info("CalculationTab built.")
 
     def _setup_ui(self):
         self.directory_row = DirectoryRow(self, directory_callback=self.reset_rows)
@@ -254,15 +294,17 @@ class MainWindow(ttk.Notebook):
     def __init__(self, *args, **kwargs):
         # optional kwargs
         self.resize_callback = kwargs.pop("resize_callback", None)
+        self.configuration = kwargs.pop("configuration", None)
 
         ttk.Notebook.__init__(self, *args, **kwargs)
         self._setup_ui()
         self._layout()
+        log.info("MainWindow built.")
 
     def _setup_ui(self):
         self.calculation_tab = CalculationTab(self, resize_callback=self.resize_callback,
                                               config_callback=self.get_config)
-        self.configuration_tab = ConfigurationTab(self)
+        self.configuration_tab = ConfigurationTab(self, config_file=self.configuration)
 
     def _layout(self):
         self.add(self.calculation_tab, text="calculation")
@@ -281,9 +323,24 @@ def resize(root):
     root.update()  # ensure geometry info is up to date
     root.geometry(root.geometry())  # resize without changing the dimensions (so recalling minsize won't shrink the gui)
     root.minsize(height=MIN_HEIGHT, width=MIN_WIDTH)  # restore the original minsize
+    log.info("Resized GUI.")
 
 
 if __name__ == "__main__":
+    # parse the command line arguments
+    parser = argparse.ArgumentParser(description='Filter Computation GUI')
+    parser.add_argument('configuration', type=str, default=DEFAULT_CONFIG, nargs="?",
+                        help='The path to the configuration file to use for the computation. If not specified, the '
+                             'default will be used. The configuration values can be changed at any time directly in '
+                             'the GUI.')
+    parser.add_argument('-l', '--log', type=str, dest='level', default="INFO",
+                        help='The logging level to display.')
+    a = parser.parse_args()
+
+    # set up logging
+    logging.basicConfig(level=a.level)
+
+    # set up the GUI
     app = tk.Tk()
     app.title("Filter GUI")
     app.minsize(height=MIN_HEIGHT, width=MIN_WIDTH)
@@ -293,6 +350,7 @@ if __name__ == "__main__":
     top = screen_height / 2 - START_HEIGHT / 2
     app.geometry('%dx%d+%d+%d' % (START_WIDTH, START_HEIGHT, left, top))
 
-    MainWindow(app, resize_callback=lambda: resize(app)).pack(fill=tk.BOTH, expand=tk.TRUE)
+    window = MainWindow(app, configuration=a.configuration, resize_callback=lambda: resize(app))
+    window.pack(fill=tk.BOTH, expand=tk.TRUE)
 
     app.mainloop()
