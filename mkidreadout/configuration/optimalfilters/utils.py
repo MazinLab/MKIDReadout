@@ -68,30 +68,15 @@ def get_file_list(directory):
     return file_list
 
 
-def map_async_progress(pool, func, iterable, callback=None, progress=True):
-    # setup progress bar
-    progress = progress and HAS_PB
-    if progress:
-        ii = 0
-        pbar = setup_progress(iterable)
-
-        def update(*args):
-            if callback is not None:
-                callback(*args)
-            global ii
-            ii += 1
-            pbar.update(ii)
-    else:
-        update = callback
-    # add jobs to pool
+def map_async_callback(pool, func, iterable, callback=None):
     results = MapResult()
-    for ii in iterable:
-        results.append(pool.apply_async(func, (ii,), callback=update))
+    for item in iterable:
+        results.append(pool.apply_async(func, (item,), callback=callback))
     return results
 
 
-def map_progress(pool, *args, **kwargs):
-    results = map_async_progress(pool, *args, **kwargs)
+def map_callback(pool, *args, **kwargs):
+    results = map_async_callback(pool, *args, **kwargs)
     pool.join()
     return results.get()
 
@@ -107,13 +92,26 @@ class MapResult(list):
         return results
 
 
-def setup_progress(iterable):
-    percentage = pb.Percentage()
-    bar = pb.Bar()
-    timer = pb.Timer()
-    eta = pb.ETA()
-    pbar = pb.ProgressBar(widgets=[percentage, bar, '  (', timer, ') ', eta, ' '], max_value=len(iterable)).start()
-    return pbar
+def setup_progress():
+    _counter = 0
+    _pbar = None
+
+    def setup(n):
+        global _pbar
+        percentage = pb.Percentage()
+        bar = pb.Bar()
+        timer = pb.Timer()
+        eta = pb.ETA()
+        _pbar = pb.ProgressBar(widgets=[percentage, bar, '  (', timer, ') ', eta, ' '], max_value=n).start()
+
+    def progress():
+        global _counter
+        global _pbar
+        if _pbar is not None:
+            _counter += 1
+            _pbar.update(_counter)
+
+    return setup, progress
 
 
 def covariance_from_psd(psd, size=None, dt=1.):

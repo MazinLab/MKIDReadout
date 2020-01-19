@@ -692,8 +692,7 @@ class RoachStateMachine(QtCore.QObject):  # Extends QObject for use with QThread
         longSnapFN = self.roachController.tagfile(self.config.roaches.get('r{}.longsnaproot'.format(self.num)),
                                                   dir=self.config.paths.data, epilog=el)
 
-        ts = TimeStream(longSnapFN)
-        ts.phase = data
+        ts = TimeStream(longSnapFN, phase=data)
         try:
             ts.save()
         except Exception:

@@ -749,11 +749,11 @@ class Solution(object):
         np.savetxt(file_path, self.filters[self.cfg.filters.filter.filter_type])
         log.info("Filter coefficients saved to {}".format(file_path))
 
-    def process(self, ncpu=1, progress=True):
+    def process(self, ncpu=1, progress=None):
         """Process all of the files and compute the filters."""
         if ncpu > 1:
             pool = mp.Pool(min(self.cfg.ncpu, mp.cpu_count()), initializer=initialize_worker)
-            results = utils.map_async_progress(pool, process_calculator, self.calculators, progress=progress)
+            results = utils.map_async_callback(pool, process_calculator, self.calculators, callback=progress)
             pool.close()
             try:
                 # TODO: Python 2.7 bug: hangs on pool.join() with KeyboardInterrupt. The workaround is to use a really
@@ -771,12 +771,11 @@ class Solution(object):
                 self._add_calculator(calculators)
                 raise error  # propagate error to the main program
         else:
-            pbar = utils.setup_progress(self.calculators) if progress and utils.HAS_PB else None
             for index, calculator in enumerate(self.calculators):
                 calculator = process_calculator(calculator)
                 self._add_calculator([calculator])
-                if progress and utils.HAS_PB:
-                    pbar.update(index)
+                if progress is not None:
+                    progress()
         self._collect_data()
         self.clear_time_stream_data()
 
@@ -816,7 +815,7 @@ def process_calculator(calculator):
     return calculator
 
 
-def run(config, progress=False, force=False, save_name=DEFAULT_SAVE_NAME):
+def run(config, force=False, save_name=DEFAULT_SAVE_NAME, progress_setup=None, progress_callback=None):
     """
     Run the main logic for the filter generation.
 
@@ -824,9 +823,6 @@ def run(config, progress=False, force=False, save_name=DEFAULT_SAVE_NAME):
         config: yaml config object
             The configuration object for the calculation loaded by
             mkidcore.config.load().
-        progress: boolean (optional)
-            If progressbar is installed and progress=True, a progress bar will
-            be displayed showing the progress of the computation.
         force: boolean (optional)
             If force is True, a new solution object will be made. If False and
             'save_name' is a real file, the solution from 'save_name' will be
@@ -836,6 +832,9 @@ def run(config, progress=False, force=False, save_name=DEFAULT_SAVE_NAME):
             If provided, the solution object will be saved with this name.
             Otherwise, a default name will be used. See 'force' for details
             on when the file 'save_name' already exists.
+        progress_callback: function (optional)
+            A callback function for a progress bar.
+        progress_setup: function (optional)
     """
     # set up the Solution object
     if force or not os.path.isfile(save_name):
@@ -859,7 +858,9 @@ def run(config, progress=False, force=False, save_name=DEFAULT_SAVE_NAME):
     # make the filters
     try:
         if force or config.filters.filter.filter_type not in sol.filters.keys():
-            sol.process(ncpu=ncpu, progress=progress)
+            if progress_setup is not None:
+                progress_setup(len(sol.file_names))
+            sol.process(ncpu=ncpu, progress=progress_callback)
             sol.save()
         else:
             log.info("Filter type '{}' has already been computed".format(config.filters.filter.filter_type))
@@ -898,5 +899,8 @@ if __name__ == "__main__":
     # load the configuration file
     configuration = mkidcore.config.load(args.cfg_file)
 
+    # setup progress bar
+    setup, callback = utils.setup_progress() if args.progress and utils.HAS_PB else (None, None)
+
     # run the code
-    run(configuration, progress=args.progress, force=args.force, save_name=args.name)
+    run(configuration, force=args.force, save_name=args.name, progress_setup=setup, progress_callback=callback)

@@ -1,5 +1,10 @@
+# If you're running filter_gui.py, then this is the configuration file that will be used for each computation.
+# You can update this file to run the make_filters.py code with a different configuration.
+# The configuration used for each calculation will be saved in the corresponding solution object.
+# Entries that are blank are filled in automatically from the GUI options.
+
 !configdict
-ncpu: 7  # number of cores to use for the computation
+ncpu: 1  # number of cores to use for the computation
 
 paths: !configdict
   data:  # path to the folder containing the phase time-stream data
@@ -34,5 +39,5 @@ filters: !configdict  # main configuration section for the filter computation
     fit: triple_exponential  # type of function to which to fit the template data [False | lmfit models in templates.py]
 
   filter: !configdict  # configuration for computing the filter
-    filter_type: dc_orthogonal  # type of filter to compute  [function names in filters.py]
+    filter_type:  # type of filter to compute  [function names in filters.py]
     nfilter: 50  # number of coefficients in the filter  [int]
