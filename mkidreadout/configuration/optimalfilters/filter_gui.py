@@ -115,28 +115,15 @@ class CalculationRow(tk.Frame):
         def setup(n):
             self.progress_queue.put({"maximum": n, "value": 0})
 
-        def callback():
+        def callback(*args):
             self.progress_queue.put({"step": True})
 
-        def stand_in(config, force=None, progress_setup=None, progress_callback=None):
-            try:
-                import time
-                progress_setup(100)
-                for i in range(100):
-                    time.sleep(.1)
-                    progress_callback()
-            except KeyboardInterrupt:
-                pass
-
-        # self.process = mp.Process(target=make_filters.run, args=[config],
-        #                           kwargs={"force": force, "progress_setup": setup, "progress_callback": callback})
-        self.process = mp.Process(target=stand_in, args=[config],
+        self.process = mp.Process(target=make_filters.run, args=[config],
                                   kwargs={"force": force, "progress_setup": setup, "progress_callback": callback})
         self.progress_thread = threading.Thread(target=self.update_progress)
         self.process_cleanup = threading.Thread(target=self.finish_process)
 
-        # make all processes and threads close on gui close
-        self.process.daemon = True
+        # make all threads close on gui close
         self.progress_thread.daemon = True
         self.process_cleanup.daemon = True
 
@@ -352,5 +339,13 @@ if __name__ == "__main__":
 
     window = MainWindow(app, configuration=a.configuration, resize_callback=lambda: resize(app))
     window.pack(fill=tk.BOTH, expand=tk.TRUE)
+
+    # set up a call to abort all processes on closing the window
+    def on_closing():
+        for calculation in window.calculation_tab.calculation_rows:
+            if calculation.start['state'] == tk.DISABLED:
+                calculation.abort()
+        app.destroy()
+    app.protocol("WM_DELETE_WINDOW", on_closing)
 
     app.mainloop()

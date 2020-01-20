@@ -14,11 +14,11 @@ beammap: !bmap  # include beammap for summary plots
   default: MEC
 
 filters: !configdict  # main configuration section for the filter computation
-  unwrap: True  # unwrap the phase time-stream data  [bool]
   dt: 1e-6  # time sample spacing in seconds (used for PSD units and plotting)  [float]
   summary_plot: True  # make a summary plot at the end of the calculation  [bool]
 
   pulses: !configdict # configuration for finding pulse indices in the phase time-stream
+    unwrap: False  # unwrap the phase time-stream data  [bool]
     fallback_template: default  # used as pulse finding filter and fallback template [default | path to custom file]
     ntemplate: 500  # template length in units of dt  [int]
     offset: 10  # peak index from the left  [int]

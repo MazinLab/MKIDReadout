@@ -1,6 +1,7 @@
 from __future__ import division
 import re
 import os
+import sys
 import glob
 import logging
 import numpy as np
@@ -16,6 +17,8 @@ except ImportError:
 
 log = logging.getLogger(__name__)
 log.addHandler(logging.NullHandler())
+global _counter
+global _pbar
 
 
 def load_fallback_template(config):
@@ -60,12 +63,15 @@ def res_id_from_file_name(file_name):
 def get_file_list(directory):
     # get all npz files in the directory
     file_list = glob.glob(os.path.join(directory, "*_resID*_*-*.npz"))
-    # sort them with higher numbers first (newest times on top)
-    file_list = file_list.sort(key=natural_sort_key, reverse=True)
-    # find and remove older files with duplicate names (excluding the timestamp)
-    _, indices = np.unique(["_".join(name.split("_")[:-1]) for name in file_list], return_index=True)
-    file_list = list(np.array(file_list)[indices])
-    return file_list
+    if file_list:
+        # sort them with higher numbers first (newest times on top)
+        file_list.sort(key=natural_sort_key, reverse=True)
+        # find and remove older files with duplicate names (excluding the timestamp)
+        _, indices = np.unique(["_".join(name.split("_")[:-1]) for name in file_list], return_index=True)
+        file_list = list(np.array(file_list)[indices])
+        return file_list
+    else:
+        raise ValueError("No valid file names found in {}".format(directory))
 
 
 def map_async_callback(pool, func, iterable, callback=None):
@@ -93,23 +99,37 @@ class MapResult(list):
 
 
 def setup_progress():
+    global _counter
     _counter = 0
+    global _pbar
     _pbar = None
 
     def setup(n):
         global _pbar
-        percentage = pb.Percentage()
-        bar = pb.Bar()
-        timer = pb.Timer()
-        eta = pb.ETA()
-        _pbar = pb.ProgressBar(widgets=[percentage, bar, '  (', timer, ') ', eta, ' '], max_value=n).start()
+        if HAS_PB:
+            percentage = pb.Percentage()
+            bar = pb.Bar()
+            timer = pb.Timer()
+            eta = pb.ETA()
+            _pbar = pb.ProgressBar(widgets=[percentage, bar, '  (', timer, ') ', eta, ' '], max_value=n).start()
+        else:
+            _pbar = n
 
-    def progress():
+    def progress(*args):
         global _counter
         global _pbar
-        if _pbar is not None:
-            _counter += 1
-            _pbar.update(_counter)
+        if HAS_PB:
+            if _pbar is not None:
+                _counter += 1
+                _pbar.update(_counter)
+        else:
+            size = 80
+            _counter +=1
+            filled = int(round(size * _counter / _pbar))
+            percent = 100 * _counter / _pbar
+            bar = "=" * filled + "-" * (size - filled)
+            sys.stdout.write('[{:s}] {:.1f}%\r'.format(bar, percent))
+            sys.stdout.flush()
 
     return setup, progress
 

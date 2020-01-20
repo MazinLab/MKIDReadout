@@ -76,7 +76,7 @@ class Calculator(object):
         if self._phase is None:
             self._phase = self.time_stream.phase
             # unwrap the phase
-            if self.cfg.unwrap:
+            if self.cfg.pulses.unwrap:
                 self._phase = unwrap_phase(self._phase)  # much faster than np.unwrap
         return self._phase
 
@@ -355,7 +355,7 @@ class Calculator(object):
                 self.result['flag'] |= flags['bad_template']
                 self.result['template'] = self.fallback_template
             self.result['template_fit'] = fit_result
-            if fit_result is not None and fit_result.success is False:
+            if fit_result is None or fit_result.success is False:
                 self.result['flag'] |= flags['bad_template_fit']
             self.result['flag'] |= flags['template_computed']
         return template, fit_result
@@ -656,7 +656,7 @@ class Calculator(object):
     def _fit_template(self, template):
         if self.cfg.template.fit not in template_functions.__all__:
             raise ValueError("{} must be one of {}".format(cfg.fit, template_functions.__all__))
-        model = getattr(template_functions, self.cfg.template.fit)
+        model = template_functions.Model(self.cfg.template.fit)
         guess = model.guess(template)
         t = np.arange(template.size)
         result = model.fit(template, guess, t=t)
@@ -717,10 +717,33 @@ class Solution(object):
 
     @cfg.setter
     def cfg(self, config):
-        self._cfg = config
+        filters = config.filters
         # overload stream configurations
         for calculator in self.calculators:
-            calculator.cfg = self.cfg.filters
+            calculator.cfg = filters
+
+        # reset the saved filters and flags if the pulses, noise, or template configurations change since the
+        # saved filters will no longer be consistent.
+        change = any((any([getattr(self.cfg.filters.pulses, key) != item for key, item in filters.pulses.items()]),
+                      any([getattr(self.cfg.filters.noise, key) != item for key, item in filters.noise.items()]),
+                      any([getattr(self.cfg.filters.template, key) != item for key, item in filters.template.items()])))
+        if change:
+            self.filters = {}
+            self.flags = {}
+            log.info("All saved filters and flags reset because of configuration change")
+
+        # reset a single filter if there exists one of the same type as in the new configuration but with
+        # different settings.
+        filter_type = config.filters.filter.filter_type
+        change = (filter_type in self.filters.keys() and
+                  any([getattr(self.cfg.filters.filter, key) != item and item != filter_type
+                       for key, item in config.filters.filter.items()]))
+        if change:
+            self.filters.pop(filter_type)
+            self.flags.pop(filter_type)
+            message = "'{}' filter type removed from the solution because the filter configuration changed"
+            log.info(message.format(filter_type))
+        self._cfg = config
         log.info("Configuration file updated")
 
     @classmethod
@@ -744,9 +767,10 @@ class Solution(object):
     def save_filters(self, file_name=None):
         """Save the filters to a file readable by the firmware."""
         if file_name is None:
-            file_name = os.path.splitext(self.save_name)[0] + "_coefficients.txt"
+            file_name = os.path.splitext(self.save_name)[0] + "_coefficients.npz"
         file_path = os.path.join(self.cfg.paths.out, file_name)
-        np.savetxt(file_path, self.filters[self.cfg.filters.filter.filter_type])
+        np.savez(file_path, res_ids=self.res_ids, filters=self.filters[self.cfg.filters.filter.filter_type],
+                 kind=self.cfg.filters.filter.filter_type)
         log.info("Filter coefficients saved to {}".format(file_path))
 
     def process(self, ncpu=1, progress=None):
@@ -777,12 +801,10 @@ class Solution(object):
                 if progress is not None:
                     progress()
         self._collect_data()
-        self.clear_time_stream_data()
 
-    def clear_time_stream_data(self):
-        """Clear all unnecessary data from the Resonator sub-objects."""
-        for calculator in self.calculators:
-            calculator.clear_filter()
+    def plot(self):
+        """Display an interactive plot"""
+        pass
 
     def plot_summary(self):
         """Plot a summary of the filter computation."""
@@ -795,8 +817,8 @@ class Solution(object):
 
     def _collect_data(self):
         filter_array = np.empty((self.res_ids.size, self.cfg.filters.filter.nfilter))
-        for index, stream in enumerate(self.calculators):
-            filter_array[index, :] = stream.result["filter"]
+        for index, calculator in enumerate(self.calculators):
+            filter_array[index, :] = calculator.result["filter"]
         self.filters.update({self.cfg.filters.filter.filter_type: filter_array})
         self.flags.update({self.cfg.filters.filter.filter_type: [c.result["flag"] for c in self.calculators]})
 
@@ -837,16 +859,17 @@ def run(config, force=False, save_name=DEFAULT_SAVE_NAME, progress_setup=None, p
         progress_setup: function (optional)
     """
     # set up the Solution object
-    if force or not os.path.isfile(save_name):
+    save_path = os.path.join(config.paths.out, save_name)
+    if force or not os.path.isfile(save_path):
         log.info("Creating new solution object")
         # get file name list
         file_names = utils.get_file_list(config.paths.data)
         # set up solution file
         sol = Solution(config, file_names, save_name=save_name)
     else:
-        log.info("Loading solution object from {}".format(save_name))
-        sol = Solution.load(save_name)
-        sol.cfg = config
+        log.info("Loading solution object from {}".format(save_path))
+        sol = Solution.load(save_path)
+        sol.cfg = config  # will delete inconsistent items from the solution
 
     # get the number of cores to use
     try:
@@ -857,7 +880,7 @@ def run(config, force=False, save_name=DEFAULT_SAVE_NAME, progress_setup=None, p
 
     # make the filters
     try:
-        if force or config.filters.filter.filter_type not in sol.filters.keys():
+        if config.filters.filter.filter_type not in sol.filters.keys():
             if progress_setup is not None:
                 progress_setup(len(sol.file_names))
             sol.process(ncpu=ncpu, progress=progress_callback)
@@ -886,7 +909,7 @@ if __name__ == "__main__":
     parser.add_argument('cfg_file', type=str, help='The configuration file to use for the computation.')
     parser.add_argument('-p', '--progress', action='store_true', dest='progress', help='Enable the progress bar.')
     parser.add_argument('-f', '--force', action='store_true', dest='force',
-                        help='Force the recomputation of all of the computation steps.')
+                        help='Delete all of the solution history and redo all of the computation steps.')
     parser.add_argument('-n', '--name', type=str, dest='name', default=DEFAULT_SAVE_NAME,
                         help='The name of the saved solution. The default is used if a name is not supplied.')
     parser.add_argument('-l', '--log', type=str, dest='level', default="INFO",
@@ -900,7 +923,7 @@ if __name__ == "__main__":
     configuration = mkidcore.config.load(args.cfg_file)
 
     # setup progress bar
-    setup, callback = utils.setup_progress() if args.progress and utils.HAS_PB else (None, None)
+    setup, callback = utils.setup_progress() if args.progress else (None, None)
 
     # run the code
     run(configuration, force=args.force, save_name=args.name, progress_setup=setup, progress_callback=callback)
