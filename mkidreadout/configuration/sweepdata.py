@@ -280,13 +280,14 @@ class SweepMetadata(object):
         assert (self.resIDs.size == self.wsfreq.size == self.flag.size == self.atten.size == self.freq.size ==
                 self.mlatten.size == self.mlfreq.size == self.ml_isgood_score.size == self.ml_isbad_score.size)
 
+        self.flag = self.flag.astype(int)
+        self.resIDs = self.resIDs.astype(int)
+
         for x in (self.freq, self.mlfreq, self.wsfreq):
-           use = ~np.isnan(x)
+           use = (~np.isnan(x)) & ((self.flag & ISGOOD) == ISGOOD)
            if x[use].size != np.unique(x[use]).size:
                getLogger(__name__).warning("Found non-unique frequencies")
 
-        self.flag = self.flag.astype(int)
-        self.resIDs = self.resIDs.astype(int)
         self.feedline = resID2fl(self.resIDs[0])
 
     def _load(self):

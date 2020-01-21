@@ -97,7 +97,6 @@ class SBOptimizer:
         self.roach.changeAtten(3,np.floor(self.adcAtten*2)/4.)
         self.roach.changeAtten(4,np.ceil(self.adcAtten*2)/4.)
 
-
     def loadLUT(self, sideband='all', phaseList=None, iqRatioList=None, globalDacAtten=None):
         """
         Loads DAC LUT

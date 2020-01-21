@@ -21,6 +21,7 @@ roaches: !include /home/data/MEC/20190521/roach.yml
 
 dashboard: !configdict
   image_scale: 6 # Show this many^2 monitor screen pixels per MKID pixel
+  roach_cpslim: 2500
   max_count_rate: 2500
   min_count_rate: 0
   #flatname: dashboard   # a name for the flat, will take form name_flat_itime_wave.fits

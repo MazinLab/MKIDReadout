@@ -28,6 +28,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import scipy.ndimage as sciim
 
+from mkidcore.instruments import DEFAULT_ARRAY_SIZES
 from mkidcore.config import load
 from mkidcore.corelog import getLogger
 from mkidreadout.configuration.beammap.flags import beamMapFlags
@@ -36,19 +37,19 @@ from mkidreadout.configuration.beammap.utils import DARKNESS_FL_WIDTH, MEC_FL_WI
 
 
 class BMAligner(object):
-    def __init__(self, beamListFn, nXPix, nYPix, instrument, flip=False, usFactor=50):
-        self.beamListFn = beamListFn
+    def __init__(self, beamdir, beamListFn, cachename, instrument, flip=False, usFactor=50):
+        self.beamListFn = os.path.join(beamdir, beamListFn)
         self.usFactor = usFactor
-        self.nXPix = nXPix
-        self.nYPix = nYPix
         self.instrument = instrument.lower()
         self.flip = flip
-        self.resIDs, self.flags, self.temporalXs, self.temporalYs = np.loadtxt(beamListFn, unpack=True)
+        self.resIDs, self.flags, self.temporalXs, self.temporalYs = np.loadtxt(self.beamListFn, unpack=True)
         self.makeTemporalImage()
         self.temporalImage = None
         self.temporalImageFFT = None
         self.temporalImageFreqs = None
-        self.temporalImageFFTFile = beamListFn.split('.')[0] + '_temporalImageFFT.npz'
+        self.temporalImageFFTFile = os.path.join(beamdir, cachename)
+
+        self.nXPix, self.nYPix = DEFAULT_ARRAY_SIZES[config.beammap.instrument.lower()]
 
         if instrument.lower()=='mec':
             self.flWidth = MEC_FL_WIDTH
@@ -178,6 +179,7 @@ class BMAligner(object):
         # find a good starting point for search, using median of 100 minimum "good" points
         if self.instrument.lower() == 'mec' and self.flip:
             self.coords[:,0] = -self.coords[:,0]
+            self.coords[:,1] = -self.coords[:,1] #flip y too to keep beammap consistent
         elif self.instrument.lower() == 'darkness' and self.flip:
             self.coords[:,1] = -self.coords[:,1]
 
@@ -213,7 +215,7 @@ class BMAligner(object):
         optNGoodPix = 0
         optI = 0
 
-        optSearchIters = 1000 #after this many iters around max go back to baseline
+        optSearchIters = 2000 #after this many iters around max go back to baseline
 
         # do monte-carlo search around the baseline to find which offset has the most filled in pixels
         for i in range(nMCIters):

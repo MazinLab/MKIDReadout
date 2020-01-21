@@ -25,17 +25,22 @@
 #include <byteswap.h>
 #include <sys/mman.h>
 #include <sched.h>
+#include <assert.h>
 #include "mkidshm.h"
 
 #define _POSIX_C_SOURCE 200809L
-#define BUFLEN 1500
+#define BUFLEN 1504
+#define MAX_PACKSIZE 12928
 #define DEFAULT_PORT 50000
 #define SHAREDBUF 536870912
+#define RINGBUF_SIZE 536870912
+#define RAD_TO_DEG 57.2957795131
+#define BINWRITER_MINSIZE 808
 #define TSOFFS 1546300800 //Jan 1 2019 UTC
 #define STRBUF 80
 #define SHM_NAME_LEN 80
 #define ENERGY_BIN_PT 16384 //2^14
-#define PHASE_BIN_PT 32768 //2^14
+#define PHASE_BIN_PT 32768.0 //2^14
 #define H_TIMES_C 1239.842 // units: eV*nm
 #define READER_THREAD 0
 #define BIN_WRITER_THREAD 1
@@ -51,8 +56,8 @@
 typedef float wvlcoeff_t;
 
 typedef struct {
-    unsigned int baseline:17;
-    unsigned int phase:18;
+    int baseline:17;
+    int phase:18;
     unsigned int timestamp:9;
     unsigned int ycoord:10;
     unsigned int xcoord:10;
@@ -71,6 +76,13 @@ typedef struct {
 } READOUT_STREAM;
 
 typedef struct{
+    uint8_t data[RINGBUF_SIZE];
+    uint64_t writeInd;
+    uint64_t nCycles;
+
+} RINGBUFFER;
+
+typedef struct{
     char solutionFile[STRBUF];
     int writing;
     uint32_t nCols;
@@ -83,10 +95,7 @@ typedef struct{
 
 typedef struct{
     int port;
-    int nRoachStreams;
-    READOUT_STREAM *roachStreamList;
-    char streamSemBaseName[STRBUF]; //append 0, 1, 2, etc for each name
-
+    RINGBUFFER *packBuf;
     char quitSemName[STRBUF];
 
     int cpu; //if cpu=-1 then don't maximize priority
@@ -94,34 +103,30 @@ typedef struct{
 } READER_PARAMS;
 
 typedef struct{
-    READOUT_STREAM *roachStream;
-
     int writing;
     char writerPath[STRBUF];
-
+    RINGBUFFER *packBuf;
     char quitSemName[STRBUF];
-    char streamSemName[STRBUF];
 
     int cpu; //if cpu=-1 then don't maximize priority
 
 } BIN_WRITER_PARAMS;
 
 typedef struct{
-    READOUT_STREAM *roachStream;
+    RINGBUFFER *packBuf;
     int nRoach;
     int nSharedImages;
     char **sharedImageNames;
     WAVECAL_BUFFER *wavecal; //if NULL don't use wavecal
 
     char quitSemName[STRBUF];
-    char streamSemName[STRBUF];
 
     int cpu; //if cpu=-1 then don't maximize priority
     
 } SHM_IMAGE_WRITER_PARAMS;
 
 typedef struct{
-    READOUT_STREAM *roachStream;
+    RINGBUFFER *packBuf;
     char bufferName[STRBUF];
     WAVECAL_BUFFER *wavecal; //if NULL don't use wavecal
 

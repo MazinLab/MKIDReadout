@@ -22,6 +22,7 @@ import numpy as np
 
 from mkidcore.objects import Beammap
 from mkidcore.config import load
+from mkidcore.instruments import DEFAULT_ARRAY_SIZES
 from mkidreadout.configuration.beammap import shift
 from mkidreadout.configuration.beammap.flags import beamMapFlags
 from mkidreadout.configuration.beammap.utils import generateCoords, getFLFromCoords, getFLFromID, isInCorrectFL, \
@@ -388,19 +389,18 @@ class BMCleaner(object):
 def main(config):
 
     beammapDirectory = config.paths.beammapdirectory
-    quantizedbeammap = os.path.join(beammapDirectory, config.paths.quantizedbeammap)
-    alignedbeammap = os.path.join(beammapDirectory, config.paths.alignedbeammap)
-    designFile = config.paths.designmapfile
+    alignedbeammap = os.path.join(beammapDirectory, config.beammap.filenames.stage4_bmap)
+    finalbeammap = os.path.join(beammapDirectory, config.beammap.filenames.final_bmap)
+    designFile = config.beammap.clean.designmapfile
 
     useFreqs = config.beammap.clean.usefreqs
     psFiles = config.beammap.clean.psfiles
 
-    numRows = config.beammap.numrows
-    numCols = config.beammap.numcols
+    numCols, numRows = DEFAULT_ARRAY_SIZES[config.beammap.instrument.lower()]
     flipParam = False #config.beammap.flip ... we've fixed in aligngrid
     inst = config.beammap.instrument
 
-    rawBeamMap = Beammap(alignedbeammap, (146, 140), 'MEC')
+    rawBeamMap = Beammap(alignedbeammap, (numRows, numCols), 'MEC')
     if useFreqs:
         rawBeamMap.loadFrequencies(psFiles)
         cleaner = BMCleaner(beamMap=rawBeamMap, nRows=numRows, nCols=numCols,
@@ -422,11 +422,11 @@ def main(config):
     if useFreqs:
         cleaner.resolveOverlapWithFrequency()
         cleaner.placeFailedPixels()
-        cleaner.saveBeammap(quantizedbeammap)
+        cleaner.saveBeammap(finalbeammap)
     else:
         cleaner.resolveOverlaps()
         cleaner.placeFailedPixels()
-        cleaner.saveBeammap(quantizedbeammap)
+        cleaner.saveBeammap(finalbeammap)
 
     fig2 = plt.figure()
     ax2 = fig2.add_subplot(111)
