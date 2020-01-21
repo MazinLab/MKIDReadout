@@ -1,5 +1,6 @@
 # If you're running filter_gui.py, then this is the configuration file that will be used for each computation.
-# You can update this file to run the make_filters.py code with a different configuration.
+# You can update a copy of this file in the GUI or supply your own file as a command line argument to run the
+# make_filters.py code with a different configuration.
 # The configuration used for each calculation will be saved in the corresponding solution object.
 # Entries that are blank are filled in automatically from the GUI options.
 
@@ -24,7 +25,7 @@ filters: !configdict  # main configuration section for the filter computation
     offset: 10  # peak index from the left  [int]
     threshold: 4  # number of standard deviations to use as a threshold for pulse finding [int]
     separation: 500  # minimum separation between pulses in units of dt [int]
-    min_pulses: 1000  # minimum number of good pulses required to be found before using the fallback template [int]
+    min_pulses: 500  # minimum number of good pulses required to be found before using the fallback template [int]
 
   noise: !configdict  # configuration for computing the noise
     nwindow: 500  # window size used to estimate the power spectral density in units of dt [int]

@@ -124,7 +124,7 @@ def setup_progress():
                 _pbar.update(_counter)
         else:
             size = 80
-            _counter +=1
+            _counter += 1
             filled = int(round(size * _counter / _pbar))
             percent = 100 * _counter / _pbar
             bar = "=" * filled + "-" * (size - filled)
@@ -173,6 +173,6 @@ def init_plot(axes):
     return figure, axes
 
 
-def finish_plot(axes, tighten=True):
-    if tighten:
+def finish_plot(axes, tighten=True, blit=False):
+    if tighten and not blit:
         axes.figure.tight_layout()

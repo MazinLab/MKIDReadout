@@ -1,4 +1,4 @@
-from __future__ import division
+from __future__ import division, print_function
 import os
 import signal
 import pickle
@@ -8,9 +8,10 @@ import numpy as np
 import scipy as sp
 import pkg_resources as pkg
 import multiprocessing as mp
-from matplotlib import ticker
 from astropy.stats import mad_std
 from skimage.restoration import unwrap_phase
+from matplotlib import ticker
+from matplotlib.widgets import Button, Slider
 
 import mkidcore.config
 import mkidcore.objects  # must be imported for beam map to load from yaml
@@ -24,6 +25,49 @@ log = logging.getLogger(__name__)
 log.addHandler(logging.NullHandler())
 
 DEFAULT_SAVE_NAME = "filter_solution.p"
+
+
+class PlotWidget(object):
+    """A plot widget for displaying the filter computation."""
+    def __init__(self, calculators, res_ids, filters, filter_flags, axes_list, ax_slider, ax_prev, ax_next):
+        self.calculators = calculators
+        self.filters = filters
+        self.flags = filter_flags
+        self.res_ids = res_ids
+        self.axes_list = axes_list
+        self.ind = 0
+        self.num = len(self.calculators)
+        self.bnext = Button(ax_next, 'Next')
+        self.bnext.on_clicked(self.next_)
+        self.bprev = Button(ax_prev, 'Previous')
+        self.bprev.on_clicked(self.prev)
+        self.slider = Slider(ax_slider, 'Resonator Index: ', 0, self.num, valinit=0, valfmt='%d')
+        self.slider.on_changed(self.update)
+
+        self.slider.label.set_position((0.5, -0.5))
+        self.slider.valtext.set_position((0.5, -0.5))
+
+    def next_(self, event):
+        log.debug(event)
+        self.ind += 1
+        i = self.ind % self.num
+        self.slider.set_val(i)
+
+    def prev(self, event):
+        log.debug(event)
+        self.ind -= 1
+        i = self.ind % self.num
+        self.slider.set_val(i)
+
+    def update(self, value):
+        self.ind = int(value)
+        i = self.ind % self.num
+        self.calculators[i].plot(axes_list=self.axes_list, blit=True, filter_=self.filters[i], flag=self.flags[i])
+        for axes in self.axes_list:
+            axes.relim()
+            axes.autoscale()
+        self.axes_list[0].figure.suptitle("resID: {}".format(self.res_ids[i]))
+        self.axes_list[0].figure.canvas.draw_idle()
 
 
 class Calculator(object):
@@ -355,7 +399,7 @@ class Calculator(object):
                 self.result['flag'] |= flags['bad_template']
                 self.result['template'] = self.fallback_template
             self.result['template_fit'] = fit_result
-            if fit_result is None or fit_result.success is False:
+            if cfg.fit is not False and (fit_result is None or fit_result.success is False):
                 self.result['flag'] |= flags['bad_template_fit']
             self.result['flag'] |= flags['template_computed']
         return template, fit_result
@@ -450,7 +494,7 @@ class Calculator(object):
         responses = -filtered_phase[pulses]
         return responses, pulses
 
-    def plot(self, tighten=True, axes_list=None):
+    def plot(self, tighten=True, blit=False, filter_=None, flag=None, axes_list=None):
         """
         Plot the results of the calculation.
 
@@ -458,6 +502,14 @@ class Calculator(object):
             tighten: boolean (optional)
                 If true, figure.tight_layout() is called after the plot is
                 generated.
+            blit: boolean (optional)
+                Set to True if supplying axes and rewriting the data.
+            filter_: boolean (optional)
+                Use with flag to plot a different filter than saved in the
+                result.
+            flag: boolean (optional)
+                Use with filter_ to plot a different filter than saved in the
+                result.
             axes_list: iterable of matplotlib.axes.Axes (optional)
                 The axes on which to plot. If not provided, they are generated
                 using pyplot.
@@ -473,17 +525,17 @@ class Calculator(object):
         else:
             figure = axes_list[0].figure
 
-        self.plot_noise(axes=axes_list[0], tighten=False)
-        self.plot_filter(axes=axes_list[1], tighten=False)
-        self.plot_template(axes=axes_list[2], tighten=False)
+        self.plot_noise(axes=axes_list[0], blit=blit, tighten=False)
+        self.plot_filter(axes=axes_list[1], blit=blit, filter_=filter_, flag=flag, tighten=False)
+        self.plot_template(axes=axes_list[2], blit=blit, tighten=False)
         if len(axes_list) > 3:
-            self.plot_template_fit(axes=axes_list[3], tighten=False)
+            self.plot_template_fit(axes=axes_list[3], blit=blit, tighten=False)
 
-        if tighten:
+        if tighten and not blit:
             figure.tight_layout()
         return axes_list
 
-    def plot_noise(self, tighten=True, axes=None):
+    def plot_noise(self, tighten=True, blit=False, axes=None):
         """
         Plot the results of the noise calculation.
 
@@ -491,6 +543,8 @@ class Calculator(object):
             tighten: boolean (optional)
                 If true, figure.tight_layout() is called after the plot is
                 generated.
+            blit: boolean (optional)
+                Set to True if supplying axes and rewriting the data.
             axes:  matplotlib.axes.Axes (optional)
                 The axes on which to plot. If not provided, they are generated
                 using pyplot.
@@ -499,23 +553,32 @@ class Calculator(object):
             axes: matplotlib.axes.Axes
                 An Axes class with the plotted noise.
         """
-        figure, axes = utils.init_plot(axes)
-        axes.set_xlabel("frequency [Hz]")
-        axes.set_ylabel("PSD [dBc / Hz]")
+        if not blit:
+            figure, axes = utils.init_plot(axes)
+            axes.set_xlabel("frequency [Hz]")
+            axes.set_ylabel("PSD [dBc / Hz]")
         if self.result['psd'] is not None:
-            f = np.fft.rfftfreq(self.cfg.noise.nwindow, d=self.cfg.dt)
             psd = self.result['psd']
-            axes.semilogx(f, 10 * np.log10(psd))
+            if not blit:
+                f = np.fft.rfftfreq(self.cfg.noise.nwindow, d=self.cfg.dt)
+                axes.semilogx(f, 10 * np.log10(psd))
+            else:
+                line = axes.get_lines()[0]
+                line.set_ydata(10 * np.log10(psd))
             if self.result["flag"] & flags["bad_noise"]:
                 axes.set_title("failed: using white noise", color='red')
             else:
                 axes.set_title("successful", color='green')
         else:
+            if blit:
+                line = axes.get_lines()[0]
+                line.remove()
+                del line
             axes.set_title("noise not computed", color='red')
-        utils.finish_plot(axes, tighten=tighten)
+        utils.finish_plot(axes, tighten=tighten, blit=blit)
         return axes
 
-    def plot_template(self, tighten=True, axes=None):
+    def plot_template(self, tighten=True, blit=False, axes=None):
         """
         Plot the results of the template calculation.
 
@@ -523,6 +586,8 @@ class Calculator(object):
             tighten: boolean (optional)
                 If true, figure.tight_layout() is called after the plot is
                 generated.
+            blit: boolean (optional)
+                Set to True if supplying axes and rewriting the data.
             axes:  matplotlib.axes.Axes (optional)
                 The axes on which to plot. If not provided, they are generated
                 using pyplot.
@@ -531,22 +596,32 @@ class Calculator(object):
             axes: matplotlib.axes.Axes
                 An Axes class with the plotted template.
         """
-        axes.set_xlabel(r"time [$\mu$s]")
-        axes.set_ylabel("template [arb.]")
+        if not blit:
+            figure, axes = utils.init_plot(axes)
+            axes.set_xlabel(r"time [$\mu$s]")
+            axes.set_ylabel("template [arb.]")
         if self.result['template'] is not None:
             template = self.result['template']
-            t = np.arange(template.size) * self.cfg.dt * 1e6
-            axes.plot(t, template)
+            if not blit:
+                t = np.arange(template.size) * self.cfg.dt * 1e6
+                axes.plot(t, template)
+            else:
+                line = axes.get_lines()[0]
+                line.set_ydata(template)
             if self.result["flag"] & flags["bad_template"]:
                 axes.set_title("failed: using fallback template", color='red')
             else:
                 axes.set_title("successful", color='green')
         else:
+            if blit:
+                line = axes.get_lines()[0]
+                line.remove()
+                del line
             axes.set_title("template not computed", color='red')
-        utils.finish_plot(axes, tighten=tighten)
+        utils.finish_plot(axes, tighten=tighten, blit=blit)
         return axes
 
-    def plot_template_fit(self, tighten=True, axes=None):
+    def plot_template_fit(self, tighten=True, blit=False, axes=None):
         """
         Plot the results of the template fit.
 
@@ -554,6 +629,8 @@ class Calculator(object):
             tighten: boolean (optional)
                 If true, figure.tight_layout() is called after the plot is
                 generated.
+            blit: boolean (optional)
+                Set to True if supplying axes and rewriting the data.
             axes:  matplotlib.axes.Axes (optional)
                 The axes on which to plot. If not provided, they are generated
                 using pyplot.
@@ -562,6 +639,11 @@ class Calculator(object):
             axes: matplotlib.axes.Axes
                 An Axes class with the plotted template fit.
         """
+        if blit:
+            axes.clear()
+        else:
+            figure, axes = utils.init_plot(axes)
+
         if self.result['template_fit'] is not None:
             fit = self.result['template_fit']
             formatter = ticker.FuncFormatter(lambda x, y: "{:g}".format(x * self.cfg.dt * 1e6))
@@ -578,7 +660,7 @@ class Calculator(object):
         utils.finish_plot(axes, tighten=tighten)
         return axes
 
-    def plot_filter(self, tighten=True, axes=None):
+    def plot_filter(self, tighten=True, blit=False, filter_=None, flag=None, axes=None):
         """
         Plot the results of the filter calculation.
 
@@ -586,6 +668,14 @@ class Calculator(object):
             tighten: boolean (optional)
                 If true, figure.tight_layout() is called after the plot is
                 generated.
+            blit: boolean (optional)
+                Set to True if supplying axes and rewriting the data.
+            filter_: boolean (optional)
+                Use with flag to plot a different filter than saved in the
+                result.
+            flag: boolean (optional)
+                Use with filter_ to plot a different filter than saved in the
+                result.
             axes:  matplotlib.axes.Axes (optional)
                 The axes on which to plot. If not provided, they are generated
                 using pyplot.
@@ -594,19 +684,32 @@ class Calculator(object):
             axes: matplotlib.axes.Axes
                 An Axes class with the plotted filter.
         """
-        axes.set_xlabel(r"time [$\mu$s]")
-        axes.set_ylabel("filter coefficient [radians]")
-        if self.result['filter'] is not None:
+        if flag is None:
+            flag = self.result['flag']
+        if filter_ is None:
             filter_ = self.result['filter']
-            t = np.arange(filter_.size) * self.cfg.dt * 1e6
-            axes.plot(t, filter_)
-            if self.result["flag"] & flags["bad_filter"]:
+        if not blit:
+            figure, axes = utils.init_plot(axes)
+            axes.set_xlabel(r"time [$\mu$s]")
+            axes.set_ylabel("filter coefficient [radians]")
+        if filter_ is not None:
+            if not blit:
+                t = np.arange(filter_.size) * self.cfg.dt * 1e6
+                axes.plot(t, filter_)
+            else:
+                line = axes.get_lines()[0]
+                line.set_ydata(filter_)
+            if flag & flags["bad_filter"]:
                 axes.set_title("failed", color='red')
             else:
                 axes.set_title("successful", color='green')
         else:
+            if blit:
+                line = axes.get_lines()[0]
+                line.remove()
+                del line
             axes.set_title("filter not computed", color='red')
-        utils.finish_plot(axes, tighten=tighten)
+        utils.finish_plot(axes, tighten=tighten, blit=blit)
         return axes
 
     def _init_result(self):
@@ -802,9 +905,99 @@ class Solution(object):
                     progress()
         self._collect_data()
 
-    def plot(self):
-        """Display an interactive plot"""
-        pass
+    def report(self, filter_type, return_string=False):
+        """
+        Print a summary report of the filter calculation.
+
+        Args:
+            filter_type: string
+                The filter type for which to plot the summary.
+            return_string: boolean (optional)
+                If True, the report isn't printed and is returned as a string.
+        """
+        filter_flags = self.flags[filter_type]
+        default_template_as_filter = 0
+        default_template_and_noise_as_filter = 0
+        calculated_template_as_filter = 0
+        calculated_template_and_noise_as_filter = 0
+        bad_template_fits = 0
+        low_counts = 0
+        n_filters = 0
+        for flag in filter_flags:
+            if flag & flags['filter_computed']:
+                n_filters += 1
+                bad_pulses = flag & flags['bad_pulses']
+                bad_noise = flag & flags['bad_noise']
+                bad_template = flag & flags['bad_template']
+                bad_template_fit = flag & flags['bad_template_fit']
+                if bad_template and bad_noise:
+                    default_template_as_filter += 1
+                elif bad_template and not bad_noise:
+                    default_template_and_noise_as_filter += 1
+                elif not bad_template and bad_noise:
+                    calculated_template_as_filter += 1
+                else:
+                    calculated_template_and_noise_as_filter += 1
+                if bad_template_fit:
+                    bad_template_fits += 1
+                if bad_pulses:
+                    low_counts += 1
+        percent_optimal = calculated_template_and_noise_as_filter / max(1, n_filters) * 100
+        percent_no_template = default_template_and_noise_as_filter / max(1, n_filters) * 100
+        percent_no_noise = calculated_template_as_filter / max(1, n_filters) * 100
+        percent_default = default_template_as_filter / max(1, n_filters) * 100
+        percent_bad_fits = bad_template_fits / max(1, n_filters) * 100
+        percent_low_counts = low_counts / max(1, n_filters) * 100
+        s = ("{:.2f}% of pixels are using optimal filters \n".format(percent_optimal) +
+             "{:.2f}% of pixels are using the default template with real noise as the filter \n"
+             .format(percent_no_template) +
+             "{:.2f}% of pixels are using the calculated template with white noise as the filter \n"
+             .format(percent_no_noise) +
+             "{:.2f}% of pixels are using the default template as the filter \n".format(percent_default) +
+             "--------------------------------------------------------------------------------\n" +
+             "{:.2f}% of pixels didn't have enough photons to make a template\n".format(percent_low_counts) +
+             "{:.2f}% of pixels had bad template fits".format(percent_bad_fits))
+        if return_string:
+            return s
+        else:
+            print(s)
+
+    def plot(self, filter_type=None, report=False):
+        """
+        Display an interactive plot of the filter calculation.
+
+        Args:
+            filter_type: string (optional)
+                The type of filter to plot. If not supplied, the filter in the
+                configuration is used.
+            report: boolean (optional)
+                If true, the report() for the filter_type is printed.
+        """
+        from matplotlib import pyplot as plt
+        figure, axes_list = plt.subplots(nrows=2, ncols=2, figsize=(9, 9))
+        axes_list = axes_list.flatten()
+
+        self.calculators[0].plot(axes_list=axes_list)
+        figure.suptitle("resID: {}".format(self.res_ids[0]))
+        figure.tight_layout()
+        figure.subplots_adjust(bottom=0.15)
+
+        position = axes_list[2].get_position()
+        slider = plt.axes([position.x0, 0.05, position.width, 0.03])
+        middle = position.x0 + 6 * position.width / 4
+        prev = plt.axes([middle - 0.18, 0.05, 0.15, 0.03])
+        next_ = plt.axes([middle + 0.02, 0.05, 0.15, 0.03])
+        if filter_type is None:
+            filter_type = self.cfg.filters.filter.filter_type
+        if filter_type in self.filters.keys():
+            filters = self.filters[filter_type]
+            filter_flags = self.flags[filter_type]
+            _ = PlotWidget(self.calculators, self.res_ids, filters, filter_flags, axes_list, slider, prev, next_)
+            if report:
+                self.report(filter_type)
+            plt.show(block=True)
+        else:
+            log.warning("The '{}' filter type has not been computed".format(filter_type))
 
     def plot_summary(self):
         """Plot a summary of the filter computation."""

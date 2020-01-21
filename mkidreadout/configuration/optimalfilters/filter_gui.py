@@ -113,7 +113,7 @@ class CalculationRow(tk.Frame):
         self.progress_queue = mp.Queue()
 
         def setup(n):
-            self.progress_queue.put({"maximum": n, "value": 0})
+            self.progress_queue.put({"maximum": n + 1, "value": 0})
 
         def callback(*args):
             self.progress_queue.put({"step": True})
@@ -174,10 +174,10 @@ class CalculationRow(tk.Frame):
 
     def plot(self):
         solution = make_filters.Solution.load(os.path.join(self.directory, make_filters.DEFAULT_SAVE_NAME))
-        thread = threading.Thread(target=solution.plot)
-        thread.daemon = True
-        thread.start()
-        log.info("{}: plot thread started".format(os.path.basename(self.directory)))
+        process = mp.Process(target=solution.plot, kwargs={"filter_type": self.filter_.get(), "report": True})
+        process.daemon = True
+        process.start()
+        log.info("{}: plot process started".format(os.path.basename(self.directory)))
 
 
 class DirectoryRow(tk.Frame):
@@ -333,7 +333,7 @@ if __name__ == "__main__":
     app.minsize(height=MIN_HEIGHT, width=MIN_WIDTH)
     screen_width = app.winfo_screenwidth()
     screen_height = app.winfo_screenheight()
-    left = screen_width / 2 - START_WIDTH / 2
+    left = screen_width / 4 - START_WIDTH / 2
     top = screen_height / 2 - START_HEIGHT / 2
     app.geometry('%dx%d+%d+%d' % (START_WIDTH, START_HEIGHT, left, top))
 
