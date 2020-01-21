@@ -1673,7 +1673,7 @@ class Roach2Controls(object):
                                self.params['nChannels'] / self.params['nChannelsPerStream'])
 
         # grab FIR coeff from file
-        if os.path.extsep(coeffFile)[0] == ".npz":
+        if os.path.splitext(coeffFile)[1] == ".npz":
             npz = np.load(coeffFile)
             resIDs = npz['res_ids']
             filters = npz['filters']
