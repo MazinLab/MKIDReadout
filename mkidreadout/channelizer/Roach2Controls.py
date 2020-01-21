@@ -1673,11 +1673,24 @@ class Roach2Controls(object):
                                self.params['nChannels'] / self.params['nChannelsPerStream'])
 
         # grab FIR coeff from file
-        firCoeffs = np.transpose(np.loadtxt(coeffFile))
-        if firCoeffs.ndim == 1:
-            firCoeffs = np.tile(firCoeffs, (len(freqChans), 1))  # if using the same filter for every pixel
+        if os.path.extsep(coeffFile)[0] == ".npz":
+            npz = np.load(coeffFile)
+            resIDs = npz['res_ids']
+            filters = npz['filters']
+            firCoeffs = np.empty((len(self.resIDs), filters.shape[1]))
+            for index, resID in enumerate(self.resIDs):
+                if resID not in resIDs:
+                    raise ValueError("Filter coefficients missing resID {}".format(resID))
+                location = (resIDs == resID)
+                if location.sum() > 1:
+                    raise ValueError("Filter coefficients contain more than one reference to resID {}".format(resID))
+                firCoeffs[index, :] = filters[location, :]
         else:
-            firCoeffs = np.transpose(firCoeffs)
+            firCoeffs = np.transpose(np.loadtxt(coeffFile))
+            if firCoeffs.ndim == 1:
+                firCoeffs = np.tile(firCoeffs, (len(freqChans), 1))  # if using the same filter for every pixel
+            else:
+                firCoeffs = np.transpose(firCoeffs)
         firBinPt = self.params['firBinPt']
         firInts = np.asarray(firCoeffs * (2 ** firBinPt), dtype=np.int32)
         zeroWriteStr = struct.pack('>{}{}'.format(len(firInts[0]), 'l'),
