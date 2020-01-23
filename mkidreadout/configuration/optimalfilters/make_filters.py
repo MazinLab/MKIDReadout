@@ -467,7 +467,7 @@ class Calculator(object):
         filtered_phase = sp.signal.convolve(self.phase, filter_, mode='same')
         return filtered_phase
 
-    def compute_responses(self, threshold, filter_=None):
+    def compute_responses(self, threshold, filter_=None, no_filter=False):
         """
         Computes the pulse responses in the time stream.
 
@@ -478,7 +478,9 @@ class Calculator(object):
             filter_: numpy.ndarray (optional)
                 A filter to use to calculate the responses. If None, the filter
                 from the result attribute is used.
-
+            no_filter: boolean (optional)
+                If true, don't apply the filter to the trace. Useful for
+                pre-filtered time streams.
         Returns:
             responses: numpy.ndarray
                 The response values of each pulse found in the time stream.
@@ -487,7 +489,7 @@ class Calculator(object):
         """
         if threshold is None:
             threshold = self.cfg.pulses.threshold
-        filtered_phase = self.apply_filter(filter_=filter_, positive=True)
+        filtered_phase = -self.phase if no_filter else self.apply_filter(filter_=filter_, positive=True)
         sigma = mad_std(filtered_phase)
         pulses, _ = sp.signal.find_peaks(filtered_phase, height=threshold * sigma,
                                          distance=self.characteristic_time)
