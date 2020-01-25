@@ -375,29 +375,29 @@ class RoachStateMachine(QtCore.QObject):  # Extends QObject for use with QThread
 
                 # Save the power sweep
                 nSteps = len(self.freqOffsets)
-                for n in range(len(self.roachController.freqList)):
-                    w = iqsweep.IQsweep()
-                    w.f0 = self.roachController.freqList[n]
-                    w.span = LO_span / 1e6
-                    w.fsteps = nSteps
-                    w.atten1 = self.roachController.attenList[n] - start_DACAtten + dacAtten
-                    w.atten2 = 0
-                    w.scale = 1.
-                    w.PreadoutdB = -w.atten1 - 20 * np.log10(w.scale)
-                    w.Tstart = 0.100
-                    w.Tend = 0.100
-                    w.I0 = 0.0
-                    w.Q0 = 0.0
-                    w.resnum = n
-                    w.resID = self.roachController.resIDs[n]
-                    w.freq = w.f0 + self.freqOffsets
-                    w.I = self.I_data[n]
-                    w.Q = self.Q_data[n]
-                    w.Isd = np.zeros(nSteps)
-                    w.Qsd = np.zeros(nSteps)
-                    w.time = time.time()
-                    w.savenoise = 0
-                    w.Save(powerSweepFile, 'r0', 'a')  # always r0
+                #for n in range(len(self.roachController.freqList)):
+                #    w = iqsweep.IQsweep()
+                #    w.f0 = self.roachController.freqList[n]
+                #    w.span = LO_span / 1e6
+                #    w.fsteps = nSteps
+                #    w.atten1 = self.roachController.attenList[n] - start_DACAtten + dacAtten
+                #    w.atten2 = 0
+                #    w.scale = 1.
+                #    w.PreadoutdB = -w.atten1 - 20 * np.log10(w.scale)
+                #    w.Tstart = 0.100
+                #    w.Tend = 0.100
+                #    w.I0 = 0.0
+                #    w.Q0 = 0.0
+                #    w.resnum = n
+                #    w.resID = self.roachController.resIDs[n]
+                #    w.freq = w.f0 + self.freqOffsets
+                #    w.I = self.I_data[n]
+                #    w.Q = self.Q_data[n]
+                #    w.Isd = np.zeros(nSteps)
+                #    w.Qsd = np.zeros(nSteps)
+                #    w.time = time.time()
+                #    w.savenoise = 0
+                #    w.Save(powerSweepFile, 'r0', 'a')  # always r0
 
         # Get freq list, center, IQonResonance
         # Only for last sweep if power sweeping

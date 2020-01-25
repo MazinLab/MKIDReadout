@@ -1006,6 +1006,12 @@ class RoachSweepWindow(QMainWindow):
             dacAtten = self.config.roaches.get('r{}.dacatten_start'.format(self.roachNum))
             self.checkbox_resAttenFixed.setText('Keep Res Atten Fixed (was ' + str(dacAtten) + ' dB)')
 
+    def toggleSaveSweepData(self):
+        if self.checkbox_saveSweepData.isChecked():
+            self.changedSetting('save_sweepdata', True)
+        else:
+            self.changedSetting('save_sweepdata', False)
+
     def create_main_frame(self):
         """ Makes GUI elements on the window """
         self.main_frame = QWidget()
@@ -1148,6 +1154,10 @@ class RoachSweepWindow(QMainWindow):
         self.checkbox_resAttenFixed.setChecked(True)
         self.checkbox_resAttenFixed.stateChanged.connect(lambda x: self.toggleResAttenFixed())
 
+        self.checkbox_saveSweepData = QCheckBox('Save IQ Sweep Data')
+        self.checkbox_saveSweepData.setChecked(self.config.roaches.get('r{}.save_sweepdata'.format(self.roachNum)))
+        self.checkbox_resAttenFixed.stateChanged.connect(lambda x: self.toggleSaveSweepData())
+
         psFile = self.config.roaches.get('r{}.powersweeproot'.format(self.roachNum))
         label_psFile = QLabel('Powersweep File:')
         textbox_psFile = QLineEdit(psFile)
@@ -1244,6 +1254,7 @@ class RoachSweepWindow(QMainWindow):
         hbox_powersweep = QHBoxLayout()
         hbox_powersweep.addWidget(label_psFile)
         hbox_powersweep.addWidget(textbox_psFile)
+        hbox_powersweep.addWidget(self.checkbox_saveSweepData)
         hbox_powersweep.addStretch()
 
         hbox_sweep = QHBoxLayout()

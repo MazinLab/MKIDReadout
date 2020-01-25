@@ -12,6 +12,7 @@ fircoefffile: wienerFilter100s_coefficients_r{roach}.txt
 freqfileroot: ps_freqs_FL{feedline}{range}_clip.txt
 longsnaproot:  phasesnaps/{roach}/snap_{roach}.npz
 powersweeproot: ps_{roach}_FL{feedline}_{range}.h5
+save_sweepdata: False
 
 
 numsigs_thresh: 4.0
