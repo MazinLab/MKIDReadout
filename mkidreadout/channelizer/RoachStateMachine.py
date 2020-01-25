@@ -356,7 +356,13 @@ class RoachStateMachine(QtCore.QObject):  # Extends QObject for use with QThread
         powerSweepFile = self.roachController.tagfile(self.config.roaches.get('r{}.powersweeproot'.format(self.num)),
                                                       dir=self.config.paths.data,
                                                       epilog=time.strftime("%Y%m%d-%H%M%S", time.localtime()))
-        for dacAtten in np.arange(start_DACAtten, stop_DACAtten + 1):
+
+        dacAttens = np.arange(start_DACAtten, stop_DACAtten + 1)
+        if self.config.roaches.get('r{}.save_sweepdata'):
+            iToSave = []
+            qToSave = []
+
+        for dacAtten in dacAttens:
             if stop_DACAtten > start_DACAtten:
                 dacAtten1 = np.floor(dacAtten * 2) / 4.
                 dacAtten2 = np.ceil(dacAtten * 2) / 4.
@@ -371,33 +377,21 @@ class RoachStateMachine(QtCore.QObject):  # Extends QObject for use with QThread
             self.I_data = iqData['I']
             self.Q_data = iqData['Q']
             self.freqOffsets = iqData['freqOffsets']
-            if stop_DACAtten > start_DACAtten:
 
-                # Save the power sweep
-                nSteps = len(self.freqOffsets)
-                #for n in range(len(self.roachController.freqList)):
-                #    w = iqsweep.IQsweep()
-                #    w.f0 = self.roachController.freqList[n]
-                #    w.span = LO_span / 1e6
-                #    w.fsteps = nSteps
-                #    w.atten1 = self.roachController.attenList[n] - start_DACAtten + dacAtten
-                #    w.atten2 = 0
-                #    w.scale = 1.
-                #    w.PreadoutdB = -w.atten1 - 20 * np.log10(w.scale)
-                #    w.Tstart = 0.100
-                #    w.Tend = 0.100
-                #    w.I0 = 0.0
-                #    w.Q0 = 0.0
-                #    w.resnum = n
-                #    w.resID = self.roachController.resIDs[n]
-                #    w.freq = w.f0 + self.freqOffsets
-                #    w.I = self.I_data[n]
-                #    w.Q = self.Q_data[n]
-                #    w.Isd = np.zeros(nSteps)
-                #    w.Qsd = np.zeros(nSteps)
-                #    w.time = time.time()
-                #    w.savenoise = 0
-                #    w.Save(powerSweepFile, 'r0', 'a')  # always r0
+            if self.config.roaches.get('r{}.save_sweepdata'):
+                iToSave.append(self.I_data)
+                qToSave.append(self.Q_data)
+
+
+        if self.config.roaches.get('r{}.save_sweepdata'):
+            freqsToSave = np.tile(self.roachController.freqList, (len(iqdata.freqOffsets), 1)).T + iqData.freqOffsets 
+            iToSave = np.squeeze(np.vstack(iToSave))
+            qToSave = np.squeeze(np.vstack(qToSave))
+            mdfn = str(self.config.roaches.get('r{}.freqfileroot'.format(self.num)))
+            mdfn = os.path.join(self.config.paths.data, mdfn.format(roach=self.num, feedline=self.roachController.feedline, 
+                range=self.roachController.range))
+            np.savez(powerSweepFile, I=iToSave, Q=qToSave, atten=dacAttens, freqs=freqsToSave, 
+                    freqList=self.roachController.freqList, attenList=self.roachController.attenList, mdFile=mdfn)
 
         # Get freq list, center, IQonResonance
         # Only for last sweep if power sweeping
