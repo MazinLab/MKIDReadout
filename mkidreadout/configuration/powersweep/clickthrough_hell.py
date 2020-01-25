@@ -476,7 +476,10 @@ if __name__ == "__main__":
         finder.findLocalMinima()
         finder.markCollisions(resBWkHz=200)
         getLogger(__name__).info('Found {} for clickthrough peaks.'.format(finder.num_good))
-        smd = finder.getSweepMetadata(instruments.guessFeedline(args.psweep))
+        try:
+            smd = finder.getSweepMetadata(instruments.guessFeedline(args.psweep))
+        except ValueError:
+            smd = finder.getSweepMetadata(1)
         smd.save(file=metafile)
     elif args.mode == 'applyml':
         smd = sweepdata.SweepMetadata(metafile)

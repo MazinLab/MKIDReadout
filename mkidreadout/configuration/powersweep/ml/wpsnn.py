@@ -43,7 +43,7 @@ class WPSNeuralNet(object):
         if not(os.path.isdir(mlDict['modelDir'])):
             os.mkdir(mlDict['modelDir'])
  
-        self.trainFile = os.path.join(mlDict['modelDir'], mlDict['trainNPZ'])
+        self.trainFile = os.path.join(mlDict['modelDir'], '..', mlDict['trainNPZ'])
         self.imageShape = (mlDict['attenWinBelow'] + mlDict['attenWinAbove'] + 1, mlDict['freqWinSize'], self.nColors)
 
     def makeTrainData(self):
