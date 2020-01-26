@@ -358,7 +358,7 @@ class RoachStateMachine(QtCore.QObject):  # Extends QObject for use with QThread
                                                       epilog=time.strftime("%Y%m%d-%H%M%S", time.localtime()))
 
         dacAttens = np.arange(start_DACAtten, stop_DACAtten + 1)
-        if self.config.roaches.get('r{}.save_sweepdata'):
+        if self.config.roaches.get('r{}.save_sweepdata'.format(self.num)):
             iToSave = []
             qToSave = []
 
@@ -378,13 +378,13 @@ class RoachStateMachine(QtCore.QObject):  # Extends QObject for use with QThread
             self.Q_data = iqData['Q']
             self.freqOffsets = iqData['freqOffsets']
 
-            if self.config.roaches.get('r{}.save_sweepdata'):
+            if self.config.roaches.get('r{}.save_sweepdata'.format(self.num)):
                 iToSave.append(self.I_data)
                 qToSave.append(self.Q_data)
 
 
-        if self.config.roaches.get('r{}.save_sweepdata'):
-            freqsToSave = np.tile(self.roachController.freqList, (len(iqdata.freqOffsets), 1)).T + iqData.freqOffsets 
+        if self.config.roaches.get('r{}.save_sweepdata'.format(self.num)):
+            freqsToSave = np.tile(self.roachController.freqList, (len(self.freqOffsets), 1)).T + self.freqOffsets 
             iToSave = np.squeeze(np.vstack(iToSave))
             qToSave = np.squeeze(np.vstack(qToSave))
             mdfn = str(self.config.roaches.get('r{}.freqfileroot'.format(self.num)))

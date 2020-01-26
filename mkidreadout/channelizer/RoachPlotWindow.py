@@ -1156,7 +1156,7 @@ class RoachSweepWindow(QMainWindow):
 
         self.checkbox_saveSweepData = QCheckBox('Save IQ Sweep Data')
         self.checkbox_saveSweepData.setChecked(self.config.roaches.get('r{}.save_sweepdata'.format(self.roachNum)))
-        self.checkbox_resAttenFixed.stateChanged.connect(lambda x: self.toggleSaveSweepData())
+        self.checkbox_saveSweepData.stateChanged.connect(lambda x: self.toggleSaveSweepData())
 
         psFile = self.config.roaches.get('r{}.powersweeproot'.format(self.roachNum))
         label_psFile = QLabel('Powersweep File:')
