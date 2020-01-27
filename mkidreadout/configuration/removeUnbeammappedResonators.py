@@ -2,6 +2,8 @@
 Filename:  removeUnbeammappedResonators.py
 Author:    Giulia Collura
 Date: Sep 27, 2017
+
+#TODO: modernize w/ new data classes, configs, etc.
 """
 
 #Looks at the flag in the Beammap file for each resonator and makes a ps file removing the bad resonators (flag!=0)
