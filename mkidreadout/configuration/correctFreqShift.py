@@ -65,4 +65,14 @@ if __name__=='__main__':
     freqsToFix = metadata.freq[goodMask]
 
     iqvPeaks = findIQVPeaks(freqsToFix, sweep)
+    fittedFreqs, fitParams = fitDeltaF(freqsToFix, iqvPeaks)
+
+    fig = plt.figure()
+    ax0 = fig.add_subplot(211)
+    ax1 = fig.add_subplot(212)
+
+    ax0.plot(freqsToFix, iqvPeaks, '.')
+    ax0.plot(freqsToFix, fittedFreqs, '-')
+    ax1.plot(freqsToFix, iqvPeaks - fittedFreqs, '.')
+    plt.show()
     
