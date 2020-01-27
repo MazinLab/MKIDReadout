@@ -523,22 +523,19 @@ class FreqSweep:
     def loadPowerSweep(self,fn):
         self.data=np.load(fn)
     
-    def plotTransmissionData(self,show=True):
-        freqs=self.data['freqs'].flatten()
+    def plotTransmissionData(self,show=True, wsAtten=62):
+        freqs=self.data['freqs']
         plt.figure()
-        for i, atten in enumerate(self.data['atten'][10:15:2]):
-            print 'flattening '+str(i)
-            I=self.data['I'][i].flatten()
-            Q=self.data['Q'][i].flatten()
-            print 'log10 '+str(i)
-            s21 = np.log10(I**2. + Q**2.)
-            
-
-            print 'plotting '+str(i)
-            plt.plot(freqs,s21,ls='-',label=atten)
+        i = np.argmin((self.data['atten'] - wsAtten))
+        I=self.data['I'][i]
+        Q=self.data['Q'][i]
+        print 'log10 '+str(i)
+        s21 = 10*np.log10(I**2. + Q**2.)
+        print 'plotting '+str(i)
+        plt.plot(freqs.T,s21.T)
         plt.xlabel('Freq [GHz]')
         plt.ylabel('Power')
-        plt.legend()
+        #plt.legend()
         if show: plt.show()
 
 
