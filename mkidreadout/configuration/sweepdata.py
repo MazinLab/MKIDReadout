@@ -38,19 +38,27 @@ class FreqSweep(object):
         data = np.load(self.file)
         self.atten = data['atten']  # 1d [nAttens] dB
 
-        flip = np.diff(self.atten)[0] < 0
+        if len(self.atten) > 1:
+            flip = np.diff(self.atten)[0] < 0
+        else:
+            flip = False
 
         self.freqs = data['freqs']  # 2d [nTones, nLOsteps] Hz
 
-        self.i = data['I']  # 3d [nAttens, nTones, nLOsteps] ADC units
-        self.q = data['Q']  # 3d [nAttens, nTones, nLOsteps] ADC units
+        if len(self.atten) == 1 and data['I'].ndim == 2:
+            self.i = np.expand_dims(data['I'], 0)
+            self.q = np.expand_dims(data['Q'], 0)
+
+        else:
+            self.i = data['I']  # 3d [nAttens, nTones, nLOsteps] ADC units
+            self.q = data['Q']  # 3d [nAttens, nTones, nLOsteps] ADC units
 
         if flip:
             self.atten = self.atten[::-1]
             self.i = self.i[::-1, :, :]
             self.q = self.q[::-1, :, :]
 
-        self.natten, self.ntone, self.nlostep = data['I'].shape
+        self.natten, self.ntone, self.nlostep = self.i.shape #data['I'].shape
         self.freqStep = self.freqs[0, 1] - self.freqs[0, 0]
 
         sortedAttenInds = np.argsort(self.atten)
