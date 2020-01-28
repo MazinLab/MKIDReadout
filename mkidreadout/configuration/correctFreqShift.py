@@ -15,6 +15,7 @@ Algorithm:
 import os, argparse
 import numpy as np
 import matplotlib.pyplot as plt
+import warnings
 import mkidreadout.configuration.sweepdata as sd
 
 def findIQVPeaks(freqs, sweep, winSize=None, convWin=11):
@@ -30,7 +31,9 @@ def findIQVPeaks(freqs, sweep, winSize=None, convWin=11):
     for f in freqs:
         toneInd = np.argmin(np.abs(f - sweep.freqs[:, sweep.nlostep/2]))
         if not sweep.freqs[toneInd, 0] <= f <= sweep.freqs[toneInd, -1]:
-            raise Exception('No Sweep found for f = {}'.format(f))
+            warnings.warn('No Sweep found for f = {}'.format(f))
+            newFreqs.append(f)
+            continue
 
         freqInd = np.argmin(np.abs(f - sweep.freqs[toneInd, :]))
         nWinPoints = int(winSize/sweep.freqStep)
@@ -76,13 +79,9 @@ if __name__=='__main__':
     freqsToFix = metadata.freq[goodMask]
 
     iqvPeaks = findIQVPeaks(freqsToFix, sweep)
-    fittedFreqs, fitParams = fitDeltaF(freqsToFix, iqvPeaks)
-
-    refinedIQVPeaks = findIQVPeaks(fittedFreqs, sweep, winSize=500.e3)
-    refinedFreqs, fitParams = fitDeltaF(freqsToFix, refinedIQVPeaks)
-
-    refinedIQVPeaks = findIQVPeaks(refinedFreqs, sweep, winSize=150.e3, convWin=0)
-    refinedFreqs, fitParams = fitDeltaF(freqsToFix, refinedIQVPeaks)
+    medCorFreqs = freqsToFix + np.median(iqvPeaks - freqsToFix) #shift by median deviation
+    iqvPeaks = findIQVPeaks(medCorFreqs, sweep, winSize=1.e6) #find IQV peaks around median-centered data to remove bias
+    fittedFreqs, fitParams = fitDeltaF(freqsToFix, iqvPeaks) 
 
     fig = plt.figure()
     ax0 = fig.add_subplot(211)
@@ -94,6 +93,9 @@ if __name__=='__main__':
     ax0.set_title('Initial (noisy) fit')
     plt.show()
 
+    refinedIQVPeaks = findIQVPeaks(fittedFreqs, sweep, winSize=600.e3)
+    refinedFreqs, fitParams = fitDeltaF(freqsToFix, refinedIQVPeaks)
+
     fig = plt.figure()
     ax0 = fig.add_subplot(211)
     ax1 = fig.add_subplot(212)
@@ -101,8 +103,21 @@ if __name__=='__main__':
     ax0.plot(freqsToFix, refinedIQVPeaks - freqsToFix, '.')
     ax0.plot(freqsToFix, refinedFreqs - freqsToFix, '-')
     ax1.plot(freqsToFix, refinedIQVPeaks - refinedFreqs, '.')
-    ax0.set_title('Fit after 2 Refinements')
+    ax0.set_title('Fit after 1 Refinements')
     plt.show()
+
+    #refinedIQVPeaks = findIQVPeaks(refinedFreqs, sweep, winSize=250.e3, convWin=0)
+    #refinedFreqs, fitParams = fitDeltaF(freqsToFix, refinedIQVPeaks)
+
+    #fig = plt.figure()
+    #ax0 = fig.add_subplot(211)
+    #ax1 = fig.add_subplot(212)
+
+    #ax0.plot(freqsToFix, refinedIQVPeaks - freqsToFix, '.')
+    #ax0.plot(freqsToFix, refinedFreqs - freqsToFix, '-')
+    #ax1.plot(freqsToFix, refinedIQVPeaks - refinedFreqs, '.')
+    #ax0.set_title('Fit after 2 Refinements')
+    #plt.show()
 
     metadata.freq[goodMask] = refinedFreqs
     metadata.save(outFile)
