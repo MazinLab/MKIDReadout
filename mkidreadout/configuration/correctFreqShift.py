@@ -17,10 +17,10 @@ import numpy as np
 import matplotlib.pyplot as plt
 import mkidreadout.configuration.sweepdata as sd
 
-def findIQVPeaks(freqs, sweep, winSize=None):
+def findIQVPeaks(freqs, sweep, winSize=None, convWin=11):
     #loSpan = sweep.freqs[0, -1] - sweep.freqs[0, 0]
     if winSize is None:
-        winSize = sweep.freqs[0, 0] - sweep.freqs[0, -1]
+        winSize = sweep.freqs[0, -1] - sweep.freqs[0, 0]
     if sweep.natten > 1:
         raise Exception('Multiple attens not supported')
 
@@ -31,7 +31,17 @@ def findIQVPeaks(freqs, sweep, winSize=None):
         toneInd = np.argmin(np.abs(f - sweep.freqs[:, sweep.nlostep/2]))
         if not sweep.freqs[toneInd, 0] <= f <= sweep.freqs[toneInd, -1]:
             raise Exception('No Sweep found for f = {}'.format(f))
-        newFreqInd = np.argmax(iqVels[toneInd, :])
+
+        freqInd = np.argmin(np.abs(f - sweep.freqs[toneInd, :]))
+        nWinPoints = int(winSize/sweep.freqStep)
+        startInd = max(freqInd - nWinPoints/2, 0)
+        endInd = min(freqInd + nWinPoints/2, sweep.nlostep-1)
+        windowedIQV = iqVels[toneInd, startInd:endInd]
+
+        if convWin > 0:
+            newFreqInd = np.argmax(np.convolve(windowedIQV, np.ones(convWin), mode='same')) + startInd
+        else:
+            newFreqInd = np.argmax(windowedIQV) + startInd
         newFreqs.append(sweep.freqs[toneInd, newFreqInd])
 
     return np.array(newFreqs)
@@ -39,10 +49,11 @@ def findIQVPeaks(freqs, sweep, winSize=None):
 
 def fitDeltaF(oldFreqs, iqvPeaks, order=2):
     deltaF = iqvPeaks - oldFreqs
-    fitParams = np.polyfit(oldFreqs, deltaF)
+    fitParams = np.polyfit(oldFreqs, deltaF, 2)
     fittedFreqs = np.zeros(len(oldFreqs))
     for i, p in enumerate(range(order+1)[::-1]):
         fittedFreqs += fitParams[i]*oldFreqs**p
+    fittedFreqs += oldFreqs
 
     return fittedFreqs, fitParams
 
@@ -61,18 +72,38 @@ if __name__=='__main__':
     else:
         outFile = args.metadata_out
 
-    goodMask = metadata.flag & sd.ISGOOD
+    goodMask = (metadata.flag & sd.ISGOOD).astype(bool)
     freqsToFix = metadata.freq[goodMask]
 
     iqvPeaks = findIQVPeaks(freqsToFix, sweep)
     fittedFreqs, fitParams = fitDeltaF(freqsToFix, iqvPeaks)
 
+    refinedIQVPeaks = findIQVPeaks(fittedFreqs, sweep, winSize=500.e3)
+    refinedFreqs, fitParams = fitDeltaF(freqsToFix, refinedIQVPeaks)
+
+    refinedIQVPeaks = findIQVPeaks(refinedFreqs, sweep, winSize=150.e3, convWin=0)
+    refinedFreqs, fitParams = fitDeltaF(freqsToFix, refinedIQVPeaks)
+
     fig = plt.figure()
     ax0 = fig.add_subplot(211)
     ax1 = fig.add_subplot(212)
 
-    ax0.plot(freqsToFix, iqvPeaks, '.')
-    ax0.plot(freqsToFix, fittedFreqs, '-')
+    ax0.plot(freqsToFix, iqvPeaks - freqsToFix, '.')
+    ax0.plot(freqsToFix, fittedFreqs - freqsToFix, '-')
     ax1.plot(freqsToFix, iqvPeaks - fittedFreqs, '.')
+    ax0.set_title('Initial (noisy) fit')
     plt.show()
+
+    fig = plt.figure()
+    ax0 = fig.add_subplot(211)
+    ax1 = fig.add_subplot(212)
+
+    ax0.plot(freqsToFix, refinedIQVPeaks - freqsToFix, '.')
+    ax0.plot(freqsToFix, refinedFreqs - freqsToFix, '-')
+    ax1.plot(freqsToFix, refinedIQVPeaks - refinedFreqs, '.')
+    ax0.set_title('Fit after 2 Refinements')
+    plt.show()
+
+    metadata.freq[goodMask] = refinedFreqs
+    metadata.save(outFile)
     
