@@ -267,11 +267,13 @@ class Calculator(object):
         pulses += cfg.offset - filter_.size // 2
         mask = np.ones_like(pulses, dtype=bool)
 
-        # mask piled up pulses
+        # mask bad pulses
         diff = np.diff(np.insert(np.append(pulses, self.phase.size + 1), 0, 0))  # assume pulses are at the ends
         bad_previous = (diff < cfg.separation)[:-1]  # far from previous previous pulse (remove last)
         bad_next = (diff < cfg.ntemplate - cfg.offset)[1:]  # far from next pulse  (remove first)
-        mask[bad_next | bad_previous] = False
+        end = (pulses + cfg.ntemplate - cfg.offset - 1 >= self.phase.size)  # close to the end
+        beginning = (pulses - cfg.offset < 0)  # close to the beginning
+        mask[bad_next | bad_previous | end | beginning] = False
 
         # save and return the pulse indices and mask
         if save:
