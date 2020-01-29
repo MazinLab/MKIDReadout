@@ -72,7 +72,8 @@ if __name__=='__main__':
             Should be high templar version w/ only one atten Format string should use {roach}, {fl} or {range} specifiers.')
     parser.add_argument('metadata', help='Corresponding metadata file (or pattern) to modify. Won\'t be overwritten')
     parser.add_argument('-o', '--metadata-out', help='Output metadata file', default=None)
-    parser.add_argument('--snap', action='store_true', help='Final snap in small: something like (50*3.5e9/f0) kHz')
+    parser.add_argument('--snap', action='store_true', help='Final snap in small: something like (50*f0/3.5e9) kHz')
+    parser.add_argument('--shift', type=float, help='Final frequency shift to apply (i.e. if you want to bias left of IQV peak')
     args = parser.parse_args()
 
     sweepGlobPat = args.sweep.replace('{roach}', '???')
@@ -203,6 +204,9 @@ if __name__=='__main__':
             plt.show()
         else:
             metadata.freq[goodMask] = refinedFreqs
+
+        if args.shift is not None:
+            metadata.freq[goodMask] += args.shift
 
         metadata.save(outFile)
     
