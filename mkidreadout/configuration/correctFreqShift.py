@@ -18,7 +18,7 @@ import matplotlib.pyplot as plt
 import warnings
 import mkidreadout.configuration.sweepdata as sd
 
-def findIQVPeaks(freqs, sweep, winSize=None, convWin=11):
+def findIQVPeaks(freqs, sweep, winSize=None, scaleWin=False, convWin=11):
     #loSpan = sweep.freqs[0, -1] - sweep.freqs[0, 0]
     if winSize is None:
         winSize = sweep.freqs[0, -1] - sweep.freqs[0, 0]
@@ -35,8 +35,13 @@ def findIQVPeaks(freqs, sweep, winSize=None, convWin=11):
             newFreqs.append(f)
             continue
 
+        if scaleWin:
+            curWinSize = winSize*f/3.5e9 #provided winsize is LF bound 
+        else:
+            curWinSize = winSize
+
         freqInd = np.argmin(np.abs(f - sweep.freqs[toneInd, :]))
-        nWinPoints = int(winSize/sweep.freqStep)
+        nWinPoints = int(curWinSize/sweep.freqStep)
         startInd = max(freqInd - nWinPoints/2, 0)
         endInd = min(freqInd + nWinPoints/2, sweep.nlostep-1)
         windowedIQV = iqVels[toneInd, startInd:endInd]
@@ -65,6 +70,7 @@ if __name__=='__main__':
     parser.add_argument('sweep', help='Sweep npz file. Should be high templar version w/ only one atten')
     parser.add_argument('metadata', help='Metadata file to modify. Won\'t be overwritten')
     parser.add_argument('-o', '--metadata-out', help='Output metadata file', default=None)
+    parser.add_argument('--snap', action='store_true', help='Final snap in small: something like (50*3.5e9/f0) kHz')
     args = parser.parse_args()
 
     sweep = sd.FreqSweep(args.sweep)
@@ -72,6 +78,8 @@ if __name__=='__main__':
 
     if args.metadata_out is None:
         outFile = args.metadata.split('.')[0] + '_corrected.txt'
+        if args.snap:
+            outFile = outFile.split('.')[0] + '_snap.txt'
     else:
         outFile = args.metadata_out
 
@@ -119,6 +127,13 @@ if __name__=='__main__':
     #ax0.set_title('Fit after 2 Refinements')
     #plt.show()
 
-    metadata.freq[goodMask] = refinedFreqs
+    if args.snap:
+        finalSnapFreqs = findIQVPeaks(refinedFreqs, sweep, winSize=50.e3, scaleWin=True, convWin=3)
+        metadata.freq[goodMask] = finalSnapFreqs
+        plt.plot(freqsToFix, finalSnapFreqs - refinedFreqs)
+        plt.show()
+    else:
+        metadata.freq[goodMask] = refinedFreqs
+
     metadata.save(outFile)
     
