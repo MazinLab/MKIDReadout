@@ -68,8 +68,9 @@ def fitDeltaF(oldFreqs, iqvPeaks, order=2):
 
 if __name__=='__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('sweep', help='Sweep npz file. Should be high templar version w/ only one atten')
-    parser.add_argument('metadata', help='Metadata file to modify. Won\'t be overwritten')
+    parser.add_argument('sweep', help='Sweep npz file (or format string pattern). \
+            Should be high templar version w/ only one atten Format string should use {roach}, {fl} or {range} specifiers.')
+    parser.add_argument('metadata', help='Corresponding metadata file (or pattern) to modify. Won\'t be overwritten')
     parser.add_argument('-o', '--metadata-out', help='Output metadata file', default=None)
     parser.add_argument('--snap', action='store_true', help='Final snap in small: something like (50*3.5e9/f0) kHz')
     args = parser.parse_args()
@@ -78,8 +79,6 @@ if __name__=='__main__':
     mdGlobPat = args.metadata.replace('{roach}', '???')
     sweepGlobPat = sweepGlobPat.replace('{fl}', '*')
     mdGlobPat = mdGlobPat.replace('{fl}', '*')
-    sweepGlobPat = sweepGlobPat.replace('{feedline}', '??')
-    mdGlobPat = mdGlobPat.replace('{feedline}', '??')
     sweepGlobPat = sweepGlobPat.replace('{range}', '?')
     mdGlobPat = mdGlobPat.replace('{range}', '?')
 
@@ -101,10 +100,8 @@ if __name__=='__main__':
 
         sweepFmt = sweepFmt.replace('{roach}', '{roach:d}')
         sweepFmt = sweepFmt.replace('{fl}', '{fl:d}')
-        sweepFmt = sweepFmt.replace('{feedline}', '{feedline:d}')
         mdFmt = mdFmt.replace('{roach}', '{roach:d}')
         mdFmt = mdFmt.replace('{fl}', '{fl:d}')
-        mdFmt = mdFmt.replace('{feedline}', '{feedline:d}')
 
         print mdFmt
         print sweepFmt
@@ -128,6 +125,12 @@ if __name__=='__main__':
             matchingMD = mdFiles[mdMatchesSweep][0]
             mdParamDict = parse.parse(mdFmt, matchingMD)
             sweepParamDict.update(mdParamDict)
+            if not sweepParamDict.has_key('roach'):
+                sweepParamDict['roach'] = '???'
+            if not sweepParamDict.has_key('fl'):
+                sweepParamDict['fl'] = '?'
+            if not sweepParamDict.has_key('range'):
+                sweepParamDict['range'] = '?'
             paramDicts.append(sweepParamDict)
             mdFilesOrdered.append(matchingMD)
 
