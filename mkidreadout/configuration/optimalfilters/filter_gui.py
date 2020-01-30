@@ -138,7 +138,6 @@ class CalculationRow(tk.Frame):
         log.info("{}: aborting calculation process".format(os.path.basename(self.directory)))
         self.stop.config(state=tk.DISABLED)  # can't stop twice
         os.kill(self.process.pid, signal.SIGINT)  # send keyboard interrupt to process
-        self.process.join()  # wait for it to stop
 
     def update_progress(self):
         while True:
@@ -342,9 +341,7 @@ if __name__ == "__main__":
 
     # set up a call to abort all processes on closing the window
     def on_closing():
-        for calculation in window.calculation_tab.calculation_rows:
-            if calculation.start['state'] == tk.DISABLED:
-                calculation.abort()
+        window.calculation_tab.abort()
         app.destroy()
     app.protocol("WM_DELETE_WINDOW", on_closing)
 
