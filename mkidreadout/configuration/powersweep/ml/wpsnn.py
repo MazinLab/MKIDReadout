@@ -231,7 +231,11 @@ class WPSNeuralNet(object):
             num_filt1 = self.mlDict['num_filt1']
             n_pool1 = self.mlDict['n_pool1']
             self.num_filt1 = num_filt1
-            W_conv1 = weight_variable([attenWin, self.mlDict['conv_win1'], self.nColors, num_filt1], name='W_conv1')
+            if isinstance(self.mlDict, int):
+                convWin1 = [attenWin, self.mlDict['conv_win1']]
+            else:
+                convWin1 = self.mlDict['conv_win1']
+            W_conv1 = weight_variable([convWin1[0], convWin1[1], self.nColors, num_filt1], name='W_conv1')
             b_conv1 = bias_variable([num_filt1])
             variable_summaries(W_conv1)
             variable_summaries(b_conv1)
