@@ -12,6 +12,7 @@ def trainAndCrossValidate(mlDict, trainFileLists, trainLabelsLists, valFileLists
     modelName = mlDict['modelName']
     rootDir = os.path.join(mlDict['modelDir'], '..')
     trainNPZ = mlDict['trainNPZ'].split('.')[0]
+    valThingList = []
     if not len(trainFileLists) ==  len(treanLabelsLists) == len(valFileLists) == len(valLabelsLists):
         raise Exception('Need to provide same number of train, val file/label sets')
     for i in range(len(trainFileLists)):
@@ -24,6 +25,14 @@ def trainAndCrossValidate(mlDict, trainFileLists, trainLabelsLists, valFileLists
         mlClass.initializeAndTrainModel()
 
         valThing = validateModel(mlDict['modelDir'], valFileLists[i], valLabelsLists[i])
+        valThing.savePlots(mlDict['modelDir'], 'fullValidation')
+        pickle.dump(valThing, os.path.join(mlDict['modelDir'], 'fullValidation.p'))
+        valThingList.append(valThing)
+
+    fullValThing = sum(valThingList)
+    fullValThing.savePlots(rootDir, modelName + '_full_val')
+    pickle.dump(fullValThing, os.path.join(rootDir, modelName + '_full_val.p'))
+
 
 
 def validateModel(modelDir, valFiles, valMDFiles):
@@ -48,7 +57,7 @@ def validateModel(modelDir, valFiles, valMDFiles):
         else:
             band = 'b'
         try:
-            fl = inst.guessFeedline(os.path.basename(args.inferenceData))
+            fl = inst.guessFeedline(os.path.basename(mdFile))
         except ValueError:
             fl = 1
         finder.saveMetadata(mdFile, resFreqs, resAttens, scores, fl, band)
@@ -111,7 +120,7 @@ def validateModel(modelDir, valFiles, valMDFiles):
         valThingList.append(valThing)
 
 
-    return valThingList
+    return sum(valThingList)
 
 class ValidationThing(object):
 
@@ -161,9 +170,12 @@ class ValidationThing(object):
 
         plt.imshow(self.confImage)
         plt.savefig(os.path.join(directory, prefix + '_confusion.pdf'))
+        plt.close()
         plt.hist(self.attenDiffs, bins=10, range=(-4.5, 5.5))
         plt.savefig(os.path.join(directory, prefix + '_attenDiff.pdf'))
+        plt.close()
         plt.hist(self.freqDiffs, bins=20, range=(-100.e3, 100.e3))
         plt.savefig(os.path.join(directory, prefix + '_freqDiff.pdf'))
+        plt.close()
 
 
