@@ -4,16 +4,16 @@ import os, pickle
 import mkidreadout.configuration.sweepdata as sd
 from wpsnn import WPSNeuralNet
 from mkidcore.readdict import ReadDict
+import mkidcore.instruments as inst
 import findResonatorsWPS as finder
 from compareResLists import retrieveManResList, retrieveMLResList
 from checkWPSPerformance import matchResonators, matchAttens
 
-def trainAndCrossValidate(mlDict, trainFileLists, trainLabelsLists, valFileLists, valLabelsLists):
+def trainAndCrossValidate(mlDict, rootDir, trainFileLists, trainLabelsLists, valFileLists, valLabelsLists):
     modelName = mlDict['modelName']
-    rootDir = os.path.join(mlDict['modelDir'], '..')
     trainNPZ = mlDict['trainNPZ'].split('.')[0]
     valThingList = []
-    if not len(trainFileLists) ==  len(treanLabelsLists) == len(valFileLists) == len(valLabelsLists):
+    if not len(trainFileLists) ==  len(trainLabelsLists) == len(valFileLists) == len(valLabelsLists):
         raise Exception('Need to provide same number of train, val file/label sets')
     for i in range(len(trainFileLists)):
         mlDict.update({'modelName': modelName + '_' + str(i)})
@@ -21,15 +21,20 @@ def trainAndCrossValidate(mlDict, trainFileLists, trainLabelsLists, valFileLists
         mlDict.update({'trainNPZ': trainNPZ + '_' + str(i) + '.npz'})
         mlDict.update({'rawTrainFiles': trainFileLists[i]})
         mlDict.update({'rawTrainLabels': trainLabelsLists[i]})
-        mlClass = WPSNeuralNet(mlDict)
-        mlClass.initializeAndTrainModel()
+        if not os.path.isfile(os.path.join(mlDict['modelDir'], mlDict['modelName'] + '.meta')):
+            mlClass = WPSNeuralNet(mlDict)
+            mlClass.initializeAndTrainModel()
+        else:
+            print 'found model, skipping train step.'
 
         valThing = validateModel(mlDict['modelDir'], valFileLists[i], valLabelsLists[i])
         valThing.savePlots(mlDict['modelDir'], 'fullValidation')
         pickle.dump(valThing, os.path.join(mlDict['modelDir'], 'fullValidation.p'))
         valThingList.append(valThing)
 
-    fullValThing = sum(valThingList)
+    fullValThing = valThingList[0]
+    for valThing in valThingList[1:]:
+        fullValThing += valThing
     fullValThing.savePlots(rootDir, modelName + '_full_val')
     pickle.dump(fullValThing, os.path.join(rootDir, modelName + '_full_val.p'))
 
@@ -120,7 +125,11 @@ def validateModel(modelDir, valFiles, valMDFiles):
         valThingList.append(valThing)
 
 
-    return sum(valThingList)
+    fullValThing = valThingList[0]
+    for valThing in valThingList[1:]:
+        fullValThing += valThing
+
+    return fullValThing
 
 class ValidationThing(object):
 
@@ -155,9 +164,9 @@ class ValidationThing(object):
         nMatched = valThing.nMatched + self.nMatched
         nManNotInML = valThing.nManNotInML + self.nManNotInML
         nMLNotInMan = valThing.nMLNotInMan + self.nMLNotInMan
-        confImage = covalThing.nfImage + self.nfImage
-        attenDiffs = np.append(attenDiffs, valThing.attenDiffs)
-        freqDiffs = np.append(freqDiffs, valThing.freqDiffs)
+        confImage = valThing.confImage + self.confImage
+        attenDiffs = np.append(self.attenDiffs, valThing.attenDiffs)
+        freqDiffs = np.append(self.freqDiffs, valThing.freqDiffs)
 
         return ValidationThing(nMatched, nManNotInML, nMLNotInMan, confImage, attenDiffs, freqDiffs, sweepFiles=None, mdFiles=None)
 
@@ -168,13 +177,16 @@ class ValidationThing(object):
             except TypeError:
                 prefix = 'YOU_SUCK'
 
-        plt.imshow(self.confImage)
+        plt.imshow(self.confImage, vmax=55)
+        plt.colorbar()
         plt.savefig(os.path.join(directory, prefix + '_confusion.pdf'))
         plt.close()
         plt.hist(self.attenDiffs, bins=10, range=(-4.5, 5.5))
+        plt.xlabel('ML Atten - Manual Atten')
         plt.savefig(os.path.join(directory, prefix + '_attenDiff.pdf'))
         plt.close()
         plt.hist(self.freqDiffs, bins=20, range=(-100.e3, 100.e3))
+        plt.xlabel('ML Freq - Manual Freq')
         plt.savefig(os.path.join(directory, prefix + '_freqDiff.pdf'))
         plt.close()
 
