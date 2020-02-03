@@ -231,7 +231,7 @@ class WPSNeuralNet(object):
             num_filt1 = self.mlDict['num_filt1']
             n_pool1 = self.mlDict['n_pool1']
             self.num_filt1 = num_filt1
-            if isinstance(self.mlDict, int):
+            if isinstance(self.mlDict['conv_win1'], int):
                 convWin1 = [attenWin, self.mlDict['conv_win1']]
             else:
                 convWin1 = self.mlDict['conv_win1']
