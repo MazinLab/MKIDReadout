@@ -29,14 +29,14 @@ def trainAndCrossValidate(mlDict, rootDir, trainFileLists, trainLabelsLists, val
 
         valThing = validateModel(mlDict['modelDir'], valFileLists[i], valLabelsLists[i])
         valThing.savePlots(mlDict['modelDir'], 'fullValidation')
-        pickle.dump(valThing, os.path.join(mlDict['modelDir'], 'fullValidation.p'))
+        pickle.dump(valThing, open(os.path.join(mlDict['modelDir'], 'fullValidation.p'), 'w'))
         valThingList.append(valThing)
 
     fullValThing = valThingList[0]
     for valThing in valThingList[1:]:
         fullValThing += valThing
     fullValThing.savePlots(rootDir, modelName + '_full_val')
-    pickle.dump(fullValThing, os.path.join(rootDir, modelName + '_full_val.p'))
+    pickle.dump(fullValThing, open(os.path.join(rootDir, modelName + '_full_val.p'), 'w'))
 
 
 
@@ -121,6 +121,7 @@ def validateModel(modelDir, valFiles, valMDFiles):
                 freqDiff, valFiles[i], valMDFiles[i])
         valThing.savePlots(modelDir, os.path.basename(valFiles[i]).split('.')[0])
         fileName = os.path.join(modelDir, os.path.basename(valFiles[i]).split('.')[0] + '_validation.p')
+        print 'saving', fileName
         pickle.dump(valThing, open(fileName, 'w'))
         valThingList.append(valThing)
 
@@ -176,18 +177,40 @@ class ValidationThing(object):
                 prefix = '_'.join(self.mdFiles)
             except TypeError:
                 prefix = 'YOU_SUCK'
+        
+        fig = plt.figure()
+        ax00 = fig.add_subplot(221)
+        ax01 = fig.add_subplot(222)
+        ax10 = fig.add_subplot(223)
+        ax11 = fig.add_subplot(224)
 
-        plt.imshow(self.confImage, vmax=55)
-        plt.colorbar()
-        plt.savefig(os.path.join(directory, prefix + '_confusion.pdf'))
-        plt.close()
-        plt.hist(self.attenDiffs, bins=10, range=(-4.5, 5.5))
-        plt.xlabel('ML Atten - Manual Atten')
-        plt.savefig(os.path.join(directory, prefix + '_attenDiff.pdf'))
-        plt.close()
-        plt.hist(self.freqDiffs, bins=20, range=(-100.e3, 100.e3))
-        plt.xlabel('ML Freq - Manual Freq')
-        plt.savefig(os.path.join(directory, prefix + '_freqDiff.pdf'))
-        plt.close()
+        im = ax01.imshow(self.confImage, vmax=55)
+        #fig.colorbar(im, cax=ax01)
+        ax01.set_title('Confusion', fontsize=7)
+        ax01.set_ylabel('Manual', fontsize=7)
+        ax01.set_xlabel('ML', fontsize=7)
+        ax01.tick_params(axis='both', labelsize=5)
+        ax00.hist(self.attenDiffs, bins=10, range=(-4.5, 5.5))
+        ax00.tick_params(axis='both', labelsize=5)
+        ax00.set_xlabel('ML Atten - Manual Atten', fontsize=7)
+        ax10.hist(self.freqDiffs, bins=20, range=(-100.e3, 100.e3))
+        ax10.tick_params(axis='both', labelsize=5)
+        ax10.set_xlabel('ML Freq - Manual Freq', fontsize=7)
+        
+        #resTable = [['Matched between manual and ML', str(self.nMatched)],
+        #            ['Manual res not found in ML', str(self.nManNotInML)],
+        #            ['ML res not found in manual', str(self.nMLNotInMan)]]
+        resTable = [[ str(self.nMatched)],
+                    [ str(self.nManNotInML)],
+                    [ str(self.nMLNotInMan)]]
+        labels = ['Matched between \nmanual and ML',
+                    'Manual res not \nfound in ML',
+                    'ML res not found \nin manual']
+        ax11.axis('tight')
+        ax11.axis('off')
+        tab = ax11.table(cellText=resTable, rowLabels=labels, loc='center right', colWidths=[.2])
+        tab.scale(1, 2)
+        print 'saving', os.path.join(directory, prefix + '_summary.pdf') 
+        fig.savefig(os.path.join(directory, prefix + '_summary.pdf'))
 
 
