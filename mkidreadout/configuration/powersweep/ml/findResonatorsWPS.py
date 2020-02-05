@@ -34,7 +34,7 @@ def makeWPSMap(modelDir, freqSweep, freqStep=None, attenClip=0):
     freqEnd = freqSweep.freqs[-1, -1] - freqSweep.freqStep*mlDict['freqWinSize']
     freqs = np.arange(freqStart, freqEnd, freqStep)
 
-    wpsImage = np.zeros((len(attens), len(freqs), N_CLASSES + 1))
+    wpsImage = np.zeros((len(attens), len(freqs), N_CLASSES))
     nColors = 2
     if mlDict['useIQV']:
         nColors += 1
@@ -44,7 +44,6 @@ def makeWPSMap(modelDir, freqSweep, freqStep=None, attenClip=0):
     chunkSize = 5000#8000*N_CPU
     subChunkSize = chunkSize/N_CPU
     imageList = np.zeros((chunkSize, mlDict['attenWinBelow'] + mlDict['attenWinAbove'] + 1, mlDict['freqWinSize'], nColors))
-    resMagList = np.zeros((chunkSize))
     labelsList = np.zeros((chunkSize, N_CLASSES))
     toneWinCenters = freqSweep.freqs[:, freqSweep.nlostep/2]
     if N_CPU > 1:
@@ -58,7 +57,7 @@ def makeWPSMap(modelDir, freqSweep, freqStep=None, attenClip=0):
 
             if N_CPU == 1:
                 for i, freqInd in enumerate(range(chunkSize*chunkInd, chunkSize*chunkInd + nFreqsInChunk)):
-                    imageList[i], resMagList[i], _, _  = mlt.makeWPSImage(freqSweep, freqs[freqInd], attens[attenInd], mlDict['freqWinSize'],
+                    imageList[i], _, _  = mlt.makeWPSImage(freqSweep, freqs[freqInd], attens[attenInd], mlDict['freqWinSize'],
                             1+mlDict['attenWinBelow']+mlDict['attenWinAbove'], mlDict['useIQV'], mlDict['useVectIQV'],
                             normalizeBeforeCenter=mlDict['normalizeBeforeCenter']) 
             else:
@@ -75,11 +74,10 @@ def makeWPSMap(modelDir, freqSweep, freqStep=None, attenClip=0):
                             useIQV=mlDict['useIQV'], useVectIQV=mlDict['useVectIQV'],
                             normalizeBeforeCenter=mlDict['normalizeBeforeCenter']) 
 
-                imageList[:nFreqsInChunk], resMagList[:nFreqsInChunk] = zip(*pool.map(processChunk, freqList, chunksize=chunkSize/N_CPU))
+                imageList[:nFreqsInChunk] = pool.map(processChunk, freqList, chunksize=chunkSize/N_CPU)
 
             wpsImage[attenInd, chunkSize*chunkInd:chunkSize*chunkInd + nFreqsInChunk, :N_CLASSES] = sess.run(y_output, 
                     feed_dict={x_input: imageList[:nFreqsInChunk], keep_prob: 1, is_training: False})
-            wpsImage[attenInd, chunkSize*chunkInd:chunkSize*chunkInd + nFreqsInChunk, N_CLASSES] = resMagList[:nFreqsInChunk]
             print 'finished chunk', chunkInd, 'out of', len(freqs)/chunkSize
 
         print 'atten:', attens[attenInd]
@@ -92,9 +90,9 @@ def makeWPSMap(modelDir, freqSweep, freqStep=None, attenClip=0):
 
 
 def makeImage(centerFreq, freqSweep, atten, freqWinSize, attenWinSize, useIQV, useVectIQV, normalizeBeforeCenter):
-    image, resMag, _, _, = mlt.makeWPSImage(freqSweep, centerFreq, atten, freqWinSize, attenWinSize, useIQV, useVectIQV,
+    image, _, _, = mlt.makeWPSImage(freqSweep, centerFreq, atten, freqWinSize, attenWinSize, useIQV, useVectIQV,
             normalizeBeforeCenter=normalizeBeforeCenter) 
-    return image, resMag
+    return image
 
 def addResMagToWPSMap(wpsDict, freqSweep, outFile, freqWinSize=30, nRes=1500):
     resMags = np.zeros((wpsDict['wpsmap'].shape[0], wpsDict['wpsmap'].shape[1]))

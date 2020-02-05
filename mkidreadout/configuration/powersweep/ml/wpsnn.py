@@ -96,7 +96,7 @@ class WPSNeuralNet(object):
                 upResAttens = trainSweep.atten[upResMask]
 
                 for j in range(self.mlDict['nImagesPerRes']):
-                    images[imgCtr], _,  _, _ = mlt.makeWPSImage(trainSweep, optFreqs[i], optAttens[i], self.imageShape[1], 
+                    images[imgCtr],  _, _ = mlt.makeWPSImage(trainSweep, optFreqs[i], optAttens[i], self.imageShape[1], 
                         self.imageShape[0], self.mlDict['useIQV'], self.mlDict['useVectIQV'], 
                         normalizeBeforeCenter=self.mlDict['normalizeBeforeCenter']) #good image
                     labels[imgCtr] = np.array([1, 0, 0, 0])
@@ -108,7 +108,7 @@ class WPSNeuralNet(object):
                         except IndexError:
                             satResAtten = np.random.choice(trainSweep.atten[satResMask]) #pick a random one if out of attens
                         freqOffs = (-100.e3)*np.random.random() #sat resonators move left, so correct this
-                        images[imgCtr], _, _, _ = mlt.makeWPSImage(trainSweep, optFreqs[i]+freqOffs, satResAtten, self.imageShape[1], 
+                        images[imgCtr], _, _ = mlt.makeWPSImage(trainSweep, optFreqs[i]+freqOffs, satResAtten, self.imageShape[1], 
                             self.imageShape[0], self.mlDict['useIQV'], self.mlDict['useVectIQV'],
                             normalizeBeforeCenter=self.mlDict['normalizeBeforeCenter']) #saturated image
                         labels[imgCtr] = np.array([0, 1, 0, 0])
@@ -120,7 +120,7 @@ class WPSNeuralNet(object):
                             upResAttens = np.delete(upResAttens, 0) #pick without replacement
                         except IndexError:
                             upResAtten = np.random.choice(trainSweep.atten[upResMask])
-                        images[imgCtr], _, _, _ = mlt.makeWPSImage(trainSweep, optFreqs[i], upResAtten, self.imageShape[1], 
+                        images[imgCtr], _, _ = mlt.makeWPSImage(trainSweep, optFreqs[i], upResAtten, self.imageShape[1], 
                             self.imageShape[0], self.mlDict['useIQV'], self.mlDict['useVectIQV'],
                             normalizeBeforeCenter=self.mlDict['normalizeBeforeCenter']) #upurated image
                         labels[imgCtr] = np.array([0, 0, 1, 0])
@@ -128,7 +128,7 @@ class WPSNeuralNet(object):
 
                     offResF = np.random.choice(offResFreqs)
                     offResAtt = np.random.choice(trainSweep.atten)
-                    images[imgCtr], _, _, _ = mlt.makeWPSImage(trainSweep, offResF, offResAtt, self.imageShape[1], 
+                    images[imgCtr], _, _ = mlt.makeWPSImage(trainSweep, offResF, offResAtt, self.imageShape[1], 
                         self.imageShape[0], self.mlDict['useIQV'], self.mlDict['useVectIQV'],
                         normalizeBeforeCenter=self.mlDict['normalizeBeforeCenter']) #off resonance image
                     labels[imgCtr] = np.array([0, 0, 0, 1])
@@ -443,6 +443,9 @@ class WPSNeuralNet(object):
         globalLogfile = os.path.join(os.path.dirname(modelSavePath), '..', 'train.log')
         with open(globalLogfile, 'a') as lf:
             lf.write(self.mlDict['modelName'] + ': ' + self.mlDict['comment'] + '\n')
+
+        self.sess.close()
+        tf.reset_default_graph()
 
             
                 
