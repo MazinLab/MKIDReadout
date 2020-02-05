@@ -119,6 +119,13 @@ class FreqSweep(object):
         qVals = np.zeros_like(iVals)
         return np.transpose([freqs, iVals, qVals])
 
+    @property
+    def iqvel(self):
+        if not hasattr(self, '_iqvel'):
+            self._iqvel = np.sqrt(np.diff(self.i, axis=2)**2 + np.diff(self.q, axis=2)**2)
+
+        return self._iqvel
+
 
 class SweepMetadata(object):
     def __init__(self, resid=None, wsfreq=None, flag=None, mlfreq=None, mlatten=None,
