@@ -149,11 +149,11 @@ if __name__=='__main__':
         diffAttenMask = np.abs(attenDiff) > 0.5
         resIDPairDiffs = np.vstack((resIDAMatched, resIDBMatched, attenDiff)).T
         print 'ResID discrepancies: A B Diff'
-        print resIDPairDiffs[diffAttenMask].astype(int)
+        print np.round(resIDPairDiffs[diffAttenMask]).astype(int)
         
         
 
-    plt.hist(attenDiff, bins=11, range=(-5,5))
+    plt.hist(attenDiff, bins=10, range=(-4.5, 5.5))
     plt.title(plotTitle)
     plt.xlabel('AttenDiff (' + bFileName + ' - ' + aFileName + ')')
     plt.savefig(os.path.join(saveDir, plotFn + '_attenDiff.png'))
