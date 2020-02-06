@@ -1,5 +1,6 @@
 import matplotlib.pyplot as plt
 import numpy as np
+import os, glob, parse
 
 from mkidcore.corelog import getLogger
 from mkidcore.objects import Beammap
@@ -387,3 +388,84 @@ def loadold(allfile, goodfile, outfile='digWS_FL{feedline}_metadata.txt'):
     flags[~bad] = ISGOOD
 
     return SweepMetadata(resid=aid, wsfreq=afreq, flag=flags, file=outfile)
+
+def getSweepFiles(sweepFilePat, mdFilePat):
+    """
+    Returns a list of sweep files and corresponding metadata according to 
+    the file patterns specified in 'sweepFilePat' and 'mdFilePat'. Patterns
+    may use {roach}, {feedline}, and/or {range} tags to match
+    corresponding files, as well as standard glob syntax such as * and ?.
+
+    Does NOT currently make any assumptions about which roach boards are 
+    associated with which feedlines/ranges (so format specifiers should
+    have at least one matching tag).
+
+    parameters
+    ----------
+        sweepFilePat: string
+            Pattern to match sweep npz files (something like,
+            '/path/to/files/psData_{roach}.npz')
+        mdFilePat: string
+            Pattern to match metadata files
+
+    returns
+    -------
+        list of sweep files
+        corresponding list of metadata files
+        dictionary w/ 'roach', 'feedline' and/or 'range' 
+            specifiers for each set of files
+
+    """
+    sweepGlobPat = sweepFilePat.replace('{roach}', '???')
+    mdGlobPat = mdFilePat.replace('{roach}', '???')
+    sweepGlobPat = sweepGlobPat.replace('{feedline}', '*')
+    mdGlobPat = mdGlobPat.replace('{feedline}', '*')
+    sweepGlobPat = sweepGlobPat.replace('{range}', '?')
+    mdGlobPat = mdGlobPat.replace('{range}', '?')
+
+    sweepFiles = np.array(glob.glob(sweepGlobPat))
+    mdFiles = np.array(glob.glob(mdGlobPat))
+
+     #find md file corresponding to each sweep
+    mdFilesOrdered = []
+    paramDicts = [] #list of parsed out params for each file
+    sweepFmt = sweepFilePat.replace('*', '{}')
+    mdFmt = mdFilePat.replace('*', '{}')
+
+    sweepFmt = sweepFmt.replace('{roach}', '{roach:d}')
+    sweepFmt = sweepFmt.replace('{feedline}', '{feedline:d}')
+    mdFmt = mdFmt.replace('{roach}', '{roach:d}')
+    mdFmt = mdFmt.replace('{feedline}', '{feedline:d}')
+
+    for sweepFile in sweepFiles:
+        sweepParamDict = parse.parse(sweepFmt, sweepFile).named
+        mdMatchesSweep = np.ones(len(mdFiles)).astype(bool)
+        for i, mdFile in enumerate(mdFiles):
+            mdParamDict = parse.parse(mdFmt, mdFile).named
+            for mdKey, mdVal in mdParamDict.items():
+                if sweepParamDict.has_key(mdKey):
+                    if sweepParamDict[mdKey] != mdVal:
+                        mdMatchesSweep[i] = False #make sure all overlapping keys match
+
+        if np.sum(mdMatchesSweep) > 1:
+            raise Exception('Multiple metadata files matching for {}'.format(sweepFile))
+        if np.sum(mdMatchesSweep) == 0:
+            getLogger(__name__).warning('No metadata found for {}. Skipping.'.format(sweepFile))
+            mdFilesOrdered.append(None)
+
+        matchingMD = mdFiles[mdMatchesSweep][0]
+        mdParamDict = parse.parse(mdFmt, matchingMD).named
+        sweepParamDict.update(mdParamDict)
+        if not sweepParamDict.has_key('roach'):
+            sweepParamDict['roach'] = '???'
+        if not sweepParamDict.has_key('feedline'):
+            sweepParamDict['feedline'] = '?'
+        if not sweepParamDict.has_key('range'):
+            sweepParamDict['range'] = '?'
+        paramDicts.append(sweepParamDict)
+        mdFilesOrdered.append(matchingMD)
+
+    if len(mdFilesOrdered) != len(np.unique(mdFilesOrdered)):
+        raise Exception('Duplicate MD files')
+
+    return list(sweepFiles), mdFilesOrdered, paramDicts

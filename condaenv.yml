@@ -29,6 +29,7 @@ dependencies:
   - funcsigs
   - pymongo
   - gitpython
+  - parse
 #optional
   - mpmath
   - blas

@@ -69,74 +69,15 @@ def fitDeltaF(oldFreqs, iqvPeaks, order=2):
 if __name__=='__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('sweep', help='Sweep npz file (or format string pattern). \
-            Should be high templar version w/ only one atten Format string should use {roach}, {fl} or {range} specifiers.')
+            Should be high templar version w/ only one atten Format string should use {roach}, {feedline} or {range} specifiers.')
     parser.add_argument('metadata', help='Corresponding metadata file (or pattern) to modify. Won\'t be overwritten')
     parser.add_argument('-o', '--metadata-out', help='Output metadata file', default=None)
     parser.add_argument('--snap', action='store_true', help='Final snap in small: something like (50*f0/3.5e9) kHz')
     parser.add_argument('--shift', type=float, help='Final frequency shift to apply (i.e. if you want to bias left of IQV peak')
     args = parser.parse_args()
 
-    sweepGlobPat = args.sweep.replace('{roach}', '???')
-    mdGlobPat = args.metadata.replace('{roach}', '???')
-    sweepGlobPat = sweepGlobPat.replace('{fl}', '*')
-    mdGlobPat = mdGlobPat.replace('{fl}', '*')
-    sweepGlobPat = sweepGlobPat.replace('{range}', '?')
-    mdGlobPat = mdGlobPat.replace('{range}', '?')
+    sweepFiles, mdFilesOrdered, paramDicts = sd.getSweepFiles(args.sweep, args.metadata)
 
-    print sweepGlobPat
-    print mdGlobPat
-
-    sweepFiles = np.array(glob.glob(sweepGlobPat))
-    mdFiles = np.array(glob.glob(mdGlobPat))
-
-    if len(sweepFiles) == len(mdFiles) == 1:
-        mdFilesOrdered = mdFiles
-        paramDicts = [{}]
-
-    else: #find md file corresponding to each sweep
-        mdFilesOrdered = []
-        paramDicts = [] #list of parsed out params for each file
-        sweepFmt = args.sweep.replace('*', '{}')
-        mdFmt = args.metadata.replace('*', '{}')
-
-        sweepFmt = sweepFmt.replace('{roach}', '{roach:d}')
-        sweepFmt = sweepFmt.replace('{fl}', '{fl:d}')
-        mdFmt = mdFmt.replace('{roach}', '{roach:d}')
-        mdFmt = mdFmt.replace('{fl}', '{fl:d}')
-
-        print mdFmt
-        print sweepFmt
-
-        for sweepFile in sweepFiles:
-            sweepParamDict = parse.parse(sweepFmt, sweepFile).named
-            mdMatchesSweep = np.ones(len(mdFiles)).astype(bool)
-            for i, mdFile in enumerate(mdFiles):
-                mdParamDict = parse.parse(mdFmt, mdFile).named
-                for mdKey, mdVal in mdParamDict.items():
-                    if sweepParamDict.has_key(mdKey):
-                        if sweepParamDict[mdKey] != mdVal:
-                            mdMatchesSweep[i] = False #make sure all overlapping keys match
-
-            if np.sum(mdMatchesSweep) > 1:
-                raise Exception('Multiple metadata files matching for {}'.format(sweepFile))
-            if np.sum(mdMatchesSweep) == 0:
-                warnings.warn('No metadata found for {}. Skipping.'.format(sweepFile))
-                mdFilesOrdered.append(None)
-
-            matchingMD = mdFiles[mdMatchesSweep][0]
-            mdParamDict = parse.parse(mdFmt, matchingMD)
-            sweepParamDict.update(mdParamDict)
-            if not sweepParamDict.has_key('roach'):
-                sweepParamDict['roach'] = '???'
-            if not sweepParamDict.has_key('fl'):
-                sweepParamDict['fl'] = '?'
-            if not sweepParamDict.has_key('range'):
-                sweepParamDict['range'] = '?'
-            paramDicts.append(sweepParamDict)
-            mdFilesOrdered.append(matchingMD)
-
-        if len(mdFilesOrdered) != len(np.unique(mdFilesOrdered)):
-            raise Exception('Duplicate MD files')
 
     for i in range(len(sweepFiles)):
         print '{}: {} ... {}'.format(sweepFiles[i], mdFilesOrdered[i], paramDicts[i])
