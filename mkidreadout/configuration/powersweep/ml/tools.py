@@ -19,6 +19,15 @@ def makeWPSImageList(freqSweep, centerFreqList, centerAtten, nFreqs, nAttens, us
     iqVelList = freqSweep.iqvel[:, uniqueToneInds, :]
 
     centerFreqInds = np.argmin(np.abs(centerFreqList - toneFreqList[fullToneInds].T), axis=0)
+    centerAttenInd = np.argmin(np.abs(freqSweep.atten - centerAtten))
+
+    if centerIQV: #slow, do not use for inference
+        startFreqInds = centerFreqInds - int(np.floor(nFreqs/2.))
+        endFreqInds = centerFreqInds + int(np.ceil(nFreqs/2.))
+        for i in range(len(centerFreqInds)):
+            centerFreqInds[i] = np.argmax(iqVelList[centerAttenInd, fullToneInds[i], 
+                max(0, startFreqInds[i]):endFreqInds[i]]) + max(0, startFreqInds[i])
+
     startFreqInds = centerFreqInds - int(np.floor(nFreqs/2.))
     endFreqInds = centerFreqInds + int(np.ceil(nFreqs/2.))
 
@@ -35,7 +44,6 @@ def makeWPSImageList(freqSweep, centerFreqList, centerAtten, nFreqs, nAttens, us
         endFreqPads = 0
 
     assert freqSweep.atten[0] <= centerAtten <= freqSweep.atten[-1], 'centerAtten out of range'
-    centerAttenInd = np.argmin(np.abs(freqSweep.atten - centerAtten))
     startAttenInd = centerAttenInd - int(np.floor(nAttens/2.))
     endAttenInd = centerAttenInd + int(np.ceil(nAttens/2.))
 
