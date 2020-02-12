@@ -5,7 +5,7 @@ import logging
 import os, sys, glob
 from mkidreadout.configuration.powersweep.psmldata import *
 
-def makeWPSImageList(freqSweep, centerFreqList, centerAtten, nFreqs, nAttens, useIQV, useVectIQV, centerIQV=False, normalizeBeforeCenter=False):
+def makeWPSImageList(freqSweep, centerFreqList, centerAtten, nFreqs, nAttens, useIQV, useVectIQV, centerIQV=False, normalizeBeforeCenter=False, randomFreqOffs=False):
     centerFreqList = np.atleast_1d(centerFreqList) #allow number too
     winCenters = freqSweep.freqs[:, freqSweep.nlostep/2]
     toneInds = np.argmin(np.abs(centerFreqList - np.tile(winCenters, (len(centerFreqList), 1)).T), axis=0)
@@ -27,6 +27,9 @@ def makeWPSImageList(freqSweep, centerFreqList, centerAtten, nFreqs, nAttens, us
         for i in range(len(centerFreqInds)):
             centerFreqInds[i] = np.argmax(iqVelList[centerAttenInd, fullToneInds[i], 
                 max(0, startFreqInds[i]):endFreqInds[i]]) + max(0, startFreqInds[i])
+
+    if randomFreqOffs:
+        centerFreqInds += int(nFreqs*np.random.random(centerFreqInds.shape) - nFreqs/2)
 
     startFreqInds = centerFreqInds - int(np.floor(nFreqs/2.))
     endFreqInds = centerFreqInds + int(np.ceil(nFreqs/2.))
