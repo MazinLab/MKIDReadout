@@ -69,5 +69,63 @@ def plotNoiseFloors(popt, freqs=None):
 
     plt.ylabel('Phase Noise Floor (dBc/Hz)')
 
+def calcRoomTempNoise(inputPower, adcAtten0, adcAtten1, temp=290., rtAmpNT=438.4): 
+    """
+    parameters
+    ----------
+        inputPower - in dBm
+        adcAtten0 - dB
+        adcAtten1 - dB
+    """
+    rtAmpGainDB = 15. #dB
+    rtAmpGain = 10**(rtAmpGainDB/10.)
+    bw = 2.e9 #Hz
+    splitterLoss = 4 #dB
+    rtNoise = 4*1.38065E-023*temp*bw*1000 #milliwatts
+    rtAmpNoise = 4*1.38065E-023*(temp + rtAmpNT)*bw*1000
+
+    tonePowerDB = inputPower - splitterLoss
+    
+    #first amplifier
+    noise = rtAmpGain*rtAmpNoise
+    tonePowerDB += rtAmpGainDB
+    print 'firstAmp:', 10*np.log10(noise)
+
+    #first attenuator
+    noise = rtNoise + noise/(10**(adcAtten0/10.))
+    tonePowerDB -= adcAtten0 
+    print 'firstAmp:', 10*np.log10(noise)
+
+    #second amplifier
+    noise += rtAmpNoise 
+    noise *= rtAmpGain
+    tonePowerDB += rtAmpGainDB
+    print 'firstAmp:', 10*np.log10(noise)
+
+    #second attenuator
+    noise = rtNoise + noise/(10**(adcAtten1/10.))
+    tonePowerDB -= adcAtten1
+    print 'firstAmp:', 10*np.log10(noise)
+
+    #third amplifier
+    noise += rtAmpNoise 
+    noise *= rtAmpGain
+    tonePowerDB += rtAmpGainDB
+    print 'firstAmp:', 10*np.log10(noise)
+
+    #3dB atten
+    noise = rtNoise + noise/(10**(0.3))
+    tonePowerDB -= 3
+    print 'firstAmp:', 10*np.log10(noise)
+
+    #fourth amplifier
+    noise += rtAmpNoise 
+    noise *= rtAmpGain
+    tonePowerDB += rtAmpGainDB
+    print 'firstAmp:', 10*np.log10(noise)
+
+    relNoise = noise/(2*bw*10**(tonePowerDB/10.))
+    return 10*np.log10(relNoise)
+    
 
 

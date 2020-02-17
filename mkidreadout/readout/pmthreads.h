@@ -49,6 +49,7 @@
 
 //#define _TIMING_TEST //turn on when you want a ts discrepancy file
 //#define _DEBUG_OUTPUT //turns on (fairly obtrusive) debugging output
+//#define _DEBUG_READER_OUTPUT
 
 #define handle_error_en(en, msg) \
         do { errno = en; perror(msg); exit(EXIT_FAILURE); } while (0)
