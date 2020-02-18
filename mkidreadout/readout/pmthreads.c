@@ -106,6 +106,8 @@ void *shmImageWriter(void *prms)
     RINGBUFFER *packBuf;
     uint64_t bufReadInd = 0;
     uint64_t lastCycle = 0;
+    uint64_t nWriteCycles;
+    uint64_t bufWriteInd;
     int nUnread;
     int packSize;
 
@@ -119,6 +121,7 @@ void *shmImageWriter(void *prms)
     SHM_IMAGE_WRITER_PARAMS *params;
     MKID_IMAGE *sharedImages;
     sem_t *quitSem;
+    sem_t *ringBufResetSem;
 
     params = (SHM_IMAGE_WRITER_PARAMS*)prms; //cast param struct
 
@@ -133,6 +136,7 @@ void *shmImageWriter(void *prms)
     printf("NROACH: %x\n", params->nRoach);
 
     quitSem = sem_open(params->quitSemName, O_CREAT, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP, 0);
+    ringBufResetSem = sem_open(params->ringBufResetSemName, O_CREAT, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP, 0);
         
     
     memset(packet, 0, sizeof(packet[0]) * 808 * 2);    // zero out array
@@ -167,24 +171,25 @@ void *shmImageWriter(void *prms)
 
     while (sem_trywait(quitSem) == -1)
     {
-        nUnread = (RINGBUF_SIZE)*(packBuf->nCycles - lastCycle) + (int)packBuf->writeInd - bufReadInd;
+        getRingBufState(packBuf, ringBufResetSem, &nWriteCycles, &bufWriteInd);
+        nUnread = (RINGBUF_SIZE)*(nWriteCycles - lastCycle) + (int)bufWriteInd - bufReadInd;
 
         if((nUnread + 8) < 0){
-            printf("SharedImageWriter: nUnread < 0, unspecified glitch in ring buffer. Have fun! nUnread: %d writeInd: %lu nCycles: %lu\n", nUnread, packBuf->writeInd, packBuf->nCycles);
+            printf("SharedImageWriter: nUnread < 0, unspecified glitch in ring buffer. Have fun! nUnread: %d writeInd: %lu nCycles: %lu\n", nUnread, bufWriteInd, nWriteCycles);
             printf("    bufReadInd: %lu lastCycle %lu\n", bufReadInd, lastCycle);
 
         }
         else if(nUnread > RINGBUF_SIZE){
             printf("SharedImageWriter: Missed %d bytes\n", nUnread - RINGBUF_SIZE);
             nUnread = RINGBUF_SIZE;
-            bufReadInd = (packBuf->writeInd + 8)%RINGBUF_SIZE;
+            bufReadInd = (bufWriteInd + 8)%RINGBUF_SIZE;
             if(bufReadInd % 8 > 0){
                 printf("Misalign in shmImageWriter\n");
                 bufReadInd -= bufReadInd%8;
 
             }
 
-            lastCycle = packBuf->nCycles - 1;
+            lastCycle = nWriteCycles - 1;
 
         }
 
@@ -257,7 +262,7 @@ void *shmImageWriter(void *prms)
                    }
 
                    else
-                       printf("Severe shared mem overflow! lastCycle: %lu, pStartCycle: %lu, nCycles %lu\n", lastCycle, pStartCycle, packBuf->nCycles);
+                       printf("Severe shared mem overflow! lastCycle: %lu, pStartCycle: %lu, nCycles %lu\n", lastCycle, pStartCycle, nWriteCycles);
 
                    prevRoachInd = curRoachInd;
                    curRoachInd = 0;
@@ -369,6 +374,7 @@ void *shmImageWriter(void *prms)
     free(sharedImages);
     free(doneIntegrating);
     sem_close(quitSem);
+    sem_close(ringBufResetSem);
 
     #ifdef _TIMING_TEST
     fclose(timeFile);
@@ -394,6 +400,7 @@ void* reader(void *prms){
     RINGBUFFER *packBuf;
     READER_PARAMS *params;
     sem_t *quitSem;
+    sem_t *ringBufResetSem;
     char streamSemName[80];
     char overFlowBuf[BUFLEN];
 
@@ -404,13 +411,14 @@ void* reader(void *prms){
 
     printf("READER: Connecting to Socket!\n"); fflush(stdout);
 
+    //open semaphores
+    quitSem = sem_open(params->quitSemName, O_CREAT, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP, 0);
+    ringBufResetSem = sem_open(params->ringBufResetSemName, O_CREAT, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP, 0);
+
     packBuf = params->packBuf; //pointer to list of stream buffers, assume this is allocated
     packBuf->writeInd = 0;
     packBuf->nCycles = 0;
-
-    //open semaphores
-    quitSem = sem_open(params->quitSemName, O_CREAT, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP, 0);
-        
+    sem_post(ringBufResetSem);
 
     if ((s=socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP))==-1)
         diep("socket");
@@ -478,8 +486,12 @@ void* reader(void *prms){
             else if(nBytesReceived >= (RINGBUF_SIZE - packBuf->writeInd)){ //We've hit ringbuffer boundary
                 memcpy(packBuf->data + packBuf->writeInd, overFlowBuf, RINGBUF_SIZE - packBuf->writeInd);
                 lastWriteSize = RINGBUF_SIZE - packBuf->writeInd;
+
+                sem_wait(ringBufResetSem);
                 packBuf->writeInd = 0;
                 packBuf->nCycles += 1;
+                sem_post(ringBufResetSem);
+
                 memcpy(packBuf->data + packBuf->writeInd, overFlowBuf + lastWriteSize, 
                         nBytesReceived - lastWriteSize); 
                 packBuf->writeInd += nBytesReceived - lastWriteSize;
@@ -522,8 +534,10 @@ void* reader(void *prms){
             //    printf("READER: RINGBUFFER MEMORY OVERFLOW\n");
             else if((nBytesReceived + packBuf->writeInd) == RINGBUF_SIZE){
                 printf("READER: line 518 shouldn't happen\n");
+                sem_wait(ringBufResetSem);
                 packBuf->writeInd = 0;
                 packBuf->nCycles += 1;
+                sem_post(ringBufResetSem);
 
             }
             else
@@ -550,6 +564,7 @@ void* reader(void *prms){
     close(s);
 
     sem_close(quitSem);
+    sem_close(ringBufResetSem);
 
     printf("Reader closing\n");
 
@@ -570,10 +585,12 @@ void* binWriter(void *prms)
     RINGBUFFER *packBuf;
     uint64_t bufReadInd = 0;
     uint64_t lastCycle = 0;
+    uint64_t bufWriteInd;
+    uint64_t nWriteCycles;
     int nUnread;
     BIN_WRITER_PARAMS *params;
     sem_t *quitSem;
-    sem_t *streamSem;
+    sem_t *ringBufResetSem;
 
     params = (BIN_WRITER_PARAMS*)prms; //cast param struct
     if(params->cpu!=-1)
@@ -586,6 +603,7 @@ void* binWriter(void *prms)
     printf("Rev up the RAID array, WRITER is active!\n");
 
     quitSem = sem_open(params->quitSemName, O_CREAT, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP, 0);
+    ringBufResetSem = sem_open(params->ringBufResetSemName, O_CREAT, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP, 0);
     
     // open shared memory block 1 for photon data
     
@@ -602,8 +620,9 @@ void* binWriter(void *prms)
     while (sem_trywait(quitSem) == -1){
        // keep the shared mem clean!       
        if( mode == 0 ) {
-           bufReadInd = packBuf->writeInd;
-           lastCycle = packBuf->nCycles;
+           getRingBufState(packBuf, ringBufResetSem, &nWriteCycles, &bufWriteInd);
+           bufReadInd = bufWriteInd;
+           lastCycle = nWriteCycles;
 
        }
 
@@ -652,14 +671,16 @@ void* binWriter(void *prms)
              }
 
 	         // write all data in shared memory to disk
-             nUnread = (RINGBUF_SIZE)*(packBuf->nCycles - lastCycle) + (int)packBuf->writeInd - bufReadInd;
+             getRingBufState(packBuf, ringBufResetSem, &nWriteCycles, &bufWriteInd);
+             nUnread = (RINGBUF_SIZE)*(nWriteCycles - lastCycle) + (int)bufWriteInd - bufReadInd;
              if(nUnread < 0)
                  printf("Writer: nUnread < 0, unspecified glitch in ring buffer. Have fun!\n");
              else if(nUnread > RINGBUF_SIZE){
                  printf("Writer: Missed %d bytes\n", nUnread - RINGBUF_SIZE);
                  nUnread = RINGBUF_SIZE;
-                 bufReadInd = (packBuf->writeInd + 1)%RINGBUF_SIZE;
-                 lastCycle = packBuf->nCycles - 1;
+
+                 bufReadInd = (bufWriteInd + 1)%RINGBUF_SIZE;
+                 lastCycle = nWriteCycles - 1;
 
              }
              if(nUnread >= BINWRITER_MINSIZE){
@@ -692,7 +713,7 @@ void* binWriter(void *prms)
     if(wp!=NULL)
 	  fclose(wp);
     sem_close(quitSem);
-    sem_close(streamSem);
+    sem_close(ringBufResetSem);
 
 /*
     clock_gettime(CLOCK_REALTIME, &spec);
@@ -825,6 +846,14 @@ float getWavelength(PHOTON_WORD *photon, WAVECAL_BUFFER *wavecal){
     //printf("%f %f | ", phase, energy);
     return H_TIMES_C/energy;
 
+}
+
+void getRingBufState(RINGBUFFER* packBuf, sem_t *ringBufResetSem, uint64_t *nCycles, uint64_t *writeInd){
+    sem_wait(ringBufResetSem);
+    *nCycles = packBuf->nCycles;
+    *writeInd = packBuf->writeInd;
+    sem_post(ringBufResetSem);
+    
 }
 
 void resetSem(const char *semName){

@@ -22,8 +22,8 @@ LO_IP = '127.0.0.1'
 
 #WARNING: DO NOT USE IF THERE MAY BE MULTIPLE INSTANCES OF PACKETMASTER;
 #         THESE ARE SYSTEM WIDE SEMAPHORES
-STREAM_SEM_BASENAME = 'packetmaster_readoutStreamSem'
 QUIT_SEM_NAME = 'packetmaster_quitSem'
+RINGBUFF_RESET_SEM_NAME = 'packetmaseter_ringbuff'
 
 cdef extern from "<stdint.h>":
     ctypedef unsigned int uint32_t
@@ -41,6 +41,7 @@ cdef extern from "pmthreads.h":
         RINGBUFFER *packBuf;
 
         char quitSemName[80];
+        char ringBufResetSemName[80];
 
         int cpu; #if cpu=-1 then don't maximize priority
     
@@ -51,6 +52,7 @@ cdef extern from "pmthreads.h":
         char writerPath[80];
 
         char quitSemName[80];
+        char ringBufResetSemName[80];
 
         int cpu; 
     
@@ -62,6 +64,7 @@ cdef extern from "pmthreads.h":
         WAVECAL_BUFFER *wavecal; #if NULL don't use wavecal
 
         char quitSemName[80];
+        char ringBufResetSemName[80];
 
         int cpu; #if cpu=-1 then don't maximize priority
     
@@ -70,8 +73,8 @@ cdef extern from "pmthreads.h":
         char bufferName[80];
         WAVECAL_BUFFER *wavecal; #if NULL don't use wavecal
 
-        char quitSemName[80];
-        char streamSemName[80];
+        char quitSemName[80]; 
+        char ringBufResetSemName[80];
 
         int nRows;
         int nCols;
@@ -242,6 +245,12 @@ cdef class Packetmaster(object):
         strcpy(self.eventBuffParams.quitSemName, QUIT_SEM_NAME.encode('UTF-8'))
         strcpy(self.writerParams.quitSemName, QUIT_SEM_NAME.encode('UTF-8'))
         strcpy(self.readerParams.quitSemName, QUIT_SEM_NAME.encode('UTF-8'))
+
+        #INITIALIZE PACKBUF SEM
+        strcpy(self.imageParams.ringBufResetSemName, QUIT_SEM_NAME.encode('UTF-8'))
+        strcpy(self.eventBuffParams.ringBufResetSemName, QUIT_SEM_NAME.encode('UTF-8'))
+        strcpy(self.writerParams.ringBufResetSemName, QUIT_SEM_NAME.encode('UTF-8'))
+        strcpy(self.readerParams.ringBufResetSemName, QUIT_SEM_NAME.encode('UTF-8'))
 
         #SETUP IP FORWARDING
         self.samplicatorProcess = None

@@ -98,6 +98,7 @@ typedef struct{
     int port;
     RINGBUFFER *packBuf;
     char quitSemName[STRBUF];
+    char ringBufResetSemName[STRBUF];
 
     int cpu; //if cpu=-1 then don't maximize priority
 
@@ -108,6 +109,7 @@ typedef struct{
     char writerPath[STRBUF];
     RINGBUFFER *packBuf;
     char quitSemName[STRBUF];
+    char ringBufResetSemName[STRBUF];
 
     int cpu; //if cpu=-1 then don't maximize priority
 
@@ -121,6 +123,7 @@ typedef struct{
     WAVECAL_BUFFER *wavecal; //if NULL don't use wavecal
 
     char quitSemName[STRBUF];
+    char ringBufResetSemName[STRBUF];
 
     int cpu; //if cpu=-1 then don't maximize priority
     
@@ -132,7 +135,7 @@ typedef struct{
     WAVECAL_BUFFER *wavecal; //if NULL don't use wavecal
 
     char quitSemName[STRBUF];
-    char streamSemName[STRBUF];
+    char ringBufResetSemName[STRBUF];
 
     int nRows;
     int nCols;
@@ -166,4 +169,5 @@ int startEventBuffWriterThread(EVENT_BUFF_WRITER_PARAMS *rparams, THREAD_PARAMS 
 void quitAllThreads(const char *quitSemName, int nThreads);
 void resetSem(const char *quitSemName);
 float getWavelength(PHOTON_WORD *photon, WAVECAL_BUFFER *wavecal);
+void getRingBufState(RINGBUFFER* packBuf, sem_t *ringBufResetSem, uint64_t *nCycles, uint64_t *writeInd);
 void diep(char *s);
