@@ -97,6 +97,9 @@ def makeWPSMap(modelDir, freqSweep, freqStep=None, attenClip=0):
     if N_CPU > 1:
         pool.close()
 
+    tf.reset_default_graph()
+    sess.close()
+
     return wpsImage, freqs, attens
 
 
@@ -194,7 +197,7 @@ def findResonators(wpsmap, freqs, attens, peakThresh=0.97, minPeakDist=40.e3, nR
 
     return resFreqs, resAttens, scores
 
-def prominenceCut(wpsmap, resCoords, minThresh=0.88):
+def prominenceCut(wpsmap, resCoords, minThresh=0.75):
     freqSortedInds = np.argsort(resCoords[:,1])
     resCoords = resCoords[freqSortedInds]
     valleys = np.zeros(len(resCoords))
