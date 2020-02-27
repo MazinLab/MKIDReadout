@@ -281,6 +281,7 @@ cdef class Packetmaster(object):
         self.threads = <THREAD_PARAMS*>malloc((self.nThreads)*sizeof(THREAD_PARAMS))
 
         resetSem(QUIT_SEM_NAME.encode('UTF-8'))
+        resetSem(RINGBUF_RESET_SEM_NAME.encode('UTF-8'))
         startReaderThread(&(self.readerParams), &(self.threads[0]))
         threadNum = 1
         print 'starting shared image thread'
