@@ -126,7 +126,7 @@ def addResMagToWPSMap(wpsDict, freqSweep, outFile, freqWinSize=30, nRes=1500):
     wpsDict['wpsmap'] = np.dstack((wpsDict['wpsmap'], resMags))
     np.savez(outFile, **wpsDict)
 
-def findResonators(wpsmap, freqs, attens, peakThresh=0.97, minPeakDist=40.e3, nRes=None, attenGrad=0, resMagCut=False):
+def findResonators(wpsmap, freqs, attens, prominenceThresh=0.85, peakThresh=0.97, minPeakDist=40.e3, nRes=None, attenGrad=0, resMagCut=False):
     """
     Finds resonators using ML classification map outputted by neural net inference. Returns at most nRes peaks (resonators) that
     have ML classification score above peakThresh. If resMagCut is true, then returns the nRes peaks above peakThresh with 
@@ -158,7 +158,7 @@ def findResonators(wpsmap, freqs, attens, peakThresh=0.97, minPeakDist=40.e3, nR
         if nRes is None:
             raise Exception('Must specify number of resonators to use loop size cut')
         resCoords = skf.peak_local_max(wpsmap[:,:,0], min_distance=minPeakDist, threshold_abs=peakThresh, exclude_border=False)
-        resCoords = prominenceCut(wpsmap, resCoords)
+        resCoords = prominenceCut(wpsmap, resCoords, prominenceThresh)
         resMags = np.zeros(len(resCoords))
         print 'Found', len(resCoords), 'peaks above', peakThresh
         for i in range(len(resMags)):
@@ -172,7 +172,7 @@ def findResonators(wpsmap, freqs, attens, peakThresh=0.97, minPeakDist=40.e3, nR
 
     elif nRes is not None:
         resCoords = skf.peak_local_max(wpsmap[:,:,0], min_distance=minPeakDist, threshold_abs=peakThresh, num_peaks=nRes, exclude_border=False)
-        resCoords = prominenceCut(wpsmap, resCoords)
+        resCoords = prominenceCut(wpsmap, resCoords, prominenceThresh)
         #if len(resCoords) < nRes:
         #    nRes += nRes - len(resCoords)
         #    print 'Running peak seearch again with', nRes, 'resonators'
@@ -271,7 +271,8 @@ if __name__=='__main__':
     parser.add_argument('-o', '--metadata', default=None, help='Output metadata file')
     parser.add_argument('-s', '--save-wpsmap', action='store_true', help='Save npz file containing raw ML convolution output')
     parser.add_argument('-r', '--remake-wpsmap', action='store_true', help='Regenerate wps map file')
-    parser.add_argument('-t', '--peak-thresh', type=float, default=0.95, help='Minimum res value in WPS map (between 0 and 1)')
+    parser.add_argument('-t', '--peak-thresh', type=float, default=0.9, help='Minimum res value in WPS map (between 0 and 1)')
+    parser.add_argument('-pr', '--prominence-thresh', type=float, default=0.85, help='Prevent double counting resonators by cutting shallow valleys')
     parser.add_argument('-n', '--n-res', type=int, default=None, help='Target number of resonators')
     parser.add_argument('-b', '--atten-bias', type=float, default=0., help='Apply linear bias to atten dim of wpsmap')
     parser.add_argument('-m', '--use-mag', action='store_true', help='Select N_RES resonators above peakThresh with largest loop size')
@@ -302,8 +303,8 @@ if __name__=='__main__':
         freqs = f['freqs']
         attens = f['attens']
 
-    resFreqs, resAttens, scores = findResonators(wpsmap, freqs, attens, peakThresh=args.peak_thresh, 
-            nRes=args.n_res, attenGrad=args.atten_bias, resMagCut=args.use_mag)
+    resFreqs, resAttens, scores = findResonators(wpsmap, freqs, attens, prominenceThresh=args.prominence_thresh, 
+            peakThresh=args.peak_thresh, nRes=args.n_res, attenGrad=args.atten_bias, resMagCut=args.use_mag)
 
     if resFreqs[0] < 4.7e9:
         band = 'a'
