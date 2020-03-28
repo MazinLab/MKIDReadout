@@ -8,7 +8,7 @@ import tools as mlt
 import tools as mlt
 from PSFitMLData import PSFitMLData
 from mkidcore.corelog import getLogger
-from mkidreadout.configuration.powersweep.psmldata import MLData
+import mkidreadout.configuration.sweepdata as sd
 
 
 class diagnostics():
@@ -16,84 +16,34 @@ class diagnostics():
         if psDataFileName is not None:
             if psDataFileName.split('.')[1] == 'npz':
                 assert os.path.isfile(metadataFn), 'Must resonator metadata file'
-                self.inferenceData = MLData(psDataFileName, metadataFn)
+                self.sweep = sd.FreqSweep(psDataFileName, metadataFn)
             else:
                 raise Exception(psDataFileName + ' is not a valid format')
 
-        # if mlDict['scaleXWidth']!= 1:
-        #     mlDict['xWidth']=mlDict['xWidth']*mlDict['scaleXWidth'] #reset ready for get_PS_data
-
-            total_res_nums = np.shape(self.inferenceData.freqs)[0]
-            res_nums = total_res_nums
-            span = range(res_nums)
-            self.inferenceData.opt_attens = np.zeros((res_nums))
-            self.inferenceData.opt_freqs = np.zeros((res_nums))
-            self.inferenceData.scores = np.zeros((res_nums))
+        if metadataFn is not None:
+            self.metadata = sd.SweepMetadata(file=metadataFn)
 
         self.mlDict, self.sess, self.graph, self.x_input, self.y_output, self.keep_prob, self.is_training = mlt.get_ml_model(modelDir)
-        inferenceLabels = np.zeros((res_nums, self.mlDict['nAttens']))
-        #print [n.name for n in tf.get_default_graph().as_graph_def().node]
-        self.meanImage = tf.get_collection('meanTrainImage')[0].eval(session=self.sess)
 
+    def getImage(self, freq, atten):
+        image, _, _  = mlt.makeWPSImageList(self.sweep, freq, atten, self.mlDict['freqWinSize'],
+                                        self.mlDict['attenWinAbove']+self.mlDict['attenWinBelow']+1, self.mlDict['useIQV'], 
+                                        self.mlDict['useVectIQV'], self.mlDict['normalizeBeforeCenter'], False)[0]
 
-        if wsAtten is None:
-            wsAtten = self.mlDict['wsAtten']
-            getLogger(__name__).warning('No WS atten specified; using value of ', str(wsAtten), 
-                                ' from training config')
-        else:
-            self.wsAtten = wsAtten
+        return image
 
-        if psDataFileName is not None:
-            self.wsAttenInd = np.argmin(np.abs(self.inferenceData.attens - wsAtten))
-
-        if resWidth is None:
-            self.resWidth = self.mlDict['resWidth']
-        else:
-            self.resWidth = resWidth
-
-       
-        #if mlBadDict is not None:
-        #    modelBadPath = os.path.join(mlBadDict['modelDir'], mlBadDict['modelName']) + '.meta'
-        #    print 'Loading badscore model from', modelBadPath
-
-        #    sess_bad = tf.Session()
-        #    saver_bad = tf.train.import_meta_graph(modelBadPath)
-        #    saver_bad.restore(sess_bad, tf.train.latest_checkpoint(mlBadDict['modelDir']))
-
-        #    graph = tf.get_default_graph()
-        #    x_input_bad = graph.get_tensor_by_name('inputImage:0')
-        #    y_output_bad = graph.get_tensor_by_name('outputLabel:0')
-        #    keep_prob_bad = graph.get_tensor_by_name('keepProb:0')
-        #    useBadScores = True
-
-        #else:
-        #    useBadScores = False
-
-    def getImage(self, res_num):
-        if res_num==-1:
-            iqv = None
-            mags = None
-            if self.mlDict['useIQV']:
-                iqv = self.meanImage[:,:,2]
-            if self.mlDict['useMag']:
-                mags = self.meanImage[:,:,3]
-                
-            return self.meanImage, np.tile(np.arange(self.meanImage.shape[1]), (self.meanImage.shape[0],1)), np.arange(self.meanImage.shape[0]), iqv, mags
-        else: 
-            image, freqCube, attenList, iqv, mags = mlt.makeResImage(res_num, self.inferenceData, self.wsAttenInd, self.mlDict['xWidth'],
-                                            self.resWidth, self.mlDict['padResWin'], self.mlDict['useIQV'], self.mlDict['useMag'],
-                                            self.mlDict['centerLoop'], self.mlDict['nAttens'])
-            image -= self.meanImage
-
-        return image, freqCube, attenList, iqv, mags
-
-    def getActivations(self, res_num):
-        image, _, _, _, _ = self.getImage(res_num)
+    def getActivations(self, freq, atten):
+        image = self.getImage(freq, atten)
         inferenceLabels = self.sess.run(self.y_output, feed_dict={self.x_input: [image], self.keep_prob: 1, self.is_training: False})
         return inferenceLabels[0]
 
     def getWeights(self, layer=1):
-        image, _, _, _, _ = self.getImage(0)
+        nColors = 2
+        if self.mlDict['useIQV']:
+            nColors += 1
+        if self.mlDict['useVectIQV']:
+            nColors += 1
+        image = np.zeros((self.mlDict['attenWinAbove']+self.mlDict['attenWinBelow']+1, self.mlDict['freqWinSize'], nColors))
         weightTensor = self.graph.get_tensor_by_name('Layer' + str(layer) + '/W_conv' + str(layer) + ':0')
         return np.array(self.sess.run(weightTensor, feed_dict={self.x_input: [image], self.keep_prob: 1, self.is_training: False}))
 
@@ -102,14 +52,17 @@ class diagnostics():
         weights = self.getWeights(1)
         nrows = int(np.floor(np.sqrt(weights.shape[3])))
         ncols = int(np.ceil(np.sqrt(weights.shape[3])))
+        vmin = np.min(weights)
+        vmax = np.max(weights)
+        layerLabels = ['I', 'Q', 'IQV', 'vect IQV']
         for inChan in range(weights.shape[2]):
             inChanWeights = weights[:,:,inChan,:]
             fig, axes = plt.subplots(nrows=nrows, ncols=ncols)
-            axes[0, 0].set_title(inChan)
+            axes[0, 0].set_title(layerLabels[inChan])
             for outChan in range(weights.shape[3]):
                 y = outChan/ncols
                 x = outChan%ncols
-                axes[y,x].imshow(inChanWeights[:,:,x+y*ncols])
+                axes[y,x].imshow(inChanWeights[:,:,x+y*ncols], vmin=vmin, vmax=vmax)
             
 
 
