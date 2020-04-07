@@ -82,12 +82,12 @@ def calcRoomTempNoise(inputPower, adcAtten0, adcAtten1, temp=290., rtAmpNT=438.4
     bw = 2.e9 #Hz
     splitterLoss = 4 #dB
     rtNoise = 4*1.38065E-023*temp*bw*1000 #milliwatts
-    rtAmpNoise = 4*1.38065E-023*(temp + rtAmpNT)*bw*1000
+    rtAmpNoise = 4*1.38065E-023*(rtAmpNT)*bw*1000
 
     tonePowerDB = inputPower - splitterLoss
     
     #first amplifier
-    noise = rtAmpGain*rtAmpNoise
+    noise = rtAmpGain*(rtAmpNoise + rtNoise)
     tonePowerDB += rtAmpGainDB
     print 'firstAmp:', 10*np.log10(noise)
 
@@ -97,6 +97,8 @@ def calcRoomTempNoise(inputPower, adcAtten0, adcAtten1, temp=290., rtAmpNT=438.4
     print 'firstAmp:', 10*np.log10(noise)
 
     #second amplifier
+    #NOTE: I think I might be adding rtNoise twice; since I add it above as well as a term in rtAmpNoise;
+    # might explain 1-2 dB discrepancy in plots...
     noise += rtAmpNoise 
     noise *= rtAmpGain
     tonePowerDB += rtAmpGainDB
