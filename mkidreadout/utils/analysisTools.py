@@ -54,7 +54,7 @@ def batchFitPhaseNoiseDir(dir, removePhaseWraps=True):
     for i,f in enumerate(fileList):
         data = np.load(os.path.join(dir, f))['arr_0']
         if removePhaseWraps:
-            if np.any(np.abs(np.diff(data))>=2*np.pi)
+            if np.any(np.abs(np.diff(data))>=2*np.pi):
                 spectList[i] = np.nan
                 fitList[i] = np.nan
                 fitCovList[i] = np.nan
@@ -137,4 +137,17 @@ def calcRoomTempNoise(inputPower, adcAtten0, adcAtten1, temp=290., rtAmpNT=438.4
     return 10*np.log10(relNoise)
     
 
+def calcHEMTNoise(inputPower, hemtGain=40, hemtNT=2.4): 
+    """
+    parameters
+    ----------
+        inputPower - in dBm
+        adcAtten0 - dB
+        adcAtten1 - dB
+    """
+    bw = 2.e9 #Hz
+    noise = 4*1.38065E-023*temp*bw*1000 #milliwatts
+
+    relNoise = noise/(2*bw*10**(inputPower/10.))
+    return 10*np.log10(relNoise)
 
