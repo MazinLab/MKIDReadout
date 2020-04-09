@@ -146,7 +146,7 @@ def calcHEMTNoise(inputPower, hemtGain=40, hemtNT=2.4):
         adcAtten1 - dB
     """
     bw = 2.e9 #Hz
-    noise = 4*1.38065E-023*temp*bw*1000 #milliwatts
+    noise = 4*10**(hemtGain/10)*1.38065E-023*hemtNT*bw*1000 #milliwatts
 
     relNoise = noise/(2*bw*10**(inputPower/10.))
     return 10*np.log10(relNoise)
