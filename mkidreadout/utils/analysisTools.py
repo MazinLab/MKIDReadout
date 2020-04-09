@@ -45,7 +45,7 @@ def plotFittedSpectrum(data, fftlen=65536, dt=256./250e6):
     f, s, po, _ = fitPhaseNoiseSpectrum(data, fftlen, dt)
     plt.semilogx(f, 10*np.log10(s)); plt.semilogx(f,10*np.log10(po[0] + po[1]/f)); plt.show()
 
-def batchFitPhaseNoiseDir(dir):
+def batchFitPhaseNoiseDir(dir, removePhaseWraps=True):
     fileList = os.listdir(dir)
     freqs, spect = getPhaseNoiseSpectrum(np.load(os.path.join(dir, fileList[0]))['arr_0'])
     fitList = np.zeros((len(fileList), 2))
@@ -53,10 +53,17 @@ def batchFitPhaseNoiseDir(dir):
     fitCovList = np.zeros((len(fileList), 2, 2))
     for i,f in enumerate(fileList):
         data = np.load(os.path.join(dir, f))['arr_0']
+        if removePhaseWraps:
+            if np.any(np.abs(np.diff(data))>=2*np.pi)
+                spectList[i] = np.nan
+                fitList[i] = np.nan
+                fitCovList[i] = np.nan
+                continue
         _, spect, popt, pcov = fitPhaseNoiseSpectrum(data)
         spectList[i] = spect
         fitList[i] = popt
         fitCovList[i] = pcov
+    
 
     return spectList, fitList, fitCovList
 
