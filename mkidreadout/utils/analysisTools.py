@@ -1,6 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import scipy.optimize as spo
+import scipy.signal as signal
 import os
 
 def getPhaseNoiseSpectrum(data, convertToDB=True, fftlen=65536, dt=256./250e6):
@@ -75,6 +76,34 @@ def plotNoiseFloors(popt, freqs=None):
         plt.xlabel('Frequency (Hz)')
 
     plt.ylabel('Phase Noise Floor (dBc/Hz)')
+
+def getSpurNoisePower(freqs, spect, lf, hf, spurHalfWin=2, spurThresh=-88):
+    """
+    spect is NOT in dB
+    lf and hf are freq bounds in Hz
+    """
+    lfInd = np.argmin(np.abs(freqs-lf))
+    hfInd = np.argmin(np.abs(freqs-hf))
+    spectInBand = spect[lfInd:hfInd]
+    spectDBInBand = 10*np.log10(spectInBand)
+    freqsInBand = freqs[lfInd:hfInd]
+    df = freqsInBand[1] - freqsInBand[0]
+
+    totalPower = np.sum(spectInBand)*df
+    
+    peakInds = signal.find_peaks(spectDBInBand, height=spurThresh)
+    peakMask = np.zeros(len(spectInBand), dtype=np.bool)
+    peakMask[peakInds] = True
+    for i in range(spurHalfWin):
+        peakMask |= np.roll(peakMask, i+1)
+        peakMask |= np.roll(peakMask, -i-1)
+
+    spurPower = np.sum(spectInBand[peakMask])*df
+
+    return spurPower, totalPower, peakInds + lfInd #return peakInds wrt full spectrum
+
+
+    
 
 def calcRoomTempNoise(inputPower, adcAtten0, adcAtten1, temp=290., rtAmpNT=438.4): 
     """
