@@ -91,7 +91,7 @@ def getSpurNoisePower(freqs, spect, lf, hf, spurHalfWin=2, spurThresh=-88):
 
     totalPower = np.sum(spectInBand)*df
     
-    peakInds = signal.find_peaks(spectDBInBand, height=spurThresh)
+    peakInds, _ = signal.find_peaks(spectDBInBand, height=spurThresh)
     peakMask = np.zeros(len(spectInBand), dtype=np.bool)
     peakMask[peakInds] = True
     for i in range(spurHalfWin):
