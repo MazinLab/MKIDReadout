@@ -120,7 +120,7 @@ def _linear1(t, a, t0, rise_time, fall_time, xqp0):
     dtr = rise_time - fall_time
     arg0 = -(t - t0) / fall_time
 
-    p = -a * (
+    p = a * (
             (t - t0) * np.exp(arg0) / fall_time +  # zeroth order
             dtr / fall_time * (  # first order in dtr / fall_time
                 (t - t0) * (t - t0 - 2 * fall_time) * np.exp(arg0) / (2 * fall_time**2)
@@ -141,7 +141,7 @@ def _linear2(t, a, t0, rise_time, fall_time, xqp0):
     dtr = rise_time - fall_time / 2
     arg0 = -(t - t0) / fall_time
 
-    p = -a * (
+    p = a * (
         2 * (np.exp(arg0) - np.exp(2 * arg0)) +  # zeroth order
         dtr / fall_time * (  # first order in dtr / fall_time
             4 * (np.exp(arg0) - np.exp(2 * arg0)) - 8 * (t - t0) * np.exp(2 * arg0) / fall_time
@@ -161,7 +161,7 @@ def _linear3(t, a, t0, rise_time, fall_time, xqp0):
     arg0 = -(t - t0) / max(EPS, fall_time)
     arg1 = -(t - t0) / max(EPS, rise_time)
 
-    p = -a * fall_time / max(EPS, fall_time - rise_time, key=abs) * (
+    p = a * fall_time / max(EPS, fall_time - rise_time, key=abs) * (
             np.exp(arg0) - np.exp(arg1) -  # zeroth order
             xqp0 / max(EPS, fall_time - 2 * rise_time, key=abs) * (  # first order
                 np.exp(arg0) * (fall_time - 2 * rise_time) + np.exp(arg1) * rise_time +
@@ -207,7 +207,7 @@ def _nonlinear(t, a, t0, rise_time, fall_time, xqp0):
         arg2 = (xqp0 + 1) / max(EPS, xqp0)
         arg3 = (t - t0) / max(EPS, fall_time)
 
-        p = -a / xqp0 * (
+        p = a / xqp0 * (
             np.exp(arg0) * hyp2f1(1, arg1, arg1 + 1, arg2) -
             hyp2f1(1, arg1, arg1 + 1, arg2 * np.exp(arg3))
         ).real
