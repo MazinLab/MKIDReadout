@@ -32,7 +32,6 @@ dependencies:
   - parse
 #optional
   - mpmath
-  - python-flint
   - blas
   - openblas
   - opencv>=3
