@@ -31,6 +31,19 @@ def getPhaseNoiseSpectrum(data, convertToDB=True, fftlen=65536, dt=256./250e6):
     # noiseFreqs, noiseData = scipy.signal.welch(data, fs=1/dt, return_onesided=True, nperseg=fftlen)
     #has hanning window (boxcar gives almost the same thing, looks a bit smoother
 
+def getTemplateSpectrum(optFiltSol, resNum, fftLen, convertToDB=True, dt=256/250.e6):
+    template = optFiltSol.calculators[resNum].result['template']
+    if len(template) > fftLen:
+        template = template[:fftLen]
+    elif len(template) < fftLen:
+        template = np.pad(template, (0, fftLen-len(template)), 'edge')
+    templateFFT = np.fft.rfft(template)
+    freqs = np.fft.fftfreq(fftLen, d=dt)
+    templatePSD = np.abs(templateFFT)**2
+    if convertToDB:
+        templatePSD = 10*np.log10(templatePSD)
+    return freqs, templatePSD
+
 def fitPhaseNoiseSpectrum(data, fftlen=65536, dt=256./250e6):
     freqs, spect = getPhaseNoiseSpectrum(data, False, fftlen, dt)
 
