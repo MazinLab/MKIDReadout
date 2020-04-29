@@ -47,6 +47,21 @@ def getTemplateSpectrum(optFiltSol, resNum, fftLen, convertToDB=True, meanSubtra
         templatePSD = 10*np.log10(templatePSD)
     return freqs, templatePSD
 
+def computeOptimalFilter(template, noisePSDFreqs, noisePSD, optFiltLen=50):
+    """
+    noisePSD is single sided
+    """
+    fftLen = len(noisePSD)
+    if len(template) > fftLen:
+        template = template[:fftLen]
+    elif len(template) < fftLen:
+        template = np.pad(template, (0, fftLen-len(template)), 'edge')
+    templateFFT = np.fft.rfft(template)
+    optFiltFFT = np.conj(templateFFT)/noisePSD
+    optFilt = np.fft.irfft(optFiltFFT)
+    return optFilt
+
+
 def fitPhaseNoiseSpectrum(data, fftlen=65536, dt=256./250e6):
     freqs, spect = getPhaseNoiseSpectrum(data, False, fftlen, dt)
 
