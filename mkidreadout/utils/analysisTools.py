@@ -37,7 +37,10 @@ def getTemplateSpectrum(optFiltSol, resNum, fftLen, convertToDB=True, meanSubtra
     if len(template) > fftLen:
         template = template[:fftLen]
     elif len(template) < fftLen:
-        template = np.pad(template, (0, fftLen-len(template)), 'edge')
+        if key=='template':
+            template = np.pad(template, (0, fftLen-len(template)), 'edge')
+        else: 
+            template = np.pad(template, (0, fftLen-len(template)), 'constant', constant_values=0)
     if meanSubtract:
         template -= np.mean(template)
     templateFFT = np.fft.rfft(template)
