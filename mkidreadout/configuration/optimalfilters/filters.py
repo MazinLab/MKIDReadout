@@ -60,7 +60,7 @@ def wiener(*args, **kwargs):
     """
     # collect inputs
     template, psd = args[0], args[1]
-    ntemplate = 2 * psd.size // 3
+    ntemplate = min(2 * psd.size // 3, len(template))
     nfilter = kwargs.get("nfilter", ntemplate)
     cutoff = kwargs.get("cutoff", False)
     fft = kwargs.get("fft", False)
@@ -73,7 +73,7 @@ def wiener(*args, **kwargs):
     else:  # compute filter in the time domain
         # only use the first third of the covariance matrix since computing from the PSD assumes periodicity
         if ntemplate < nfilter:
-            raise ValueError("psd must be at least 1.5x the size of nfilter")
+            raise ValueError("nfilter must be less then the template length and smaller than 2 / 3 the psd size")
         covariance = utils.covariance_from_psd(psd, size=ntemplate)
         template = template[:ntemplate]
         filter_ = np.linalg.solve(covariance, template)[::-1]
@@ -116,7 +116,7 @@ def dc_orthogonal(*args, **kwargs):
     """
     # collect inputs
     template, psd = args[0], args[1]
-    ntemplate = 2 * psd.size // 3
+    ntemplate = min(2 * psd.size // 3, len(template))
     nfilter = kwargs.get("nfilter", ntemplate)
     cutoff = kwargs.get("cutoff", False)
     fft = kwargs.get("fft", False)
@@ -129,7 +129,7 @@ def dc_orthogonal(*args, **kwargs):
     else:  # compute filter in the time domain
         # only use the first third of the covariance matrix since computing from the PSD assumes periodicity
         if ntemplate < nfilter:
-            raise ValueError("psd must be at least 1.5x the size of nfilter")
+            raise ValueError("nfilter must be less then the template length and smaller than 2 / 3 the psd size")
         covariance = utils.covariance_from_psd(psd, size=ntemplate)
         template = template[:ntemplate]
         vbar = np.vstack((template, np.ones_like(template))).T  # DC orthogonality vector
