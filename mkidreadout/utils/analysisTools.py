@@ -50,19 +50,42 @@ def getTemplateSpectrum(optFiltSol, resNum, fftLen, convertToDB=True, meanSubtra
         templatePSD = 10*np.log10(templatePSD)
     return freqs, templatePSD
 
-def computeOptimalFilter(template, noisePSDFreqs, noisePSD, optFiltLen=50):
+def computeOptimalFilter(template, noisePSDFreqs, noisePSD, optFiltLen=50, fftLen=65536, cutoffFreq=100.e3):
     """
-    noisePSD is single sided
+    noisePSD is single sided, NOT in dB
+    fftLen is length of full (positive and negative freq) FFT
+    cutoffFreq - cut off filter at 100 kHz b/c noise rolls off aggressively here
     """
-    fftLen = len(noisePSD)
     if len(template) > fftLen:
         template = template[:fftLen]
     elif len(template) < fftLen:
         template = np.pad(template, (0, fftLen-len(template)), 'edge')
     templateFFT = np.fft.rfft(template)
     optFiltFFT = np.conj(templateFFT)/noisePSD
+    cutoffInd = np.argmin(np.abs(noisePSDFreqs - cutoffFreq))
+    optFiltFFT[cutoffInd:] = 0
     optFilt = np.fft.irfft(optFiltFFT)
-    return optFilt
+    optFilt[:-optFiltLen] = 0 #make filter only optFiltLen taps
+    optFiltFFT = np.fft.rfft(optFilt)
+    return optFilt, optFiltFFT
+
+def computePulseVariance(template, noisePSDFreqs, noisePSD, removeNoiseSpurs=False, optFiltLen=50, fftLen=65536):
+    """
+    noisePSD is single sided, NOT in dB
+    fftLen is length of full (positive and negative freq) FFT
+    """
+    noisePSD[0] = noisePSD[1] #get rid of 0 freq bin
+    df = noisePSDFreqs[1] - noisePSDFreqs[0]
+    if removeNoiseSpurs:
+        noisePSD = removeSpurs(noisePSDFreqs, noisePSD, 100, 300.e3, -90)
+    optFilt, optFiltFFT = computeOptimalFilter(template, noisePSDFreqs, noisePSD, optFiltLen, fftLen)
+    if len(template) > fftLen:
+        template = template[:fftLen]
+    elif len(template) < fftLen:
+        template = np.pad(template, (0, fftLen-len(template)), 'edge')
+    templateFFT = np.fft.rfft(template)
+    return 1/np.sum(template*optFilt[::-1]), np.abs(1/np.sum(df*optFiltFFT*templateFFT))
+    
 
 
 def fitPhaseNoiseSpectrum(data, fftlen=65536, dt=256./250e6):
@@ -111,7 +134,35 @@ def plotNoiseFloors(popt, freqs=None):
 
     plt.ylabel('Phase Noise Floor (dBc/Hz)')
 
-def getSpurNoisePower(freqs, spect, lf, hf, spurHalfWin=2, spurThresh=-88):
+def getSpurMask(spectDB, spurHalfWin, spurThresh):
+    peakInds, _ = signal.find_peaks(spectDB, height=spurThresh)
+    peakMask = np.zeros(len(spectDB), dtype=np.bool)
+    peakMask[peakInds] = True
+    for i in range(spurHalfWin):
+        peakMask |= np.roll(peakMask, i+1)
+        peakMask |= np.roll(peakMask, -i-1)
+
+    return peakInds, peakMask
+
+def removeSpurs(freqs, spect, lf, hf, spurThresh=-88):
+    lfInd = np.argmin(np.abs(freqs-lf))
+    hfInd = np.argmin(np.abs(freqs-hf))
+    spectInBand = spect[lfInd:hfInd]
+    spectDBInBand = 10*np.log10(spectInBand)
+    freqsInBand = freqs[lfInd:hfInd]
+    spect = np.array(spect)
+
+    peakInds, _ = getSpurMask(spectDBInBand, 1, spurThresh)
+    peakInds += lfInd
+    peakValInds = peakInds + 20
+    spect[peakInds] = spect[peakValInds]
+    for i in range(20):
+        spect[peakInds + i] = spect[peakValInds]
+        spect[peakInds - i] = spect[peakValInds]
+    return spect
+    
+
+def getSpurNoisePower(freqs, spect, lf, hf, spurHalfWin=2, spurThresh=-88, spectWeights=None):
     """
     spect is NOT in dB
     lf and hf are freq bounds in Hz
@@ -123,16 +174,16 @@ def getSpurNoisePower(freqs, spect, lf, hf, spurHalfWin=2, spurThresh=-88):
     freqsInBand = freqs[lfInd:hfInd]
     df = freqsInBand[1] - freqsInBand[0]
 
-    totalPower = np.sum(spectInBand)*df
     
-    peakInds, _ = signal.find_peaks(spectDBInBand, height=spurThresh)
-    peakMask = np.zeros(len(spectInBand), dtype=np.bool)
-    peakMask[peakInds] = True
-    for i in range(spurHalfWin):
-        peakMask |= np.roll(peakMask, i+1)
-        peakMask |= np.roll(peakMask, -i-1)
+    peakInds, peakMask = getSpurMask(spectDBInBand, spurHalfWin, spurThresh)
+    if spectWeights is not None:
+        spectWeightsInBand = spectWeights[lfInd:hfInd]
+        totalPower = np.sum(spectInBand*spectWeightsInBand)*df
+        spurPower = np.sum(spectInBand[peakMask]*spectWeightsInBand[peakMask])*df
 
-    spurPower = np.sum(spectInBand[peakMask])*df
+    else: 
+        spurPower = np.sum(spectInBand[peakMask])*df
+        totalPower = np.sum(spectInBand)*df
 
     return spurPower, totalPower, peakInds + lfInd #return peakInds wrt full spectrum
 
