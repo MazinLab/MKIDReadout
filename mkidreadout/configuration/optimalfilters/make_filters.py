@@ -436,6 +436,7 @@ class Calculator(object):
         filter_ = getattr(filter_functions, filter_type)(
             self.result["template"],
             self.result["psd"],
+            cfg.nwindow,
             nfilter=cfg.nfilter,
             cutoff=self.cfg.template.cutoff
         )
