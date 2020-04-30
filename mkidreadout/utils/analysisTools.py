@@ -59,12 +59,13 @@ def computeOptimalFilter(template, noisePSDFreqs, noisePSD, optFiltLen=50, fftLe
     if len(template) > fftLen:
         template = template[:fftLen]
     elif len(template) < fftLen:
-        template = np.pad(template, (0, fftLen-len(template)), 'edge')
+        template = np.pad(template, (0, fftLen-len(template)), 'constant', constant_values=0)
     templateFFT = np.fft.rfft(template)
     optFiltFFT = np.conj(templateFFT)/noisePSD
     cutoffInd = np.argmin(np.abs(noisePSDFreqs - cutoffFreq))
     optFiltFFT[cutoffInd:] = 0
     optFilt = np.fft.irfft(optFiltFFT)
+    optFilt = np.roll(optFilt, -1) #put t=0 in the right place
     optFilt[:-optFiltLen] = 0 #make filter only optFiltLen taps
     optFiltFFT = np.fft.rfft(optFilt)
     return optFilt, optFiltFFT
