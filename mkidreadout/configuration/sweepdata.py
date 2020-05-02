@@ -1,9 +1,13 @@
 import matplotlib.pyplot as plt
 import numpy as np
-import os, glob, parse
 
 from mkidcore.corelog import getLogger
-from mkidcore.objects import Beammap
+try:
+    import glob, parse
+except ImportError:
+    getLogger(__name__).warning('Could not find glob/parse modules')
+
+#from mkidcore.objects import Beammap
 from mkidreadout.configuration.beammap.flags import beamMapFlags
 
 # flags
@@ -443,7 +447,7 @@ def getSweepFiles(sweepFilePat, mdFilePat):
         for i, mdFile in enumerate(mdFiles):
             mdParamDict = parse.parse(mdFmt, mdFile).named
             for mdKey, mdVal in mdParamDict.items():
-                if sweepParamDict.has_key(mdKey):
+                if mdKey in sweepParamDict:
                     if sweepParamDict[mdKey] != mdVal:
                         mdMatchesSweep[i] = False #make sure all overlapping keys match
 
@@ -456,11 +460,11 @@ def getSweepFiles(sweepFilePat, mdFilePat):
         matchingMD = mdFiles[mdMatchesSweep][0]
         mdParamDict = parse.parse(mdFmt, matchingMD).named
         sweepParamDict.update(mdParamDict)
-        if not sweepParamDict.has_key('roach'):
+        if not 'roach' in sweepParamDict:
             sweepParamDict['roach'] = '???'
-        if not sweepParamDict.has_key('feedline'):
+        if not 'feedline' in sweepParamDict:
             sweepParamDict['feedline'] = '?'
-        if not sweepParamDict.has_key('range'):
+        if not 'range' in sweepParamDict:
             sweepParamDict['range'] = '?'
         paramDicts.append(sweepParamDict)
         mdFilesOrdered.append(matchingMD)
