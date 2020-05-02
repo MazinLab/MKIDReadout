@@ -16,6 +16,7 @@ if __name__=='__main__':
     parser.add_argument('-w', '--window', type=int, default=100)
     parser.add_argument('-t', '--threshold', type=float, default=0)
     parser.add_argument('--sat', action='store_true')
+    parser.add_argument('--up', action='store_true')
     parser.add_argument('--mag', action='store_true')
     parser.add_argument('--image', action='store_true')
     args = parser.parse_args()
@@ -26,6 +27,8 @@ if __name__=='__main__':
         print freqInd
         if args.sat:
             plt.imshow(wpsdata['wpsmap'][:, freqInd-args.window/2:freqInd+args.window/2, 1], vmin=args.threshold)
+        elif args.up:
+            plt.imshow(wpsdata['wpsmap'][:, freqInd-args.window/2:freqInd+args.window/2, 2], vmin=args.threshold)
         elif args.mag: 
             plt.imshow(wpsdata['wpsmap'][:, freqInd-args.window/2:freqInd+args.window/2, -1], vmin=args.threshold)
         else:
@@ -47,13 +50,15 @@ if __name__=='__main__':
         ax1 = fig1.add_subplot(111)
 
         if args.model is None:
-            image, _, _, _ = mlt.makeWPSImage(freqSweep, args.freq, args.atten, 30, 7, True, False,
-                    normalizeBeforeCenter=True)
+            #image = mlt.makeWPSImageList(freqSweep, args.freq, args.atten, 30, 7, True, False,
+            #        normalizeBeforeCenter=True)[0][0]
+            image = mlt.makeWPSImage(freqSweep, args.freq, args.atten, 30, 7, True, False,
+                    normalizeBeforeCenter=True)[0]
 
         else:
-            image, _, _, _ = mlt.makeWPSImage(freqSweep, args.freq, args.atten, mlDict['freqWinSize'], 
+            image = mlt.makeWPSImageList(freqSweep, args.freq, args.atten, mlDict['freqWinSize'], 
                     1+mlDict['attenWinBelow']+mlDict['attenWinAbove'], mlDict['useIQV'], mlDict['useVectIQV'],
-                    normalizeBeforeCenter=mlDict['normalizeBeforeCenter'])
+                    normalizeBeforeCenter=mlDict['normalizeBeforeCenter'])[0][0]
 
         ax0.plot(image[:, :, 0].T, image[:, :, 1].T)
         if image.shape[2] > 2:
