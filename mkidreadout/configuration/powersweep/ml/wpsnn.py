@@ -55,6 +55,10 @@ class WPSNeuralNet(object):
             centerIQV = self.mlDict['trainCenterIQV']
         else:
             centerIQV = False
+        if 'trainRandomFreqOffs' in self.mlDict:
+            trainRandomFreqOffs = self.mlDict['trainRandomFreqOffs']
+        else:
+            trainRandomFreqOffs = True
 
         for i, rawTrainFile in enumerate(self.mlDict['rawTrainFiles']):
             rawTrainFile = os.path.join(self.mlDict['trainFileDir'], rawTrainFile)
@@ -112,10 +116,11 @@ class WPSNeuralNet(object):
                             satResAttens = np.delete(satResAttens, -1) #pick without replacement
                         except IndexError:
                             satResAtten = np.random.choice(trainSweep.atten[satResMask]) #pick a random one if out of attens
-                        freqOffs = (-100.e3)*np.random.random() #sat resonators move left, so correct this
+                        #freqOffs = (-100.e3)*optFreqs[i]/4.e9*np.random.random() #sat resonators move left, so correct this
+                        freqOffs = self.mlDict['trainSatFreqOffs']*optFreqs[i]/4.e9 #(-75.e3)*optFreqs[i]/4.e9
                         images[imgCtr] = mlt.makeWPSImageList(trainSweep, optFreqs[i]+freqOffs, satResAtten, self.imageShape[1], 
                             self.imageShape[0], self.mlDict['useIQV'], self.mlDict['useVectIQV'],
-                            normalizeBeforeCenter=self.mlDict['normalizeBeforeCenter'], centerIQV=centerIQV, randomFreqOffs=True)[0][0] #saturated image
+                            normalizeBeforeCenter=self.mlDict['normalizeBeforeCenter'], centerIQV=centerIQV, randomFreqOffs=trainRandomFreqOffs)[0][0] #saturated image
                         labels[imgCtr] = np.array([0, 1, 0, 0])
                         imgCtr += 1
 
@@ -127,7 +132,7 @@ class WPSNeuralNet(object):
                             upResAtten = np.random.choice(trainSweep.atten[upResMask])
                         images[imgCtr] = mlt.makeWPSImageList(trainSweep, optFreqs[i], upResAtten, self.imageShape[1], 
                             self.imageShape[0], self.mlDict['useIQV'], self.mlDict['useVectIQV'],
-                            normalizeBeforeCenter=self.mlDict['normalizeBeforeCenter'], centerIQV=False, randomFreqOffs=True)[0][0] #upurated image
+                            normalizeBeforeCenter=self.mlDict['normalizeBeforeCenter'], centerIQV=False, randomFreqOffs=trainRandomFreqOffs)[0][0] #upurated image
                         labels[imgCtr] = np.array([0, 0, 1, 0])
                         imgCtr += 1
 
