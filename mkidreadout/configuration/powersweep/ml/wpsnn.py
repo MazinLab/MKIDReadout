@@ -377,7 +377,11 @@ class WPSNeuralNet(object):
         if np.shape(trainLabels)[0]< batchSize:
             batchSize = np.shape(trainLabels)[0]/2
         ce_log = np.zeros(trainReps/ACC_INTERVAL + 1)
-        acc_log=np.zeros(trainReps/ACC_INTERVAL + 1)
+        acc_log = np.zeros(trainReps/ACC_INTERVAL + 1)
+
+        train_ce_log = np.zeros(trainReps/ACC_INTERVAL + 1)
+        train_acc_log = np.zeros(trainReps/ACC_INTERVAL + 1)
+        nTrainScoreBatches = len(trainImages)/MAX_IMAGES + 1
         print 'Performing', trainReps, 'training repeats, using batches of', batchSize
 
         for i in range(trainReps):  #perform the training step using random batches of images and according labels
@@ -389,7 +393,18 @@ class WPSNeuralNet(object):
                 ce_log[i/ACC_INTERVAL] = self.sess.run(cross_entropy, feed_dict={self.x: batch_xs, y_: batch_ys, self.keep_prob: 1, self.is_training: False})
                 summary, acc = self.sess.run([merged, accuracy], feed_dict={self.x: testImages, y_: testLabels, self.keep_prob: 1, self.is_training: False})
                 acc_log[i/ACC_INTERVAL] = acc*100
-                #test_writer.add_summary(summary, i)
+
+                trainScore = 0
+                trainCE = 0
+                for batchInd in range(nTrainScoreBatches):
+                    endInd = min((batchInd+1)*MAX_IMAGES, len(trainImages))
+                    trainImagesBatch = trainImages[batchInd*MAX_IMAGES:endInd]
+                    trainLabelsBatch = trainLabels[batchInd*MAX_IMAGES:endInd]
+                    trainScore += self.sess.run(accuracy, feed_dict={self.x: trainImagesBatch, y_: trainLabelsBatch, self.keep_prob: 1, self.is_training: False}) * 100/nTrainScoreBatches
+                    trainCE += self.sess.run(cross_entropy, feed_dict={self.x: trainImagesBatch, y_: trainLabelsBatch, self.keep_prob: 1, self.is_training: False})/nTrainScoreBatches
+                    #test_writer.add_summary(summary, i)
+                train_acc_log[i/ACC_INTERVAL] = trainScore
+                train_ce_log[i/ACC_INTERVAL] = trainCE
                 if saveGraph:
                     graph_writer.add_summary(summary, i)
 
@@ -400,8 +415,18 @@ class WPSNeuralNet(object):
             elif i % ACC_INTERVAL == 0:
                 ce_log[i/ACC_INTERVAL] = self.sess.run(cross_entropy, feed_dict={self.x: batch_xs, y_: batch_ys, self.keep_prob: 1, self.is_training: False})
                 acc = self.sess.run(accuracy, feed_dict={self.x: testImages, y_: testLabels, self.keep_prob: 1, self.is_training: False})
+                trainScore = 0
+                trainCE = 0
+                for batchInd in range(nTrainScoreBatches):
+                    endInd = min((batchInd+1)*MAX_IMAGES, len(trainImages))
+                    trainImagesBatch = trainImages[batchInd*MAX_IMAGES:endInd]
+                    trainLabelsBatch = trainLabels[batchInd*MAX_IMAGES:endInd]
+                    trainScore += self.sess.run(accuracy, feed_dict={self.x: trainImagesBatch, y_: trainLabelsBatch, self.keep_prob: 1, self.is_training: False}) * 100/nTrainScoreBatches
+                    trainCE += self.sess.run(cross_entropy, feed_dict={self.x: trainImagesBatch, y_: trainLabelsBatch, self.keep_prob: 1, self.is_training: False})/nTrainScoreBatches
                 print acc*100
                 acc_log[i/ACC_INTERVAL] = acc*100
+                train_acc_log[i/ACC_INTERVAL] = trainScore
+                train_ce_log[i/ACC_INTERVAL] = trainCE
                 self.sess.run(train_step, feed_dict={self.x: batch_xs, y_: batch_ys, self.keep_prob: self.mlDict['keep_prob'], self.is_training: True}) #calculate train_step using feed_dict
 
             else:  
@@ -438,7 +463,7 @@ class WPSNeuralNet(object):
         print 'Accuracy of model in training: ', trainScore, '%'
         print tf.get_default_graph().get_all_collection_keys()
         
-        np.savez(modelSavePath+'_confusion.npz', ys_true=ys_true, ys_guess=ys_guess, y_probs=y_probs, ce=ce_log, acc=acc_log)
+        np.savez(modelSavePath+'_confusion.npz', ys_true=ys_true, ys_guess=ys_guess, y_probs=y_probs, ce=ce_log, acc=acc_log, train_acc_log=train_acc_log, train_ce_log=train_ce_log)
         gitrepo = git.Repo(resource_filename('mkidreadout', '..'))
         commithash = gitrepo.head.object.hexsha
         logfile = modelSavePath + '_train_' + time.strftime("%Y%m%d-%H%M%S",time.localtime()) + '.log'
