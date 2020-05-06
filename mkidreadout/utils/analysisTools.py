@@ -135,6 +135,21 @@ def plotNoiseFloors(popt, freqs=None):
 
     plt.ylabel('Phase Noise Floor (dBc/Hz)')
 
+def getSpurCorrectionFactor(freqs, spectList, noiseFloorList, spurHalfWin=0, spurThresh=-88):
+    """
+    freqs - freqs within spectra (NOT list of tones)
+    spectList - spectra NOT in dB
+    noiseFloorList - also NOT in dB
+    """
+    correctedNoiseFloorList = np.copy(noiseFloorList)
+    for i, spect in enumerate(spectList):
+        spurPower, totalPower, _ = getSpurNoisePower(freqs, spect, 100, 100.e3, spurHalfWin, spurThresh)
+        correctedNoiseFloorList[i] *= (totalPower/(totalPower - spurPower))
+
+    return correctedNoiseFloorList
+
+
+
 def getSpurMask(spectDB, spurHalfWin, spurThresh):
     peakInds, _ = signal.find_peaks(spectDB, height=spurThresh)
     peakMask = np.zeros(len(spectDB), dtype=np.bool)
