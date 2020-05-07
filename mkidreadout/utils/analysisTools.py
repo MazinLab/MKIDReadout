@@ -1,8 +1,9 @@
+import os
 import numpy as np
 import matplotlib.pyplot as plt
 import scipy.optimize as spo
 import scipy.signal as signal
-import os
+import mkidreadout.configuration.optimalfilters.make_filters as filt
 
 def getPhaseNoiseSpectrum(data, convertToDB=True, fftlen=65536, dt=256./250e6):
     """
@@ -147,6 +148,35 @@ def getSpurCorrectionFactor(freqs, spectList, noiseFloorList, spurHalfWin=0, spu
         correctedNoiseFloorList[i] *= (totalPower/(totalPower - spurPower))
 
     return correctedNoiseFloorList
+
+def getSpurCorrectionFactorOptFilt(freqs, spectList, noiseFloorList, optFiltCalc, lf=100, hf=300.e3, spurThresh=-82, fftLen=65536):
+    """
+    freqs - freqs within spectra (NOT list of tones)
+    spectList - spectra NOT in dB
+    noiseFloorList - also NOT in dB
+    """
+    optFiltCalc.cfg.update('noise.nwindow', fftLen)
+    template = optFiltCalc.result['template'][:50]
+    correctedNoiseFloorList = np.copy(noiseFloorList)
+    for i, spect in enumerate(spectList):
+        optFiltCalc.clear_filter()
+        optFiltCalc.result['psd'] = spect
+        optFiltCalc.make_filter()
+        optFilt = optFiltCalc.result['filter']
+
+        optFiltCalc.clear_filter()
+        spectNoSpurs = removeSpurs(freqs, spect, lf, hf, spurThresh)
+        optFiltCalc.result['psd'] = spectNoSpurs
+        optFiltCalc.make_filter()
+        optFiltNoSpurs = optFiltCalc.result['filter']
+
+        var = 1/np.sum(optFilt*template[::-1])
+        varNS = 1/np.sum(optFiltNS*template[::-1])
+        correctedNoiseFloorList[i] *= var/varNS
+
+    return correctedNoiseFloorList
+
+
 
 
 
