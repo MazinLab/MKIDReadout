@@ -171,7 +171,7 @@ def getSpurCorrectionFactorOptFilt(freqs, spectList, noiseFloorList, optFiltCalc
         optFiltNoSpurs = optFiltCalc.result['filter']
 
         var = 1/np.sum(optFilt*template[::-1])
-        varNS = 1/np.sum(optFiltNS*template[::-1])
+        varNS = 1/np.sum(optFiltNoSpurs*template[::-1])
         correctedNoiseFloorList[i] *= var/varNS
 
     return correctedNoiseFloorList
