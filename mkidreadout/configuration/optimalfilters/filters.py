@@ -20,6 +20,9 @@ def matched(*args, **kwargs):
         dc: boolean (optional)
             If True, the mean of the template is subtracted to make the
             template insensitive to a DC baseline. The default is True.
+        normalize: boolean (optional)
+            If False, the template will not be normalized. The default is True
+            and the template is normalized to a unit response.
     Returns:
         filter_: numpy.ndarray
             The computed matched filter.
@@ -28,12 +31,18 @@ def matched(*args, **kwargs):
     template = args[0]
     nfilter = kwargs.get("nfilter", template.size)
     dc = kwargs.get("dc", True)
+    normalize = kwargs.get("normalize", True)
 
     # compute filter
     filter_ = template[:nfilter][::-1].copy()
     if dc:
         filter_ -= filter_.mean()
-    filter_ /= -np.matmul(template[:nfilter], filter_[::-1])  # "-" to give negative pulse heights after filtering
+
+    # normalize
+    if normalize:
+        filter_ /= -np.matmul(template[:nfilter], filter_[::-1])  # "-" to give negative pulse heights after filtering
+    else:
+        filter_ *= -1
 
     return filter_
 
@@ -63,6 +72,9 @@ def wiener(*args, **kwargs):
             psd must be the same size as the filter Fourier transform
             (nfilter // 2 + 1 points). The default is False, and the filter is
             computed in the time domain.
+        normalize: boolean (optional)
+            If False, the template will not be normalized. The default is True
+            and the template is normalized to a unit response.
     Returns:
         filter_: numpy.ndarray
             The computed wiener filter.
@@ -72,6 +84,7 @@ def wiener(*args, **kwargs):
     nfilter = kwargs.get("nfilter", len(template))
     cutoff = kwargs.get("cutoff", False)
     fft = kwargs.get("fft", False)
+    normalize = kwargs.get("normalize", True)
 
     # need at least this long of a PSD
     if nwindow < nfilter:
@@ -100,8 +113,10 @@ def wiener(*args, **kwargs):
         filter_ = utils.filter_cutoff(filter_, cutoff)
 
     # normalize
-    filter_ /= -np.matmul(template, filter_[::-1])  # "-" to give negative pulse heights after filtering
-
+    if normalize:
+        filter_ /= -np.matmul(template, filter_[::-1])
+    else:
+        filter_ *= -1   # "-" to give negative pulse heights after filtering
     return filter_
 
 
@@ -130,6 +145,9 @@ def dc_orthogonal(*args, **kwargs):
             psd must be the same size as the filter Fourier transform
             (nfilter // 2 + 1 points). The default is False, and the filter is
             computed in the time domain.
+        normalize: boolean (optional)
+            If False, the template will not be normalized. The default is True
+            and the template is normalized to a unit response.
     Returns:
         filter_: numpy.ndarray
             The computed dc orthogonal  filter.
@@ -139,6 +157,7 @@ def dc_orthogonal(*args, **kwargs):
     nfilter = kwargs.get("nfilter", len(template))
     cutoff = kwargs.get("cutoff", False)
     fft = kwargs.get("fft", False)
+    normalize = kwargs.get("normalize", True)
 
     if fft:  # compute the filter in the frequency domain (introduces periodicity assumption)
         filter_ = wiener(template, psd, nwindow, fft=True, nfilter=nfilter, cutoff=cutoff)
@@ -161,9 +180,11 @@ def dc_orthogonal(*args, **kwargs):
             filter_2d = utils.filter_cutoff(filter_2d, cutoff)
 
         # normalize and flip to work with convolution
-        norm = np.matmul(vbar.T, filter_2d)
-        filter_ = -np.linalg.solve(norm.T, filter_2d.T)[0, ::-1]  # "-" to give negative pulse heights after filtering
-
+        if normalize:
+            norm = np.matmul(vbar.T, filter_2d)
+            filter_ = -np.linalg.solve(norm.T, filter_2d.T)[0, ::-1]
+        else:
+            filter_ = -filter_2[0, ::-1]  # "-" to give negative pulse heights after filtering
     return filter_
 
 

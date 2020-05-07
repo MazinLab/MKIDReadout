@@ -438,7 +438,8 @@ class Calculator(object):
             self.result["psd"],
             self.cfg.noise.nwindow,
             nfilter=cfg.nfilter,
-            cutoff=self.cfg.template.cutoff
+            cutoff=self.cfg.template.cutoff,
+            normalize=cfg.normalize
         )
 
         # save and return the filter
