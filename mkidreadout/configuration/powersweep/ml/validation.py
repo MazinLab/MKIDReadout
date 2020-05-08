@@ -60,7 +60,7 @@ def validateModel(modelDir, valFiles, valMDFiles, satMDFiles=None):
         sweep = sd.FreqSweep(valFile)
         wpsmap, freqs, attens = finder.makeWPSMap(modelDir, sweep)
         resFreqs, resAttens, scores = finder.findResonators(wpsmap, freqs, attens, 
-                peakThresh=0.94, nRes=1024)
+                peakThresh=0.90, nRes=1024)
 
         if resFreqs[0] < 4.7e9:
             band = 'a'
@@ -129,7 +129,7 @@ def getValThing(manMDFile, mlMDFile, type=('man', 'ml')):
     mlFreq = mlFreq[mlSortedInd]
     mlAtten = mlAtten[mlSortedInd]
     
-    mantoml = matchResonators(manResID, mlResID, manFreq, mlFreq, 200.e3)
+    mantoml = matchResonators(manResID, mlResID, manFreq, mlFreq, 300.e3)
     mlNotInMan = np.empty((0, 2))
     for j, resID in enumerate(mlResID):
         if not np.any(j == mantoml[:, 0]):
