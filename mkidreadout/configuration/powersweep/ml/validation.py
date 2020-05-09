@@ -45,7 +45,7 @@ def trainAndCrossValidate(mlDict, rootDir, trainFileLists, trainLabelsLists, val
 
 
 
-def validateModel(modelDir, valFiles, valMDFiles, satMDFiles=None):
+def validateModel(modelDir, valFiles, valMDFiles, satMDFiles=None, saveWPSMap=False):
     """
     Validates a single model (training run) w/ data given by
     valFiles and valMDFiles
@@ -61,6 +61,9 @@ def validateModel(modelDir, valFiles, valMDFiles, satMDFiles=None):
         wpsmap, freqs, attens = finder.makeWPSMap(modelDir, sweep)
         resFreqs, resAttens, scores = finder.findResonators(wpsmap, freqs, attens, 
                 peakThresh=0.90, nRes=1024)
+        if saveWPSMap:
+            wpsmapFile = os.path.join(modelDir, os.path.basename(valFile).split('.')[0] + '_wpsmap.npz')
+            np.savez(wpsmapFile, wpsmap=wpsmap, freqs=freqs, attens=attens)
 
         if resFreqs[0] < 4.7e9:
             band = 'a'

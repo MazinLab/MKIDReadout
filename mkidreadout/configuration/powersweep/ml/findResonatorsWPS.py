@@ -181,7 +181,7 @@ def findResonators(wpsmap, freqs, attens, prominenceThresh=0.85, peakThresh=0.97
 
     else:
         resCoords = skf.peak_local_max(wpsmap[:,:,0], min_distance=minPeakDist, threshold_abs=peakThresh, exclude_border=False)
-        resCoords = prominenceCut(wpsmap, resCoords)
+        resCoords = prominenceCut(wpsmap, resCoords, prominenceThresh)
 
     resFreqs = freqs[resCoords[:,1]]
     resAttens = attens[resCoords[:,0]]
@@ -208,8 +208,8 @@ def prominenceCut(wpsmap, resCoords, minThresh=0.75):
         valleys[i] = np.max(image)#image[coords[0], coords[1]]
         #valleys[i] = wpsmap[int(np.ceil((attenInds[0]+attenInds[1])/2.)), (resCoords[i,1]+resCoords[i+1,1])/2, 0]
 
-    #plt.hist(valleys, bins=20)
-    #plt.show()
+    plt.hist(valleys, bins=20)
+    plt.show()
     shallowMask = valleys > minThresh #there isn't a deep enough valley between this peak and the one after it
     clusterStartMask = np.diff(np.roll(shallowMask.astype(int), 1)) > 0
     clusterInds = np.where(clusterStartMask)[0]
