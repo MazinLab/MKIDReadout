@@ -108,7 +108,7 @@ if __name__=='__main__':
         ax0.plot(freqsToFix, iqvPeaks - freqsToFix, '.')
         ax0.plot(freqsToFix, fittedFreqs - freqsToFix, '-')
         ax1.plot(freqsToFix, iqvPeaks - fittedFreqs, '.')
-        ax0.set_title('roach: {roach}, fl: {fl}{range}: initial (noisy) fit'.format(**paramDicts[i]))
+        ax0.set_title('roach: {roach}, fl: {feedline}{range}: initial (noisy) fit'.format(**paramDicts[i]))
         plt.show()
 
         refinedIQVPeaks = findIQVPeaks(fittedFreqs, sweep, winSize=600.e3)
@@ -121,7 +121,7 @@ if __name__=='__main__':
         ax0.plot(freqsToFix, refinedIQVPeaks - freqsToFix, '.')
         ax0.plot(freqsToFix, refinedFreqs - freqsToFix, '-')
         ax1.plot(freqsToFix, refinedIQVPeaks - refinedFreqs, '.')
-        ax0.set_title('roach: {roach}, fl: {fl}{range}: fit after 1 refinements'.format(**paramDicts[i]))
+        ax0.set_title('roach: {roach}, fl: {feedline}{range}: fit after 1 refinements'.format(**paramDicts[i]))
         plt.show()
 
         #refinedIQVPeaks = findIQVPeaks(refinedFreqs, sweep, winSize=250.e3, convWin=0)
@@ -141,7 +141,7 @@ if __name__=='__main__':
             finalSnapFreqs = findIQVPeaks(refinedFreqs, sweep, winSize=50.e3, scaleWin=True, convWin=3)
             metadata.freq[goodMask] = finalSnapFreqs
             plt.plot(freqsToFix, finalSnapFreqs - refinedFreqs)
-            plt.title('roach: {roach}, fl: {fl}{range}: final snap deltaf'.format(**paramDicts[i]))
+            plt.title('roach: {roach}, fl: {feedline}{range}: final snap deltaf'.format(**paramDicts[i]))
             plt.show()
         else:
             metadata.freq[goodMask] = refinedFreqs
