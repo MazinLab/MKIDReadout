@@ -14,7 +14,7 @@ import logging
 import time
 import matplotlib.pyplot as plt
 import mkidcore.objects as mko
-from mkidcore.pixelflags import beamMapFlags
+from mkidcore.pixelflags import beammap
 
 from mkidreadout.configuration.sweepdata import SweepMetadata
 
