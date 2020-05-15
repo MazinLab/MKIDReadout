@@ -76,7 +76,7 @@ if __name__=='__main__':
     parser.add_argument('--shift', type=float, help='Final frequency shift to apply (i.e. if you want to bias left of IQV peak')
     args = parser.parse_args()
 
-    sweepFiles, mdFilesOrdered, paramDicts = sd.getSweepFiles(args.sweep, args.metadata)
+    sweepFiles, mdFilesOrdered, paramDicts = sd.matchSweepToMetadataPat(args.sweep, args.metadata)
 
 
     for i in range(len(sweepFiles)):

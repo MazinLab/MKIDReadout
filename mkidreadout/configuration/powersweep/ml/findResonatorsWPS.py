@@ -238,10 +238,6 @@ def prominenceCut(wpsmap, resCoords, minThresh=0.75):
     print 'Prominence cut deleted', len(indsToDelete), 'resonators'
 
     return resCoords
-        
-
-        
-        
 
 def saveMetadata(outFile, resFreqs, resAttens, scores, feedline, band, collThresh=200.e3):
     assert len(resFreqs) == len(resAttens) == len(scores), 'Lists must be the same length'
@@ -263,35 +259,16 @@ def saveMetadata(outFile, resFreqs, resAttens, scores, feedline, band, collThres
             ml_isbad_score=badScores, flag=flag)
     md.save(outFile)
     
-
-if __name__=='__main__':
-    parser = argparse.ArgumentParser(description='WPS ML Inference Script')
-    parser.add_argument('model', help='Directory containing ML model')
-    parser.add_argument('inferenceData', help='npz file containing WPS data')
-    parser.add_argument('-o', '--metadata', default=None, help='Output metadata file')
-    parser.add_argument('-s', '--save-wpsmap', action='store_true', help='Save npz file containing raw ML convolution output')
-    parser.add_argument('-r', '--remake-wpsmap', action='store_true', help='Regenerate wps map file')
-    parser.add_argument('-t', '--peak-thresh', type=float, default=0.9, help='Minimum res value in WPS map (between 0 and 1)')
-    parser.add_argument('-pr', '--prominence-thresh', type=float, default=0.85, help='Prevent double counting resonators by cutting shallow valleys')
-    parser.add_argument('-n', '--n-res', type=int, default=None, help='Target number of resonators')
-    parser.add_argument('-b', '--atten-bias', type=float, default=0., help='Apply linear bias to atten dim of wpsmap')
-    parser.add_argument('-m', '--use-mag', action='store_true', help='Select N_RES resonators above peakThresh with largest loop size')
-    args = parser.parse_args()
-
-    if args.metadata is None:
-        args.metadata = os.path.join(os.path.dirname(args.inferenceData), os.path.basename(args.inferenceData).split('.')[0] + '_metadata.txt')
-
-    elif not os.path.isabs(args.metadata):
-        args.metadata = os.path.join(os.path.dirname(args.inferenceData), args.metadata)
-
-    wpsmapFile = os.path.join(os.path.dirname(args.metadata), os.path.basename(args.inferenceData).split('.')[0] \
-            + '_' + os.path.basename(args.model) + '.npz')
+def runFullInference(inferenceData, model, peakThresh, prominenceThresh, 
+        nRes, attenBias, saveWPSMap, remakeWPSMap):
+    wpsmapFile = os.path.join(os.path.dirname(inferenceData), os.path.basename(inferenceData).split('.')[0] \
+            + '_' + os.path.basename(model) + '.npz')
 
     if not os.path.isfile(wpsmapFile) or args.remake_wpsmap:
         print wpsmapFile, 'not found'
         print 'Generating new WPS map'
-        freqSweep = sd.FreqSweep(args.inferenceData)
-        wpsmap, freqs, attens = makeWPSMap(args.model, freqSweep)
+        freqSweep = sd.FreqSweep(inferenceData)
+        wpsmap, freqs, attens = makeWPSMap(model, freqSweep)
 
         if args.save_wpsmap:
             np.savez(wpsmapFile, wpsmap=wpsmap, freqs=freqs, attens=attens)
@@ -303,17 +280,66 @@ if __name__=='__main__':
         freqs = f['freqs']
         attens = f['attens']
 
-    resFreqs, resAttens, scores = findResonators(wpsmap, freqs, attens, prominenceThresh=args.prominence_thresh, 
-            peakThresh=args.peak_thresh, nRes=args.n_res, attenGrad=args.atten_bias, resMagCut=args.use_mag)
+    resFreqs, resAttens, scores = findResonators(wpsmap, freqs, attens, prominenceThresh=prominenceThresh, 
+            peakThresh=peakThresh, nRes=nRes, attenGrad=attenBias, resMagCut=False)
 
-    if resFreqs[0] < 4.7e9:
-        band = 'a'
-    else:
-        band = 'b'
+    return resFreqs, resAttens, scores
 
-    print 'Saving resonator metadata in:', args.metadata
-    try:
-        fl = inst.guessFeedline(os.path.basename(args.inferenceData))
-    except ValueError:
-        fl = 1
-    saveMetadata(args.metadata, resFreqs, resAttens, scores, fl, band)
+
+
+if __name__=='__main__':
+    parser = argparse.ArgumentParser(description='WPS ML Inference Script')
+    parser.add_argument('model', help='Directory containing ML model')
+    parser.add_argument('inferenceData', help='npz file containing WPS data. Can be a pattern specifying\
+            multiple files, with tags {roach}, {feedline}, and/or {range}')
+    parser.add_argument('-o', '--metadata', default=None, help='Output metadata file pattern, may use the\
+            same tags as inferenceData for multiple files')
+    parser.add_argument('-s', '--save-wpsmap', action='store_true', help='Save npz file containing raw ML convolution output')
+    parser.add_argument('-r', '--remake-wpsmap', action='store_true', help='Regenerate wps map file')
+    parser.add_argument('-t', '--peak-thresh', type=float, default=0.9, help='Minimum res value in WPS map (between 0 and 1)')
+    parser.add_argument('-pr', '--prominence-thresh', type=float, default=0.85, help='Prevent double counting resonators by cutting shallow valleys')
+    parser.add_argument('-n', '--n-res', type=int, default=None, help='Target number of resonators')
+    parser.add_argument('-b', '--atten-bias', type=float, default=0., help='Apply linear bias to atten dim of wpsmap')
+    parser.add_argument('-m', '--use-mag', action='store_true', help='Select N_RES resonators above peakThresh with largest loop size')
+    args = parser.parse_args()
+
+    sweepFiles, paramDicts = sd.getSweepFilesFromPat(args.inferenceData)
+    print sweepFiles
+    print paramDicts
+
+    if args.metadata is None:
+        args.metadata = os.path.join(os.path.dirname(args.inferenceData), 
+                os.path.basename(args.inferenceData).split('.')[0] + '_metadata.txt')
+
+    elif not os.path.isabs(args.metadata):
+        args.metadata = os.path.join(os.path.dirname(args.inferenceData), args.metadata)
+
+
+    for (sweepFile, paramDict) in zip(sweepFiles, paramDicts):
+        resFreqs, resAttens, scores = runFullInference(sweepFile, args.model, args.peak_thresh, 
+                    args.prominence_thresh, args.n_res, args.atten_bias, args.save_wpsmap, args.remake_wpsmap)
+ 
+        if 'range' in paramDict:
+            band = paramDict['range']
+        elif resFreqs[0] < 4.7e9:
+            band = 'a'
+        else:
+            band = 'b'
+
+        if 'feedline' in paramDict:
+            fl = paramDict['feedline']
+        else:
+            try:
+                fl = inst.guessFeedline(os.path.basename(inferenceData))
+            except ValueError:
+                fl = 1
+
+        if 'roach' in paramDict:
+            roach = paramDict['roach']
+        else:
+            roach = 0
+
+        mdOutFile = args.metadata.format(band=band, roach=roach, feedline=fl)
+
+        print 'Saving resonator metadata in:', mdOutFile
+        saveMetadata(mdOutFile, resFreqs, resAttens, scores, feedline, band)

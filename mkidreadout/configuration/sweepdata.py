@@ -393,7 +393,27 @@ def loadold(allfile, goodfile, outfile='digWS_FL{feedline}_metadata.txt'):
 
     return SweepMetadata(resid=aid, wsfreq=afreq, flag=flags, file=outfile)
 
-def getSweepFiles(sweepFilePat, mdFilePat):
+def getSweepFilesFromPat(sweepFilePat):
+    sweepGlobPat = sweepFilePat.replace('{roach}', '???') 
+    sweepGlobPat = sweepGlobPat.replace('{feedline}', '*')  
+    sweepGlobPat = sweepGlobPat.replace('{range}', '?')
+
+    sweepFiles = glob.glob(sweepGlobPat)
+
+    sweepFmt = sweepFilePat.replace('*', '{}')
+    sweepFmt = sweepFmt.replace('{roach}', '{roach:d}')
+    sweepFmt = sweepFmt.replace('{feedline}', '{feedline:d}')
+
+    paramDicts = []
+
+    for sweepFile in sweepFiles:
+        sweepParamDict = parse.parse(sweepFmt, sweepFile).named
+        paramDicts.append(sweepParamDict)
+
+    return sweepFiles, paramDicts
+  
+
+def matchSweepToMetadataPat(sweepFilePat, mdFilePat):
     """
     Returns a list of sweep files and corresponding metadata according to 
     the file patterns specified in 'sweepFilePat' and 'mdFilePat'. Patterns
