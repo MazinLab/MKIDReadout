@@ -550,7 +550,8 @@ if __name__ == "__main__":
                             \n\t1) If instrument/feedlines are specified, sweep relevant ROACH boards as specified\
                                     in mkidcore.instruments. Sweeps are done in slow mode to prevent crosstalk.\n\
                             \n\t2) If roach numbers are specified, sweeps those ROACH boards simultaneously.\
-                                Mostly intended for testing/debugging single sweeps.')
+                                Mostly intended for testing/debugging single sweeps. Freq bounds are given by\
+                                --start-freq-a and --end-freq-a; b is ignored')
     parser.add_argument('instrument', type=str, default='mec',
                         help='The instrument, either mec or darkness')
     parser.add_argument('-a', action='store_true', default=False, dest='all_feedlines',
