@@ -42,7 +42,7 @@ class Correlator(object):
             self.cleanData()
 
         self.bestShift = 0
-        self.shifts = np.linspace(-1e6, 1e6, 2001)
+        self.shifts = np.linspace(-2e6, 2e6, 2001)
         self._freqCutoff = frequencyCutoff
 
         self.resIDMatches = None
