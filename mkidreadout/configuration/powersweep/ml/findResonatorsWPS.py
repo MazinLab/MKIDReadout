@@ -208,8 +208,8 @@ def prominenceCut(wpsmap, resCoords, minThresh=0.75):
         valleys[i] = np.max(image)#image[coords[0], coords[1]]
         #valleys[i] = wpsmap[int(np.ceil((attenInds[0]+attenInds[1])/2.)), (resCoords[i,1]+resCoords[i+1,1])/2, 0]
 
-    plt.hist(valleys, bins=20)
-    plt.show()
+    #plt.hist(valleys, bins=20)
+    #plt.show()
     shallowMask = valleys > minThresh #there isn't a deep enough valley between this peak and the one after it
     clusterStartMask = np.diff(np.roll(shallowMask.astype(int), 1)) > 0
     clusterInds = np.where(clusterStartMask)[0]
@@ -330,7 +330,7 @@ if __name__=='__main__':
             fl = paramDict['feedline']
         else:
             try:
-                fl = inst.guessFeedline(os.path.basename(inferenceData))
+                fl = inst.guessFeedline(os.path.basename(sweepFile))
             except ValueError:
                 fl = 1
 
@@ -339,7 +339,7 @@ if __name__=='__main__':
         else:
             roach = 0
 
-        mdOutFile = args.metadata.format(band=band, roach=roach, feedline=fl)
+        mdOutFile = args.metadata.format(range=band, roach=roach, feedline=fl)
 
         print 'Saving resonator metadata in:', mdOutFile
-        saveMetadata(mdOutFile, resFreqs, resAttens, scores, feedline, band)
+        saveMetadata(mdOutFile, resFreqs, resAttens, scores, fl, band)
