@@ -149,13 +149,15 @@ def getSpurCorrectionFactor(freqs, spectList, noiseFloorList, spurHalfWin=0, spu
 
     return correctedNoiseFloorList
 
-def getSpurCorrectionFactorOptFilt(freqs, spectList, noiseFloorList, optFiltCalc, lf=100, hf=300.e3, spurThresh=-82, fftLen=65536):
+def getSpurCorrectionFactorOptFilt(freqs, spectList, noiseFloorList, optFiltCalc, lf=100, hf=300.e3, spurThresh=-82, fftLen=65536, useFitPSD=False):
     """
     freqs - freqs within spectra (NOT list of tones)
     spectList - spectra NOT in dB
     noiseFloorList - also NOT in dB
+    useFitPSD - if True, use a constant PSD w/ magnitude from noiseFloorList, rather than subtracting spurs
     """
     optFiltCalc.cfg.update('noise.nwindow', fftLen)
+    optFiltCalc.cfg.update('filter.normalize', False)
     template = optFiltCalc.result['template'][:50]
     correctedNoiseFloorList = np.copy(noiseFloorList)
     for i, spect in enumerate(spectList):
@@ -165,8 +167,11 @@ def getSpurCorrectionFactorOptFilt(freqs, spectList, noiseFloorList, optFiltCalc
         optFilt = optFiltCalc.result['filter']
 
         optFiltCalc.clear_filter()
-        spectNoSpurs = removeSpurs(freqs, spect, lf, hf, spurThresh)
-        optFiltCalc.result['psd'] = spectNoSpurs
+        if useFitPSD:
+            optFiltCalc.result['psd'] = noiseFloorList[i]*np.ones(len(spect))
+        else:
+            spectNoSpurs = removeSpurs(freqs, spect, lf, hf, spurThresh)
+            optFiltCalc.result['psd'] = spectNoSpurs
         optFiltCalc.make_filter()
         optFiltNoSpurs = optFiltCalc.result['filter']
 
