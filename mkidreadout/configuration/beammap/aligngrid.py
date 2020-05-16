@@ -31,7 +31,7 @@ import scipy.ndimage as sciim
 from mkidcore.instruments import DEFAULT_ARRAY_SIZES
 from mkidcore.config import load
 from mkidcore.corelog import getLogger
-from mkidreadout.configuration.beammap.flags import beamMapFlags
+from mkidcore.pixelflags import beammap as beamMapFlags
 from mkidreadout.configuration.beammap.utils import DARKNESS_FL_WIDTH, MEC_FL_WIDTH, N_FL_DARKNESS, N_FL_MEC, \
     getFLFromID, isInCorrectFL
 

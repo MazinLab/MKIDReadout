@@ -11,7 +11,8 @@ from numba import jit
 
 from mkidcore.corelog import getLogger
 from mkidcore.instruments import DARKNESS_FEEDLINE_INFO, MEC_FEEDLINE_INFO
-from mkidreadout.configuration.beammap.flags import beamMapFlags, timestream_flags
+from mkidcore.pixelflags import beammap as beamMapFlags
+from mkidreadout.configuration.beammap.flags import timestream_flags
 
 MEC_FL_WIDTH = MEC_FEEDLINE_INFO['width']
 MEC_FL_LENGTH = MEC_FEEDLINE_INFO['length']

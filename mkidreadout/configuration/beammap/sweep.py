@@ -50,13 +50,14 @@ from mkidcore.config import load
 from mkidcore.corelog import getLogger, create_log
 from mkidcore.hdf.mkidbin import parse
 from mkidcore.objects import Beammap
+from mkidcore.pixelflags import beammap as beamMapFlags
 from mkidcore.instruments import DEFAULT_ARRAY_SIZES, MEC_FEEDLINE_INFO, DARKNESS_FEEDLINE_INFO
 
 import mkidreadout.config
 from mkidreadout.configuration.beammap import aligngrid as bmap_align
 from mkidreadout.configuration.beammap import clean as bmap_clean
 import mkidreadout.configuration.beammap.utils as bmu
-from mkidreadout.configuration.beammap.flags import beamMapFlags, timestream_flags
+from mkidreadout.configuration.beammap.flags import timestream_flags
 
 
 def bin2imgs((binfile, nrows, ncols)):
