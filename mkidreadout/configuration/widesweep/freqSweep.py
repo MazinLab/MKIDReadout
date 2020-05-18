@@ -9,9 +9,9 @@ If this happens you can increase the operating system's open file limit
 $ ulimit -n 4096
 
 TODO:
- - change configs to new format
- - 
+    - allow user to specify slow/fast mode when called with instrument/feedlines
 
+Note: Power in dBm is approximately -(resAtten + 12). (so a res atten of 65 will have a power of -77 dBm)
 """
 
 

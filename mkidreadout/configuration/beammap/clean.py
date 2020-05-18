@@ -23,8 +23,8 @@ import numpy as np
 from mkidcore.objects import Beammap
 from mkidcore.config import load
 from mkidcore.instruments import DEFAULT_ARRAY_SIZES
+from mkidcore.pixelflags import beammap as beamMapFlags
 from mkidreadout.configuration.beammap import shift
-from mkidreadout.configuration.beammap.flags import beamMapFlags
 from mkidreadout.configuration.beammap.utils import generateCoords, getFLFromCoords, getFLFromID, isInCorrectFL, \
     isResonatorOnCorrectFeedline
 
