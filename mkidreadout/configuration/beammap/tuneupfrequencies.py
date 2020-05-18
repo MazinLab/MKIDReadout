@@ -42,7 +42,9 @@ class Correlator(object):
             self.cleanData()
 
         self.bestShift = 0
-        self.shifts = np.linspace(-2e6, 2e6, 2001)
+        self.bestStretch = 1
+        self.shifts = np.linspace(-2e6, 2e6, 1001)
+        self.stretches = np.linspace(.99, 1.01, 11)
         self._freqCutoff = frequencyCutoff
 
         self.resIDMatches = None
@@ -57,7 +59,8 @@ class Correlator(object):
         start = time.time()
         log.info("Correlating board {}".format(self.board))
         log.info("Finding best frequency shifts")
-        self.findBestFreqShift()
+        self.findBestFreqShift1()
+        self.findBestFreqShift2()
         log.info("Applying a shift of {} MHz".format(self.bestShift/1.e6))
         self.applyBestShift()
         log.info("Flagging Resonators")
@@ -83,14 +86,14 @@ class Correlator(object):
         self.newFreq = self.newFreq[newIndices]
         self.newRes = self.newRes[newIndices]
 
-        # shortmaskO = (self.oldFreq <= 5.87e9) #& (self.oldFreq >= 4.e9)
-        # shortmaskN = (self.newFreq <= 5.87e9) #& (self.newFreq >= 4.e9)
-        # self.oldFreq = self.oldFreq[shortmaskO]
-        # self.oldRes = self.oldRes[shortmaskO]
-        # self.newFreq = self.newFreq[shortmaskN]
-        # self.newRes = self.newRes[shortmaskN]
+        shortmaskO = (self.oldFreq <= 7.5e9) & (self.oldFreq >= 6e9)
+        shortmaskN = (self.newFreq <= 7.5e9) & (self.newFreq >= 6e9)
+        self.oldFreq = self.oldFreq[shortmaskO]
+        self.oldRes = self.oldRes[shortmaskO]
+        self.newFreq = self.newFreq[shortmaskN]
+        self.newRes = self.newRes[shortmaskN]
 
-    def findBestFreqShift(self):
+    def findBestFreqShift1(self):
         """
         Performs two frequency 'sweeps' to determine the frequency shift which minimizes the error between old and new
         frequency lists. Sweep 1 is coarse and sweeps +/- 5 MHz in 5 kHz steps. Once a frequency shift is found in this
@@ -99,23 +102,67 @@ class Correlator(object):
         """
 
         self.avgResidual = []
-        self.newAvgResidual = []
         for i in self.shifts:
-            match = self.matchFrequencies(self.newFreq, self.oldFreq, i)
-            residuals = abs(match[0]-match[1])
-            self.avgResidual.append(np.average(residuals))
-        mask = self.avgResidual == np.min(self.avgResidual)
-        self.bestShift = self.shifts[mask][0]
+            print(i)
+            stretch_residuals = []
+            for j in self.stretches:
+                print(i,j)
+                match = self.matchFrequencies(self.newFreq, self.oldFreq, i, j)
+                residuals = abs(match[0]-match[1])
+                stretch_residuals.append(np.average(residuals))
+            print(stretch_residuals)
+            self.avgResidual.append(stretch_residuals)
+        idx = np.where(self.avgResidual == np.min(self.avgResidual))
+        # mask = self.avgResidual == np.min(self.avgResidual)
+        self.bestShift = self.shifts[idx[0][0]]
+        self.bestStretch = self.stretches[idx[1][0]]
         log.info("The best shift after pass one is {} MHz".format(self.bestShift/1.e6))
 
-        tempMatch = self.matchFrequencies(self.newFreq, self.oldFreq, self.bestShift)
-        tempResiduals = tempMatch[0]-tempMatch[1]
-        averageResidual = np.median(tempResiduals)
-        log.info("The median residual after matching frequency lists is {} MHz".format(averageResidual/1.e6))
-        self.bestShift = self.bestShift - averageResidual
-        log.info("The best shift is {} MHz".format(self.bestShift/1.e6))
+        # tempMatch = self.matchFrequencies(self.newFreq, self.oldFreq, self.bestShift)
+        # tempResiduals = tempMatch[0]-tempMatch[1]
+        # averageResidual = np.median(tempResiduals)
+        # log.info("The median residual after matching frequency lists is {} MHz".format(averageResidual/1.e6))
+        # self.bestShift = self.bestShift - averageResidual
+        log.info("The best shift is {} MHz, the best stretch is {}".format(self.bestShift/1.e6, self.bestStretch))
 
-    def matchFrequencies(self, list1, list2, shift=0):
+    def findBestFreqShift2(self):
+        """
+        Performs two frequency 'sweeps' to determine the frequency shift which minimizes the error between old and new
+        frequency lists. Sweep 1 is coarse and sweeps +/- 5 MHz in 5 kHz steps. Once a frequency shift is found in this
+        space, a finer search of +/-1 kHz is performed in 1 Hz steps.
+        Sets self.bestShift, the ideal frequency shift to match the new data to the old.
+        """
+
+        self.fineAvgResidual = []
+
+        shift_step = self.shifts[1]-self.shifts[0]
+        stretch_step = self.stretches[1]-self.stretches[0]
+        newShifts = np.arange(self.bestShift-shift_step, self.bestShift+shift_step+1.e3, step=0.5e3)
+        newStretches = np.arange(self.bestStretch-stretch_step, self.bestStretch+stretch_step, step=.00005)
+        for i in newShifts:
+            print(i)
+            stretch_residuals = []
+            for j in newStretches:
+                print(i, j)
+                match = self.matchFrequencies(self.newFreq, self.oldFreq, i, j)
+                residuals = abs(match[0] - match[1])
+                stretch_residuals.append(np.average(residuals))
+            print(stretch_residuals)
+            self.fineAvgResidual.append(stretch_residuals)
+        idx = np.where(self.fineAvgResidual == np.min(self.fineAvgResidual))
+        # mask = self.avgResidual == np.min(self.avgResidual)
+        self.fineBestShift = newShifts[idx[0][0]]
+        self.fineBestStretch = newStretches[idx[1][0]]
+        log.info("The best shift after pass one is {} MHz".format(self.bestShift / 1.e6))
+
+        # tempMatch = self.matchFrequencies(self.newFreq, self.oldFreq, self.bestShift)
+        # tempResiduals = tempMatch[0]-tempMatch[1]
+        # averageResidual = np.median(tempResiduals)
+        # log.info("The median residual after matching frequency lists is {} MHz".format(averageResidual/1.e6))
+        # self.bestShift = self.bestShift - averageResidual
+        log.info("The best shift is {} MHz, the best stretch is {}".format(self.fineBestShift / 1.e6, self.fineBestStretch))
+
+    def matchFrequencies(self, list1, list2, shift=0, stretch=1):
         """
         Takes two frequency lists (by convention list1 is the new data, list2 is the old data) and a shift in Hz to
         apply to the new data.
@@ -124,7 +171,7 @@ class Correlator(object):
         """
 
         if len(list1) > len(list2):
-            longer = list1 + shift
+            longer = (list1 * stretch) + shift
             shorter = list2
             matches = np.zeros((2, len(longer)))
             matches[0] = longer
@@ -134,7 +181,7 @@ class Correlator(object):
                 matches[1][i] = shorter[mask][0]
         else:
             longer = list2
-            shorter = list1 + shift
+            shorter = (list1 * stretch) + shift
             matches = np.zeros((2, len(longer)))
             matches[1] = longer
             for i in range(len(longer)):
@@ -253,7 +300,7 @@ class Correlator(object):
     def generateBMResMask(self, beammap):
         self.bmResMask = np.zeros(len(self.oldRes)).astype(bool)
         for i, res in enumerate(self.oldRes):
-            self.bmResMask[i] = (beammap.getResonatorFlag(res) == beamMapFlags['good'])
+            self.bmResMask[i] = (beammap.getResonatorFlag(res) == beammap['good'])
 
     def fixMismatches(self):
         centers = np.transpose(np.where(self._flagGrid == 2))
