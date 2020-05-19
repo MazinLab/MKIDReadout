@@ -61,12 +61,12 @@ class Correlator(object):
         log.info("Finding best frequency shifts")
         self.findBestFreqShift1()
         self.findBestFreqShift2()
-        log.info("Applying a shift of {} MHz".format(self.bestShift/1.e6))
-        self.applyBestShift()
-        log.info("Flagging Resonators")
-        self.handleFlags()
-        end = time.time()
-        log.debug("ID correlation took {} seconds".format(end - start))
+        # log.info("Applying a shift of {} MHz".format(self.bestShift/1.e6))
+        # self.applyBestShift()
+        # log.info("Flagging Resonators")
+        # self.handleFlags()
+        # end = time.time()
+        # log.debug("ID correlation took {} seconds".format(end - start))
 
     def cleanData(self):
         """
@@ -86,12 +86,12 @@ class Correlator(object):
         self.newFreq = self.newFreq[newIndices]
         self.newRes = self.newRes[newIndices]
 
-        shortmaskO = (self.oldFreq <= 7.5e9) & (self.oldFreq >= 6e9)
-        shortmaskN = (self.newFreq <= 7.5e9) & (self.newFreq >= 6e9)
-        self.oldFreq = self.oldFreq[shortmaskO]
-        self.oldRes = self.oldRes[shortmaskO]
-        self.newFreq = self.newFreq[shortmaskN]
-        self.newRes = self.newRes[shortmaskN]
+        # shortmaskO = (self.oldFreq <= 7.5e9) & (self.oldFreq >= 6e9)
+        # shortmaskN = (self.newFreq <= 7.5e9) & (self.newFreq >= 6e9)
+        # self.oldFreq = self.oldFreq[shortmaskO]
+        # self.oldRes = self.oldRes[shortmaskO]
+        # self.newFreq = self.newFreq[shortmaskN]
+        # self.newRes = self.newRes[shortmaskN]
 
     def findBestFreqShift1(self):
         """

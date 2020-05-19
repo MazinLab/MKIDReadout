@@ -8,7 +8,7 @@ except ImportError:
     getLogger(__name__).warning('Could not find glob/parse modules')
 
 #from mkidcore.objects import Beammap
-from mkidreadout.configuration.beammap.flags import beamMapFlags
+from mkidcore.pixelflags import beammap as beamMapFlags
 
 # flags
 ISGOOD = 0b1
