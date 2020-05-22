@@ -12,6 +12,8 @@ is sensitive to tone power.
 
 Author: Neelay Fruitwala
 
+#TODO: convert print statements to log
+
 """
 
 from __future__ import print_function
@@ -25,12 +27,15 @@ import sys
 import threading
 import time
 import argparse
+import mkidcore
 
 from mkidreadout.channelizer.Roach2Controls import Roach2Controls
 from mkidreadout.configuration.sweepdata import SweepMetadata
 from mkidreadout.channelizer.adcTools import streamSpectrum
 from mkidreadout.channelizer.qdrSnap import takeQdrSnap, measureSidebands
 import mkidreadout.config
+
+from mkidcore.corelog import create_log, getLogger
 
 
 class SBOptimizer:
@@ -61,6 +66,7 @@ class SBOptimizer:
             resIDList: list of corresponding resonator IDs
             toneAttenList: list of corresponding resonator attenuation values
         """
+        print('ip: {}, {}, {}, lo: {}'.format(ip, freqList[0], freqList[-1], loFreq))
         self.roach = Roach2Controls(ip)
         self.loFreq = loFreq
         self.resIDList, self.freqList, self.toneAttenList = resIDList, freqList, toneAttenList
@@ -211,9 +217,9 @@ class SBOptimizer:
             snapDict = self.takeAdcSnap()
             specDict = streamSpectrum(snapDict['iVals'], snapDict['qVals'])        
             findFreq = lambda freq: np.where(specDict['freqsMHz']==freq)[0][0]
-            print('quantFreqsMHz', quantFreqsMHz)
-            print('spectDictFreqs', specDict['freqsMHz'])
-            print('nSamples', specDict['nSamples'])
+            #print('quantFreqsMHz', quantFreqsMHz)
+            #print('spectDictFreqs', specDict['freqsMHz'])
+            #print('nSamples', specDict['nSamples'])
             freqLocs = np.asarray(map(findFreq, quantFreqsMHz))
             sbLocs = -1*freqLocs + len(specDict['freqsMHz'])
 
@@ -282,7 +288,7 @@ class SBOptimizer:
                 curSupList = np.mean(curRawSupList, axis=1)
             
             for j in range(len(freqList)):
-                print(j, sbSupIndList[j,0], sbSupIndList[j,1])
+                #print(j, sbSupIndList[j,0], sbSupIndList[j,1])
                 sampledSBSups[j, sbSupIndList[j,0], sbSupIndList[j,1]] = curSupList[j]
                 weights[j, sbSupIndList[j,0], sbSupIndList[j,1]] = 0
                     
@@ -737,7 +743,7 @@ class sbOptThread(threading.Thread):
 
     def run(self):
         print('Starting optimization for ROACH ' + self.ip)
-        resIDList, freqList, toneAttenList, _, _ = metadata.templar_data(self.loFreq)
+        resIDList, freqList, toneAttenList, _, _ = self.metadata.templar_data(self.loFreq)
         sbo = SBOptimizer(ip=self.ip, resIDList=resIDList, freqList=freqList, toneAttenList=toneAttenList, adcAtten=self.adcAtten, globalDacAtten=self.globalDacAtten, loFreq=self.loFreq)
         if self.useQDR:
             sbo.gridSearchOptimizerFit(sideband='all', useQDR=True, saveNPZ=True, nMaxIters=22)
@@ -757,6 +763,14 @@ if __name__=='__main__':
     args = parser.parse_args()
     config = mkidreadout.config.load(args.config)
     threadpool = []
+
+    getLogger(__name__).setLevel(mkidcore.corelog.INFO)
+
+    create_log('mkidreadout',
+               console=True, mpsafe=True, propagate=False,
+               fmt='%(asctime)s %(name)s %(funcName)s: %(levelname)s %(message)s ',
+               level=mkidcore.corelog.DEBUG)
+    getLogger('mkidreadout.channelizer.Roach2Controls').setLevel(mkidcore.corelog.INFO)
 
     if args.grid_data:
         if len(args.roaches) > 1:

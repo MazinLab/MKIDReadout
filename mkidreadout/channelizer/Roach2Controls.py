@@ -111,7 +111,7 @@ from mkidreadout.configuration import sweepdata
 
 
 class Roach2Controls(object):
-    def __init__(self, ip, paramFile='', feedline=1, range='a', num=112, verbose=False, debug=False,
+    def __init__(self, ip, paramFile='', feedline=1, range='a', num=None, verbose=False, debug=False,
                  freqListFile=''):
         """
         Input:
@@ -123,7 +123,10 @@ class Roach2Controls(object):
         # np.random.seed(1) #Make the random phase values always the same
         self.verbose = verbose
         self.debug = debug
-        self.num = num
+        if num is None:
+            self.num = int(ip[-3:])
+        else:
+            self.num = num
         self.feedline = feedline
         self.range = range
         self.freqListFile = freqListFile.format(feedline=feedline, range=range, num=num)
@@ -643,6 +646,7 @@ class Roach2Controls(object):
         num_lut_dumps = int(math.ceil(len(memVals) * 2 / self.lut_dump_buffer_size))  # Each value in memVals is 2 bytes
         getLogger(__name__).debug('num lut dumps ' + str(num_lut_dumps))
         # getLogger(__name__).info('len(memVals) ' + str(len(memVals)))
+        getLogger(__name__).info('r{}: starting LUT dump.....'.format(self.ip[-3:]))
 
         for i in range(num_lut_dumps):
             if len(memVals) > self.lut_dump_buffer_size / 2 * (i + 1):
@@ -681,6 +685,7 @@ class Roach2Controls(object):
                 time.sleep(0.01)
 
         self.fpga.write_int(self.params['enBRAMDump_reg'], 0, blindwrite=True)
+        getLogger(__name__).info('r{}: done LUT dump'.format(self.ip[-3:]))
 
     def setLOFreq(self, lofreq, force=False):
         """  Sets the attribute LOFreq (in Hz) """
@@ -690,6 +695,7 @@ class Roach2Controls(object):
             delta = np.abs(self.freqList-lo)
         except AttributeError:
             getLogger(__name__).warning('No frequency list yet loaded. Unable to check if LO is reasonable.')
+            getLogger(__name__).info('Setting LO to {} Hz'.format(lo))
             self.LOFreq = lo
             return
 
@@ -702,6 +708,8 @@ class Roach2Controls(object):
                 raise ValueError('LO out of bounds')
         elif tofar.any():
             getLogger(__name__).warning('Frequencies more than half a sample rate from the LO')
+
+        getLogger(__name__).info('Setting LO to {} Hz'.format(lo))
         self.LOFreq = lo
 
     def loadLOFreq(self, LOFreq=None):
@@ -1196,7 +1204,7 @@ class Roach2Controls(object):
         self.attenList = (resAttenList[args])[args_inv]     # Force any duplicate frequencies to also have duplicate attens
 
         rstate = np.random.get_state()
-        np.random.seed(0)
+        #np.random.seed(1)
         toneParams={
                 'freqList': dacFreqList,
                 'nSamples': nSamples,
