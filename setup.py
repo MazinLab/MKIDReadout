@@ -110,6 +110,7 @@ setuptools.setup(
              'mkidreadout/readout/dashboard.py',
              'mkidreadout/channelizer/reinitADCDAC.py',
              'mkidreadout/configuration/powersweep/clickthrough_hell.py',
+             'mkidreadout/configuration/sbSuppressionOptimizer.py',
              'mkidreadout/configuration/beammap/sweep.py'],
     ext_modules=cythonize(extensions),
     classifiers=(
