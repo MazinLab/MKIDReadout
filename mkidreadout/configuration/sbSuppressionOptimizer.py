@@ -750,7 +750,7 @@ class sbOptThread(threading.Thread):
         else:
             sbo.gridSearchOptimizerFit(sideband='upper', saveNPZ=True, nAvgs=20)
             sbo.gridSearchOptimizerFit(sideband='lower', saveNPZ=True, nAvgs=20)
-        sbo.saveGridSearchOptFreqList(self.metadata.file.split('.')[0] + '_sbOpt_v3.txt')
+        sbo.saveGridSearchOptFreqList(os.path.splitext(self.metadata.file)[0] + '_sbOpt_v3.txt')
 
 
 if __name__=='__main__': 
