@@ -43,13 +43,15 @@ class Correlator(object):
 
         self.bestShift = 0
         self.bestStretch = 1
-        self.shifts = np.arange(-3e6, 3e6+1e4, 1e4)
+        self.shifts = np.arange(-5e6, 5e6+1e4, 1e4)
+        self.stretches = np.arange(0.998, 1.002, .00001)
         self._freqCutoff = frequencyCutoff
         self.shift_fit_coeffs = {}
         self.fit_data = {}
         self.correlation_freqs = []
         self.correlation_strengths = []
-        self.fit_order = fitOrder
+        self.fit_order = []
+        self.fit_order.append(fitOrder)
 
         self.resIDMatches = None
         self.freqMatches = None
@@ -67,8 +69,8 @@ class Correlator(object):
         # self.findBestFreqShift2()
         cfreqs = self.generate_freqs_to_correlate()
         cstrengths = self.correlate_freqs(cfreqs)
-        fit_coefficients, fit_data = self.fit_freq_to_best_shift(cstrengths, cfreqs, self.fit_order)
-        self.apply_best_shift(self.fit_order)
+        fit_coefficients, fit_data = self.fit_freq_to_best_shift(cstrengths, cfreqs, self.fit_order[0])
+        self.apply_best_shift(self.fit_order[0])
         log.info("Flagging Resonators")
         self.handleFlags()
         end = time.time()
@@ -100,19 +102,42 @@ class Correlator(object):
         # self.newRes = self.newRes[shortmaskN]
 
     def generate_freqs_to_correlate(self):
-        bins1 = np.arange(0, len(self.newFreq)+100, 100)
+        bins1 = np.arange(0, len(self.newFreq)+30, 30)
         bins1[-1] = len(self.newFreq) - 1
-        bins2 = np.arange(50, len(self.newFreq), 100)
+        bins2 = np.arange(15, len(self.newFreq), 30)
         f1 = [np.array(self.newFreq[bins1[i]:bins1[i+1]]) for i in range(len(bins1)-1)]
         f2 = [np.array(self.newFreq[bins2[i]:bins2[i+1]]) for i in range(len(bins2)-1)]
         freqs = [j for i in zip(f1, f2) for j in i]
         self.correlation_freqs = freqs
         return freqs
 
+    def stretch_shift_correlate(self):
+        old_sweep = np.zeros(int(1e7))
+        old_freqs_khz = np.array(self.oldFreq / 1e3, dtype=int)
+        old_freqs_extended = np.array([np.arange(i-25, i+26, 1) for i in old_freqs_khz])
+        old_freqs_mask = np.unique(old_freqs_extended.flatten())
+        old_sweep[old_freqs_mask] = 1
+
+        strengths = []
+        for s in self.shifts:
+            strengths_sub = []
+            for j in self.stretches:
+                new_sweep = np.zeros(int(1e7))
+                new_freqs_khz = np.array(((self.newFreq * j) + s) / 1e3, dtype=int)
+                new_freqs_extended = np.array([np.arange(i-25, i+26, 1) for i in new_freqs_khz])
+                new_freqs_mask = np.unique(new_freqs_extended.flatten())
+                new_sweep[new_freqs_mask] = 1
+                strength = np.correlate(old_sweep, new_sweep)[0]
+                print("Testing shift {}, stretch {}, stregth of correlation is {}".format(s, j, strength))
+                strengths_sub.append(strength)
+            strengths.append(strengths_sub)
+        self.correlation_strengths = strengths
+        return np.array(strengths)
+
     def correlate_freqs(self, freqs):
         old_sweep = np.zeros(int(1e7))
         old_freqs_khz = np.array(self.oldFreq / 1e3, dtype=int)
-        old_freqs_extended = np.array([np.arange(i-50, i+51, 1) for i in old_freqs_khz])
+        old_freqs_extended = np.array([np.arange(i-25, i+26, 1) for i in old_freqs_khz])
         old_freqs_mask = np.unique(old_freqs_extended.flatten())
         old_sweep[old_freqs_mask] = 1
 
@@ -123,7 +148,7 @@ class Correlator(object):
             for i in self.shifts:
                 new_sweep = np.zeros(int(1e7))
                 new_freqs_khz = np.array((j + i) / 1e3, dtype=int)
-                new_freqs_extended = np.array([np.arange(freq-50, freq+51, 1) for freq in new_freqs_khz])
+                new_freqs_extended = np.array([np.arange(freq-25, freq+26, 1) for freq in new_freqs_khz])
                 new_freqs_mask = np.unique(new_freqs_extended.flatten())
                 new_sweep[new_freqs_mask] = 1
                 strength = np.correlate(old_sweep, new_sweep)[0]
