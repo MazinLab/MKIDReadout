@@ -519,6 +519,20 @@ class SBOptimizer:
                         +time.strftime("%Y%m%d-%H%M%S",time.localtime()), freqs=self.freqList, sbSuppressions=sbSuppressions, loFreq=self.loFreq,
                         globalDacAtten=self.globalDacAtten, adcAtten=self.adcAtten, toneAttenList=self.toneAttenList)
 
+def saveMetadataFromNPZ(metadata, solNPZ):
+    sol = np.load(solNPZ)
+    for freq, phase, iqRatio in zip(sol['freqs'], sol['optPhases'], sol['optIQRatios']):
+        freqInd = np.where(freq == metadata.freq)[0] #index in metadata file
+        if len(freqInd) == 1:
+            freqInd = freqInd[0]
+            metadata.phases[freqInd] = phase
+            metadata.iqRatios[freqInd] = iqRatio
+        elif len(freqInd) == 0:
+            print('f =', freq, 'not found!')
+        else: 
+            print('f =', freq, 'has duplicates!')
+            
+        metadata.save(os.path.splitext(metadata.file)[0] + '_sbOpt.txt', True)
 
                
 def loadGridTable(fileName):
