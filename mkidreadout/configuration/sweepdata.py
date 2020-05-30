@@ -319,7 +319,7 @@ class SweepMetadata(object):
             if d.shape[0] == 11:
                 self.resIDs, self.flag, self.wsfreq, self.mlfreq, self.mlatten, \
                 self.freq, self.atten, self.ml_isgood_score, self.ml_isbad_score, self.phases, self.iqRatios = d
-            if d.shape[0] == 9:
+            elif d.shape[0] == 9:
                 self.resIDs, self.flag, self.wsfreq, self.mlfreq, self.mlatten, \
                 self.freq, self.atten, self.ml_isgood_score, self.ml_isbad_score = d
                 self.phases = np.full_like(self.resIDs, 0, dtype=float)
