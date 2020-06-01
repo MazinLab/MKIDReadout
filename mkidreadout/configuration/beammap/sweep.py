@@ -30,7 +30,7 @@ BeamSweepGaussFit(imageList, initialGuessImage)
 
 Usage:
     From the commandline:
-    $ python sweep.py [sweep.cfg] <stage>
+    $ python sweep.py [sweep.yml] <stage>
 
 $ python sweep.py --help  #for details on calling the different steps
 
