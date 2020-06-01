@@ -4,9 +4,7 @@ beammapped resonators from the original sweep to resonators in the new sweep. Th
 beammapping.
 Author: Noah Swimmer - 20 September 2019.
 
-TODO: Implement more diagnostic plotting
-TODO: Add function to take in beammap and determine number of resonators mapped in old list and not found in new
-TODO: Make properties/setters, document new code
+TODO: Turn this into a command-line-runnable program
 """
 
 import numpy as np
