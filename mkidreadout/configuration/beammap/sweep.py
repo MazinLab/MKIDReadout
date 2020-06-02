@@ -868,7 +868,7 @@ class TemporalBeammap():
     #    else: self.y_locs=locs
     #    self.saveTemporalBeammap()
 
-    def saveTemporalBeammap(self, split_feedlines=True):
+    def saveTemporalBeammap(self, split_feedlines=True, zero_outside_board='6a'):
         """
 
         :param split_feedlines:
@@ -908,6 +908,14 @@ class TemporalBeammap():
         y = y_map.flatten()
         args = np.argsort(allResIDs)
         data = np.asarray([allResIDs[args], flags[args], x[args], y[args]]).T
+
+        if zero_outside_board:
+            flnum = int(zero_outside_board[0])
+            rel_start = 0 if zero_outside_board[1] == 'a' else 1024
+            abs_start = 10000*flnum + rel_start
+            abs_end = abs_start + 1024
+            fl_ind = np.logical_and(abs_start < data[:, 0], data[:, 0] < abs_end)
+            data[~fl_ind, 1:] = [0, 0.000000, 0.000000]
 
         if split_feedlines:
             for fl in range(1, self.numfeed + 1):
