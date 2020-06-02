@@ -521,7 +521,10 @@ class SBOptimizer:
 
 def saveMetadataFromNPZ(metadata, solNPZ):
     sol = np.load(solNPZ)
-    for freq, phase, iqRatio in zip(sol['freqs'], sol['optPhases'], sol['optIQRatios']):
+    saveSBOptMetadata(metadata, sol['freqs'], sol['optPhases'], sol['optIQRatios'])
+
+def saveSBOptMetadata(metadata, freqs, phases, iqRatios):
+    for freq, phase, iqRatio in zip(freqs, phases, iqRatios):
         freqInd = np.where(freq == metadata.freq)[0] #index in metadata file
         if len(freqInd) == 1:
             freqInd = freqInd[0]
@@ -764,7 +767,8 @@ class sbOptThread(threading.Thread):
         else:
             sbo.gridSearchOptimizerFit(sideband='upper', saveNPZ=True, nAvgs=20)
             sbo.gridSearchOptimizerFit(sideband='lower', saveNPZ=True, nAvgs=20)
-        sbo.saveGridSearchOptFreqList(os.path.splitext(self.metadata.file)[0] + '_sbOpt_v3.txt')
+        sbo.saveGridSearchOptFreqList(os.path.splitext(self.metadata.file)[0] + '_sbOpt_v3_legacy.txt')
+        saveSBOptMetadata(self.metadata, sbo.freqList, sbo.finalPhaseList, sbo.finalIQRatioList)
 
 
 if __name__=='__main__': 
