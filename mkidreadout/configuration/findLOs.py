@@ -4,6 +4,8 @@ Author: Neelay Fruitwala
 Script for finding optimal LOs from frequency lists. Assumes wide/power sweep using
 digital readout; ensures LO is in narrow range around LO used for sweep.
 
+TODO: add support for multiple feedlines at once
+
 '''
 import os
 import sys
