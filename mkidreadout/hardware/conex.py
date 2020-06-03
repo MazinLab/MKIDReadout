@@ -389,8 +389,15 @@ class ConexManager():
                    it has keys (xlocs, ylocs, startTimes, endTimes)
 
         """
-        x_list = np.linspace(dither_dict['startx'], dither_dict['endx'], dither_dict['n'])
-        y_list = np.linspace(dither_dict['starty'], dither_dict['endy'], dither_dict['n'])
+        # Ennabling single direction sweeps
+        if dither_dict['startx'] == dither_dict['endx']:
+            x_list = np.linspace(dither_dict['startx'], dither_dict['endx'], 1)
+        else:
+            x_list = np.linspace(dither_dict['startx'], dither_dict['endx'], dither_dict['n'])
+        if dither_dict['starty'] == dither_dict['endy']:
+            y_list = np.linspace(dither_dict['starty'], dither_dict['endy'], 1)
+        else:
+            y_list = np.linspace(dither_dict['starty'], dither_dict['endy'], dither_dict['n'])
 
         subDither = 'subStep' in dither_dict.keys() and dither_dict['subStep'] > 0 and \
                     'subT' in dither_dict.keys() and dither_dict['subT'] > 0
