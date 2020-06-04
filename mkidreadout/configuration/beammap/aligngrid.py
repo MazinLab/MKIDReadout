@@ -49,7 +49,7 @@ class BMAligner(object):
         self.temporalImageFreqs = None
         self.temporalImageFFTFile = os.path.join(beamdir, cachename)
 
-        self.nXPix, self.nYPix = DEFAULT_ARRAY_SIZES[config.beammap.instrument.lower()]
+        self.nXPix, self.nYPix = DEFAULT_ARRAY_SIZES[instrument.lower()]
 
         if instrument.lower()=='mec':
             self.flWidth = MEC_FL_WIDTH
