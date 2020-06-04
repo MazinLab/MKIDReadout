@@ -392,7 +392,9 @@ class Calculator(object):
             filter_ = filter_functions.dc_orthogonal(template, self.result['psd'], self.cfg.noise.nwindow,
                                                      cutoff=cfg.cutoff)
             pulses, mask = self.make_pulses(save=False, use_filter=filter_)
-            template, fit_result = self.make_template(save=False, refilter=False, pulses=pulses, mask=mask, phase=phase)
+            if mask.any():
+                template, fit_result = self.make_template(save=False, refilter=False, pulses=pulses, mask=mask,
+                                                          phase=phase)
 
         # save and return the template
         if save:
