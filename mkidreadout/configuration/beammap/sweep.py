@@ -868,11 +868,13 @@ class TemporalBeammap():
     #    else: self.y_locs=locs
     #    self.saveTemporalBeammap()
 
-    def saveTemporalBeammap(self, split_feedlines=True, zero_outside_board='6a'):
+    def saveTemporalBeammap(self, split_feedlines=True, zero_outside_board=False):
         """
 
         :param split_feedlines:
             Takes each feedline data and creates a new file
+        :param zero_outside_board:
+            '<FL number><freq ind>' eg '6a' | False
         :return:
         """
 
@@ -915,7 +917,7 @@ class TemporalBeammap():
             abs_start = 10000*flnum + rel_start
             abs_end = abs_start + 1024
             fl_ind = np.logical_and(abs_start < data[:, 0], data[:, 0] < abs_end)
-            data[~fl_ind, 1:] = [0, 0.000000, 0.000000]
+            data[~fl_ind, 1:] = [1, 0.000000, 0.000000]
 
         if split_feedlines:
             for fl in range(1, self.numfeed + 1):
@@ -1025,6 +1027,43 @@ class TemporalBeammap():
 
         log.info('Combined contents of the clicked FL beammaps to {}'.format(stage3_bmap))
 
+    def stitchAligned(self):
+        """ This function is used when stages 1-4 have been completed on a series of boards separately and need to be
+         stitched before stage 5 (clean). For example, the input file 20191211_stage4_FL7b.txt has the content
+
+         resID | Flag | x (secs) | y (secs)
+           .      .        .          .
+           .      .        .          .
+           .      .        .          .
+         71024    1     66.66377   3.25130
+         71025    0     152.65801  127.66477
+           .      .        .          .
+           .      .        .          .
+           .      .        .          .
+         72043    0     66.66377   3.25130
+         80000    1     66.66377   3.25130
+           .      .        .          .
+           .      .        .          .
+           .      .        .          .
+
+        Returns
+        -------
+        20191211_stage4_stitched.txt
+        """
+        stage4_suffix = self.config.beammap.filenames.stage4_bmap.split('.')[0]
+        stage4_stitched_bmap = os.path.join(self.beammapdirectory, stage4_suffix+'_stitched.txt')
+        if os.path.exists(stage4_stitched_bmap):
+            os.remove(stage4_stitched_bmap)
+
+        filenames = ['20191211_stage4_FL7b.txt', '20191211_stage4_FL6b.txt']
+        masterfile = open(stage4_stitched_bmap, 'a')
+        for fname in filenames:
+            board_data = np.loadtxt(os.path.join(self.beammapdirectory, fname))
+            args = board_data[:,1] == 0
+            np.savetxt(masterfile, board_data[args], fmt='%7d %3d %7f %7f')
+
+        log.info('Combined contents of aligned board beammaps to {}'.format(stage4_stitched_bmap))
+
     def plotTimestream(self):
         pass
 
@@ -1053,6 +1092,8 @@ if __name__ == '__main__':
                        help='Combines the different FLs into one master (step 3)')
     group.add_argument('--align', default=False, action='store_true', dest='align', help='Run align grid (step 4)')
     group.add_argument('--clean', default=False, action='store_true', dest='clean', help='Run clean (step 5)')
+
+    group.add_argument('--stitch-aligned', default=False, action='store_true', dest='stitch_aligned', help='stitch board align (step 4.5)')
 
     args = parser.parse_args()
 
@@ -1105,3 +1146,5 @@ if __name__ == '__main__':
         #                                    os.path.join(config.paths.beammapdirectory, config.paths.outputdoublename))
     elif args.clean:
         bmap_clean.main(config)
+    elif args.stitch_aligned:
+        b.stitchAligned()
