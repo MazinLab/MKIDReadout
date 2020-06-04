@@ -1027,7 +1027,7 @@ class TemporalBeammap():
 
         log.info('Combined contents of the clicked FL beammaps to {}'.format(stage3_bmap))
 
-    def stitchAligned(self):
+    def stitchAligned(self, by_id=True):
         """ This function is used when stages 1-4 have been completed on a series of boards separately and need to be
          stitched before stage 5 (clean). For example, the input file 20191211_stage4_FL7b.txt has the content
 
@@ -1059,8 +1059,16 @@ class TemporalBeammap():
         masterfile = open(stage4_stitched_bmap, 'a')
         for fname in filenames:
             board_data = np.loadtxt(os.path.join(self.beammapdirectory, fname))
-            args = board_data[:,1] == 0
-            np.savetxt(masterfile, board_data[args], fmt='%7d %3d %7f %7f')
+            if by_id:
+                board_id = fname.split('.')[0][-2:]
+                flnum = int(board_id[0])
+                rel_start = 0 if board_id[1] == 'a' else 1024
+                abs_start = 10000 * flnum + rel_start
+                abs_end = abs_start + 1024
+                fl_ind = np.logical_and(abs_start < board_data[:, 0], board_data[:, 0] < abs_end)
+            else:
+                fl_ind = board_data[:,1] == 0
+            np.savetxt(masterfile, board_data[fl_ind], fmt='%7d %3d %7f %7f')
 
         log.info('Combined contents of aligned board beammaps to {}'.format(stage4_stitched_bmap))
 
