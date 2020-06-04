@@ -916,7 +916,7 @@ class TemporalBeammap():
             rel_start = 0 if zero_outside_board[1] == 'a' else 1024
             abs_start = 10000*flnum + rel_start
             abs_end = abs_start + 1024
-            fl_ind = np.logical_and(abs_start < data[:, 0], data[:, 0] < abs_end)
+            fl_ind = (abs_start < data[:, 0]) & (data[:, 0] < abs_end)
             data[~fl_ind, 1:] = [1, 0.000000, 0.000000]
 
         if split_feedlines:
@@ -1065,7 +1065,7 @@ class TemporalBeammap():
                 rel_start = 0 if board_id[1] == 'a' else 1024
                 abs_start = 10000 * flnum + rel_start
                 abs_end = abs_start + 1024
-                fl_ind = np.logical_and(abs_start < board_data[:, 0], board_data[:, 0] < abs_end)
+                fl_ind = (abs_start < board_data[:, 0]) & (board_data[:, 0] < abs_end)
             else:
                 fl_ind = board_data[:,1] == 0
             np.savetxt(masterfile, board_data[fl_ind], fmt='%7d %3d %7f %7f')
