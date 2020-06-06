@@ -324,13 +324,13 @@ class Roach2Controls(object):
         while not self.v7_ready:
             self.v7_ready = self.fpga.read_int(self.params['v7Ready_reg'])
             time.sleep(.2)
-        self.sendUARTCommand(0x31, True)
-        self.sendUARTCommand(0x32, True)
-        self.sendUARTCommand(0x33, True)
-        self.sendUARTCommand(0x34, True)
-        self.sendUARTCommand(0x35, True)
-        self.sendUARTCommand(0x36, True)
-        self.sendUARTCommand(0x30, True)
+        self.sendUARTCommand(0x31, True) # set sysref to 0
+        self.sendUARTCommand(0x32, True) # setup LMK clock
+        self.sendUARTCommand(0x33, True) # setup JESD for ADCs
+        self.sendUARTCommand(0x34, True) # setup JESD for DACs
+        self.sendUARTCommand(0x35, True) # setup ADCs
+        self.sendUARTCommand(0x36, True) # setup DACs
+        self.sendUARTCommand(0x30, True) # issue sysref
         self.sendUARTCommand(self.params['mbEnableDACs'], True)
 
     def generateDdsTones(self, freqChannels=None, fftBinIndChannels=None, phaseList=None):
