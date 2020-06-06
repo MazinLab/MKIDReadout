@@ -83,8 +83,10 @@ def bin2img((binfile, nrows, ncols)):
 
     return intensitymap
 
-def raster2img(dithercfg, nrows, ncols): 
-    pass
+def raster2img(ditherlog, nrows, ncols): 
+    """
+    ditherlog is tuple of (starts, ends, pos)
+    """
 
 
 

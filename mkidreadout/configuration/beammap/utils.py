@@ -583,3 +583,29 @@ def generateCoords(coordinate, xSlack, ySlack):
     yCoords = np.linspace(coordinate[1] - ySlack, coordinate[1] + ySlack, 2 * ySlack + 1).astype(int)
     coordinateList = list(itertools.product(xCoords, yCoords))
     return np.array(coordinateList)
+
+def parseDitherLog(file):
+    parsedDitherLogs = {}
+    with open(file, 'r') as f:
+        lines = f.readlines()
+    for i, l in enumerate(lines):
+        if not l.strip().startswith('starts'):
+            continue
+        try:
+            assert lines[i+1].strip().startswith('ends') and lines[i+2].strip().startswith('path')
+            starts = ast.literal_eval(l.partition('=')[2])
+            ends = ast.literal_eval(lines[i + 1].partition('=')[2])
+            pos = ast.literal_eval(lines[i + 2].partition('=')[2])
+        except (AssertionError, IndexError, ValueError, SyntaxError):
+            # Bad dither
+            getLogger(__name__).error('Dither l{}:{} corrupt'.format(i-1, lines[i-1]))
+            continue
+        parsedDitherLogs[(min(starts), max(ends))] = (starts, ends, pos)
+
+    return parsedDitherLogs
+
+def getDitherInfo(timestamp, ditherLogFile):
+    ditherLog = parseDitherLog(ditherLogFile)
+    for (t0, t1), v in ditherLog.items():
+        if t0 - (t1 - t0) <= time <= t1:
+            return v
