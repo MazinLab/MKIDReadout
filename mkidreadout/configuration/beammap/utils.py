@@ -3,6 +3,7 @@ from __future__ import print_function
 import ConfigParser
 import itertools
 import os
+import ast
 import time
 
 import numpy as np
@@ -607,5 +608,5 @@ def parseDitherLog(file):
 def getDitherInfo(timestamp, ditherLogFile):
     ditherLog = parseDitherLog(ditherLogFile)
     for (t0, t1), v in ditherLog.items():
-        if t0 - (t1 - t0) <= time <= t1:
+        if t0 - (t1 - t0) <= timestamp <= t1:
             return v

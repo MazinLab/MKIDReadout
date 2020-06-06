@@ -83,10 +83,48 @@ def bin2img((binfile, nrows, ncols)):
 
     return intensitymap
 
-def raster2img(ditherlog, nrows, ncols): 
+def bin2imgfile(starttime, inttime, bindir, initialbmfile, nrows, ncols):
+    photons = extract(bindir, starttime, inttime, initialbmfile, nrows, ncols)
+    return np.histogram2d(photons['y'], photons['x'], bins=[range(nrows + 1), range(ncols + 1)])[0]
+    
+
+def raster2img(ditherlog, bindir, initialbmfile, axis, nrows, ncols): 
     """
     ditherlog is tuple of (starts, ends, pos)
+    axis is 'x' or 'y'
     """
+    starts = ditherlog[1]
+    ends = ditherlog[2]
+    pos = np.asarray(ditherlog[2])
+    intTimes = ends - starts
+    posTolerance = 0.002
+    
+    if axis == 'x':
+        axInd = 0
+    elif axis == 'y':
+        axInd = 1
+    else:
+        raise Exception('Invalid direction')
+
+    images = np.empty(len(starts), nrows, ncols))
+    for i, startTime, intTime in enumerate((starts, intTimes)):
+        images[i] = bin2imgfile(startTime, intTime, bindir, initialbmfile, nrows, ncols)
+        getLogger(__name__).debug('Making frame {}/{}'.format(i, len(starts)))
+
+    uniqueCoords = np.sort(pos[:, axInd])
+    uniqueMask = np.abs(np.diff(uniqueCoords)) > posTolerance
+    uniqueMask = np.append([True], uniquemask)
+    uniqueCoords = uniqueCoords[uniqueMask]
+
+    frames = []
+    for coord in uniqueCoords:
+        coordMask = np.abs(coord - pos[:, axInd]) < posTolerance
+        frames.append(np.sum(images[coordMask, :, :], axis=0)))
+    
+    return frames
+
+
+
 
 
 
