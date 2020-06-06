@@ -83,6 +83,10 @@ def bin2img((binfile, nrows, ncols)):
 
     return intensitymap
 
+def raster2img(dithercfg, nrows, ncols): 
+    pass
+
+
 
 class FitBeamSweep(object):
     """
