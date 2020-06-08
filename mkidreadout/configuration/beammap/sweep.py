@@ -42,13 +42,14 @@ import matplotlib
 import numpy as np
 import multiprocessing as mp
 import argparse
+import time, datetime, calendar
 
 
 matplotlib.use('Qt4Agg')
 import matplotlib.pyplot as plt
 from mkidcore.config import load
 from mkidcore.corelog import getLogger, create_log
-from mkidcore.hdf.mkidbin import parse
+from mkidcore.hdf.mkidbin import parse, extract
 from mkidcore.objects import Beammap
 from mkidcore.pixelflags import beammap as beamMapFlags
 from mkidcore.instruments import DEFAULT_ARRAY_SIZES, MEC_FEEDLINE_INFO, DARKNESS_FEEDLINE_INFO
@@ -84,19 +85,18 @@ def bin2img((binfile, nrows, ncols)):
     return intensitymap
 
 def bin2imgfile(starttime, inttime, bindir, initialbmfile, nrows, ncols):
-    photons = extract(bindir, starttime, inttime, initialbmfile, nrows, ncols)
+    photons = extract(bindir, starttime, inttime, initialbmfile, ncols, nrows)
     return np.histogram2d(photons['y'], photons['x'], bins=[range(nrows + 1), range(ncols + 1)])[0]
     
 
-def raster2img(ditherlog, bindir, initialbmfile, axis, nrows, ncols): 
+def raster2img(ditherlog, bindir, axis, nrows, ncols): 
     """
     ditherlog is tuple of (starts, ends, pos)
     axis is 'x' or 'y'
     """
-    starts = ditherlog[1]
-    ends = ditherlog[2]
+    starts = np.asarray(ditherlog[0])
+    ends = np.asarray(ditherlog[1])
     pos = np.asarray(ditherlog[2])
-    intTimes = ends - starts
     posTolerance = 0.002
     
     if axis == 'x':
@@ -106,20 +106,48 @@ def raster2img(ditherlog, bindir, initialbmfile, axis, nrows, ncols):
     else:
         raise Exception('Invalid direction')
 
-    images = np.empty(len(starts), nrows, ncols))
-    for i, startTime, intTime in enumerate((starts, intTimes)):
-        images[i] = bin2imgfile(startTime, intTime, bindir, initialbmfile, nrows, ncols)
-        getLogger(__name__).debug('Making frame {}/{}'.format(i, len(starts)))
+    images = np.empty((len(starts), nrows, ncols))
+    inds = range(len(starts))
+    assert np.all(starts == np.sort(starts)), 'dither start times out of order!'
+    assert np.all(ends == np.sort(ends)), 'dither end times out of order!'
+    photoncache = parse(os.path.join(bindir, str(int(starts[0]-1))+'.bin')) 
+    photoncache = np.append(photoncache, parse(os.path.join(bindir, str(int(starts[0]))+'.bin')))
+    photoncacheLastFile = int(starts[0])
+
+    curYr = datetime.datetime.utcnow().year
+    yrStart = datetime.date(curYr, 1, 1)
+    tsOffs = calendar.timegm(yrStart.timetuple()) #UTC time in seconds at start of year; reference point for bin timestamps
+    #parsebin timestamps are in microseconds since year start
+
+    for i, startTime, endTime in zip(inds, starts, ends):
+        startTimestamp = 1.e6*(startTime - tsOffs) #microseconds since year start
+        endTimestamp = 1.e6*(endTime - tsOffs)
+        print 'startTimestamp', startTimestamp
+        print 'endTimestamp', endTimestamp
+        print photoncache['tstamp'][0], photoncache['tstamp'][-1]
+        if startTimestamp < photoncache['tstamp'][0] - 100:
+            raise Exception('photon cache start bug')
+        while endTimestamp > photoncache['tstamp'][-1]:
+            print 'parsing new file:', photoncacheLastFile + 1
+            photoncache = np.append(photoncache, parse(os.path.join(bindir, str(photoncacheLastFile + 1)+'.bin')))
+            photoncacheLastFile += 1
+        startInd = np.argmin(np.abs(photoncache['tstamp'] - startTimestamp))
+        endInd = np.argmin(np.abs(photoncache['tstamp'] - endTimestamp))
+        photons = photoncache[startInd:endInd]
+        photoncache = photoncache[startInd:] #remove all photons before startTime
+        images[i] = np.histogram2d(photons['y'], photons['x'], bins=[range(nrows + 1), range(ncols + 1)])[0]
+        #getLogger(__name__).debug('Making frame {}/{}'.format(i, len(starts)))
+        print 'Making frame {}/{}'.format(i, len(starts))
 
     uniqueCoords = np.sort(pos[:, axInd])
     uniqueMask = np.abs(np.diff(uniqueCoords)) > posTolerance
-    uniqueMask = np.append([True], uniquemask)
+    uniqueMask = np.append([True], uniqueMask)
     uniqueCoords = uniqueCoords[uniqueMask]
 
     frames = []
     for coord in uniqueCoords:
         coordMask = np.abs(coord - pos[:, axInd]) < posTolerance
-        frames.append(np.sum(images[coordMask, :, :], axis=0)))
+        frames.append(np.sum(images[coordMask, :, :], axis=0))
     
     return frames
 
