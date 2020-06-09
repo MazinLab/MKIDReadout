@@ -36,7 +36,7 @@ $ python sweep.py --help  #for details on calling the different steps
 
 """
 
-import os
+import os, sys
 
 import matplotlib
 import numpy as np
@@ -103,7 +103,7 @@ def raster2img(binDir, ditherLogFile, ditherTimestamp, axis, nrows, ncols, dithe
     else:
         raise Exception('Invalid direction')
 
-    ditherFrameDict = getDitherFrames(binDir, ditherLogFile, ditherTimestamp, dithercache)
+    ditherFrameDict = getDitherFrames(binDir, ditherLogFile, ditherTimestamp, nrows, ncols, dithercache)
     pos = ditherFrameDict['pos']
     images = ditherFrameDict['frames']
 
@@ -121,8 +121,8 @@ def raster2img(binDir, ditherLogFile, ditherTimestamp, axis, nrows, ncols, dithe
     return frames
 
 
-def getDitherFrames(binDir, ditherLogFile, ditherTimestamp, useCache=True):
-    ditherlog = utils.getDitherInfo(ditherTimestamp, ditherLogFile)
+def getDitherFrames(binDir, ditherLogFile, ditherTimestamp, nrows, ncols, useCache=True):
+    ditherlog = bmu.getDitherInfo(ditherTimestamp, ditherLogFile)
     loghash = hash((tuple(ditherlog[0]), tuple(ditherlog[1]), tuple(ditherlog[2])))&sys.maxsize
     cacheFn = os.path.join(os.path.dirname(ditherLogFile), 'ditherFrames_' + str(loghash) + '.npz')
     if useCache:
