@@ -60,6 +60,8 @@ from mkidreadout.configuration.beammap import clean as bmap_clean
 import mkidreadout.configuration.beammap.utils as bmu
 from mkidreadout.configuration.beammap.flags import timestream_flags
 
+N_CPU = 4
+
 
 def bin2imgs((binfile, nrows, ncols)):
     """ Grab both intensity and phase maps from bin data """
@@ -129,6 +131,7 @@ def getDitherFrames(binDir, ditherLogFile, ditherTimestamp, nrows, ncols, useCac
         if os.path.isfile(cacheFn):
             return np.load(cacheFn)
 
+    pool = mp.Pool(N_CPU)
 
     starts = np.asarray(ditherlog[0])
     ends = np.asarray(ditherlog[1])
@@ -156,9 +159,13 @@ def getDitherFrames(binDir, ditherLogFile, ditherTimestamp, nrows, ncols, useCac
         if startTimestamp < photoncache['tstamp'][0] - 100:
             raise Exception('photon cache start bug')
         while endTimestamp > photoncache['tstamp'][-1]:
-            print 'parsing new file:', photoncacheLastFile + 1
-            photoncache = np.append(photoncache, parse(os.path.join(binDir, str(photoncacheLastFile + 1)+'.bin')))
-            photoncacheLastFile += 1
+            print 'parsing new files:', photoncacheLastFile + 1
+            fileList = [os.path.join(binDir, str(photoncacheLastFile + i + 1) + '.bin') for i in range(N_CPU)]
+            newphotons = pool.map(parse, fileList)
+            for phots in newphotons:
+                photoncache = np.append(phots, photoncache)
+            #photoncache = np.append(photoncache, parse(os.path.join(binDir, str(photoncacheLastFile + 1)+'.bin')))
+            photoncacheLastFile += N_CPU
         startInd = np.argmin(np.abs(photoncache['tstamp'] - startTimestamp))
         endInd = np.argmin(np.abs(photoncache['tstamp'] - endTimestamp))
         photons = photoncache[startInd:endInd]
@@ -853,6 +860,9 @@ class TemporalBeammap():
             if s.sweeptype in sweepType:
                 getLogger('Sweep').info('loading: ' + str(s))
                 # phase info used by later steps so include phase data in the created cache
+                if s.raster:
+                    pass
+                    #imList = raster2img(self.config.paths.bin, 
                 imList = self.loadSweepBins(s, get_phases=True).astype(np.float)[:, 0]
                 if removeBkg:
                     bkgndList = np.median(imList, axis=0)
