@@ -89,14 +89,11 @@ def bin2imgfile(starttime, inttime, bindir, initialbmfile, nrows, ncols):
     return np.histogram2d(photons['y'], photons['x'], bins=[range(nrows + 1), range(ncols + 1)])[0]
     
 
-def raster2img(ditherlog, bindir, axis, nrows, ncols): 
+def raster2img(binDir, ditherLogFile, ditherTimestamp, axis, nrows, ncols, dithercache=True): 
     """
     ditherlog is tuple of (starts, ends, pos)
     axis is 'x' or 'y'
     """
-    starts = np.asarray(ditherlog[0])
-    ends = np.asarray(ditherlog[1])
-    pos = np.asarray(ditherlog[2])
     posTolerance = 0.002
     
     if axis == 'x':
@@ -106,12 +103,43 @@ def raster2img(ditherlog, bindir, axis, nrows, ncols):
     else:
         raise Exception('Invalid direction')
 
+    ditherFrameDict = getDitherFrames(binDir, ditherLogFile, ditherTimestamp, dithercache)
+    pos = ditherFrameDict['pos']
+    images = ditherFrameDict['frames']
+
+    uniqueCoords = np.sort(pos[:, axInd])
+    uniqueMask = np.abs(np.diff(uniqueCoords)) > posTolerance
+    uniqueMask = np.append([True], uniqueMask)
+    uniqueCoords = uniqueCoords[uniqueMask]
+
+
+    frames = []
+    for coord in uniqueCoords:
+        coordMask = np.abs(coord - pos[:, axInd]) < posTolerance
+        frames.append(np.sum(images[coordMask, :, :], axis=0))
+    
+    return frames
+
+
+def getDitherFrames(binDir, ditherLogFile, ditherTimestamp, useCache=True):
+    ditherlog = utils.getDitherInfo(ditherTimestamp, ditherLogFile)
+    loghash = hash((tuple(ditherlog[0]), tuple(ditherlog[1]), tuple(ditherlog[2])))&sys.maxsize
+    cacheFn = os.path.join(os.path.dirname(ditherLogFile), 'ditherFrames_' + str(loghash) + '.npz')
+    if useCache:
+        if os.path.isfile(cacheFn):
+            return np.load(cacheFn)
+
+
+    starts = np.asarray(ditherlog[0])
+    ends = np.asarray(ditherlog[1])
+    pos = np.asarray(ditherlog[2])
+
     images = np.empty((len(starts), nrows, ncols))
     inds = range(len(starts))
     assert np.all(starts == np.sort(starts)), 'dither start times out of order!'
     assert np.all(ends == np.sort(ends)), 'dither end times out of order!'
-    photoncache = parse(os.path.join(bindir, str(int(starts[0]-1))+'.bin')) 
-    photoncache = np.append(photoncache, parse(os.path.join(bindir, str(int(starts[0]))+'.bin')))
+    photoncache = parse(os.path.join(binDir, str(int(starts[0]-1))+'.bin')) 
+    photoncache = np.append(photoncache, parse(os.path.join(binDir, str(int(starts[0]))+'.bin')))
     photoncacheLastFile = int(starts[0])
 
     curYr = datetime.datetime.utcnow().year
@@ -129,7 +157,7 @@ def raster2img(ditherlog, bindir, axis, nrows, ncols):
             raise Exception('photon cache start bug')
         while endTimestamp > photoncache['tstamp'][-1]:
             print 'parsing new file:', photoncacheLastFile + 1
-            photoncache = np.append(photoncache, parse(os.path.join(bindir, str(photoncacheLastFile + 1)+'.bin')))
+            photoncache = np.append(photoncache, parse(os.path.join(binDir, str(photoncacheLastFile + 1)+'.bin')))
             photoncacheLastFile += 1
         startInd = np.argmin(np.abs(photoncache['tstamp'] - startTimestamp))
         endInd = np.argmin(np.abs(photoncache['tstamp'] - endTimestamp))
@@ -139,17 +167,10 @@ def raster2img(ditherlog, bindir, axis, nrows, ncols):
         #getLogger(__name__).debug('Making frame {}/{}'.format(i, len(starts)))
         print 'Making frame {}/{}'.format(i, len(starts))
 
-    uniqueCoords = np.sort(pos[:, axInd])
-    uniqueMask = np.abs(np.diff(uniqueCoords)) > posTolerance
-    uniqueMask = np.append([True], uniqueMask)
-    uniqueCoords = uniqueCoords[uniqueMask]
+    ditherFrameDict = {'frames':images, 'starts':starts, 'ends':ends, 'pos':pos}
+    np.savez(cacheFn, **ditherFrameDict)
+    return ditherFrameDict
 
-    frames = []
-    for coord in uniqueCoords:
-        coordMask = np.abs(coord - pos[:, axInd]) < posTolerance
-        frames.append(np.sum(images[coordMask, :, :], axis=0))
-    
-    return frames
 
 
 
