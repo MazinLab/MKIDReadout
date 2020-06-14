@@ -124,14 +124,16 @@ def raster2img(binDir, ditherLogFile, ditherTimestamp, axis, nrows, ncols, dithe
 
 
 def getDitherFrames(binDir, ditherLogFile, ditherTimestamp, nrows, ncols, useCache=True):
+    useMP = False
     ditherlog = bmu.getDitherInfo(ditherTimestamp, ditherLogFile)
     loghash = hash((tuple(ditherlog[0]), tuple(ditherlog[1]), tuple(ditherlog[2])))&sys.maxsize
     cacheFn = os.path.join(os.path.dirname(ditherLogFile), 'ditherFrames_' + str(loghash) + '.npz')
     if useCache:
         if os.path.isfile(cacheFn):
             return np.load(cacheFn)
-
-    pool = mp.Pool(N_CPU)
+    
+    if useMP:
+        pool = mp.Pool(N_CPU)
 
     starts = np.asarray(ditherlog[0])
     ends = np.asarray(ditherlog[1])
@@ -160,12 +162,15 @@ def getDitherFrames(binDir, ditherLogFile, ditherTimestamp, nrows, ncols, useCac
             raise Exception('photon cache start bug')
         while endTimestamp > photoncache['tstamp'][-1]:
             print 'parsing new files:', photoncacheLastFile + 1
-            fileList = [os.path.join(binDir, str(photoncacheLastFile + i + 1) + '.bin') for i in range(N_CPU)]
-            newphotons = pool.map(parse, fileList)
-            for phots in newphotons:
-                photoncache = np.append(phots, photoncache)
-            #photoncache = np.append(photoncache, parse(os.path.join(binDir, str(photoncacheLastFile + 1)+'.bin')))
-            photoncacheLastFile += N_CPU
+            if useMP:
+                fileList = [os.path.join(binDir, str(photoncacheLastFile + i + 1) + '.bin') for i in range(N_CPU)]
+                newphotons = pool.map(parse, fileList)
+                for phots in newphotons:
+                    photoncache = np.append(phots, photoncache)
+                photoncacheLastFile += N_CPU
+            else:
+                photoncache = np.append(photoncache, parse(os.path.join(binDir, str(photoncacheLastFile + 1)+'.bin')))
+
         startInd = np.argmin(np.abs(photoncache['tstamp'] - startTimestamp))
         endInd = np.argmin(np.abs(photoncache['tstamp'] - endTimestamp))
         photons = photoncache[startInd:endInd]
@@ -176,6 +181,8 @@ def getDitherFrames(binDir, ditherLogFile, ditherTimestamp, nrows, ncols, useCac
 
     ditherFrameDict = {'frames':images, 'starts':starts, 'ends':ends, 'pos':pos}
     np.savez(cacheFn, **ditherFrameDict)
+    if useMP:
+        pool.close()
     return ditherFrameDict
 
 
@@ -802,11 +809,16 @@ class TemporalBeammap():
         nTimes = 0
         nSweeps = 0
         for s in self.config.beammap.sweep.sweeps:
-            if s.sweeptype in sweepType:
+            if s.sweeptype in sweepType or s.sweeptype == 'raster':
                 nSweeps += 1.
-                both_maps = self.loadSweepBins(s, get_phases=True)  # intensity and phase
-                intensity_maps = both_maps[:, 0]
-                phase_maps = both_maps[:, 1]
+                if s.sweeptype == 'raster':
+                    intensity_maps = raster2img(self.config.paths.bin, s.ditherlog, s.starttime, sweepType, 
+                            self.numrows, self.numcols)
+                    phasemaps = np.zeros(intensity_maps.shape) #todo: implement this
+                else:
+                    both_maps = self.loadSweepBins(s, get_phases=True)  # intensity and phase
+                    intensity_maps = both_maps[:, 0]
+                    phase_maps = both_maps[:, 1]
                 direction = -1 if s.sweepdirection is '-' else 1
                 if inten_sweeps is None:
                     inten_sweeps = np.asarray([intensity_maps[::direction, :, :]])
@@ -860,10 +872,12 @@ class TemporalBeammap():
             if s.sweeptype in sweepType:
                 getLogger('Sweep').info('loading: ' + str(s))
                 # phase info used by later steps so include phase data in the created cache
-                if s.raster:
-                    pass
-                    #imList = raster2img(self.config.paths.bin, 
-                imList = self.loadSweepBins(s, get_phases=True).astype(np.float)[:, 0]
+                if s.sweeptype == 'raster':
+                    imList = raster2img(self.config.paths.bin, s.ditherlog, s.starttime, sweepType, 
+                            self.numrows, self.numcols)
+                    phasemaps = np.zeros(intensity_maps.shape) #todo: implement this
+                else:
+                    imList = self.loadSweepBins(s, get_phases=True).astype(np.float)[:, 0]
                 if removeBkg:
                     bkgndList = np.median(imList, axis=0)
                     imList -= bkgndList
