@@ -120,7 +120,7 @@ def raster2img(binDir, ditherLogFile, ditherTimestamp, axis, nrows, ncols, dithe
         coordMask = np.abs(coord - pos[:, axInd]) < posTolerance
         frames.append(np.sum(images[coordMask, :, :], axis=0))
     
-    return frames
+    return np.asarray(frames)
 
 
 def getDitherFrames(binDir, ditherLogFile, ditherTimestamp, nrows, ncols, useCache=True):
