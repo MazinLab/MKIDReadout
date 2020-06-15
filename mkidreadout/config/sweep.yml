@@ -23,6 +23,12 @@ beammap: !configdict
     fittype: gaussian
     sweeps:
       - !configdict
+        sweeptype: raster
+        sweepdirection: +
+        ditherlog: asdf #either full path or relative to paths.bin
+        starttime: 1575535711
+
+      - !configdict
         sweeptype: x
         sweepdirection: +
         speed: 1
