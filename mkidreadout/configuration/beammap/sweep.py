@@ -814,7 +814,7 @@ class TemporalBeammap():
                 if s.sweeptype == 'raster':
                     intensity_maps = raster2img(self.config.paths.bin, s.ditherlog, s.starttime, sweepType, 
                             self.numrows, self.numcols)
-                    phasemaps = np.zeros(intensity_maps.shape) #todo: implement this
+                    phase_maps = np.zeros(intensity_maps.shape) #todo: implement this
                 else:
                     both_maps = self.loadSweepBins(s, get_phases=True)  # intensity and phase
                     intensity_maps = both_maps[:, 0]
