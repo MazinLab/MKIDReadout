@@ -526,7 +526,7 @@ class FreqSweep:
     def plotTransmissionData(self,show=True, wsAtten=62):
         freqs=self.data['freqs']
         plt.figure()
-        i = np.argmin((self.data['atten'] - wsAtten))
+        i = np.argmin(np.abs(self.data['atten'] - wsAtten))
         I=self.data['I'][i]
         Q=self.data['Q'][i]
         print 'log10 '+str(i)
