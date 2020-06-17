@@ -1,4 +1,4 @@
-#!/bin/env python
+#!/usr/bin/env python
 """
 Author:    Alex Walter
 Date:      Jul 3, 2016

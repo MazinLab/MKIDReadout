@@ -1,4 +1,4 @@
-#!/bin/env python
+#!/usr/bin/env python
 """
 Code to minimize sideband amplitude in the ADC by applying offsets to the
 relative phases and amplitudes of the I and Q signals for each tone.

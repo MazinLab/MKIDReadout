@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 """
 Script for making adjustments to frequency lists (sweep metadata)
 after initial ML fitting. Includes finding LOs, clipping, and shifting freqs.
@@ -34,6 +35,10 @@ if __name__=='__main__':
     getLogger(__name__, setup=True)
     getLogger(__name__).setLevel(mkidcore.corelog.INFO)
     create_log('parse',
+               console=True, mpsafe=True, propagate=False,
+               fmt='%(asctime)s %(name)s %(funcName)s: %(levelname)s %(message)s ',
+               level=mkidcore.corelog.INFO)
+    create_log('mkidreadout.configuration.findLOs',
                console=True, mpsafe=True, propagate=False,
                fmt='%(asctime)s %(name)s %(funcName)s: %(levelname)s %(message)s ',
                level=mkidcore.corelog.INFO)

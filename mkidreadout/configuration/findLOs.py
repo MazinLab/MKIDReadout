@@ -12,6 +12,9 @@ import sys
 import argparse
 import re
 
+import mkidcore.corelog
+from mkidcore.corelog import getLogger, create_log
+
 import numpy as np
 
 import mkidcore.config
@@ -84,14 +87,14 @@ def findLOs(freqsA, sweepLOA, freqsB=None, sweepLOB=None, loRange=10.e6, nIters=
             nFreqsOmittedOpt = nFreqsOmitted
             loAOpt = loA
             loBOpt = loB
-            print 'nCollOpt', nCollisionsOpt
-            print 'nFreqsOmittedOpt', nFreqsOmittedOpt
-            print 'los', loA, loB
+            getLogger(__name__).debug('nCollOpt: ' + str(nCollisionsOpt))
+            getLogger(__name__).debug('nFreqsOmittedOpt: ' + str(nFreqsOmittedOpt))
+            getLogger(__name__).debug('los: ' + str(loA) + ' ' + str(loB))
 
-    print 'Optimal nCollisions', nCollisionsOpt
-    print 'Optimal nFreqsOmitted', nFreqsOmittedOpt
-    print 'LOA', loAOpt
-    print 'LOB', loBOpt
+    print getLogger(__name__).info('Optimal nCollisions: ' + str(nCollisionsOpt))
+    print getLogger(__name__).info('Optimal nFreqsOmitted: ' + str(nFreqsOmittedOpt))
+    print getLogger(__name__).info('LOA: ' + str(loAOpt))
+    print getLogger(__name__).info('LOB: ' + str(loBOpt))
 
     return loAOpt, loBOpt
 
