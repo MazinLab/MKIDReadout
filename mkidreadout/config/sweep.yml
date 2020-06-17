@@ -26,6 +26,7 @@ beammap: !configdict
         sweeptype: raster
         sweepdirection: +
         ditherlog: asdf #either full path or relative to paths.bin
+        boards: [6a, 7a, 8a]
         starttime: 1575535711
 
       - !configdict

@@ -842,6 +842,11 @@ class TemporalBeammap():
 
                     # nTimes = min(len(intensity_maps), nTimes)
                     # imageList=imageList[:nTimes] + (intensity_maps[::direction,:,:])[:nTimes]
+                if hasattr(s,'boards'):
+                    mask = self.get_boards_mask()
+                    mask = mask * np.ones(len(inten_sweeps))[:, None, None]
+                    inten_sweeps = np.ma.array(inten_sweeps, mask=mask)
+                    phase_sweeps = np.ma.array(phase_sweeps, mask=mask)
 
         if median:
             inten_images = np.nanmedian(inten_sweeps, 0)
@@ -869,13 +874,13 @@ class TemporalBeammap():
         assert sweepType in ('x', 'y')
         imageList = None
         for s in self.config.beammap.sweep.sweeps:
-            if s.sweeptype in sweepType:
+            if s.sweeptype in sweepType or s.sweeptype == 'raster':
                 getLogger('Sweep').info('loading: ' + str(s))
                 # phase info used by later steps so include phase data in the created cache
                 if s.sweeptype == 'raster':
-                    imList = raster2img(self.config.paths.bin, s.ditherlog, s.starttime, sweepType, 
+                    imList = raster2img(self.config.paths.bin, s.ditherlog, s.starttime, sweepType,
                             self.numrows, self.numcols)
-                    phasemaps = np.zeros(intensity_maps.shape) #todo: implement this
+                    # phasemaps = np.zeros(intensity_maps.shape) #todo: implement this
                 else:
                     imList = self.loadSweepBins(s, get_phases=True).astype(np.float)[:, 0]
                 if removeBkg:
@@ -886,11 +891,38 @@ class TemporalBeammap():
                     imageList = imList[::direction, :, :]
                 else:
                     imageList = np.concatenate((imageList, imList[::direction, :, :]), axis=0)
+
+                if hasattr(s, 'boards'):
+                    mask = self.get_boards_mask()
+                    mask = mask * np.ones(len(imageList))[:, None, None]
+                    imageList = np.ma.array(imageList, mask=mask)
+
         if sweepType == 'x':
             self.x_images = imageList
         else:
             self.y_images = imageList
         return imageList
+
+    def get_boards_mask(self):
+        if self.initial_bmap is not None:
+            initial = os.path.join(self.beammapdirectory, self.initial_bmap)
+        else:
+            initial = Beammap(default=self.config.beammap.instrument).file
+        temporal = os.path.join(self.beammapdirectory, self.stage1_bmaps)
+
+        allResIDs_map, _, _, _ = bmu.shapeBeammapIntoImages(initial, temporal)
+        # res_ids = []
+        mask = np.zeros((140, 146)).flatten()
+        for board in s.boards:
+            flnum = int(board[0])
+            rel_start = 0 if board[1] == 'a' else 1024
+            abs_start = 10000 * flnum + rel_start
+            abs_end = abs_start + 1024
+            fl_ind = (abs_start < allResIDs_map.flatten(order='F')) & (allResIDs_map.flatten(order='F') < abs_end)
+            mask[fl_ind] = 1
+
+        mask = mask.reshape(140, 146, order='C') == 1
+        return mask
 
     def findLocWithCrossCorrelation(self, sweepType, pixelComputationMask=None, snapToPeaks=True,
                                     correctMultiSweep=True):
