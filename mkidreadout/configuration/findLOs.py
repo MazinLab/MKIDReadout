@@ -91,10 +91,10 @@ def findLOs(freqsA, sweepLOA, freqsB=None, sweepLOB=None, loRange=10.e6, nIters=
             getLogger(__name__).debug('nFreqsOmittedOpt: ' + str(nFreqsOmittedOpt))
             getLogger(__name__).debug('los: ' + str(loA) + ' ' + str(loB))
 
-    print getLogger(__name__).info('Optimal nCollisions: ' + str(nCollisionsOpt))
-    print getLogger(__name__).info('Optimal nFreqsOmitted: ' + str(nFreqsOmittedOpt))
-    print getLogger(__name__).info('LOA: ' + str(loAOpt))
-    print getLogger(__name__).info('LOB: ' + str(loBOpt))
+    getLogger(__name__).info('Optimal nCollisions: ' + str(nCollisionsOpt))
+    getLogger(__name__).info('Optimal nFreqsOmitted: ' + str(nFreqsOmittedOpt))
+    getLogger(__name__).info('LOA: ' + str(loAOpt))
+    getLogger(__name__).info('LOB: ' + str(loBOpt))
 
     return loAOpt, loBOpt
 

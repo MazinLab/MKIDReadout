@@ -29,7 +29,7 @@ if __name__=='__main__':
     parser.add_argument('--find-lo', action='store_true', help='runs LO finding script. sweep npz \
             required to determine initial sweep lo')
     parser.add_argument('--clip-atten', action='store_true', help='runs atten clipping GUI')
-    parser.add_argument('--config', default=None, help='roach.yml file for storing lo freqs')
+    parser.add_argument('--config', default=None, help='roach.yml file for storing lo freqs. WILL BE OVERWRITTEN')
     parser.add_argument('--flag', default='proc', help='flag to be added to outfile name. underscore will be prepended')
     args = parser.parse_args()
     getLogger(__name__, setup=True)
@@ -104,12 +104,3 @@ if __name__=='__main__':
         for md in mdList:
             md.save(os.path.splitext(md.file)[0] + '_' + args.flag + '.txt')
 
-
-
-                    
-
-
-                            
-
-
-    

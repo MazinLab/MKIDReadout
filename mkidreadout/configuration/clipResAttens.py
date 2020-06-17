@@ -75,18 +75,7 @@ def clipHist(data):
 
 
 if __name__=='__main__':
-
-    if( len(sys.argv) < 2 ):
-        print 'Usage: python clipResAttens.py freqFilename'
-
-    if '*' in sys.argv[1]:
-        fns = glob(sys.argv[1])
-    else:
-        fns = sys.argv[1:]
-
-    for fn in fns:
-        clipHist(fn)
-
+    raise Exception('use processResLists instead!')
 
 
 

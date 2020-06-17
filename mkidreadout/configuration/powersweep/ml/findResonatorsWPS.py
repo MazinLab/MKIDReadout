@@ -1,3 +1,10 @@
+#/usr/bin/env python
+
+"""
+Script for using ML inference to identify and tune resonators
+with wide/power sweep data (collected using widesweep.freqSweep)
+"""
+
 import numpy as np
 import tensorflow as tf
 from functools import partial
