@@ -24,8 +24,7 @@ import numpy as np
 import mkidreadout.configuration.sweepdata as sd
 
 
-def clipHist(filename):
-    data = sd.SweepMetadata(file=filename)
+def clipHist(data):
     goodMask = (data.flag & sd.ISGOOD) == sd.ISGOOD
     maxAtten = np.amax(data.atten[goodMask])
     minAtten = np.amin(data.atten[goodMask])
@@ -36,12 +35,14 @@ def clipHist(filename):
     n, bins, patches = ax.hist(data.atten[goodMask], nBins, facecolor='g', alpha=0.75)
     ax.set_xlabel('Attenuation')
     ax.set_ylabel('Number')
-    ax.set_title('Histogram of Resonator Attenuations\n'+os.path.basename(filename))
+    ax.set_title('Histogram of Resonator Attenuations\n'+os.path.basename(data.file))
     ax.grid(True)
 
     atten = {'max':maxAtten, 'min':minAtten}
     ln_max = ax.axvline(x=maxAtten, c='b')
     ln_min = ax.axvline(x=minAtten, c='b')
+
+    totalpower = np.sum(10**(-data.atten[goodMask]/10))
 
     def onclick(event):
         if event.inaxes!=ax: return
@@ -56,6 +57,11 @@ def clipHist(filename):
             ln_min.set_xdata(atten['min'])
         plt.draw()
 
+        newattens = data.atten[goodMask]
+        newattens[newattens < atten['min']] = atten['min']
+        newpower = np.sum(10**(-newattens/10))
+        print 'dac LUT power fraction:', newpower/totalpower 
+
     cid = fig.canvas.mpl_connect('button_press_event', onclick)
     plt.show()
     fig.canvas.mpl_disconnect(cid)
@@ -63,13 +69,9 @@ def clipHist(filename):
     print 'Max Atten = ' + str(atten['max'])
     print 'Min Atten = ' + str(atten['min'])
 
-    #data=data[np.where(data[:,2]>=0)[0]] #get rid of -1's
-    #data[np.where(data[:,2]<atten['min'])[0],2]=atten['min']
-    #data = data[np.where(data[:,2]<atten['max'])]
-    #outFN = filename.rsplit('.',1)[0]+'_clip.txt'
-    #np.savetxt(outFN, data, fmt="%6i %10.9e %4i")
     data.atten[data.atten < atten['min']] = atten['min']
-    data.save(file=filename.split('.')[0] + '_clipped.txt')
+
+    return data
 
 
 if __name__=='__main__':
