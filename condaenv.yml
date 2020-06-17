@@ -3,6 +3,7 @@ channels:
   - defaults
   - conda-forge
   - intel
+  - free
 dependencies:
 #key parts
   - mkl>=11.3.3
