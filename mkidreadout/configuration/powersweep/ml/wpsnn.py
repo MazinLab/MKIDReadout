@@ -118,6 +118,8 @@ class WPSNeuralNet(object):
                             satResAtten = np.random.choice(trainSweep.atten[satResMask]) #pick a random one if out of attens
                         #freqOffs = (-100.e3)*optFreqs[i]/4.e9*np.random.random() #sat resonators move left, so correct this
                         freqOffs = self.mlDict['trainSatFreqOffs']*optFreqs[i]/4.e9 #(-75.e3)*optFreqs[i]/4.e9
+                        if self.mlDict['randomizeTrainSatFreqOffs']:
+                            freqOffs *= np.random.random()
                         images[imgCtr] = mlt.makeWPSImageList(trainSweep, optFreqs[i]+freqOffs, satResAtten, self.imageShape[1], 
                             self.imageShape[0], self.mlDict['useIQV'], self.mlDict['useVectIQV'],
                             normalizeBeforeCenter=self.mlDict['normalizeBeforeCenter'], centerIQV=centerIQV, randomFreqOffs=trainRandomFreqOffs)[0][0] #saturated image
