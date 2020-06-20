@@ -316,7 +316,7 @@ cdef class Packetmaster(object):
         """
         self.wavecal.nCols = self.nCols
         self.wavecal.nRows = self.nRows
-        strcpy(self.wavecal.solutionFile, wvlCoeffs['solution_file_path'].encode('UTF-8'))
+        strcpy(self.wavecal.solutionFile, str(wvlCoeffs['solution_file_path']).encode('UTF-8'))
 
         for image in self.sharedImages:
             self.sharedImages[image].invalidate()
