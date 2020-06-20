@@ -442,7 +442,8 @@ class MKIDDashboard(QMainWindow):
 
         if self.config.dashboard.get('wavecal',''):
             try:
-                self.packetmaster.applyWvlSol(self.config.dashboard.wavecal, self.beammap)
+                wvlCoeffs = np.load(self.config.dashboard.wavecal)
+                self.packetmaster.applyWvlSol(wvlCoeffs, self.beammap)
             except IOError:
                 getLogger('Dashboard').critical('Unable to load wavecal {}.'.format(self.config.dashboard.wavecal))
                 exit(1)

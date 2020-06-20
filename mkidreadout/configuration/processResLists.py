@@ -43,7 +43,12 @@ if __name__=='__main__':
                fmt='%(asctime)s %(name)s %(funcName)s: %(levelname)s %(message)s ',
                level=mkidcore.corelog.INFO)
 
-    sweepFiles, mdFiles, paramDicts = sd.matchSweepToMetadataPat(args.sweep, args.metadata)
+    if args.sweep is not None:
+        sweepFiles, mdFiles, paramDicts = sd.matchSweepToMetadataPat(args.sweep, args.metadata)
+    else:
+        mdFiles, paramDicts = sd.getSweepFilesFromPat(args.metadata)
+        if args.find_lo:
+            raise Exception('LO finding requires sweep npz files')
 
     sweepList = []
     mdList = []
@@ -97,6 +102,7 @@ if __name__=='__main__':
             mdList[i] = clipHist(md)
 
     if args.freq_shift:
+        getLogger(__name__).info('shifting frequencies by {} Hz'.format(args.freq_shift))
         for i, md in enumerate(mdList):
             mdList[i].freq += args.freq_shift
 

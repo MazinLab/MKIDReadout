@@ -8,7 +8,6 @@ from libc.stdlib cimport free, malloc
 from libc.string cimport memcpy, memset, strcpy
 from mkidreadout.readout.sharedmem import ImageCube, EventBuffer
 
-import mkidpipeline.calibration.wavecal as wvl
 from mkidcore.corelog import getLogger
 
 READER_CPU = 1
@@ -130,7 +129,7 @@ cdef class Packetmaster(object):
     cdef readonly object samplicatorProcess
 
     #TODO useWriter->savebinfiles, ramdiskPath->ramdisk ?use '' as default?
-    def __init__(self, nRoaches, port, nRows=None, nCols=None, useWriter=True, wvlSol=None,
+    def __init__(self, nRoaches, port, nRows=None, nCols=None, useWriter=True, wvlCoeffs=None,
                  beammap=None, sharedImageCfg=None, eventBuffCfg=None, maximizePriority=False, 
                  recreate_images=False, forwarding=None):
         """
@@ -152,10 +151,11 @@ cdef class Packetmaster(object):
             ramdiskPath: string
                 Path to "ramdisk", where writer looks for START and STOP files from dashboard. Required
                 if useWriter is True, otherwise not used.
-            wvlSol: Wavecal Solution object. 
-                Used to fill buffer containing wavecal solution LUT.
+            wvlCoeffs: dict 
+                Contains cal coefficients and corresponding resIDs. Used to fill buffer containing 
+                wavecal solution LUT.
             beammap: Beammap object.
-                Required if wvlSol is set, used for nRows and nCols if present
+                Required if wvlCoeffs is set, used for nRows and nCols if present
             sharedImageCfg: yaml config object.
                 Configuration object specifying shared memory objects for acquiring realtime images.
                 Typical usage would pass a configdict specified in dashboard.yml. Creates/opens 
@@ -233,10 +233,10 @@ cdef class Packetmaster(object):
         print 'initializing wavecal...'
         self.wavecal.data = <wvlcoeff_t*>malloc(N_WVL_COEFFS*sizeof(wvlcoeff_t)*npix)
         memset(self.wavecal.data, 0, N_WVL_COEFFS*sizeof(wvlcoeff_t)*npix)
-        if wvlSol is not None:
+        if wvlCoeffs is not None:
             if beammap is None:
                 raise Exception('Must provide a beammap to use a wavecal')
-            self.applyWvlSol(wvlSol, beammap)
+            self.applyWvlSol(wvlCoeffs, beammap)
 
 
 
@@ -303,51 +303,42 @@ cdef class Packetmaster(object):
     def stopWriting(self):
         self.writerParams.writing = 0
 
-    def applyWvlSol(self, wvlSol_file, beammap):
+    def applyWvlSol(self, wvlCoeffs, beammap):
         """
-        Fills packetmaster's wavecal buffer with solution specified in wvlSol.
+        Fills packetmaster's wavecal buffer with coefficients specified in wvlCoeffs.
         (Should be!) safe to use while packetmaster threads are running, though
         data will be invalid while writing.
 
         Parameters
         ----------
-            wvlSol: Wavecal Solution object
+            wvlCoeffs: coefficient dict saved by wavecal Solution
             beamap: beammap object
         """
-        wvlSol = wvl.Solution(wvlSol_file) #make sure the solution isn't just a file name
         self.wavecal.nCols = self.nCols
         self.wavecal.nRows = self.nRows
-        strcpy(self.wavecal.solutionFile, wvlSol._file_path.encode('UTF-8'))
+        strcpy(self.wavecal.solutionFile, wvlCoeffs['solution_file_path'].encode('UTF-8'))
 
         for image in self.sharedImages:
             self.sharedImages[image].invalidate()
 
-        try:
-            with open('cache_{}.pickle'.format(os.path.basename(wvlSol_file))) as f:
-                a,b,c = pickle.load(f)
-            getLogger(__name__).info('Using cache '+'cache_{}.pickle'.format(os.path.basename(wvlSol_file)))
-        except IOError:
-            getLogger(__name__).info('No cache file found, please wait ~3 min.')
-            calCoeffs, calResIDs = wvlSol.find_calibrations()
-            a = np.zeros((self.nRows, self.nCols))
-            b = np.zeros((self.nRows, self.nCols))
-            c = np.zeros((self.nRows, self.nCols))
-            resIDMap = beammap.residmap.T
+        calCoeffs = wvlCoeffs['calibrations']
+        calResIDs = wvlCoeffs['res_ids']
+        a = np.zeros((self.nRows, self.nCols))
+        b = np.zeros((self.nRows, self.nCols))
+        c = np.zeros((self.nRows, self.nCols))
+        resIDMap = beammap.residmap.T
 
-            for i,j in np.ndindex(self.nRows, self.nCols):
-                curCoeffs = calCoeffs[resIDMap[i,j]==calResIDs]
-                if curCoeffs.size:
-                    curCoeffs = curCoeffs[0]
-                    a[i,j] = curCoeffs[0]
-                    b[i,j] = curCoeffs[1]
-                    c[i,j] = curCoeffs[2]
+        for i,j in np.ndindex(self.nRows, self.nCols):
+            curCoeffs = calCoeffs[resIDMap[i,j]==calResIDs]
+            if curCoeffs.size:
+                curCoeffs = curCoeffs[0]
+                a[i,j] = curCoeffs[0]
+                b[i,j] = curCoeffs[1]
+                c[i,j] = curCoeffs[2]
 
-            a = a.flatten()
-            b = b.flatten()
-            c = c.flatten()
-            with open('cache_{}.pickle'.format(os.path.basename(wvlSol_file)),'w') as f:
-                pickle.dump((a,b,c), f, protocol=2)
-            getLogger(__name__).info('Wrote cache '+'cache_{}.pickle'.format(os.path.basename(wvlSol_file)))
+        a = a.flatten()
+        b = b.flatten()
+        c = c.flatten()
 
         coeffArray = np.zeros(N_WVL_COEFFS*self.nRows*self.nCols)
         coeffArray[0::3] = a
