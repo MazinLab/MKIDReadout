@@ -168,10 +168,11 @@ def getDitherFrames(binDir, ditherLogFile, ditherTimestamp, nrows, ncols, useCac
                 fileList = [os.path.join(binDir, str(photoncacheLastFile + i + 1) + '.bin') for i in range(N_CPU)]
                 newphotons = pool.map(parse, fileList)
                 for phots in newphotons:
-                    photoncache = np.append(phots, photoncache)
+                    photoncache = np.append(photoncache, phots)
                 photoncacheLastFile += N_CPU
             else:
                 photoncache = np.append(photoncache, parse(os.path.join(binDir, str(photoncacheLastFile + 1)+'.bin')))
+                photoncacheLastFile += 1
 
         startInd = np.argmin(np.abs(photoncache['tstamp'] - startTimestamp))
         endInd = np.argmin(np.abs(photoncache['tstamp'] - endTimestamp))
@@ -845,7 +846,7 @@ class TemporalBeammap():
                     # nTimes = min(len(intensity_maps), nTimes)
                     # imageList=imageList[:nTimes] + (intensity_maps[::direction,:,:])[:nTimes]
                 if hasattr(s,'boards'):
-                    mask = self.get_boards_mask()
+                    mask = self.get_boards_mask(s)
                     mask = mask * np.ones(len(inten_sweeps))[:, None, None]
                     inten_sweeps = np.ma.array(inten_sweeps, mask=mask)
                     phase_sweeps = np.ma.array(phase_sweeps, mask=mask)
@@ -895,7 +896,7 @@ class TemporalBeammap():
                     imageList = np.concatenate((imageList, imList[::direction, :, :]), axis=0)
 
                 if hasattr(s, 'boards'):
-                    mask = self.get_boards_mask()
+                    mask = self.get_boards_mask(s)
                     mask = mask * np.ones(len(imageList))[:, None, None]
                     imageList = np.ma.array(imageList, mask=mask)
 
@@ -905,7 +906,7 @@ class TemporalBeammap():
             self.y_images = imageList
         return imageList
 
-    def get_boards_mask(self):
+    def get_boards_mask(self, sweep):
         if self.initial_bmap is not None:
             initial = os.path.join(self.beammapdirectory, self.initial_bmap)
         else:
@@ -915,7 +916,7 @@ class TemporalBeammap():
         allResIDs_map, _, _, _ = bmu.shapeBeammapIntoImages(initial, temporal)
         # res_ids = []
         mask = np.zeros((140, 146)).flatten()
-        for board in s.boards:
+        for board in sweep.boards:
             flnum = int(board[0])
             rel_start = 0 if board[1] == 'a' else 1024
             abs_start = 10000 * flnum + rel_start
