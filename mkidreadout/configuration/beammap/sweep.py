@@ -97,6 +97,7 @@ def raster2img(binDir, ditherLogFile, ditherTimestamp, axis, nrows, ncols, dithe
     axis is 'x' or 'y'
     """
     posTolerance = 0.002
+    minCoords = 10
     
     if axis == 'x':
         axInd = 0
@@ -118,7 +119,8 @@ def raster2img(binDir, ditherLogFile, ditherTimestamp, axis, nrows, ncols, dithe
     frames = []
     for coord in uniqueCoords:
         coordMask = np.abs(coord - pos[:, axInd]) < posTolerance
-        frames.append(np.sum(images[coordMask, :, :], axis=0))
+        if np.sum(coordMask) > minCoords:
+            frames.append(np.sum(images[coordMask, :, :], axis=0))
     
     return np.asarray(frames)
 
