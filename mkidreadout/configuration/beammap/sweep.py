@@ -917,8 +917,8 @@ class TemporalBeammap():
         # res_ids = []
         mask = np.zeros((self.numrows, self.numcols)).flatten()
         for board in sweep.boards:
-            flnum = int(board[0])
-            rel_start = 0 if board[1] == 'a' else 1024
+            flnum = int(board[:-1])
+            rel_start = 0 if board[-1] == 'a' else 1024
             abs_start = 10000 * flnum + rel_start
             abs_end = abs_start + 1024
             fl_ind = (abs_start < allResIDs_map.flatten(order='F')) & (allResIDs_map.flatten(order='F') < abs_end)
