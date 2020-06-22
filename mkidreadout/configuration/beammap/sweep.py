@@ -915,7 +915,7 @@ class TemporalBeammap():
 
         allResIDs_map, _, _, _ = bmu.shapeBeammapIntoImages(initial, temporal)
         # res_ids = []
-        mask = np.zeros((140, 146)).flatten()
+        mask = np.zeros((self.numrows, self.numcols)).flatten()
         for board in sweep.boards:
             flnum = int(board[0])
             rel_start = 0 if board[1] == 'a' else 1024
@@ -924,8 +924,8 @@ class TemporalBeammap():
             fl_ind = (abs_start < allResIDs_map.flatten(order='F')) & (allResIDs_map.flatten(order='F') < abs_end)
             mask[fl_ind] = 1
 
-        mask = mask.reshape(140, 146, order='C') == 1
-        return mask.T
+        mask = mask.reshape(self.numrows, self.numcols, order='F') == 1
+        return mask
 
     def findLocWithCrossCorrelation(self, sweepType, pixelComputationMask=None, snapToPeaks=True,
                                     correctMultiSweep=True):
