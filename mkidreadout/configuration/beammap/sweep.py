@@ -1020,13 +1020,11 @@ class TemporalBeammap():
     #    else: self.y_locs=locs
     #    self.saveTemporalBeammap()
 
-    def saveTemporalBeammap(self, split_feedlines=True, zero_outside_board=False):
+    def saveTemporalBeammap(self, split_feedlines=False):
         """
 
         :param split_feedlines:
             Takes each feedline data and creates a new file
-        :param zero_outside_board:
-            '<FL number><freq ind>' eg '6a' | False
         :return:
         """
 
@@ -1063,20 +1061,31 @@ class TemporalBeammap():
         args = np.argsort(allResIDs)
         data = np.asarray([allResIDs[args], flags[args], x[args], y[args]]).T
 
-        if zero_outside_board:
-            flnum = int(zero_outside_board[0])
-            rel_start = 0 if zero_outside_board[1] == 'a' else 1024
-            abs_start = 10000*flnum + rel_start
-            abs_end = abs_start + 1024
-            fl_ind = (abs_start < data[:, 0]) & (data[:, 0] < abs_end)
-            data[~fl_ind, 1:] = [1, 0.000000, 0.000000]
+        # get all the boards covered by the sweeps
+        boards = np.array([sweep.boards for sweep in self.config.beammap.sweep.sweeps]).flatten()
 
-        if split_feedlines:
+        if len(boards) > 0:
+            board_inds = []
+            for board in boards:
+                flnum = int(board[:-1])
+                rel_start = 0 if board[-1] == 'a' else 1024
+                abs_start = 10000 * flnum + rel_start
+                abs_end = abs_start + 1024
+                board_inds.append( (abs_start < allResIDs_map.flatten(order='F'))
+                                   & (allResIDs_map.flatten(order='F') < abs_end) )
+            board_inds = np.any(board_inds, axis=0)
+            FL_filename = self.get_FL_filename(self.stage1_bmaps, ''.join(boards))
+            log.info('Saving data for boards %s in %s' % (board, FL_filename))
+            board_data = data * 1
+            board_data[~board_inds, 1] = beamMapFlags['noDacTone']
+            np.savetxt(FL_filename, board_data, fmt='%7d %3d %7f %7f')
+
+        elif split_feedlines:
             for fl in range(1, self.numfeed + 1):
                 FL_filename = self.get_FL_filename(self.stage1_bmaps, fl)
                 log.info('Saving FL%i data in %s' % (fl, FL_filename))
                 args = np.int_(data[:, 0] / 10000) != fl  # identify resonators for feedline fl
-                FL_data = data*1
+                FL_data = data * 1
                 FL_data[args, 1] = beamMapFlags['noDacTone']
                 np.savetxt(FL_filename, FL_data, fmt='%7d %3d %7f %7f')
         else:
