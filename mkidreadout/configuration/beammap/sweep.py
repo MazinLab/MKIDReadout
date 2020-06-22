@@ -847,9 +847,9 @@ class TemporalBeammap():
                     # imageList=imageList[:nTimes] + (intensity_maps[::direction,:,:])[:nTimes]
                 if hasattr(s,'boards'):
                     mask = self.get_boards_mask(s)
-                    mask = mask * np.ones(len(inten_sweeps))[:, None, None]
-                    inten_sweeps = np.ma.array(inten_sweeps, mask=mask)
-                    phase_sweeps = np.ma.array(phase_sweeps, mask=mask)
+                    mask = mask * np.ones(inten_sweeps.shape[:2])[:,:, None, None]
+                    inten_sweeps[~np.bool_(mask)] = 0
+                    phase_sweeps[~np.bool_(mask)] = 0
 
         if median:
             inten_images = np.nanmedian(inten_sweeps, 0)
@@ -898,7 +898,7 @@ class TemporalBeammap():
                 if hasattr(s, 'boards'):
                     mask = self.get_boards_mask(s)
                     mask = mask * np.ones(len(imageList))[:, None, None]
-                    imageList = np.ma.array(imageList, mask=mask)
+                    imageList[~np.bool_(mask)] = 0
 
         if sweepType == 'x':
             self.x_images = imageList
@@ -925,7 +925,7 @@ class TemporalBeammap():
             mask[fl_ind] = 1
 
         mask = mask.reshape(140, 146, order='C') == 1
-        return mask
+        return mask.T
 
     def findLocWithCrossCorrelation(self, sweepType, pixelComputationMask=None, snapToPeaks=True,
                                     correctMultiSweep=True):
