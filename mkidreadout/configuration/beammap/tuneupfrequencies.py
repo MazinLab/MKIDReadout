@@ -10,6 +10,8 @@ TODO: Turn this into a command-line-runnable program
 import numpy as np
 import logging
 import time
+import argparse
+import glob
 import matplotlib.pyplot as plt
 import mkidcore.objects as mko
 from mkidcore.pixelflags import beammap
@@ -352,8 +354,8 @@ class Correlator(object):
         self.freqMatches = np.transpose(np.array([oldFreqs, newFreqs]))
         self.residuals = self.freqMatches[:, 0] - self.freqMatches[:, 1]
 
-    def saveResult(self):
-        np.savetxt(str(self.board)+"_correlated_IDs.txt", np.concatenate((self.resIDMatches, self.freqMatches), axis=1),
+    def saveResult(self, path='.'):
+        np.savetxt(path+'/'+str(self.board)+"_correlated_IDs.txt", np.concatenate((self.resIDMatches, self.freqMatches), axis=1),
                    header="Old New Flag OldFreq NewFreq", fmt='%.1f %.1f %i %9.7f %9.7f')
 
     def generateBMResMask(self, beammap):
@@ -440,3 +442,65 @@ class Correlator(object):
         newSq[gMask] = 1
         newSq[bMask] = 3
         return newSq
+
+
+if __name__ == "__main__":
+
+    parser = argparse.ArgumentParser(description="Correlate frequency lists from different powersweeps.")
+    parser.add_argument('oldpath', nargs=1, type=str, help="Path to the old frequency list directory")
+    parser.add_argument('newpath', nargs=1, type=str, help="Path to the new frequency list directory")
+    parser.add_argument('oldpattern', nargs=1, type=str, help="Pattern that the feedline number letter combo follows "
+                                                              "(e.g. '5_b' pattern would be '_', '5b' would be '')")
+    parser.add_argument('newpattern', nargs=1, type=str, help="Pattern that the feedline number letter combo follows "
+                                                              "(e.g. '5_b' pattern would be '_', '5b' would be '')")
+    parser.add_argument('boardpattern', nargs=1, type=str, help="Pattern that prefaces board numbers in the new file" \
+                                                               "names. Must be at least 2 characters. (e.g. 'psfreq_r222_fl7_a'" \
+                                                               "would be '_r')")
+    parser.add_argument('--fls', nargs='+', default=np.arange(1, 11, 1), type=int)
+    parser.add_argument('--savepath','-s', nargs=1, default='.', type=str, help="Path to directory to save correlator lists to.")
+    args = parser.parse_args()
+
+    oldpath = args.oldpath[0]
+    newpath = args.newpath[0]
+    oldfiles = glob.glob(oldpath+'*')
+    newfiles = glob.glob(newpath+'*')
+
+    oldpattern = ["{}{}{}".format(i, args.oldpattern[0], j) for i in args.fls for j in ['a', 'b']]
+    newpattern = ["{}{}{}".format(i, args.newpattern[0], j) for i in args.fls for j in ['a', 'b']]
+    fls_to_search = np.array(newpattern) if (oldpattern == newpattern) else np.array(zip(oldpattern, newpattern))
+
+    files_to_correlate = []
+    if fls_to_search.shape[-1] == 2:
+        for i, j in fls_to_search:
+            temp=[]
+            temp.append(j)
+            for k in oldfiles:
+                if i in k:
+                    temp.append(k)
+            for l in newfiles:
+                if j in l:
+                    temp.append(l)
+            files_to_correlate.append(temp)
+    else:
+        for i in fls_to_search:
+            temp = []
+            temp.append(i)
+            for j in oldfiles:
+                if i in j:
+                    temp.append(j)
+            for k in newfiles:
+                if i in k:
+                    temp.append(k)
+            files_to_correlate.append(temp)
+
+    for i in files_to_correlate:
+        print(i)
+        if args.boardpattern[0] in i[2]:
+            i.append(int(i[2].split(args.boardpattern[0])[1][:3]))
+
+    correlator_objects = [Correlator(i[1], i[2], i[3], frequencyCutoff=500e3, fitOrder=1) for i in files_to_correlate]
+
+    for i in range(len(files_to_correlate)):
+        print("Starting correlating feedline {}, board {}".format(files_to_correlate[i][0], files_to_correlate[i][-1]))
+        correlator_objects[i].correlateLists()
+        correlator_objects[i].saveResult(path=args.savepath[0])
