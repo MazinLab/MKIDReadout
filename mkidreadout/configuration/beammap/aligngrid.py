@@ -329,15 +329,15 @@ class KVecGUI():
         if self.fig.canvas.manager.toolbar._active is None:
             if self.curAxis=='x':
                 self.kx = np.array([self.fftFreqs[0][int(round(event.xdata))], self.fftFreqs[1][int(round(event.ydata))]])
-                getLogger(__name__).info('kx: {}'.format(self.kx))
+                print('kx: {}'.format(self.kx))
                 self.curAxis='y'
-                getLogger(__name__).info('Click first bright spot below center (red dot)')
+                print('Click first bright spot below center (red dot)')
             elif self.curAxis=='y':
                 self.ky = np.array([self.fftFreqs[0][int(round(event.xdata))], self.fftFreqs[1][int(round(event.ydata))]])
-                getLogger(__name__).info('ky: {}'.format(self.ky))
+                print('ky: {}'.format(self.ky))
                 self.curAxis='x'
-                getLogger(__name__).info('Done.')
-                getLogger(__name__).info('If you want to re-select kx, click first bright spot to the '
+                print('Done.')
+                print('If you want to re-select kx, click first bright spot to the '
                                          'right of center (red dot), otherwise close the plot')
 
 
