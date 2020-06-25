@@ -175,6 +175,45 @@ class BMAligner(object):
         else:
             return coords
 
+    def transformCoords(self, xVals=None, yVals=None, shear=False):
+        if xVals is None:
+            temporalCoords = np.stack((self.temporalXs, self.temporalYs))
+        else:
+            temporalCoords = np.stack((xVals, yVals))
+
+        vecs = np.stack((self.xKvec, self.yKvec)).T
+
+        rotationAngle = np.arctan2(self.xKvec[1], self.xKvec[0])  # Angle measured counterclockwise from +x direction
+        rotMat = np.array([[np.cos(rotationAngle), np.sin(rotationAngle)],
+                           [-np.sin(rotationAngle), np.cos(rotationAngle)]])  # Clockwise rotation matrix
+
+        rotCoords = np.dot(rotMat, temporalCoords)
+        rvecs = np.dot(rotMat, vecs)
+
+        if shear:
+            shearAngle = np.pi/2 - np.arctan2(rvecs[:, 1][1], rvecs[:, 1][0])
+            shearMat = np.array([[1, -np.tan(shearAngle)], [0, 1]])
+        else:
+            shearMat = np.array([[1,0],[0,1]])
+
+        shearCoords = np.dot(shearMat, rotCoords)
+        svecs = np.dot(shearMat, rvecs)
+
+        self.xScale = 1 / (self.usFactor * np.linalg.norm(self.xKvec))
+        self.yScale = 1 / (self.usFactor * np.linalg.norm(self.yKvec))
+        scaleMat = np.array([[1 / self.xScale, 0], [0, 1 / self.yScale]])
+
+        scaleCoords = np.dot(scaleMat, shearCoords)
+        scvecs = np.dot(scaleMat, svecs)
+        print("Normalized kx=({}, {}). Normalized ky=({}, {}).".format(scvecs[0][0], scvecs[1][0], scvecs[0][1], scvecs[1][1]))
+
+        coords = np.transpose(scaleCoords)
+
+        if xVals is None:
+            self.coords = coords
+        else:
+            return coords
+
     def findOffset(self, nMCIters=10000, maxSampDist=50, roundCoords=False):
         # find a good starting point for search, using median of 100 minimum "good" points
         if self.instrument.lower() == 'mec' and self.flip:
@@ -352,9 +391,9 @@ if __name__=='__main__':
         cfgfilename = os.path.join(mdd, cfgfilename)
     config = load(cfgfilename)
 
-    print(config.paths.masterdoubleslist)
-    aligner = BMAligner(os.path.join(config.paths.beammapdirectory, config.paths.mastertemporalbeammap),
-                        config.beammap.numcols, config.beammap.numrows, config.beammap.instrument, config.beammap.flip)
+    # print(config.paths.masterdoubleslist)
+    aligner = BMAligner(config.paths.beammapdirectory, config.paths.mastertemporalbeammap, 'image_cache.npz',
+                        config.beammap.instrument, config.beammap.flip)
     aligner.makeTemporalImage()
     # aligner.fftTemporalImage()
     aligner.loadFFT()
@@ -363,7 +402,7 @@ if __name__=='__main__':
     aligner.rotateAndScaleCoords()
     aligner.findOffset(50000)
     aligner.plotCoords()
-    aligner.saveTemporalMap(os.path.join(config.paths.beammapdirectory, config.paths.alignedbeammap))
+    aligner.saveTemporalMap(config.paths.alignedbeammap)
     if config.paths.masterdoubleslist is not None:
         aligner.makeDoublesTemporalMap(os.path.join(config.paths.beammapdirectory, config.paths.masterdoubleslist),
                                        os.path.join(config.paths.beammapdirectory, config.paths.outputdoublename))
