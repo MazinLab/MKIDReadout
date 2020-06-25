@@ -49,6 +49,8 @@ class BMAligner(object):
         self.temporalImageFreqs = None
         self.temporalImageFFTFile = os.path.join(beamdir, cachename)
 
+        self.coords = np.stack((self.temporalXs, self.temporalYs)).T
+
         self.nXPix, self.nYPix = DEFAULT_ARRAY_SIZES[instrument.lower()]
 
         if instrument.lower()=='mec':
@@ -143,6 +145,8 @@ class BMAligner(object):
         kvecGui = KVecGUI(shiftedImage, shiftedFreqs, 30*self.usFactor)
         self.xKvec = kvecGui.kx
         self.yKvec = kvecGui.ky
+        self.kvecs = np.stack((self.xKvec, self.yKvec)).T  # Create an array with the k vectors where row 0 is x-components,
+        # row 1 is y-components. Column 0 is kx-vector, column 1 in ky-vector. 
 
     def findAngleAndScale(self):
         anglex = np.arctan2(self.xKvec[1], self.xKvec[0])
@@ -175,40 +179,47 @@ class BMAligner(object):
         else:
             return coords
 
+    def rotateCoords(self, xVals=None, yVals=None):
+        if xVals is None:
+            coords = self.coords.T
+        else:
+            coords = np.stack((xVals, yVals))
+
+        vecs = np.stack((self.xKvec, self.yKvec))
+
+
     def transformCoords(self, xVals=None, yVals=None, shear=False):
         if xVals is None:
             temporalCoords = np.stack((self.temporalXs, self.temporalYs))
         else:
             temporalCoords = np.stack((xVals, yVals))
-
         vecs = np.stack((self.xKvec, self.yKvec)).T
-
+        print("Original kx=({}, {}). Original ky=({}, {}).".format(vecs[0][0], vecs[1][0],
+                                                                       vecs[0][1], vecs[1][1]))
         rotationAngle = np.arctan2(self.xKvec[1], self.xKvec[0])  # Angle measured counterclockwise from +x direction
         rotMat = np.array([[np.cos(rotationAngle), np.sin(rotationAngle)],
                            [-np.sin(rotationAngle), np.cos(rotationAngle)]])  # Clockwise rotation matrix
-
         rotCoords = np.dot(rotMat, temporalCoords)
         rvecs = np.dot(rotMat, vecs)
-
+        print("Rotated kx=({}, {}). rotated ky=({}, {}).".format(rvecs[0][0], rvecs[1][0],
+                                                                       rvecs[0][1], rvecs[1][1]))
         if shear:
             shearAngle = np.pi/2 - np.arctan2(rvecs[:, 1][1], rvecs[:, 1][0])
             shearMat = np.array([[1, -np.tan(shearAngle)], [0, 1]])
         else:
             shearMat = np.array([[1,0],[0,1]])
-
         shearCoords = np.dot(shearMat, rotCoords)
         svecs = np.dot(shearMat, rvecs)
-
+        print("Sheared kx=({}, {}). Sheared ky=({}, {}).".format(svecs[0][0], svecs[1][0],
+                                                                       svecs[0][1], svecs[1][1]))
         self.xScale = 1 / (self.usFactor * np.linalg.norm(self.xKvec))
         self.yScale = 1 / (self.usFactor * np.linalg.norm(self.yKvec))
         scaleMat = np.array([[1 / self.xScale, 0], [0, 1 / self.yScale]])
-
         scaleCoords = np.dot(scaleMat, shearCoords)
         scvecs = np.dot(scaleMat, svecs)
-        print("Normalized kx=({}, {}). Normalized ky=({}, {}).".format(scvecs[0][0], scvecs[1][0], scvecs[0][1], scvecs[1][1]))
-
+        print("Normalized kx=({}, {}). Normalized ky=({}, {}).".format(scvecs[0][0], scvecs[1][0],
+                                                                       scvecs[0][1], scvecs[1][1]))
         coords = np.transpose(scaleCoords)
-
         if xVals is None:
             self.coords = coords
         else:
@@ -281,7 +292,7 @@ class BMAligner(object):
                 optI = i
                 startXOffs = optXOffs
                 startYOffs = optYOffs
-                msg = 'Found new optimum at {:.1f}, {:.1f} with {:.0f} good pixles. i={}'
+                msg = 'Found new optimum at {:.1f}, {:.1f} with {:.0f} good pixels. i={}'
                 getLogger(__name__).info(msg.format(optXOffs, optYOffs, optNGoodPix, i))
             if i - optI > optSearchIters: #search around maximum for a bit then go back to baseline
                 startXOffs = baselineXOffs
@@ -359,7 +370,6 @@ class KVecGUI():
         self.ax.add_patch(patches.Circle((self.zeroKxLoc, self.zeroKyLoc), radius=10, color='red'))
 
         self.fig.canvas.mpl_connect('button_press_event', self.onClick)
-        
 
         plt.show(block=True)
 
