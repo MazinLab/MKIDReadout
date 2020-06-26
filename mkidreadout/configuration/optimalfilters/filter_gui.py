@@ -134,9 +134,14 @@ class CalculationRow(tk.Frame):
         log.info("{}: calculation process started".format(os.path.basename(self.directory)))
 
     def abort(self):
-        log.info("{}: aborting calculation process".format(os.path.basename(self.directory)))
-        self.stop.config(state=tk.DISABLED)  # can't stop twice
-        os.kill(self.process.pid, signal.SIGINT)  # send keyboard interrupt to process
+        if self.process is not None:
+            log.info("{}: aborting calculation process".format(os.path.basename(self.directory)))
+            self.stop.config(state=tk.DISABLED)  # can't stop twice
+            try:
+                os.kill(self.process.pid, signal.SIGINT)  # send keyboard interrupt to process
+                log.info("{}: abort signal sent".format(os.path.basename(self.directory)))
+            except AttributeError:
+                pass  # self.process could still be None if the process finished before it could be killed
 
     def update_progress(self):
         while True:
@@ -162,6 +167,7 @@ class CalculationRow(tk.Frame):
 
     def finish_process(self):
         self.process.join()  # wait for process to finish
+        self.process = None  # clear variable to indicate no process is running
         if self.stop['state'] == tk.DISABLED:
             value = 0  # process was aborted
         else:
