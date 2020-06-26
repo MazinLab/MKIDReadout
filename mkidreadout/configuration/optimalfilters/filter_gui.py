@@ -171,11 +171,16 @@ class CalculationRow(tk.Frame):
         log.info("{}: calculation process finished".format(os.path.basename(self.directory)))
 
     def plot(self):
-        solution = make_filters.Solution.load(os.path.join(self.directory, make_filters.DEFAULT_SAVE_NAME))
-        process = mp.Process(target=solution.plot, kwargs={"filter_type": self.filter_.get(), "report": True})
-        process.daemon = True
-        process.start()
-        log.info("{}: plot process started".format(os.path.basename(self.directory)))
+        file_name = os.path.join(self.directory, make_filters.DEFAULT_SAVE_NAME)
+        name = os.path.basename(self.directory)
+        if os.path.isfile(file_name):
+            solution = make_filters.Solution.load(file_name)
+            process = mp.Process(target=solution.plot, kwargs={"filter_type": self.filter_.get(), "report": True})
+            process.daemon = True
+            process.start()
+            log.info("{}: plot process started".format(name))
+        else:
+            log.error("{}: could not start plot process because '{}' does not exist".format(name, file_name))
 
 
 class DirectoryRow(tk.Frame):
