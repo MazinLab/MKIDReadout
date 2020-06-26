@@ -146,7 +146,7 @@ class BMAligner(object):
         self.xKvec = kvecGui.kx
         self.yKvec = kvecGui.ky
         self.kvecs = np.stack((self.xKvec, self.yKvec)).T  # Create an array with the k vectors where row 0 is x-components,
-        # row 1 is y-components. Column 0 is kx-vector, column 1 in ky-vector. 
+        # row 1 is y-components. Column 0 is kx-vector, column 1 in ky-vector.
 
     def findAngleAndScale(self):
         anglex = np.arctan2(self.xKvec[1], self.xKvec[0])
@@ -178,15 +178,6 @@ class BMAligner(object):
             self.coords = coords
         else:
             return coords
-
-    def rotateCoords(self, xVals=None, yVals=None):
-        if xVals is None:
-            coords = self.coords.T
-        else:
-            coords = np.stack((xVals, yVals))
-
-        vecs = np.stack((self.xKvec, self.yKvec))
-
 
     def transformCoords(self, xVals=None, yVals=None, shear=False):
         if xVals is None:
