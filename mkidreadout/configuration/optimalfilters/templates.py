@@ -72,12 +72,12 @@ def _double_exponential_guess(model, data, t=None, **kwargs):
     return params
 
 
-def triple_exponential(t, a, t0, rise_time, fall_time1, fall_time2):
+def triple_exponential(t, a, b, t0, rise_time, fall_time1, fall_time2):
     p = np.zeros_like(t, dtype=np.float)
     arg0 = -(t[t >= t0] - t0) / max(EPS, rise_time)
     arg1 = -(t[t >= t0] - t0) / max(EPS, fall_time1)
     arg2 = -(t[t >= t0] - t0) / max(EPS, fall_time2)
-    p[t >= t0] = a * (1 - np.exp(arg0)) * (np.exp(arg1) + np.exp(arg2))
+    p[t >= t0] = a * (1 - np.exp(arg0)) * (np.exp(arg1) + b * np.exp(arg2))
     return p
 
 
@@ -87,8 +87,9 @@ def _triple_exponential_guess(model, data, t=None, **kwargs):
     t0 = kwargs.get("t0", _compute_t0(data, t=t, rise_time=rise_time))
     fall_time = kwargs.get("fall_time", _compute_fall_time(data, t=t))
 
-    params = model.make_params(a=-1., t0=t0, rise_time=rise_time, fall_time1=fall_time / 2., fall_time2=fall_time)
+    params = model.make_params(a=-1., b=1., t0=t0, rise_time=rise_time, fall_time1=fall_time / 2., fall_time2=fall_time)
     params["a"].set(max=0.)
+    params["b"].set(min=0.)
     params["t0"].set(min=0. if t is None else np.min(t), max=float(len(data)) if t is None else np.max(t))
     params["rise_time"].set(min=0.)
     params["fall_time1"].set(min=0.)
