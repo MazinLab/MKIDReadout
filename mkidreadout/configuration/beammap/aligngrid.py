@@ -179,11 +179,33 @@ class BMAligner(object):
         else:
             return coords
 
-    def transformCoords(self, xVals=None, yVals=None, shear=False):
+    def transformCoords(self, xVals=None, yVals=None, shear=False, flip=[]):
+        """
+        Based on the k-vectors returned from the FFT (kx and ky) perform a coordinate transform to rotate, scale, and
+        potentially shear the pixel positions in time. If the data set is small (e.g. 1 feedline in the x-direction),
+        the k-vector in that direction may not be well behaved.
+        :param shear allows the user to choose if they want to try to apply a shear to the coordinates. Default is false
+        :param flip allows the user to flip components of the k-vectors (primarily for development if the FFT is not
+        well behaved and might need some massaging). Takes in a list of components to change. 'kxy' refers to the y-
+        component of the kx vector, etc.
+
+        NOTE: Rotation and scale are always applied, shear can be turned off (identity matrix is applied instead).
+        Future versions of this function may allow for more complex/varied transformations.
+        """
         if xVals is None:
             temporalCoords = np.stack((self.temporalXs, self.temporalYs))
         else:
             temporalCoords = np.stack((xVals, yVals))
+
+        if 'kxx' in flip:
+            self.xKvec[0] = -self.xKvec[0]
+        if 'kxy' in flip:
+            self.xKvec[1] = -self.xKvec[1]
+        if 'kyx' in flip:
+            self.yKvec[0] = -self.yKvec[0]
+        if 'kyy' in flip:
+            self.yKvec[1] = -self.yKvec[1]
+
         vecs = np.stack((self.xKvec, self.yKvec)).T
         print("Original kx=({}, {}). Original ky=({}, {}).".format(vecs[0][0], vecs[1][0],
                                                                        vecs[0][1], vecs[1][1]))
