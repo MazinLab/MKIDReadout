@@ -27,7 +27,7 @@ DEFAULT_FILTER = filters.__all__[1]
 class ConfigurationTab(tk.Frame):
     def __init__(self, *args, **kwargs):
         # optional kwargs
-        self.config_file = kwargs.pop("config_file", None)
+        self.config_file = kwargs.pop("config_file", DEFAULT_CONFIG)
 
         tk.Frame.__init__(self, *args, **kwargs)
         self._setup_ui()
@@ -38,11 +38,10 @@ class ConfigurationTab(tk.Frame):
         self.hscrollbar = ttk.Scrollbar(self, orient=tk.HORIZONTAL)
         self.vscrollbar = ttk.Scrollbar(self, orient=tk.VERTICAL)
         self.text = tk.Text(self, yscrollcommand=self.vscrollbar.set, xscrollcommand=self.hscrollbar.set, wrap=tk.NONE)
-
+        self.text.bind('<Control-v>', lambda *args: delete_selection(self.text))
         self.hscrollbar.config(command=self.text.xview)
         self.vscrollbar.config(command=self.text.yview)
-        file_name = self.config_file if self.config_file is not None else DEFAULT_CONFIG
-        with open(file_name, "r") as f:
+        with open(self.config_file, "r") as f:
             text = f.read()
             self.text.insert(tk.END, text)
 
@@ -194,6 +193,7 @@ class DirectoryRow(tk.Frame):
         self.directory = tk.StringVar(self)
         self.entry = tk.Entry(self, textvariable=self.directory)
         self.entry.bind('<Return>', lambda *args: self.set_directory(self.directory.get()))
+        self.entry.bind('<Control-v>', lambda *args: delete_selection(self.entry))
 
     def _layout(self):
         self.button.pack(side=tk.LEFT, fill=tk.X)
@@ -298,6 +298,13 @@ class MainWindow(ttk.Notebook):
 
     def get_config(self):
         return yaml.load(self.configuration_tab.text.get("1.0", tk.END))
+
+
+def delete_selection(widget):
+    try:
+        widget.delete("sel.first", "sel.last")
+    except tk.TclError:
+        pass
 
 
 def resize(root):
