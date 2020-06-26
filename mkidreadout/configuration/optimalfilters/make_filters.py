@@ -25,6 +25,7 @@ log = logging.getLogger(__name__)
 log.addHandler(logging.NullHandler())
 
 DEFAULT_SAVE_NAME = "filter_solution.p"
+TIMEOUT = 0.001
 
 
 class PlotWidget(object):
@@ -893,7 +894,7 @@ class Solution(object):
             pool.close()
             try:
                 # TODO: Python 2.7 bug: hangs on pool.join() with KeyboardInterrupt. The workaround is to use a really
-                #  long timeout that hopefully never gets triggered. The 'better' code is:
+                #  long timeout that hopefully never gets triggered. The 'better' code that doesn't work in 2.7 is:
                 #  > pool.join()
                 #  > calculators = results.get()
                 calculators = results.get(1e5)
@@ -902,8 +903,11 @@ class Solution(object):
                 log.error("Keyboard Interrupt encountered: retrieving computed filters before exiting")
                 pool.terminate()
                 pool.join()
-                # TODO: not sure how long it will take to get() Calculator objects (don't use timeout?)
-                calculators = results.get(timeout=0.001)
+                # A timeout is included so that the process doesn't hang on a keyboard interrupt if a subprocess was
+                # improperly terminated, but the default may be too fast for slower computers. In this case,
+                # results.get() will return None for any MapResult that is too slow, and the result will not be
+                # propagated to the main process. The TIMEOUT variable can be set to modify the maximum wait time.
+                calculators = results.get(timeout=TIMEOUT)
                 self._add_calculator(calculators)
                 raise error  # propagate error to the main program
         else:
@@ -1010,7 +1014,7 @@ class Solution(object):
 
     def plot_summary(self):
         """Plot a summary of the filter computation."""
-        pass
+        pass  # TODO: implement
 
     def _add_calculator(self, calculators):
         for calculator in calculators:
@@ -1060,46 +1064,49 @@ def run(config, force=False, save_name=DEFAULT_SAVE_NAME, progress_setup=None, p
             A callback function for a progress bar.
         progress_setup: function (optional)
     """
-    # set up the Solution object
-    save_path = os.path.join(config.paths.out, save_name)
-    if force or not os.path.isfile(save_path):
-        log.info("Creating new solution object")
-        # get file name list
-        file_names = utils.get_file_list(config.paths.data)
-        # set up solution file
-        sol = Solution(config, file_names, save_name=save_name)
-    else:
-        log.info("Loading solution object from {}".format(save_path))
-        sol = Solution.load(save_path)
-        sol.cfg = config  # will delete inconsistent items from the solution
-
-    # get the number of cores to use
     try:
-        ncpu = max(1, int(min(config.ncpu, mp.cpu_count())))
-    except KeyError:
-        ncpu = 1
-    log.info("Using {} cores".format(ncpu))
-
-    # make the filters
-    try:
-        if config.filters.filter.filter_type not in sol.filters.keys():
-            if progress_setup is not None:
-                progress_setup(len(sol.file_names))
-            sol.process(ncpu=ncpu, progress=progress_callback)
-            sol.save()
+        # set up the Solution object
+        save_path = os.path.join(config.paths.out, save_name)
+        if force or not os.path.isfile(save_path):
+            log.info("Creating new solution object")
+            # get file name list
+            file_names = utils.get_file_list(config.paths.data)
+            # set up solution file
+            sol = Solution(config, file_names, save_name=save_name)
         else:
-            log.info("Filter type '{}' has already been computed".format(config.filters.filter.filter_type))
+            log.info("Loading solution object from {}".format(save_path))
+            sol = Solution.load(save_path)
+            sol.cfg = config  # will delete inconsistent items from the solution
+
+        # get the number of cores to use
+        try:
+            ncpu = max(1, int(min(config.ncpu, mp.cpu_count())))
+        except KeyError:
+            ncpu = 1
+        log.info("Using {} cores".format(ncpu))
+
+        # make the filters
+        try:
+            if config.filters.filter.filter_type not in sol.filters.keys():
+                if progress_setup is not None:
+                    progress_setup(len(sol.file_names))
+                sol.process(ncpu=ncpu, progress=progress_callback)
+                sol.save()
+            else:
+                log.info("Filter type '{}' has already been computed".format(config.filters.filter.filter_type))
+        except KeyboardInterrupt:
+            log.error("Keyboard Interrupt encountered: saving the partial solution before exiting")
+            sol.save()
+            raise
+
+        # save the filters
+        sol.save_filters()
+
+        # plot summary
+        if config.filters.summary_plot:
+            sol.plot_summary()
     except KeyboardInterrupt:
-        log.error("Keyboard Interrupt encountered: saving the partial solution before exiting")
-        sol.save()
-        return
-
-    # save the filters
-    sol.save_filters()
-
-    # plot summary
-    if config.filters.summary_plot:
-        sol.plot_summary()
+        pass
 
 
 if __name__ == "__main__":
