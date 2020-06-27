@@ -1020,7 +1020,7 @@ class TemporalBeammap():
     #    else: self.y_locs=locs
     #    self.saveTemporalBeammap()
 
-    def saveTemporalBeammap(self, split_feedlines=False):
+    def saveTemporalBeammap(self, split_feedlines=False, use_old_flags=False):
         """
 
         :param split_feedlines:
@@ -1059,10 +1059,15 @@ class TemporalBeammap():
         x = x_map.flatten()
         y = y_map.flatten()
         args = np.argsort(allResIDs)
-        data = np.asarray([allResIDs[args], flags[args], x[args], y[args]]).T
-
+        if use_old_flags:
+            data = np.asarray([allResIDs[args], flags[args], x[args], y[args]]).T
+        else:
+            data = np.asarray([allResIDs[args], np.ones_like(flags)*beamMapFlags['good'], x[args], y[args]]).T
         # get all the boards covered by the sweeps
-        boards = np.array([sweep.boards for sweep in self.config.beammap.sweep.sweeps]).flatten()
+        try:
+            boards = np.array([sweep.boards for sweep in self.config.beammap.sweep.sweeps]).flatten()
+        except KeyError:
+            boards = []
 
         if len(boards) > 0:
             board_inds = []
@@ -1076,8 +1081,7 @@ class TemporalBeammap():
             board_inds = np.any(board_inds, axis=0)
             FL_filename = self.get_FL_filename(self.stage1_bmaps, ''.join(boards))
             log.info('Saving data for boards %s in %s' % (board, FL_filename))
-            board_data = data * 1
-            board_data[~board_inds, 1] = beamMapFlags['noDacTone']
+            board_data = data[board_inds]
             np.savetxt(FL_filename, board_data, fmt='%7d %3d %7f %7f')
 
         elif split_feedlines:
