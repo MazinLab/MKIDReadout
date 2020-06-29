@@ -21,6 +21,7 @@ beammap: !configdict
   sweep: !configdict
     cachename: '_images_{}{}_phase={}.npz'  # (s.starttime, s.duration, get_phases)
     fittype: gaussian
+    use_initial_flags: True
     sweeps:
       - !configdict
         sweeptype: raster

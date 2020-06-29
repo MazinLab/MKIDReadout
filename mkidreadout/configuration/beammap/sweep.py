@@ -390,7 +390,7 @@ class CorrelateBeamSweep(object):
 
 class ManualTemporalBeammap(object):
     def __init__(self, x_images, y_images, initial_bmap, stage1_bmap, stage2_bmap, fitType = None,
-                 xp_images = None, yp_images=None):
+                 xp_images = None, yp_images=None, use_initial_flags=True):
         """
         Class for manually clicking through beammap.
         Saves a temporal beammap with filename temporalBeammapFN-HHMMSS.txt
@@ -425,9 +425,14 @@ class ManualTemporalBeammap(object):
             self.stage1_bmap = self.stage2_bmap
         self.resIDsMap, self.flagMap, self.x_loc, self.y_loc = bmu.shapeBeammapIntoImages(self.initial_bmap,
                                                                                           self.stage1_bmap)
-        self.flagMap[np.all(self.x_images==0, axis=0) | np.all(self.y_images==0, axis=0)] = beamMapFlags['noDacTone']
-        if self.stage1_bmap is None or not os.path.isfile(self.stage1_bmap):
-            self.flagMap[np.where(self.flagMap != beamMapFlags['noDacTone'])] = beamMapFlags['failed']
+        if use_initial_flags:
+            if self.stage1_bmap is None or not os.path.isfile(self.stage1_bmap):
+                self.flagMap[np.where(self.flagMap != beamMapFlags['noDacTone'])] = beamMapFlags['failed']
+        else:
+            self.flagMap = np.ones_like(self.flagMap)*beamMapFlags['good']
+
+        self.flagMap[np.all(self.x_images == 0, axis=0) | np.all(self.y_images == 0, axis=0)] = beamMapFlags[
+            'noDacTone']
 
         self.fitType = fitType.lower()
 
@@ -1020,7 +1025,7 @@ class TemporalBeammap():
     #    else: self.y_locs=locs
     #    self.saveTemporalBeammap()
 
-    def saveTemporalBeammap(self, split_feedlines=False, use_old_flags=False):
+    def saveTemporalBeammap(self, split_feedlines=False):
         """
 
         :param split_feedlines:
@@ -1059,7 +1064,7 @@ class TemporalBeammap():
         x = x_map.flatten()
         y = y_map.flatten()
         args = np.argsort(allResIDs)
-        if use_old_flags:
+        if self.config.beammap.sweep.use_initial_flags:
             data = np.asarray([allResIDs[args], flags[args], x[args], y[args]]).T
         else:
             data = np.asarray([allResIDs[args], np.ones_like(flags)*beamMapFlags['good'], x[args], y[args]]).T
@@ -1158,7 +1163,8 @@ class TemporalBeammap():
         stage2_bmap = self.get_FL_filename(self.stage2_bmaps, feedline)
         getLogger('Sweep').info('beammap to click: {}'.format(stage1_bmap))
         m = ManualTemporalBeammap(self.x_images, self.y_images, initial_bmap, stage1_bmap, stage2_bmap,
-                                  self.config.beammap.sweep.fittype, self.xp_images, self.yp_images)
+                                  self.config.beammap.sweep.fittype, self.xp_images, self.yp_images,
+                                  self.config.beammap.sweep.use_initial_flags)
 
     def get_FL_filename(self, fn, FL):
         path = self.beammapdirectory
