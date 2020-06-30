@@ -916,7 +916,9 @@ class TemporalBeammap():
             initial = os.path.join(self.beammapdirectory, self.initial_bmap)
         else:
             initial = Beammap(default=self.config.beammap.instrument).file
-        temporal = os.path.join(self.beammapdirectory, self.stage1_bmaps)
+
+        boards = np.array([sweep.boards for sweep in self.config.beammap.sweep.sweeps]).flatten()
+        temporal = self.get_FL_filename(self.stage1_bmaps, ''.join(boards))
 
         allResIDs_map, _, _, _ = bmu.shapeBeammapIntoImages(initial, temporal)
         # res_ids = []
