@@ -223,6 +223,8 @@ def getBeammapFlagImage(beammap, roughBeammap=None):
 @jit
 def getBeammapResIDImage(initialBeammap):
     resIDs, flag, x, y = np.loadtxt(initialBeammap, unpack=True)
+    y = y.astype(np.int)
+    x = x.astype(np.int)
     nCols = np.amax(x) + 1
     nRows = np.amax(y) + 1
     image = np.empty((nRows, nCols))

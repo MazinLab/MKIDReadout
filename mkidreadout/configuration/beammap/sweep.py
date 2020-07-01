@@ -917,11 +917,8 @@ class TemporalBeammap():
         else:
             initial = Beammap(default=self.config.beammap.instrument).file
 
-        boards = np.array([sweep.boards for sweep in self.config.beammap.sweep.sweeps]).flatten()
-        temporal = self.get_FL_filename(self.stage1_bmaps, ''.join(boards))
+        allResIDs_map = bmu.getBeammapResIDImage(initial)
 
-        allResIDs_map, _, _, _ = bmu.shapeBeammapIntoImages(initial, temporal)
-        # res_ids = []
         mask = np.zeros((self.numrows, self.numcols)).flatten()
         for board in sweep.boards:
             flnum = int(board[:-1])
@@ -1083,8 +1080,7 @@ class TemporalBeammap():
                 rel_start = 0 if board[-1] == 'a' else 1024
                 abs_start = 10000 * flnum + rel_start
                 abs_end = abs_start + 1024
-                board_inds.append( (abs_start < allResIDs_map.flatten(order='F'))
-                                   & (allResIDs_map.flatten(order='F') < abs_end) )
+                board_inds.append( (abs_start < allResIDs[args]) & (allResIDs[args] < abs_end) )
             board_inds = np.any(board_inds, axis=0)
             FL_filename = self.get_FL_filename(self.stage1_bmaps, ''.join(boards))
             log.info('Saving data for boards %s in %s' % (board, FL_filename))
