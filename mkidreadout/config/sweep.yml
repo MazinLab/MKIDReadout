@@ -7,8 +7,8 @@ beammap: !configdict
 
   filenames: !configdict
     initial_bmap:  # default mec.bmap in MKIDCore/mkidcore
-    stage1_bmaps: '20191211_stage1_FL{}.txt'  # {date}_stage1_FL{x}.txt
-    stage2_bmaps: '20191211_stage2_FL{}.txt'  # {date}_stage2_FL{x}.txt
+    stage1_bmaps: '20191211_stage1_FL{}.txt'  # {date}_stage1_{'FL'|'boards'}{}.txt  enter date and whether FL or board separated files
+    stage2_bmaps: '20191211_stage2_FL{}.txt'  # {date}_stage2_{'FL'|'boards'}{}.txt
     stage3_bmap: '20191211_stage3.txt'  # {date}_stage3.txt
     stage4_bmap: '20191211_stage4.txt'  # {date}_stage4.txt
     final_bmap: '20191211_final.bmap'  # {date}_final.bmap

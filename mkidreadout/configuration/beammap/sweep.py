@@ -1082,21 +1082,21 @@ class TemporalBeammap():
                 abs_end = abs_start + 1024
                 board_inds.append( (abs_start < allResIDs[args]) & (allResIDs[args] < abs_end) )
             board_inds = np.any(board_inds, axis=0)
-            FL_filename = self.get_FL_filename(self.stage1_bmaps, ''.join(boards))
+            FL_filename = self.get_section_filename(self.stage1_bmaps, ''.join(boards))
             log.info('Saving data for boards %s in %s' % (board, FL_filename))
             board_data = data[board_inds]
             np.savetxt(FL_filename, board_data, fmt='%7d %3d %7f %7f')
 
         elif split_feedlines:
             for fl in range(1, self.numfeed + 1):
-                FL_filename = self.get_FL_filename(self.stage1_bmaps, fl)
+                FL_filename = self.get_section_filename(self.stage1_bmaps, fl)
                 log.info('Saving FL%i data in %s' % (fl, FL_filename))
                 args = np.int_(data[:, 0] / 10000) != fl  # identify resonators for feedline fl
                 FL_data = data * 1
                 FL_data[args, 1] = beamMapFlags['noDacTone']
                 np.savetxt(FL_filename, FL_data, fmt='%7d %3d %7f %7f')
         else:
-            outfile = self.get_FL_filename(self.stage1_bmaps, 'all')
+            outfile = self.get_section_filename(self.stage1_bmaps, 'all')
             np.savetxt(outfile.format('all'), data, fmt='%7d %3d %7f %7f')
 
     def loadTemporalBeammap(self):
@@ -1151,23 +1151,44 @@ class TemporalBeammap():
 
         return images
 
-    def manualSweepCleanup(self, feedline):
+    def manualSweepCleanup(self, identifier):
+        """
+        params
+        ------
+
+        identifier : int or string
+            tells the manual click gui which file (correponding to one section of the board) to load. For example if
+            you're using the raster across several boards it could be 5a6a7a and it will load
+            20200620_stage1_boards5a6a7a.txt, or in the case of FLs it could be 7 to load 20200620_stage1_FL7.txt
+        """
+
         if self.initial_bmap is None:
             initial_bmap = Beammap(default=self.config.beammap.instrument).file
         else:
             initial_bmap = os.path.join(self.beammapdirectory, self.initial_bmap)
 
-        stage1_bmap = self.get_FL_filename(self.stage1_bmaps, feedline)
-        stage2_bmap = self.get_FL_filename(self.stage2_bmaps, feedline)
+        stage1_bmap = self.get_section_filename(self.stage1_bmaps, identifier)
+        stage2_bmap = self.get_section_filename(self.stage2_bmaps, identifier)
         getLogger('Sweep').info('beammap to click: {}'.format(stage1_bmap))
         m = ManualTemporalBeammap(self.x_images, self.y_images, initial_bmap, stage1_bmap, stage2_bmap,
                                   self.config.beammap.sweep.fittype, self.xp_images, self.yp_images,
                                   self.config.beammap.sweep.use_initial_flags)
 
-    def get_FL_filename(self, fn, FL):
+    def get_section_filename(self, filename, identifier):
+        """ stage 1 and 2 file can either be for different FLs or groups of boards. This function populates the {}
+         part of the filename with section
+
+         params
+         ------
+        filename : str
+            eg 20191211_stage1_FL{}.txt or 20191211_stage1_boards{}.txt
+        identifier : int | str
+            eg 6 or 5a6a7a8a
+         """
+
         path = self.beammapdirectory
-        name, extension = fn.split('.')
-        name = name.format(FL)
+        name, extension = filename.split('.')
+        name = name.format(identifier)
         return os.path.join(path, '.'.join([name, extension]))
 
     def combineClicked(self):
@@ -1186,7 +1207,7 @@ class TemporalBeammap():
 
         stage3_bmap = os.path.join(self.beammapdirectory, self.config.beammap.filenames.stage3_bmap)
 
-        filenames = [self.get_FL_filename(self.stage2_bmaps, fl) for fl in range(1, self.numfeed+1)]
+        filenames = [self.get_section_filename(self.stage2_bmaps, fl) for fl in range(1, self.numfeed+1)]
 
         masterfile = open(stage3_bmap,'a')
         for fl, fname in enumerate(filenames, 1):
@@ -1304,7 +1325,7 @@ if __name__ == '__main__':
         b.stackImages('x')
         b.stackImages('y')
         log.info('Cleanup')
-        b.manualSweepCleanup(feedline=args.manual_idx)
+        b.manualSweepCleanup(identifier=args.manual_idx)
     elif args.use_combo:  # Combine clicked FL beam files
         b.combineClicked()
     elif args.align:
