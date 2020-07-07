@@ -115,18 +115,19 @@ cdef class ImageCube(object):
                 paramsMatch &= (kwargs.get('nCols') == self.image.md.nCols)
             if kwargs.get('nRows') is not None:
                 paramsMatch &= (kwargs.get('nRows') == self.image.md.nRows)
-            if kwargs.get('useWvl') is not None:
-                paramsMatch &= (int(kwargs.get('useWvl')) == self.image.md.useWvl)
             if kwargs.get('nWvlBins') is not None:
                 paramsMatch &= (kwargs.get('nWvlBins') == self.image.md.nWvlBins)
             if kwargs.get('useEdgeBins') is not None:
-                paramsMatch &= (kwargs.get('useEdgeBins') == self.image.md.useEdgeBins)
-            if kwargs.get('wvlStart') is not None:
-                paramsMatch &= (kwargs.get('wvlStart') == self.image.md.wvlStart)
-            if kwargs.get('wvlStop') is not None:
-                paramsMatch &= (kwargs.get('wvlStop') == self.image.md.wvlStop)
+                paramsMatch &= (kwargs.get('useEdgeBins') == bool(self.image.md.useEdgeBins))
             if not paramsMatch:
                 raise Exception('Image already exists, and provided parameters do not match.')
+
+            if kwargs.get('useWvl') is not None:
+                self.set_useWvl(kwargs.get('useWvl'))
+            if kwargs.get('wvlStart') is not None:
+                self.set_wvlStart(kwargs.get('wvlStart'))
+            if kwargs.get('wvlStop') is not None:
+                self.set_wvlStop(kwargs.get('wvlStop'))
 
         else:
             self._create(name, kwargs.get('nCols', 100), kwargs.get('nRows', 100), kwargs.get('useWvl', False), 

@@ -25,7 +25,8 @@ int MaximizePriority(int cpu){
     if (CPU_ISSET(cpu, &cpuset)) printf("    CPU %d\n", cpu);    
     
     // We'll set the priority to the maximum.
-    params.sched_priority = sched_get_priority_max(SCHED_FIFO);
+    params.sched_priority = sched_get_priority_max(SCHED_FIFO) - 20;
+    printf("Setting priority to %d\n", params.sched_priority);
     
     ret = pthread_setschedparam(this_thread, SCHED_FIFO, &params);
     if (ret != 0) {

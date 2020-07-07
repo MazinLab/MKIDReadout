@@ -14,7 +14,7 @@ void *openShmFile(const char *shmName, size_t size, int create){
 
     snprintf(name, STRBUFLEN, "%s", shmName);
 
-    fd = shm_open(name, flag, S_IWUSR|S_IRUSR|S_IWGRP|S_IRGRP);
+    fd = shm_open(name, flag, S_IWUSR|S_IRUSR|S_IWGRP|S_IRGRP|S_IWOTH|S_IROTH);
     if(fd == -1){
         snprintf(error, 200, "Error opening %s", name);
         perror(error);
@@ -77,7 +77,7 @@ int MKIDShmImage_create(MKID_IMAGE_METADATA *imageMetadata, const char *imgName,
     outputImage->image = imgPtr;
 
     // OPEN SEMAPHORES
-    outputImage->takeImageSem = sem_open(mdPtr->takeImageSemName, O_CREAT, S_IRUSR|S_IWUSR|S_IRGRP|S_IWGRP, 0);
+    outputImage->takeImageSem = sem_open(mdPtr->takeImageSemName, O_CREAT, S_IRUSR|S_IWUSR|S_IRGRP|S_IWGRP|S_IROTH|S_IWOTH, 0);
     if(outputImage->takeImageSem==SEM_FAILED)
         printf("Semaphore creation failed %s\n", strerror(errno));
 
