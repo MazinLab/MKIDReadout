@@ -242,7 +242,7 @@ class BMAligner(object):
         # find a good starting point for search, using median of 100 minimum "good" points
         if self.instrument.lower() == 'mec' and self.flip:
             self.coords[:,0] = -self.coords[:,0]
-            self.coords[:,1] = -self.coords[:,1] #flip y too to keep beammap consistent
+            # self.coords[:,1] = -self.coords[:,1] #flip y too to keep beammap consistent
         elif self.instrument.lower() == 'darkness' and self.flip:
             self.coords[:,1] = -self.coords[:,1]
 
