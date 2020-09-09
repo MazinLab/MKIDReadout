@@ -47,7 +47,7 @@ if __name__=='__main__':
     parser.add_argument('-p', '--plotConfusion', action='store_true')
     parser.add_argument('-v', '--verbose', action='store_true')
     parser.add_argument('-m', '--match-res', action='store_true', help='If true, resIDs are assumed to not correspond')
-    parser.add_argument('-o', '--output-flag', default=None, 
+    parser.add_argument('-o', '--output-file', default=None, 
                     help='Outputs the average of the two provided files, named using provided flag')
     args = parser.parse_args()
 
@@ -153,7 +153,8 @@ if __name__=='__main__':
         
         
 
-    plt.hist(attenDiff, bins=10, range=(-4.5, 5.5))
+    plt.hist(attenDiff, bins=20, range=(-4.75, 5.25))
+    #plt.hist(attenDiff, bins=10, range=(-4.5, 5.5))
     plt.title(plotTitle)
     plt.xlabel('AttenDiff (' + bFileName + ' - ' + aFileName + ')')
     plt.savefig(os.path.join(saveDir, plotFn + '_attenDiff.png'))
@@ -185,6 +186,10 @@ if __name__=='__main__':
         plt.colorbar()
         plt.savefig(os.path.join(saveDir, plotFn+'_confusion.png'))
         plt.show()
+
+    if args.output_file:
+        mdAvg = SweepMetadata(resid=resIDAMatched, flag=ISGOOD*np.ones(len(resIDAMatched)), mlatten=(attenAMatched + attenBMatched)/2., mlfreq=(freqAMatched + freqBMatched)/2., wsfreq=(freqAMatched + freqBMatched)/2.)
+        mdAvg.save(file=args.output_file)
 
 
 

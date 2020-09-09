@@ -234,14 +234,27 @@ class ValidationThing(object):
         ax01.set_ylabel('Manual', fontsize=7)
         ax01.set_xlabel('ML', fontsize=7)
         ax01.tick_params(axis='both', labelsize=5)
+
+        #check attenDiff increment
+        attenDiffList = np.unique(self.attenDiffs)
+        if np.min(np.abs(np.diff(attenDiffList))) < 0.9:
+            attenHistBins = 20
+            attenHistRange = (-4.75, 5.25)
+        else:
+            attenHistBins = 10
+            attenHistRange = (-4.5, 5.5)
+
+        print attenDiffList
+        print 'bins', attenHistBins
+
         if self.satAttenDiffs is None:
-            ax00.hist(self.attenDiffs, bins=10, range=(-4.5, 5.5))
+            ax00.hist(self.attenDiffs, bins=attenHistBins, range=attenHistRange)
             ax00.set_xlabel('ML Atten - Manual Atten', fontsize=7)
         else:
-            ax00.hist(self.attenDiffs, bins=10, range=(-4.5, 5.5), label='ML - Manual', alpha=0.3)
-            ax00.hist(self.satAttenDiffs, bins=10, range=(-4.5, 5.5), label='ML - Saturation', alpha=0.3) 
+            ax00.hist(self.attenDiffs, bins=attenHistBins, range=attenHistRange, label='ML - Manual', alpha=0.3)
+            ax00.hist(self.satAttenDiffs, bins=attenHistBins, range=attenHistRange, label='ML - Saturation', alpha=0.3) 
             if self.manSatAttenDiffs is not None:
-                ax00.hist(self.manSatAttenDiffs, bins=10, range=(-4.5, 5.5), label='Manual - Saturation', alpha=0.3) 
+                ax00.hist(self.manSatAttenDiffs, bins=attenHistBins, range=attenHistRange, label='Manual - Saturation', alpha=0.3) 
             ax00.legend(fontsize=5)
             ax00.set_xlabel('Atten Difference (dB)', fontsize=7)
         ax00.tick_params(axis='both', labelsize=5)
