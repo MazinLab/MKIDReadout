@@ -210,10 +210,22 @@ def prominenceCut(wpsmap, resCoords, minThresh=0.75):
     valleys = np.zeros(len(resCoords))
     for i in range(len(resCoords) - 1):
         attenInds = np.sort([resCoords[i, 0], resCoords[i+1, 0]])
-        image = wpsmap[attenInds[0]:attenInds[1]+1, (resCoords[i,1]+resCoords[i+1,1])/2, 0] #use all attens but freq only in middle
-        #coords = skf.peak_local_max(-image, num_peaks=1, exclude_border=False)
-        valleys[i] = np.max(image)#image[coords[0], coords[1]]
-        #valleys[i] = wpsmap[int(np.ceil((attenInds[0]+attenInds[1])/2.)), (resCoords[i,1]+resCoords[i+1,1])/2, 0]
+        #image = wpsmap[attenInds[0]:attenInds[1]+1, (resCoords[i,1]+resCoords[i+1,1])/2, 0] #use all attens but freq only in middle
+        #valleys[i] = np.max(image)#image[coords[0], coords[1]]
+        image = wpsmap[attenInds[0]:attenInds[1]+1, resCoords[i,1]:resCoords[i+1,1]+1, 0] 
+        if resCoords[i, 0] > resCoords[i+1, 0]: #resonators are always in top left or bottom right
+            image = np.flipud(image)
+        highestValleys = np.zeros(image.shape)
+        
+        for c in range(image.shape[1]):
+            highestValleys[0,c] = np.min(image[0, 0:c+1])
+        for r in range(image.shape[0]):
+            highestValleys[r, 0] = np.min(image[0:r+1, 0])
+        for r in range(1, image.shape[0]):
+            for c in range(1, image.shape[1]):
+                highestValleys[r, c] = min(image[r,c], max(highestValleys[r-1, c-1], highestValleys[r-1, c], highestValleys[r, c-1]))
+
+        valleys[i] = highestValleys[-1, -1]
 
     #plt.hist(valleys, bins=20)
     #plt.show()
