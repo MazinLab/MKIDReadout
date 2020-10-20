@@ -476,6 +476,8 @@ def matchSweepToMetadataPat(sweepFilePat, mdFilePat):
         if np.sum(mdMatchesSweep) == 0:
             getLogger(__name__).warning('No metadata found for {}. Skipping.'.format(sweepFile))
             mdFilesOrdered.append(None)
+            paramDicts.append(None)
+            continue
 
         matchingMD = mdFiles[mdMatchesSweep][0]
         mdParamDict = parse.parse(mdFmt, matchingMD).named
@@ -489,7 +491,9 @@ def matchSweepToMetadataPat(sweepFilePat, mdFilePat):
         paramDicts.append(sweepParamDict)
         mdFilesOrdered.append(matchingMD)
 
-    if len(mdFilesOrdered) != len(np.unique(mdFilesOrdered)):
+    #weirdness here is to filter out 'None'
+    mdFNP = np.array(mdFilesOrdered)
+    if len(mdFNP[mdFNP.astype(bool)]) != len(np.unique(mdFNP[mdFNP.astype(bool)])):
         raise Exception('Duplicate MD files')
 
     return list(sweepFiles), mdFilesOrdered, paramDicts

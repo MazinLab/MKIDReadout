@@ -77,6 +77,14 @@ if __name__=='__main__':
     args = parser.parse_args()
 
     sweepFiles, mdFilesOrdered, paramDicts = sd.matchSweepToMetadataPat(args.sweep, args.metadata)
+    mdFilesOrdered = np.asarray(mdFilesOrdered)
+    paramDicts = np.asarray(paramDicts)
+    sweepFiles = np.asarray(sweepFiles)
+    goodFileMask = mdFilesOrdered.astype(bool)
+
+    mdFilesOrdered = mdFilesOrdered[goodFileMask]
+    paramDicts = paramDicts[goodFileMask]
+    sweepFiles = sweepFiles[goodFileMask]
 
 
     for i in range(len(sweepFiles)):
