@@ -22,7 +22,7 @@ def retrieveManResList(metadata):
 
 def retrieveMLResList(metadata, threshold=0, nManRes=None):
     goodMask = ((metadata.flag & ISGOOD) == ISGOOD)
-    goodMask = goodMask & (metadata.mlatten != np.nanmax(metadata.atten))
+    goodMask = goodMask & (metadata.atten != np.nanmax(metadata.atten))
     if threshold >= 1:
         assert nManRes is not None
         sortedScores = np.sort(metadata.ml_isgood_score[goodMask])[::-1]
@@ -150,6 +150,12 @@ if __name__=='__main__':
         resIDPairDiffs = np.vstack((resIDAMatched, resIDBMatched, attenDiff)).T
         print 'ResID discrepancies: A B Diff'
         print np.round(resIDPairDiffs[diffAttenMask]).astype(int)
+
+    print 'mean', np.mean(attenDiff)
+    print 'std', np.std(attenDiff)
+    print 'fraction within 1 dB', float(np.sum(np.abs(attenDiff) <= 1))/len(attenDiff)
+    print 'median', np.median(attenDiff)
+    print 'fraction within 1 dB of median', float(np.sum(np.abs(attenDiff - np.median(attenDiff)) <= 1))/len(attenDiff)
         
         
 

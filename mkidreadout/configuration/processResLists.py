@@ -53,9 +53,13 @@ if __name__=='__main__':
     sweepList = []
     mdList = []
     
-    for sweepFile, mdFile in zip(sweepFiles, mdFiles):
-        sweepList.append(sd.FreqSweep(sweepFile))
-        mdList.append(sd.SweepMetadata(file=mdFile))
+    if args.sweep is not None:
+        for sweepFile, mdFile in zip(sweepFiles, mdFiles):
+            sweepList.append(sd.FreqSweep(sweepFile))
+            mdList.append(sd.SweepMetadata(file=mdFile))
+    else:
+        for mdFile in mdFiles:
+            mdList.append(sd.SweepMetadata(file=mdFile))
 
     # find LOs
     if args.find_lo:

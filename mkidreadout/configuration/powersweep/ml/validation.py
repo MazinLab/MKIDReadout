@@ -58,12 +58,19 @@ def validateModel(modelDir, valFiles, valMDFiles, satMDFiles=None, saveWPSMap=Fa
             continue
 
         sweep = sd.FreqSweep(valFile)
-        wpsmap, freqs, attens = finder.makeWPSMap(modelDir, sweep)
+        wpsmapFile = os.path.join(modelDir, os.path.basename(valFile).split('.')[0] + '_wpsmap.npz')
+        if os.path.isfile(wpsmapFile):
+            wsf = np.load(wpsmapFile)
+            wpsmap = wsf['wpsmap']
+            freqs = wsf['freqs']
+            attens = wsf['attens']
+        else:
+            wpsmap, freqs, attens = finder.makeWPSMap(modelDir, sweep)
+            if saveWPSMap:
+                np.savez(wpsmapFile, wpsmap=wpsmap, freqs=freqs, attens=attens)
+
         resFreqs, resAttens, scores = finder.findResonators(wpsmap, freqs, attens, 
                 peakThresh=0.90, nRes=1024)
-        if saveWPSMap:
-            wpsmapFile = os.path.join(modelDir, os.path.basename(valFile).split('.')[0] + '_wpsmap.npz')
-            np.savez(wpsmapFile, wpsmap=wpsmap, freqs=freqs, attens=attens)
 
         if resFreqs[0] < 4.7e9:
             band = 'a'
@@ -132,7 +139,7 @@ def getValThing(manMDFile, mlMDFile, type=('man', 'ml')):
     mlFreq = mlFreq[mlSortedInd]
     mlAtten = mlAtten[mlSortedInd]
     
-    mantoml = matchResonators(manResID, mlResID, manFreq, mlFreq, 300.e3)
+    mantoml = matchResonators(manResID, mlResID, manFreq, mlFreq, 200.e3)
     mlNotInMan = np.empty((0, 2))
     for j, resID in enumerate(mlResID):
         if not np.any(j == mantoml[:, 0]):
