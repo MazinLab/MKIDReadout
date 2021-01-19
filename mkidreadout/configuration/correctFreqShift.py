@@ -80,7 +80,7 @@ if __name__=='__main__':
     mdFilesOrdered = np.asarray(mdFilesOrdered)
     paramDicts = np.asarray(paramDicts)
     sweepFiles = np.asarray(sweepFiles)
-    goodFileMask = mdFilesOrdered.astype(bool)
+    goodFileMask = mdFilesOrdered.astype(object).astype(bool)
 
     mdFilesOrdered = mdFilesOrdered[goodFileMask]
     paramDicts = paramDicts[goodFileMask]

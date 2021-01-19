@@ -492,7 +492,7 @@ def matchSweepToMetadataPat(sweepFilePat, mdFilePat):
         mdFilesOrdered.append(matchingMD)
 
     #weirdness here is to filter out 'None'
-    mdFNP = np.array(mdFilesOrdered)
+    mdFNP = np.array(mdFilesOrdered, dtype=object)
     if len(mdFNP[mdFNP.astype(bool)]) != len(np.unique(mdFNP[mdFNP.astype(bool)])):
         raise Exception('Duplicate MD files')
 
