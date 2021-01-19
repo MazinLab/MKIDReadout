@@ -103,6 +103,7 @@ class SBOptimizer:
         self.roach.changeAtten(2,self.globalDacAtten%31.75)
         self.roach.changeAtten(3,np.floor(self.adcAtten*2)/4.)
         self.roach.changeAtten(4,np.ceil(self.adcAtten*2)/4.)
+        self.roach.reInitADCDACBoard()
 
     def loadLUT(self, sideband='all', phaseList=None, iqRatioList=None, globalDacAtten=None):
         """
