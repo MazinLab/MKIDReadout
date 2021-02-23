@@ -29,7 +29,7 @@ def find_log(path):
     try:
         out[1] = sorted([f for f in out[1] if 'CPTLog' in f])[-1]
     except (TypeError, IndexError):
-        log.debug('Unable to find log in {}'.format(path))
+        log.info('Unable to find log in {}'.format(path))
         return ''
     ret = os.path.join(*out)
     log.info('Found log "{}"'.format(ret))
@@ -53,7 +53,7 @@ sender = 'MEC@physics.ucsb.edu'
 if __name__ == '__main__':
     logging.basicConfig()
     log = logging.getLogger('Compressor Monitor')
-    log.setLevel('DEBUG')
+    log.setLevel('INFO')
     logging.getLogger('mkidcore').setLevel('DEBUG')
 
     notify.notify(MAIL_RECIPIENTS, 'Compressor Monitor Starting', sender=sender, sms=False, email=True)
@@ -97,6 +97,8 @@ if __name__ == '__main__':
                 log.error('Failed to read from log: {}'.format(logfile))
                 notify.notify(MAIL_RECIPIENTS, 'Compressor Log Read Error', sender=sender, sms=False, email=True,
                               holdoff_min=EMAIL_HOLDOFF_MIN)
+            except IndexError:
+                pass
             time.sleep(MONITOR_INTERVAL_SEC)
 
     except Exception as e:
