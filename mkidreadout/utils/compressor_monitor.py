@@ -31,8 +31,9 @@ def find_log(path):
     except (TypeError, IndexError):
         log.debug('Unable to find log in {}'.format(path))
         return ''
-
-    return os.path.join(out)
+    ret = os.path.join(*out)
+    log.info('Found log "{}"'.format(ret))
+    return ret
 
 
 def parse(line):
@@ -43,13 +44,20 @@ def parse(line):
     sampletime = data[0] + ' ' + data[1]
     sampletime = datetime.strptime(sampletime.decode('utf-8'), '%Y/%m/%d %H:%M:%S')
     current = float(data[-1])
+    log.debug("{}: {} A ('{}')".format(sampletime,current,line))
     return sampletime, current
 
 
+sender = 'MEC@physics.ucsb.edu'
+
 if __name__ == '__main__':
+    logging.basicConfig()
+    log = logging.getLogger('Compressor Monitor')
+    log.setLevel('DEBUG')
+    logging.getLogger('mkidcore').setLevel('DEBUG')
+
+    notify.notify(MAIL_RECIPIENTS, 'Compressor Monitor Starting', sender=sender, sms=False, email=True)
     try:
-        logging.basicConfig()
-        log = logging.getLogger('Compressor Monitor')
 
         logfile = find_log(LOG_DIR)
 
@@ -57,41 +65,41 @@ if __name__ == '__main__':
             fp = open(logfile, 'r')
         except IOError:
             log.critical('Unable to open logfile {}'.format(logfile))
-            notify.notify(MAIL_RECIPIENTS, 'Log Missing', sender='MEC Compressor', sms=False, email=True,
-                          holdoff_min=EMAIL_HOLDOFF_MIN)
+            notify.notify(MAIL_RECIPIENTS, 'Log Missing. Exiting.', sender=sender, sms=False, email=True)
             sys.exit(1)
 
         while True:
             try:
                 lastline = fp.readlines()[-1]
                 sampletime, current = parse(lastline)
-                log.info('{} ')
                 if (datetime.now() - sampletime).total_seconds() > STALE_TIME_SECONDS:
-                    log.info('State timestamp, checking for new logfile')
+                    log.info('Stale timestamp, checking for new logfile')
                     newlog = find_log(LOG_DIR)
                     if newlog == logfile:
                         log.info('No new logfile, notifying.')
-                        notify.notify(MAIL_RECIPIENTS, 'Log Stale', sender='MEC Compressor', sms=False, email=True,
-                                      holdoff_min=EMAIL_HOLDOFF_MIN)
+                        notify.notify(MAIL_RECIPIENTS, 'Compressor log stale. Most recent entry {}'.format(sampletime), 
+                                      sender=sender, sms=False, email=True, holdoff_min=EMAIL_HOLDOFF_MIN)
                     else:
-                        log.debug('Switching to new log: {}'.format(newlog))
+                        log.info('Switching to new log: {}'.format(newlog))
                         fp.close()
                         logfile = newlog
                         fp = open(logfile, 'r')
-
-                if current < MOTOR_CURRENT_ALARM_THRESHOLD:
-                    notify.notify(MAIL_RECIPIENTS, 'Current Fault: {} A'.format(current),
-                                  subject='MEC Compressor Error', sender='MEC Compressor', sms=True, email=True,
+                elif current < MOTOR_CURRENT_ALARM_THRESHOLD:
+                    log.critical('Current Fault: {}'.format(current))
+                    notify.notify(MAIL_RECIPIENTS, 'Compressor current of {:.1f} A at {}'.format(current, sampletime),
+                                  subject='MEC Compressor Error', sender=sender, sms=True, email=True,
                                   holdoff_min=EMAIL_HOLDOFF_MIN)
             except ValueError:
-                log.debug('Failed to parse "{}" from log: {}'.format(logfile))
-                notify.notify(MAIL_RECIPIENTS, 'Log Corrupt', sender='MEC Compressor', sms=False, email=True,
+                log.warning('Failed to parse "{}" from log: {}'.format(logfile))
+                notify.notify(MAIL_RECIPIENTS, 'Compressor Log Corrupt', sender=sender, sms=False, email=True,
                               holdoff_min=EMAIL_HOLDOFF_MIN)
             except IOError:
-                log.debug('Failed to read from log: {}'.format(logfile))
-                notify.notify(MAIL_RECIPIENTS, 'Log Read Error', sender='MEC Compressor', sms=False, email=True,
+                log.error('Failed to read from log: {}'.format(logfile))
+                notify.notify(MAIL_RECIPIENTS, 'Compressor Log Read Error', sender=sender, sms=False, email=True,
                               holdoff_min=EMAIL_HOLDOFF_MIN)
             time.sleep(MONITOR_INTERVAL_SEC)
 
     except Exception as e:
         log.critical('Compressor monitor died: {}\n'.format(e), exc_info=True)
+        notify.notify(MAIL_RECIPIENTS, 'Compressor monitor exiting due to exception.', sender=sender, sms=False, email=True)
+    
