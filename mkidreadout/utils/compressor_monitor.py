@@ -78,7 +78,8 @@ if __name__ == '__main__':
                     if newlog == logfile:
                         log.info('No new logfile, notifying.')
                         notify.notify(MAIL_RECIPIENTS, 'Compressor log stale. Most recent entry {}'.format(sampletime), 
-                                      sender=sender, sms=False, email=True, holdoff_min=EMAIL_HOLDOFF_MIN)
+                                      sender=sender, sms=False, email=True, holdoff_min=EMAIL_HOLDOFF_MIN,
+                                      holdoff_key='nolog')
                     else:
                         log.info('Switching to new log: {}'.format(newlog))
                         fp.close()
@@ -88,20 +89,20 @@ if __name__ == '__main__':
                     log.critical('Current Fault: {}'.format(current))
                     notify.notify(MAIL_RECIPIENTS, 'Compressor current of {:.1f} A at {}'.format(current, sampletime),
                                   subject='MEC Compressor Error', sender=sender, sms=True, email=True,
-                                  holdoff_min=EMAIL_HOLDOFF_MIN)
+                                  holdoff_min=EMAIL_HOLDOFF_MIN, holdoff_key='current')
             except ValueError:
                 log.warning('Failed to parse "{}" from log: {}'.format(logfile))
                 notify.notify(MAIL_RECIPIENTS, 'Compressor Log Corrupt', sender=sender, sms=False, email=True,
-                              holdoff_min=EMAIL_HOLDOFF_MIN)
+                              holdoff_min=EMAIL_HOLDOFF_MIN, holdoff_key='corrupt')
             except IOError:
                 log.error('Failed to read from log: {}'.format(logfile))
                 notify.notify(MAIL_RECIPIENTS, 'Compressor Log Read Error', sender=sender, sms=False, email=True,
-                              holdoff_min=EMAIL_HOLDOFF_MIN)
+                              holdoff_min=EMAIL_HOLDOFF_MIN, holdoff_key='logerror')
             except IndexError:
                 pass
             time.sleep(MONITOR_INTERVAL_SEC)
 
     except Exception as e:
         log.critical('Compressor monitor died: {}\n'.format(e), exc_info=True)
-        notify.notify(MAIL_RECIPIENTS, 'Compressor monitor exiting due to exception.', sender=sender, sms=False, email=True)
-    
+        notify.notify(MAIL_RECIPIENTS, 'Compressor monitor exiting due to exception.', sender=sender, sms=False,
+                      email=True)
