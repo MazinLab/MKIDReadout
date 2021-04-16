@@ -48,7 +48,7 @@ matplotlib.use('Qt4Agg')
 import matplotlib.pyplot as plt
 from mkidcore.config import load
 from mkidcore.corelog import getLogger, create_log
-from mkidcore.hdf.mkidbin import parse
+from mkidcore.binfile.mkidbin import parse
 from mkidcore.objects import Beammap
 from mkidcore.pixelflags import beammap as beamMapFlags
 from mkidcore.instruments import DEFAULT_ARRAY_SIZES, MEC_FEEDLINE_INFO, DARKNESS_FEEDLINE_INFO
@@ -883,7 +883,7 @@ class TemporalBeammap():
         if self.initial_bmap is not None:
             initial = os.path.join(self.beammapdirectory, self.initial_bmap)
         else:
-            initial = Beammap(default=self.config.beammap.instrument).file
+            initial = Beammap(self.config.beammap.instrument).file
         temporal = os.path.join(self.beammapdirectory, self.stage1_bmaps)
 
         allResIDs_map, flag_map, x_map, y_map = bmu.shapeBeammapIntoImages(initial, temporal)
@@ -935,7 +935,7 @@ class TemporalBeammap():
         if self.initial_bmap is not None:
             initial = os.path.join(self.beammapdirectory, self.initial_bmap)
         else:
-            initial = Beammap(default=self.config.beammap.instrument).file
+            initial = Beammap(self.config.beammap.instrument).file
         temporal = os.path.join(self.beammapdirectory, self.stage1_bmaps)
 
         _, _, self.x_locs, self.y_locs = bmu.shapeBeammapIntoImages(initial, temporal)
@@ -985,7 +985,7 @@ class TemporalBeammap():
 
     def manualSweepCleanup(self, feedline):
         if self.initial_bmap is None:
-            initial_bmap = Beammap(default=self.config.beammap.instrument).file
+            initial_bmap = Beammap(self.config.beammap.instrument).file
         else:
             initial_bmap = os.path.join(self.beammapdirectory, self.initial_bmap)
 

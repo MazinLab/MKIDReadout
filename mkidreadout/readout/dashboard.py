@@ -514,7 +514,7 @@ class MKIDDashboard(QMainWindow):
             self.beammap = self.config.beammap
         except KeyError:
             getLogger('Dashboard').warning("No beammap specified in config, using default")
-            self.beammap = Beammap(default=self.config.instrument)
+            self.beammap = Beammap(self.config.instrument)
 
         self.beammapFailed = self.beammap.failmask
 
