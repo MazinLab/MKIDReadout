@@ -3,23 +3,25 @@ channels:
   - defaults
   - conda-forge
   - intel
-  - free
+#  - free
 dependencies:
 #key parts
-  - mkl>=11.3.3
+#  - mkl>=11.3.3
   - astropy
   - ipython>=4.2
   - matplotlib>=2.2
   - pyqt=4.11
   - pyserial=3.4
   - python=2.7
+  - numpy
+  - scipy
   - scikit-image>=0.12.3
   - scikit-learn>=0.17.1
-  - pytables=3.4.4
+  - pytables>=3.4.4
   - tensorflow=1.8
   - pip>=17
-  - hdf5=1.10.2
-  - ruamel.yaml=0.15.64
+  - hdf5>=1.10.3
+  - ruamel.yaml=0.16.12
   - numba>=0.39.0
   - psutil
   - ipdb
@@ -31,20 +33,21 @@ dependencies:
   - pymongo
   - gitpython
   - parse
+  - openmp
 #optional
-  - mpmath
-  - blas
-  - openblas
-  - opencv>=3
-  - ipp
-  - mkl_fft
-  - mkl_random
-  - mkl-include
+ # - mpmath
+ # - blas
+#  - openblas
+#  - opencv>=3
+#  - ipp
+#  - mkl_fft
+#  - mkl_random
+#  - mkl-include
   - boost
   - progressbar2
 #Fix warnings
   - tornado
-  - certifi
+#  - certifi
   - subprocess32
   - ply
   - future
@@ -57,7 +60,7 @@ dependencies:
     - git+http://github.com/naojsoft/g2cam.git@master#egg=g2cam
     - crlibm==1.0.3
     - image-registration==0.2.4
-    - pyinterval==1.2.0
+#    - pyinterval==1.2.0
     - multiprocessing-logging==0.2.6
     - flask_restful
 prefix: /opt/anaconda3/envs/readout
