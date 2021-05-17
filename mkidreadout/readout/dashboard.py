@@ -40,9 +40,14 @@ from datetime import datetime
 from functools import partial
 
 import numpy as np
-from PyQt4 import QtCore
-from PyQt4.QtCore import Qt
-from PyQt4.QtGui import *
+# from PyQt4 import QtCore
+# from PyQt4.QtCore import Qt
+# from PyQt4.QtGui import *
+from PyQt5 import QtCore
+from PyQt5.QtCore import Qt
+from PyQt5.QtGui import *
+from PyQt5.QtWidgets import *
+
 from astropy.io import fits
 from astropy.coordinates import SkyCoord
 from astropy import wcs
@@ -52,7 +57,8 @@ import mkidcore.corelog
 import mkidcore.instruments
 from mkidcore.instruments import compute_wcs_ref_pixel
 import mkidreadout.config
-import mkidreadout.configuration.sweepdata as sweepdata
+# import mkidreadout.configuration.sweepdata as sweepdata
+import mkidcore.sweepdata as sweepdata
 import mkidreadout.hardware.hsfw
 from mkidcore.corelog import create_log, getLogger
 from mkidcore.fits import CalFactory, combineHDU, summarize
@@ -63,6 +69,7 @@ from mkidreadout.hardware.telescope import Palomar, Subaru, NoScope
 from mkidreadout.readout.guiwindows import DitherWindow, PixelHistogramWindow, PixelTimestreamWindow, TelescopeWindow
 from mkidreadout.readout.packetmaster import Packetmaster
 from mkidreadout.utils.utils import interpolateImage
+from mkidreadout.readout.wcsgraphics import Compass, Scalebar
 
 SHAREDIMAGE_LATENCY = 0.55 #0.53 #latency fudge factor for sharedmem
 
@@ -159,7 +166,7 @@ class ConvertPhotonsToRGB(QtCore.QObject):
     SIGNALS
         convertedImage - emits when it's done converting an image
     """
-    convertedImage = QtCore.pyqtSignal(object)
+    convertedImage = QtCore.pyqtSignal(object, object)
 
     def __init__(self, cal_factory=None, image=None, minCountCutoff=0, maxCountCutoff=450, stretchMode='log',
                  interpolate=False, makeRed=True, parent=None):
@@ -191,7 +198,8 @@ class ConvertPhotonsToRGB(QtCore.QObject):
         tic = time.time()
 
         if self.image is None:
-            self.image = self.cal_factory.generate(name='LiveImage', bias=0, maskvalue=np.nan).data
+            imageHDU = self.cal_factory.generate(name='LiveImage', bias=0, maskvalue=np.nan)
+            self.image = imageHDU.data        
 
         # first interpolate and find hot pixels
         if self.interpolate:
@@ -210,7 +218,7 @@ class ConvertPhotonsToRGB(QtCore.QObject):
         else:
             raise ValueError('Unknown stretch mode')
 
-        self.makeQPixMap(imageGrey)
+        self.makeQPixMap(imageGrey, wcs.WCS(imageHDU.header))
         _stretchtime = (_stretchtime[0] + time.time() - tic, _stretchtime[1]+1)
 
         if _stretchtime[1] > 60:
@@ -269,7 +277,7 @@ class ConvertPhotonsToRGB(QtCore.QObject):
 
         return image2
 
-    def makeQPixMap(self, image):
+    def makeQPixMap(self, image, wcs):
         """
         This function makes the QImage object
         
@@ -284,7 +292,7 @@ class ConvertPhotonsToRGB(QtCore.QObject):
         imageRGB = (255 << 24 | image2 << 16 | redMask << 8 | redMask).flatten()  # pack into RGBA
         q_im = QImage(imageRGB, self.image.shape[1], self.image.shape[0], QImage.Format_RGB32)
 
-        self.convertedImage.emit(q_im)
+        self.convertedImage.emit(q_im, wcs)
 
 
 class MKIDDashboard(QMainWindow):
@@ -467,6 +475,13 @@ class MKIDDashboard(QMainWindow):
         # Connect to Filter wheel
         self.setFilter(None)
 
+        # Initialize compass rose and scale bar graphics
+        pixmap_height = self.grPixMap.pixmap().height()
+        # pixmap_height = self.config.beammap.nrows * self.config.dashboard.image_scale
+        self.compass = Compass(scale=self.config.dashboard.image_scale, wcs=None, loc=(60,60), radius=40, parent=self.grPixMap)
+        self.scalebar = Scalebar(scale=self.config.dashboard.image_scale, wcs=None, loc=(40,pixmap_height-40), 
+                                 length=0.1, length_unit='arcsecond', parent=self.grPixMap)	
+
         QtCore.QTimer.singleShot(10, fetcherthread.start)  # start the thread after a second
 
     def update_tcs(self):
@@ -579,9 +594,9 @@ class MKIDDashboard(QMainWindow):
                     pass
             photonImage.header.update(state)
 
-            if self.config.instrument.lower() != 'bluefors':
+            if self.config.instrument.lower() != 'bluefors' and not self.offline:
                 w = wcs.WCS(naxis=2)
-                w.wcs.ctype = ["RA--TAN", "DEC-TAN"]
+                w.wcs.ctype = ["RA---TAN", "DEC--TAN"]
                 w._naxis1, w._naxis2 = photonImage.shape
                 c = SkyCoord(photonImage.header['ra'], photonImage.header['dec'], unit=(units.hourangle, units.deg),
                              obstime='J' + str(photonImage.header['equinox']))
@@ -594,6 +609,10 @@ class MKIDDashboard(QMainWindow):
                                      [np.sin(do_rad), np.cos(do_rad)]])
                 w.wcs.cdelt = [self.config.dashboard.platescale/3600.0, self.config.dashboard.platescale/3600.0]
                 w.wcs.cunit = ["deg", "deg"]
+                photonImage.header.update(w.to_header())
+            elif self.offline:
+                w = wcs.WCS(naxis=2)
+                w.wcs.ctype = ["RA---TAN", "DEC--TAN"]
                 photonImage.header.update(w.to_header())
 
             self.imageList.append(photonImage)
@@ -676,7 +695,7 @@ class MKIDDashboard(QMainWindow):
         name = mkidreadout.config.tagstr('dark' + wvstr if self.checkbox_usewave else '' + '_{time}')
         return os.path.join(self.config.paths.data, name+'.fits')
 
-    def updateImage(self, q_image):
+    def updateImage(self, q_image, image_wcs):
         """
         This function is automatically called by a ConvertPhotonsToRGB object signal connection
         We don't call this function directly
@@ -697,6 +716,10 @@ class MKIDDashboard(QMainWindow):
 
         # Possibly smooth image
         self.grPixMap.graphicsEffect().setEnabled(self.checkbox_smooth.isChecked())
+
+        # Update compass rose and scale bar
+        self.compass.update_wcs(image_wcs)
+        self.scalebar.update_wcs(image_wcs)
 
         # Dither image
         # if self.checkbox_dither.isChecked(): print 'dithering'
@@ -737,7 +760,11 @@ class MKIDDashboard(QMainWindow):
             getLogger('Dashboard').info('Clicked (' + str(x_pos) + ' , ' + str(y_pos) + ')')
             if QApplication.keyboardModifiers() != QtCore.Qt.ShiftModifier:
                 self.selectedPixels = set()
-                self.removeAllPixelBoxLines()
+                try:
+                    self.grPixMap.scene().removeItem(self.pixelBoxGroup)
+                    self.pixelBoxGroup = None
+                except Exception:
+                    pass
             self.pixelClicked = [x_pos, y_pos]
             self.pixelCurrent = self.pixelClicked
             self.movingBox = self.drawPixelBox(self.pixelClicked)
@@ -751,7 +778,7 @@ class MKIDDashboard(QMainWindow):
         
         It sets the following semi-important flags and variables:
             self.pixelCurrent --> current hover pixel         Used to make the self.movingBox
-            self.movingBox --> QGraphicsRectItem        Box from the first clicked pixel (self.pixelClicked) to the current pixel (self.pixelCurrent
+            self.movingBox --> QGraphicsRectItem        Box from the first clicked pixel (self.pixelClicked) to the current pixel (self.pixelCurrent)
         
         INPUTS:
             event - QGraphicsSceneMouseEvent
@@ -809,8 +836,7 @@ class MKIDDashboard(QMainWindow):
             # Update any pixelTimestream windows that are listening
             self.newImageProcessed.emit()
 
-            for pixel in newPixels:
-                self.drawPixelBox(pixel, color='cyan', lineWidth=1)
+            self.pixelBoxGroup = self.grPixMap.scene().createItemGroup([self.drawPixelBox(pixel, color='cyan', lineWidth=1) for pixel in newPixels])
 
     def drawPixelBox(self, pixel1, pixel2=None, color='blue', lineWidth=3):
         """
@@ -849,13 +875,13 @@ class MKIDDashboard(QMainWindow):
         pixelBox = self.grPixMap.scene().addRect(x_start, y_start, width, height, q_pen)
         return pixelBox
 
-    def removeAllPixelBoxLines(self):
-        """
-        This function removes all QGraphicsItems (except the QGraphicsPixMapItem which holds our image) from the scene
-        """
-        for item in self.grPixMap.scene().items():
-            if type(item) != QGraphicsPixmapItem:
-                self.grPixMap.scene().removeItem(item)
+    # def removeAllPixelBoxLines(self):
+    #     """
+    #     This function removes all QGraphicsItems (except the QGraphicsPixMapItem which holds our image) from the scene
+    #     """
+    #     for item in self.grPixMap.scene().items():
+    #         if type(item) != QGraphicsPixmapItem:
+    #             self.grPixMap.scene().removeItem(item)
 
     def getPixCountRate(self, pixelList, numImages2Sum=0, applyDark=False):
         """
@@ -1287,6 +1313,15 @@ class MKIDDashboard(QMainWindow):
         self.checkbox_smooth = QCheckBox('Smooth Image')
         self.checkbox_smooth.setChecked(False)
 
+        # Checkbox for displaying compass rose
+        self.checkbox_compass = QCheckBox('Compass Rose')	
+        self.checkbox_compass.setChecked(False)
+        self.checkbox_compass.stateChanged.connect(lambda state: self.compass.setVisible(state))
+        # Checkbox for displaying scale bar
+        self.checkbox_scalebar = QCheckBox('Scale Bar')
+        self.checkbox_scalebar.setChecked(False)   
+        self.checkbox_scalebar.stateChanged.connect(lambda state: self.scalebar.setVisible(state))
+
         self.checkbox_usewave = QCheckBox('Apply wavecal')
         if not os.path.exists(self.config.dashboard.wavecal):
             self.config.dashboard.update('use_wave', False)
@@ -1402,6 +1437,12 @@ class MKIDDashboard(QMainWindow):
         vbox.addWidget(self.checkbox_showAllPix)
         vbox.addWidget(self.checkbox_interpolate)
         vbox.addWidget(self.checkbox_smooth)
+
+        label_wcsgraphics = QLabel('WCS Graphics')
+        vbox.addWidget(label_wcsgraphics)
+        vbox.addWidget(self.checkbox_compass)
+        vbox.addWidget(self.checkbox_scalebar)
+
         vbox.addWidget(self.label_selectedPixValue)
         vbox.addWidget(self.label_pixelInfo)
         vbox.addWidget(self.label_pixelID)
@@ -1450,7 +1491,9 @@ class MKIDDashboard(QMainWindow):
         # grview = QGraphicsView(self.imageFrame)
         grview = QGraphicsView()
         scene = QGraphicsScene(parent=grview)
-        self.grPixMap = QGraphicsPixmapItem(QPixmap(q_image), None, scene)
+        # self.grPixMap = QGraphicsPixmapItem(QPixmap(q_image), None, scene)
+        self.grPixMap = QGraphicsPixmapItem(QPixmap(q_image), None)
+
         self.grPixMap.mousePressEvent = self.mousePressed
         self.grPixMap.mouseMoveEvent = self.mouseMoved
         self.grPixMap.mouseReleaseEvent = self.mouseReleased
@@ -1504,8 +1547,10 @@ class MKIDDashboard(QMainWindow):
         if tip is not None:
             action.setToolTip(tip)
             action.setStatusTip(tip)
-        if slot is not None:
-            self.connect(action, QtCore.SIGNAL(signal), slot)
+        if slot is not None:     
+            # self.connect(action, QtCore.SIGNAL(signal), slot)
+            action.triggered.connect(slot)
+            
         if checkable:
             action.setCheckable(True)
         return action
