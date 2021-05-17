@@ -9,8 +9,9 @@ import threading
 import time
 
 import numpy as np
-from PyQt4 import QtCore
-from PyQt4.QtGui import *
+from PyQt5 import QtCore
+from PyQt5.QtGui import *
+from PyQt5.QtWidgets import *
 from matplotlib.backends.backend_qt4agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 
