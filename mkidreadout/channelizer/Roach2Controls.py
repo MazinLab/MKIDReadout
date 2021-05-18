@@ -7,7 +7,7 @@ This class is for setting and reading LUTs, registers, and other memory componen
 It's also the IO for the ADC/DAC board's Virtex 7 FPGA through the ROACH2
 
 NOTE: All freqencies are considered positive. A negative frequency can be asserted by the aliased signal of large positive frequency (by adding sample rate).
-      This makes things easier for coding since I can check valid frequencies > 0 and also for calculating which fftBin a frequency resides in (see generateFftChanSelection()). 
+      This makes things easier for coding since I can check valid frequencies > 0 and also for calculating which fftBin a frequency resides in (see generateFftChanSelection()).
 
 
 Example usage:
@@ -19,7 +19,7 @@ Example usage:
     freqList+=np.random.uniform(-spacing,spacing,nFreqs)
     freqList = np.sort(freqList)
     attenList = np.random.randint(23,33,nFreqs)
-    
+
     # Talk to Roach
     roach_0 = Roach2Controls(ip, params, True, True)
     roach_0.setLOFreq(loFreq)
@@ -27,7 +27,7 @@ Example usage:
     roach_0.generateFftChanSelection()
     roach_0.generateDacComb(freqList=None, resAttenList=attenList, globalDacAtten=17)
     roach_0.generateDdsTones()
-    
+
     roach_0.loadChanSelection()
     roach_0.loadDacLUT()
 
@@ -50,26 +50,26 @@ List of Functions:
     loadDacLut -                    Loads the freq comb from generateDacComb() into the LUT
     generateDdsTones -              Defines interweaved tones for dds
     loadDdsLUT -                    Loads dds tones into Roach2 memory
-    
 
-    
+
+
 List of useful class attributes:
     ip -                            ip address of roach2
     params -                        Dictionary of parameters
     freqList -                      List of resonator frequencies
     attenList -                     List of resonator attenuations
-    freqChannels -                  2D array of frequencies. Each column is the a stream and each row is a channel. 
+    freqChannels -                  2D array of frequencies. Each column is the a stream and each row is a channel.
                                     If uneven number of frequencies this array is padded with -1's
     fftBinIndChannels -             2D array of fftBin indices corresponding to the frequencies/streams/channels in freqChannels. freq=-1 maps to fftBin=0.
     dacPhaseList -                  List of the most recent relative phases used for generating DAC frequency comb
-    dacScaleFactor -                Scale factor for frequency comb to scale the sum of tones onto the DAC's dynamic range. 
+    dacScaleFactor -                Scale factor for frequency comb to scale the sum of tones onto the DAC's dynamic range.
                                     Careful, this is 1/scaleFactor we defined for ARCONS templar
     dacQuantizedFreqList -          List of frequencies used to define DAC frequency comb. Quantized to DAC digital limits
-    dacFreqComb -                   Complex time series signal used for DAC frequency comb. 
+    dacFreqComb -                   Complex time series signal used for DAC frequency comb.
     LOFreq -                        LO frequency of IF board
     ddsQuantizedFreqList -          2D array of frequencies shaped like freqChannels. Quantized to dds digital limits
     ddsPhaseList -                  2D array of frequencies shaped like freqChannels. Used to rotate loops.
-    
+
 
 TODO:
     modify takePhaseSnapshot() to work for nStreams: need register names
@@ -78,8 +78,8 @@ TODO:
     Changed delays in performIQSweep(), and takeAvgIQData() from 0.1 to 0.01 seconds
 
 BUGS:
-    The frequencies in freqList are assumed to be unique. 
-    If they aren't, then there are problems determining which frequency corresponds to which ch/stream. 
+    The frequencies in freqList are assumed to be unique.
+    If they aren't, then there are problems determining which frequency corresponds to which ch/stream.
     This should be fixed with some indexing tricks which don't rely on np.where
 """
 
@@ -107,7 +107,6 @@ from mkidreadout.channelizer.binTools import castBin
 from mkidreadout.configuration import sweepdata
 
 
-#from mkidreadout.channelizer.Roach2Utils import cy_generateTones
 
 
 class Roach2Controls(object):
@@ -337,20 +336,20 @@ class Roach2Controls(object):
         """
         Create and interweave dds frequencies. DDS tones downsample the post-fft
         signal to baseband. The phase can rotate the i,q points
-        
+
         Call setLOFreq(), generateResonatorChannels(), generateFftChanSelection() first.
 
-        
+
         INPUT:
-            freqChannels - Each column contains the resonantor frequencies in a single stream. The row index is the channel number. It's padded with -1's. 
+            freqChannels - Each column contains the resonantor frequencies in a single stream. The row index is the channel number. It's padded with -1's.
                            Made by generateResonatorChannels(). If None, use self.freqChannels
             fftBinIndChannels - Same shape as freqChannels but contains the fft bin index. Made by generateFftChanSelection(). If None, use self.fftBinIndChannels
-            phaseList - Same shape as freqChannels. Contains phase offsets (0 to 2Pi) for dds sampling. 
+            phaseList - Same shape as freqChannels. Contains phase offsets (0 to 2Pi) for dds sampling.
                         If None, set to self.ddsPhaseList. if self.ddsPhaseList doesn't exist then set to all zeros
-        
+
         OUTPUT:
             dictionary with following keywords
-            'iStreamList' - 2D array. Each row is an interweaved list of i values for a single stream. 
+            'iStreamList' - 2D array. Each row is an interweaved list of i values for a single stream.
             'qStreamList' - q values
             'quantizedFreqList' - 2d array of dds frequencies. (same shape as freqChannels) Padded with self.ddsFreqPadValue
             'phaseList' - 2d array of phases for each frequency (same shape as freqChannels) Padded with 0's
@@ -522,7 +521,7 @@ class Roach2Controls(object):
     def writeBram(self, memName, valuesToWrite, start=0, nBytesPerSample=4):
         """
         format values and write them to bram
-        
+
         """
         if nBytesPerSample == 4:
             formatChar = 'L'
@@ -536,14 +535,14 @@ class Roach2Controls(object):
     def writeQdr(self, memName, valuesToWrite, start=0, bQdrFlip=True, nQdrRows=2 ** 20):
         """
         format and write 64 bit values to qdr
-        
+
         NOTE: If you see an error that looks like: WARNING:casperfpga.katcp_fpga:Could not send message '?write qdr0_memory 0 \\0\\0\\0\\0\\0 .....
               This may be because the string you are writing is larger than the socket's write buffer size.
-              You can fix this by adding a monkey patch in casperfpga/casperfpga/katcp_fpga.py 
+              You can fix this by adding a monkey patch in casperfpga/casperfpga/katcp_fpga.py
                 if hasattr(katcp.CallbackClient, 'MAX_WRITE_BUFFER_SIZE'):
                     setattr(katcp.CallbackClient, 'MAX_WRITE_BUFFER_SIZE', katcp.CallbackClient.MAX_WRITE_BUFFER_SIZE * 10)
               Then reinstalling the casperfpga code: python casperfpga/setup.py install
-        
+
         INPUTS:
         """
         nBytesPerSample = 8
@@ -565,11 +564,11 @@ class Roach2Controls(object):
                          earlierSampleIsMsb=False):
         """
         put together IQ values from tones to be loaded to a firmware memory LUT
-        
+
         INPUTS:
             iVals - time series of I values
-            qVals - 
-            
+            qVals -
+
         """
         nBitsPerSampleComponent = nBitsPerSamplePair / 2
         # I vals and Q vals are 12 bits, combine them into 24 bit vals
@@ -596,11 +595,11 @@ class Roach2Controls(object):
 
     def loadDacLUT(self, combDict=None):
         """
-        Sends frequency comb to V7 over UART, where it is loaded 
+        Sends frequency comb to V7 over UART, where it is loaded
         into a lookup table
-        
+
         Call generateDacComb() first
-        
+
         INPUTS:
             combDict - return value from generateDacComb(). If None, it trys to gather information from attributes
         """
@@ -716,10 +715,10 @@ class Roach2Controls(object):
         """
         Send LO frequency to V7 over UART.
         Must initialize LO first.
-        
+
         INPUTS:
             LOFreq - LO frequency in MHz
-        
+
         Sends LO freq one byte at a time, LSB first
            sends integer bytes first, then fractional
         """
@@ -794,11 +793,11 @@ class Roach2Controls(object):
         """
         Send LO frequency to V7 over UART.
         Must initialize LO first.
-        
+
         INPUTS:
             LOFreq - LO frequency in MHz
             regList - 7 element list of SPI programming regs, before freq info is added
-        
+
         Sends LO freq one byte at a time, LSB first
            sends integer bytes first, then fractional
         """
@@ -884,7 +883,7 @@ class Roach2Controls(object):
         Change the attenuation on IF Board attenuators
         Must initialize attenuator SPI connection first
         INPUTS:
-            attenID 
+            attenID
                 1 - RF Upconverter path
                 2 - RF Upconverter path
                 3 - RF Downconverter path
@@ -1098,7 +1097,7 @@ class Roach2Controls(object):
             self.fpga.write_int('adc_in_i_scale', 2**7)
         else:
             raise Exception('Unknown firmware version')
-            
+
     def setAttenList(self, resAttenList):
         """ This function sets the attribute self.attenList """
         self.attenList=resAttenList
@@ -1107,16 +1106,16 @@ class Roach2Controls(object):
                         iqPhaseOffsList=None, avoidSpikes=True, globalDacAtten=None):
         """
         Creates DAC frequency comb by adding many complex frequencies together with specified amplitudes and phases.
-        
+
         The resAttenList holds the absolute attenuation for each resonantor signal coming out of the DAC.
         Zero attenuation means that the tone amplitude is set to the full dynamic range of the DAC and the
         DAC attenuator(s) are set to 0. Thus, all values in resAttenList must be larger than globalDacAtten.
         If you decrease the globalDacAtten, the amplitude in the DAC LUT decreases so that the total
         attenuation of the signal is the same.
-        
+
         Note: The freqList need not be unique. If there are repeated values in the freqList then
         they are completely ignored when making the comb along with their corresponding attenuation, phase, etc...
-        
+
         INPUTS:
             freqList - list of all resonator frequencies. If None, use self.freqList
             resAttenList - list of absolute attenuation values (dB) for each resonator.
@@ -1124,7 +1123,7 @@ class Roach2Controls(object):
             iqRatioList -
             iqPhaseOffsList -
             avoidSpikes - If True, loop the generateTones() function with random phases to avoid a 90+ percentile spike in the comb
-            
+
         OUTPUTS:
             dictionary with keywords
             I - I(t) values for frequency comb [signed 32-bit integers]
@@ -1152,7 +1151,7 @@ class Roach2Controls(object):
         freqList = np.ravel(freqList).flatten()
         if resAttenList is None:
             try: resAttenList = self.attenList
-            except AttributeError: 
+            except AttributeError:
                 raise AttributeError("Provide an attenList or call all setAttenList() first!")
         resAttenList = np.ravel(resAttenList).flatten()
         if len(freqList) != len(resAttenList):
@@ -1183,7 +1182,7 @@ class Roach2Controls(object):
             autoDacAtten = True
         else:
             autoDacAtten = False
-        
+
         # Calculate relative amplitudes for DAC LUT
         nBitsPerSampleComponent = self.params['nBitsPerSamplePair'] / 2
         maxAmp = int(np.round(2 ** (nBitsPerSampleComponent - 1) - 1))  # 1 bit for sign
@@ -1270,7 +1269,7 @@ class Roach2Controls(object):
             highestVal = np.max((np.abs(iValues).max(),np.abs(qValues).max()))
             iValues = np.round(iValues).astype(np.int)
             qValues = np.round(qValues).astype(np.int)
-            
+
 
         self.dacFreqComb = iValues + 1j*qValues
 
@@ -1296,14 +1295,14 @@ class Roach2Controls(object):
                       iqPhaseOffsList=None):
         """
         Generate a list of complex signals with amplitudes and phases specified and frequencies quantized
-        
+
         INPUTS:
             freqList - list of resonator frequencies
             nSamples - Number of time samples
             sampleRate - Used to quantize the frequencies
             amplitudeList - list of amplitudes. If None, use 1.
             phaseList - list of phases. If None, use random phase
-        
+
         OUTPUTS:
             dictionary with keywords
             I - each element is a list of I(t) values for specific freq
@@ -1323,13 +1322,6 @@ class Roach2Controls(object):
                 iqRatioList) or len(freqList) != len(iqPhaseOffsList):
             raise ValueError("Need exactly one phase, amplitude, and IQ correction value for each resonant frequency!")
 
-        #ts=time.time()
-        #dict_py = generateTones_py(freqList, nSamples, sampleRate, amplitudeList, phaseList, iqRatioList, iqPhaseOffsList)
-        #print "python: "+str(time.time()-ts)
-
-        #ts=time.time()
-        #return cy_generateTones(freqList, nSamples, sampleRate, amplitudeList, phaseList, iqRatioList, iqPhaseOffsList)
-        #print "cython: "+str(time.time()-ts)
         # Quantize the frequencies to their closest digital value
         freqResolution = sampleRate / nSamples
         quantizedFreqList = np.round(freqList / freqResolution) * freqResolution
@@ -1364,18 +1356,18 @@ class Roach2Controls(object):
         """
         Algorithm for deciding which resonator frequencies are assigned to which stream and channel number.
         This is used to define the dds LUTs and calculate the fftBin index for each freq to set the appropriate chan_sel block
-        
+
         Try to evenly distribute the given frequencies into each stream (unless you use order='stream')
-        
+
         INPUTS:
             freqList - list of resonator frequencies (Does not need to be sorted or unique)
             order - 'F' places sequential frequencies into a single stream but forces an even distribution among streams
                     'C' or 'A' places sequential frequencies into the same channel number but forces an even distribution among streams
                     'stream' sequentially fills stream 0 first, then stream 1, etc... Usually used for debugging with single stream firmware
         OUTPUTS:
-            self.freqChannels - Each column contains the resonantor frequencies in a single stream. 
+            self.freqChannels - Each column contains the resonantor frequencies in a single stream.
                                 The row index is the channel number.
-                                It's padded with -1's. 
+                                It's padded with -1's.
 
         Assigned Attributes:
             self.freqList - 1d list of frequencies indexed by freqCh
@@ -1444,7 +1436,7 @@ class Roach2Controls(object):
 
         INPUTS (optional):
             freqChannels - 2D array of frequencies where each column is a stream and each row is a channel. If freqChannels isn't given then try to grab it from attribute.
-        
+
         OUTPUTS:
             self.fftBinIndChannels - Array with each column containing the fftbin index of a single stream. The row index is the channel number
 
@@ -1484,7 +1476,7 @@ class Roach2Controls(object):
         Loads fftBin indices to all channels (in each stream), to configure chan_sel block in firmware on self.fpga
         Call generateFftChanSelection() first
 
-        
+
         INPUTS (optional):
             fftBinIndChannels - Array with each column containing the fftbin index of a single stream. The row is the channel number
         """
@@ -1602,7 +1594,7 @@ class Roach2Controls(object):
     def setThreshByFreqChannel(self, thresholdRad=-.1, freqChannel=0):
         """
         Overloads setThresh but using channel as indexed by the freqList
-        
+
         INPUTS:
             thresholdRad: The threshold in radians.  The phase must drop below this value to trigger a photon event
             freqChannel - channel as indexed by the freqList
@@ -1736,7 +1728,7 @@ class Roach2Controls(object):
     def loadWavecal(self, sol, freqListFile=None):
         """
         Loads wavecal solution.
-        
+
         INPUTS:
             sol - wavecal solution object
         """
@@ -1781,7 +1773,7 @@ class Roach2Controls(object):
                     coeffs = solCoeffs[indx]
 
                 coeffs = (coeffs*2**self.params['binPtWvlCoeff']).astype(np.int64) #convert to integer for loading in firmware #TODO: add to params
-                
+
                 #convert to proper twos-complement signed values
                 negInds = coeffs<0
                 if np.any(negInds):
@@ -1791,7 +1783,7 @@ class Roach2Controls(object):
                 #consolidate into single number
                 chanCoeffVal = (coeffs[0] & bitmask) + ((coeffs[1] & bitmask) << 21) + ((coeffs[2] & bitmask) << 42)
                 streamWvlCoeffBits.append(chanCoeffVal)
-                
+
             streamCoordBits = np.array(streamCoordBits)
             self.writeBram(memName=self.params['wvllut_bram'][stream], valuesToWrite=streamCoordBits, nBytesPerSample=8)
 
@@ -1842,17 +1834,17 @@ class Roach2Controls(object):
     def calcSWTriggers(self, selChanIndex, phaseData, nNegDerivChecks=10, nNegDerivLeniance=1, nPosDerivChecks=2,
                        deadtime=10):
         """
-        Software derived trigger on photons in phase snapshots. 
+        Software derived trigger on photons in phase snapshots.
         Trigger conditions (should match firmware):
-            -nNegDeriveChecks-nNegDeriveLeniance/nNegDeriveChecks negative slopes, 
+            -nNegDeriveChecks-nNegDeriveLeniance/nNegDeriveChecks negative slopes,
                 followed by nPosDeriveChecks positive slopes
             -<threshold (b/c pulses are negative)
-        
+
         INPUTS:
             selChanIndex: channel to take data from
             phaseData: array containing phase from snapshot, in radians
             nNegDeriveChecks, nNegDerivLeniance, nPosDeriveChecks are explained above
-        
+
         OUTPUTS:
             trigPos: array of size len(phaseData), w/ a 1
             at photon trigger positions
@@ -1899,7 +1891,7 @@ class Roach2Controls(object):
             pktsPerFrame: number of 8 byte photon words per ethernet frame
             fabric_port
             destIPID: destination IP is 10.0.0.destIPID
-            
+
         """
 
         dest_ip = binascii.hexlify(socket.inet_aton(hostIP))
@@ -1934,17 +1926,17 @@ class Roach2Controls(object):
         """
         Recieves phase timestream data over ethernet, writes it to a file.  Must call
         startPhaseStream first to initiate phase stream.
-        
+
         The data is saved in self.phaseTimeStreamData
-        
+
         INPUTS:
             channel - stream/channel. The first two bits indicate the stream, last 8 bits for the channel
                       channel = 0 means ch 0 on stream 0. channel = 256 means ch 0 on stream 1, etc...
             duration - duration (in seconds) of phase stream
-            host - IP address of computer receiving packets 
+            host - IP address of computer receiving packets
                 (represented as a string)
             port
-        
+
         OUTPUTS:
             self.phaseTimeStreamData - phase packet data. See parsePhaseStream()
         """
@@ -2018,14 +2010,14 @@ class Roach2Controls(object):
                                          hostIP='10.0.0.50'):
         """
         This function overloads takePhaseStreamData() but uses the channel index corresponding to the freqlist instead of a ch/stream index
-        
+
         INPUTS:
             freqChan - which channel to collect phase on. freqChan corresponds to the resonator index in freqList
             duration - duration (in seconds) of stream
             pktsPerFrame - number of 8 byte photon words per ethernet frame
             fabric_port -
             destIPID - IP address of computer receiving stream
-                
+
         OUTPUTS:
             phases - a list of phases in radians
         """
@@ -2039,15 +2031,15 @@ class Roach2Controls(object):
         """
         Takes phase timestream data from the specified channel for the specified amount of time
         Gets one phase value for every nChannelsPerStream/fpgaClockRate seconds
-        
+
         INPUTS:
             selChanIndex - stream/channel. The first two bits indicate the stream, last 8 bits for the channel
                            channel = 0 means ch 0 on stream 0. channel = 256 means ch 0 on stream 1, etc...
             duration - duration (in seconds) of stream
             pktsPerFrame - number of 8 byte photon words per ethernet frame
-            fabric_port - 
+            fabric_port -
             destIPID - IP address of computer receiving stream
-                
+
         OUTPUTS:
             phases - a list of phases in radians
         """
@@ -2065,11 +2057,11 @@ class Roach2Controls(object):
     def parsePhaseStream(self, phaseTimeStreamData=None, pktsPerFrame=100):
         """
         This function parses the packet data from recvPhaseStream()
-        
+
         INPUTS:
             phaseTimeStreamData - phase packet data from recvPhaseStream()
             pktsPerFrame - number of 8 byte photon words per ethernet frame
-        
+
         OUTPUTS:
             phases - a list of phases in radians
         """
@@ -2148,16 +2140,16 @@ class Roach2Controls(object):
 
     def performIQSweep(self, startLOFreq, stopLOFreq, stepLOFreq):
         """
-        Performs a sweep over the LO frequency.  Records 
+        Performs a sweep over the LO frequency.  Records
         one IQ point per channel per freqeuency; stores in
         self.iqSweepData
-        
+
         makes iqData - 4xn array - each row has I and Q values for a single stream.  For each row:
                      256 I points + 256 Q points for LO step 0, then 256 I points + 256 Q points for LO step 1, etc..
                      Shape = [4, (nChannelsPerStream+nChannelsPerStream) * nLOsteps]
                      Get one per stream (4 streams for all thousand resonators)
                      Formatted using formatIQSweepData then stored in self.iqSweepData
-        
+
         The logic is as follows:
             set LO
             Arm the snapshot block
@@ -2177,7 +2169,7 @@ class Roach2Controls(object):
                           I - 2D array with shape = [nFreqs, nLOsteps]
                           Q - 2D array with shape = [nFreqs, nLOsteps]
                           freqOffsets - list of offsets from LO in Hz. shape = [nLOsteps]
-            
+
         """
         LOFreqs = np.arange(startLOFreq, stopLOFreq, stepLOFreq)
         nStreams = self.params['nChannels'] / self.params['nChannelsPerStream']
@@ -2224,9 +2216,9 @@ class Roach2Controls(object):
         """
         Reshapes the iqdata into a usable format
         Need to put the data in the same order as the freqList that was loaded in
-        
+
         If we haven't loaded in a freqList then the order is channels 0..256 in stream 0, then stream 1, etc..
-        
+
         INPUTS:
             iqDataStreams - 2D array with following shape:
                             [nStreams, (nChannelsPerStream+nChannelsPerStream) * nSteps]
@@ -2280,7 +2272,7 @@ class Roach2Controls(object):
     def loadBeammapCoords(self, beammap, freqListFile=None):
         """
         Load the beammap coordinates x,y corresponding to each frqChannel for each stream
-        
+
         NOTE: we don't need to worry about loading in positions to empty stream/channel
             positions since they won't trigger on photons. (no probe; dds tone is zeros;
             filter is zeros)
@@ -2341,8 +2333,8 @@ class Roach2Controls(object):
         Take IQ data with the LO fixed (at self.LOFreq)
 
         INPUTS:
-            numPts - Number of IQ points to take 
-        
+            numPts - Number of IQ points to take
+
         OUTPUTS:
             iqSweepData - Dictionary with following keywords
                           I - 2D array with shape = [nFreqs, nLOsteps]
@@ -2384,10 +2376,10 @@ class Roach2Controls(object):
     def loadIQcenters(self, centers):
         """
         Load IQ centers in firmware registers
-        
+
         INPUTS:
             centers - 2d array of centers.
-                      First column is I centers, second is Q centers. 
+                      First column is I centers, second is Q centers.
                       Rows correspond to resonators in the same order as the freqlist
                       shape: [nFreqs, 2]
         """
