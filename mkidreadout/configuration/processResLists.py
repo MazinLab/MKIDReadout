@@ -66,15 +66,15 @@ if __name__=='__main__':
         for i, (sweep, md, paramDict) in enumerate(zip(sweepList, mdList, paramDicts)):
             if np.isnan(los[i]):
                 if 'feedline' in paramDict:
-                    if paramDict['feedline'] != md.feedline:
-                        raise Exception('Filename and metadata feedlines dont match!')
+                    if isinstance(paramDict['feedline'], int) and paramDict['feedline'] != md.feedline:
+                        raise Exception('Filename and metadata feedlines dont match! fn: {}; md: {}'.format(md.feedline, paramDict['feedline']))
                 mdb = None
                 sweepb = None
                 for j in range(i + 1, len(sweepFiles)): #check the rest of the files to see if there is one on same fl
                     if mdList[j].feedline == md.feedline: #we've found the other board
                         mdb = mdList[j]
                         sweepb = sweepList[j]
-                        if paramDict['feedline'] != mdb.feedline:
+                        if isinstance(paramDict['feedline'], int) and paramDict['feedline'] != mdb.feedline:
                             raise Exception('Filename and metadata feedlines dont match!')
                         break
 
