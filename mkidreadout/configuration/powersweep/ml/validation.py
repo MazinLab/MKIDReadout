@@ -1,7 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import os, pickle
-import mkidreadout.configuration.sweepdata as sd
+import mkidcore.sweepdata as sd
 from wpsnn import WPSNeuralNet
 from mkidcore.readdict import ReadDict
 import mkidcore.instruments as inst

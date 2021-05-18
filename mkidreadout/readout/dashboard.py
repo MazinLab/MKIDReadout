@@ -52,7 +52,7 @@ import mkidcore.corelog
 import mkidcore.instruments
 from mkidcore.instruments import compute_wcs_ref_pixel
 import mkidreadout.config
-import mkidreadout.configuration.sweepdata as sweepdata
+import mkidcore.sweepdata as sweepdata
 import mkidreadout.hardware.hsfw
 from mkidcore.corelog import create_log, getLogger
 from mkidcore.fits import CalFactory, combineHDU, summarize

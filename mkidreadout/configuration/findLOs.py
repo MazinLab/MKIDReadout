@@ -18,7 +18,7 @@ from mkidcore.corelog import getLogger, create_log
 import numpy as np
 
 import mkidcore.config
-import mkidreadout.configuration.sweepdata as sd
+import mkidcore.sweepdata as sd
 
 
 def findLOs(freqsA, sweepLOA, freqsB=None, sweepLOB=None, loRange=10.e6, nIters=10000, colParamWeight=1, resBW=200.e3, ifHole=3.e6):

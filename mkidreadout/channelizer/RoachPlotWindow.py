@@ -25,7 +25,7 @@ from PyQt4.QtGui import *
 from matplotlib.backends.backend_qt4agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 
-import mkidreadout.configuration.sweepdata as sweepdata
+import mkidcore.sweepdata as sweepdata
 from mkidcore.corelog import getLogger
 
 try:

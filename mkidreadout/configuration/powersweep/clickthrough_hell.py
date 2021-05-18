@@ -13,7 +13,7 @@ from numpy import *
 
 import mkidcore.instruments as instruments
 import mkidreadout.configuration.powersweep.gui as gui
-import mkidreadout.configuration.sweepdata as sweepdata
+import mkidcore.sweepdata as sweepdata
 from mkidcore.corelog import create_log, getLogger
 from mkidreadout.configuration.powersweep import psmldata
 from mkidreadout.configuration.powersweep.autopeak import Finder

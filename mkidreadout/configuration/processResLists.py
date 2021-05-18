@@ -12,7 +12,7 @@ import numpy as np
 import mkidcore.corelog
 from mkidcore.corelog import getLogger, create_log
 
-import mkidreadout.configuration.sweepdata as sd
+import mkidcore.sweepdata as sd
 
 from clipResAttens import clipHist
 from findLOs import findLOs

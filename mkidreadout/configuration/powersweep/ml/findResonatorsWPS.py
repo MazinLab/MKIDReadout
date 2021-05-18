@@ -17,7 +17,7 @@ import logging
 #import ipdb
 import matplotlib.pyplot as plt
 import skimage.feature as skf
-import mkidreadout.configuration.sweepdata as sd
+import mkidcore.sweepdata as sd
 import mkidreadout.configuration.powersweep.ml.tools as mlt
 from mkidcore.corelog import getLogger
 from mkidreadout.configuration.powersweep.ml.wpsnn import N_CLASSES

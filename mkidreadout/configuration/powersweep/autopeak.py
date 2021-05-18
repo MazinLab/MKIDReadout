@@ -2,7 +2,7 @@
 import numpy as np
 import scipy.signal as signal
 
-import mkidreadout.configuration.sweepdata as sweepdata
+import mkidcore.sweepdata as sweepdata
 from mkidcore.corelog import getLogger
 from mkidreadout.configuration.widesweep.wsdata import WSFitMLData
 
