@@ -32,7 +32,7 @@ def get_virtualenv_path():
 
 def compile_and_install_software():
     """Used the subprocess module to compile/install the C software."""
-    
+
     #don't compile if installing on anything that's not linux
     if platform.system()!='Linux':
         return
@@ -68,12 +68,7 @@ class CustomDevelop(develop, object):
         super(CustomDevelop,self).run()
 
 
-extensions = [Extension(name="mkidreadout.channelizer.roach2utils",
-                        sources=['mkidreadout/channelizer/roach2utils.pyx'],
-                        include_dirs=[numpy.get_include()],
-                        extra_compile_args=['-fopenmp'],
-                        extra_link_args=['-fopenmp']),
-              Extension(name="mkidreadout.readout.sharedmem",
+extensions = [Extension(name="mkidreadout.readout.sharedmem",
                         sources=['mkidreadout/readout/sharedmem.pyx'],
                         include_dirs=[numpy.get_include(), 'mkidreadout/readout/mkidshm'],
                         extra_compile_args=['-shared', '-fPIC'],
@@ -124,6 +119,3 @@ setuptools.setup(
     ),
     cmdclass={'install': CustomInstall,'develop': CustomDevelop}
 )
-
-
-

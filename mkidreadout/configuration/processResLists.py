@@ -6,7 +6,6 @@ after initial ML fitting. Includes finding LOs, clipping, and shifting freqs.
 Author: Neelay Fruitwala
 """
 import argparse
-import parse
 import os, sys, glob
 import numpy as np
 
@@ -52,7 +51,7 @@ if __name__=='__main__':
 
     sweepList = []
     mdList = []
-    
+
     if args.sweep is not None:
         for sweepFile, mdFile in zip(sweepFiles, mdFiles):
             sweepList.append(sd.FreqSweep(sweepFile))
@@ -113,4 +112,3 @@ if __name__=='__main__':
     if args.freq_shift or args.clip_atten: #only save if we modified list
         for md in mdList:
             md.save(os.path.splitext(md.file)[0] + '_' + args.flag + '.txt')
-
