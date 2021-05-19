@@ -297,6 +297,8 @@ cdef class Packetmaster(object):
 
     def startWriting(self, binDir=None):
         if binDir is not None:
+            if binDir[-1] != '/':
+                binDir += '/'
             strcpy(self.writerParams.writerPath, binDir.encode('UTF-8'))
         self.writerParams.writing = 1
 
