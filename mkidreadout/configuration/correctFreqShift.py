@@ -17,7 +17,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import warnings
 
-import mkidreadout.configuration.sweepdata as sd
+import mkidcore.sweepdata as sd
 
 def findIQVPeaks(freqs, sweep, winSize=None, scaleWin=False, convWin=11):
     #loSpan = sweep.freqs[0, -1] - sweep.freqs[0, 0]

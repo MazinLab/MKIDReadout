@@ -14,7 +14,7 @@ import numpy as np
 from PyQt4 import QtCore
 from pkg_resources import resource_filename
 
-import mkidreadout.configuration.sweepdata as sweepdata
+import mkidcore.sweepdata as sweepdata
 from mkidcore.corelog import getLogger
 from mkidcore.objects import TimeStream
 from mkidreadout.channelizer.Roach2Controls import Roach2Controls

@@ -3,7 +3,8 @@ import os
 import matplotlib.pyplot as plt
 import argparse
 from mkidreadout.configuration.sweepdata import SweepMetadata, ISGOOD
-from wpsnn import COLLISION_FREQ_RANGE
+#from wpsnn import COLLISION_FREQ_RANGE
+COLLISION_FREQ_RANGE = 0
 from checkWPSPerformance import matchResonators, matchAttens
 
 def retrieveManResList(metadata):

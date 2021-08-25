@@ -6,14 +6,13 @@ after initial ML fitting. Includes finding LOs, clipping, and shifting freqs.
 Author: Neelay Fruitwala
 """
 import argparse
-import parse
 import os, sys, glob
 import numpy as np
 
 import mkidcore.corelog
 from mkidcore.corelog import getLogger, create_log
 
-import mkidreadout.configuration.sweepdata as sd
+import mkidcore.sweepdata as sd
 
 from clipResAttens import clipHist
 from findLOs import findLOs
@@ -52,7 +51,7 @@ if __name__=='__main__':
 
     sweepList = []
     mdList = []
-    
+
     if args.sweep is not None:
         for sweepFile, mdFile in zip(sweepFiles, mdFiles):
             sweepList.append(sd.FreqSweep(sweepFile))
@@ -67,15 +66,15 @@ if __name__=='__main__':
         for i, (sweep, md, paramDict) in enumerate(zip(sweepList, mdList, paramDicts)):
             if np.isnan(los[i]):
                 if 'feedline' in paramDict:
-                    if paramDict['feedline'] != md.feedline:
-                        raise Exception('Filename and metadata feedlines dont match!')
+                    if isinstance(paramDict['feedline'], int) and paramDict['feedline'] != md.feedline:
+                        raise Exception('Filename and metadata feedlines dont match! fn: {}; md: {}'.format(md.feedline, paramDict['feedline']))
                 mdb = None
                 sweepb = None
                 for j in range(i + 1, len(sweepFiles)): #check the rest of the files to see if there is one on same fl
                     if mdList[j].feedline == md.feedline: #we've found the other board
                         mdb = mdList[j]
                         sweepb = sweepList[j]
-                        if paramDict['feedline'] != mdb.feedline:
+                        if isinstance(paramDict['feedline'], int) and paramDict['feedline'] != mdb.feedline:
                             raise Exception('Filename and metadata feedlines dont match!')
                         break
 
@@ -113,4 +112,3 @@ if __name__=='__main__':
     if args.freq_shift or args.clip_atten: #only save if we modified list
         for md in mdList:
             md.save(os.path.splitext(md.file)[0] + '_' + args.flag + '.txt')
-

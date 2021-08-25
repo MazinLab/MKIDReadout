@@ -3,7 +3,7 @@ import argparse
 import numpy as np
 import matplotlib.pyplot as plt
 import tensorflow as tf
-import mkidreadout.configuration.sweepdata as sd
+import mkidcore.sweepdata as sd
 import mkidreadout.configuration.powersweep.ml.tools as mlt
 
 if __name__=='__main__':

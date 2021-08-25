@@ -2,7 +2,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from mkidcore.corelog import getLogger
-from mkidreadout.configuration.sweepdata import FreqSweep, ISGOOD, SweepMetadata
+from mkidcore.sweepdata import FreqSweep, ISGOOD, SweepMetadata
 
 
 class MLData(object):

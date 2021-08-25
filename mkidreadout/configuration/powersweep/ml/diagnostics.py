@@ -8,7 +8,7 @@ import tools as mlt
 import tools as mlt
 from PSFitMLData import PSFitMLData
 from mkidcore.corelog import getLogger
-import mkidreadout.configuration.sweepdata as sd
+import mkidcore.sweepdata as sd
 
 
 class diagnostics():

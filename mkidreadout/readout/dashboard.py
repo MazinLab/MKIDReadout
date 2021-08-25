@@ -10,7 +10,7 @@ This is a GUI class for real time control of the MEC and DARKNESS instruments.
  - organize how data is saved to disk
  - pull telescope info
  - save header information
- 
+
  CLASSES:
     MKIDDashboard - main GUI
     ImageSearcher - searches for new images on ramdisk
@@ -46,6 +46,7 @@ import numpy as np
 from PyQt5 import QtCore
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import *
+from PyQt5.QtWidgets import QHBoxLayout
 from PyQt5.QtWidgets import *
 
 from astropy.io import fits
@@ -57,7 +58,6 @@ import mkidcore.corelog
 import mkidcore.instruments
 from mkidcore.instruments import compute_wcs_ref_pixel
 import mkidreadout.config
-# import mkidreadout.configuration.sweepdata as sweepdata
 import mkidcore.sweepdata as sweepdata
 import mkidreadout.hardware.hsfw
 from mkidcore.corelog import create_log, getLogger
@@ -101,17 +101,19 @@ class LiveImageFetcher(QtCore.QObject):  # Extends QObject for use with QThreads
     newImage = QtCore.pyqtSignal(object)
     finished = QtCore.pyqtSignal()
 
-    def __init__(self, sharedim, inttime=0.1, parent=None):
+    def __init__(self, sharedim, inttime=0.1, offline=False, parent=None):
         """
         INPUTS:
             sharedim - ImageCube
             inttime - the integration time interval
+            offline - Set to true if we expect null data
             parent - Leave as None so that we can add to new thread
         """
         super(QtCore.QObject, self).__init__(parent)
         self.imagebuffer = sharedim
         self.inttime = inttime
         self.search = True
+        self.offline_mode = offline  #zeros ok
 
     def update_inttime(self, it):
         self.inttime = float(it)
@@ -121,9 +123,9 @@ class LiveImageFetcher(QtCore.QObject):  # Extends QObject for use with QThreads
         Infinite loop that keeps checking directory for an image file
         When it finds an image, it parses it and emits imageComplete signal
         It only returns files that have timestamps > than the last file's timestamp
-        
+
         Loop will continue until you set self.search to False. Then it will emit finished signal
-        
+
         INPUTS:
             removeOldFiles - remove .img and .png files after we read them
         """
@@ -134,7 +136,7 @@ class LiveImageFetcher(QtCore.QObject):  # Extends QObject for use with QThreads
                 #self.imagebuffer.startIntegration(startTime=time.time() - SHAREDIMAGE_LATENCY, integrationTime=self.inttime)
                 self.imagebuffer.startIntegration(integrationTime=self.inttime)
                 data = self.imagebuffer.receiveImage()
-                if not data.sum():
+                if not data.sum() and not self.offline_mode:
                     getLogger('Dashboard').warning('Received a frame of zeros from packetmaster!')
                 ret = fits.ImageHDU(data=data)
                 ret.header['utcstart'] = utc
@@ -162,7 +164,7 @@ class ConvertPhotonsToRGB(QtCore.QObject):
     This class takes 2D arrays of photon counts and converts them into a QImage
     It needs to know how to map photon counts into an RGB color
     Usually just an 8bit grey color [0, 256) but also turns maxxed out pixel red
-    
+
     SIGNALS
         convertedImage - emits when it's done converting an image
     """
@@ -199,7 +201,7 @@ class ConvertPhotonsToRGB(QtCore.QObject):
 
         if self.image is None:
             imageHDU = self.cal_factory.generate(name='LiveImage', bias=0, maskvalue=np.nan)
-            self.image = imageHDU.data        
+            self.image = imageHDU.data
 
         # first interpolate and find hot pixels
         if self.interpolate:
@@ -256,7 +258,7 @@ class ConvertPhotonsToRGB(QtCore.QObject):
     def histEqualization(self, bins = 256):
         """
         perform a histogram Equalization. This tends to make the contrast better
-        
+
         if self.logStretch is True the histogram uses logarithmic spaced bins
         """
         if self.logStretch:
@@ -280,7 +282,7 @@ class ConvertPhotonsToRGB(QtCore.QObject):
     def makeQPixMap(self, image, wcs):
         """
         This function makes the QImage object
-        
+
         INPUTS:
             image - 2D numpy array of [0,256) grey colors
         """
@@ -298,7 +300,7 @@ class ConvertPhotonsToRGB(QtCore.QObject):
 class MKIDDashboard(QMainWindow):
     """
     Dashboard for seeing realtime images
-    
+
     SIGNALS:
         newImageProcessed() - emited after processing and plotting a new image. Also whenever the current pixel selection changes
     """
@@ -381,7 +383,7 @@ class MKIDDashboard(QMainWindow):
                 self.telescopeController = NoScope()
 
         self.telescopeWindow = TelescopeWindow(self.telescopeController)
-        
+
         # This polling loop is to help ensure that queries to the state don't lag
         self.last_tcs_poll = self.telescopeController.get_header()
         timer = QtCore.QTimer(self)
@@ -458,7 +460,8 @@ class MKIDDashboard(QMainWindow):
 
         # Setup search for image files from cuber
         getLogger('Dashboard').info('Setting up image searcher...')
-        self.imageFetcher = LiveImageFetcher(self.liveimage, self.config.dashboard.inttime, parent=None)
+        self.imageFetcher = LiveImageFetcher(self.liveimage, self.config.dashboard.inttime, offline=self.offline,
+                                             parent=None)
         fetcherthread = self.startworker(self.imageFetcher, 'imageFetcher')
         fetcherthread.started.connect(self.imageFetcher.run)
         self.imageFetcher.newImage.connect(self.convertImage)
@@ -479,8 +482,8 @@ class MKIDDashboard(QMainWindow):
         pixmap_height = self.grPixMap.pixmap().height()
         # pixmap_height = self.config.beammap.nrows * self.config.dashboard.image_scale
         self.compass = Compass(scale=self.config.dashboard.image_scale, wcs=None, loc=(60,60), radius=40, parent=self.grPixMap)
-        self.scalebar = Scalebar(scale=self.config.dashboard.image_scale, wcs=None, loc=(40,pixmap_height-40), 
-                                 length=0.1, length_unit='arcsecond', parent=self.grPixMap)	
+        self.scalebar = Scalebar(scale=self.config.dashboard.image_scale, wcs=None, loc=(40,pixmap_height-40),
+                                 length=0.1, length_unit='arcsecond', parent=self.grPixMap)
 
         QtCore.QTimer.singleShot(10, fetcherthread.start)  # start the thread after a second
 
@@ -508,7 +511,7 @@ class MKIDDashboard(QMainWindow):
     def turnOnPhotonCapture(self):
         """
         Tells roaches to start photon capture
-        
+
         Have to be careful to set the registers in the correct order in case we are currently in phase capture mode
         """
         for roach in self.roachList:
@@ -521,8 +524,8 @@ class MKIDDashboard(QMainWindow):
         This function loads the beammap into the roach firmware
         It uses the beammapFile property in the config file
         If it can't find the beammap file then it loads in the defualt beammap from default.txt
-        
-        We set self.beammapFailed here for later use. It's a 2D boolean array with the (row,col)=(y,x) 
+
+        We set self.beammapFailed here for later use. It's a 2D boolean array with the (row,col)=(y,x)
         indicating if that pixel is in the beammap or not
         """
         try:
@@ -575,10 +578,10 @@ class MKIDDashboard(QMainWindow):
         This function is automatically called when ImageSearcher object finds a new image file from cuber program
         We also call this function if we change the image processing controls like
             min/max count rate
-        
+
         Here we set up a converter object to parse the photon counts into an RBG QImage object
         We do this in a separate thread because it might take a while to process
-        
+
         INPUTS:
             photonImage - 2D numpy array of photon counts (type np.uint16 if from ImageSearcher object)
         """
@@ -699,10 +702,10 @@ class MKIDDashboard(QMainWindow):
         """
         This function is automatically called by a ConvertPhotonsToRGB object signal connection
         We don't call this function directly
-        
+
         Add a new QPixMap to the graphicsViewItem and repaint
         It tells all the labels and timestream windows to update
-        
+
         INPUTS:
             q_image - QImage that will be displayed on GUI
         """
@@ -741,15 +744,15 @@ class MKIDDashboard(QMainWindow):
     def mousePressed(self, event):
         """
         This function handles all mouse pressed events on the graphics scene through the QGraphicsPixMapItem
-        
+
         It sets the following semi-important flags and variables:
             self.selectedPixels --> empty set       Unless we have the SHIFT key pressed, reset the list of selected pixels
             self.clicking --> True                  So we know we are in the midst of clicking and haven't released the mouse button
             self.pixelClicked --> clicked pixel     So we know which pixel we first clicked
-            self.pixelCurrent --> clicked pixel     This is always the current pixel the mouse is hovering over. 
+            self.pixelCurrent --> clicked pixel     This is always the current pixel the mouse is hovering over.
                                                     Also used for making the self.movingBox after the mouse moves
             self.movingBox --> QGraphicsRectItem    Temporary rectangle. We delete it and draw a new one everytime the mouse moves
-            
+
         INPUTS:
             event - QGraphicsSceneMouseEvent
         """
@@ -772,14 +775,13 @@ class MKIDDashboard(QMainWindow):
     def mouseMoved(self, event):
         """
         All this function does is draw the little box when you're dragging the mouse
-        
+
         This function is called everytime the mouse hovers or moves on the scene
         We use the self.clicking flag to make a box during a left click event
-        
+
         It sets the following semi-important flags and variables:
             self.pixelCurrent --> current hover pixel         Used to make the self.movingBox
             self.movingBox --> QGraphicsRectItem        Box from the first clicked pixel (self.pixelClicked) to the current pixel (self.pixelCurrent)
-        
         INPUTS:
             event - QGraphicsSceneMouseEvent
         """
@@ -803,12 +805,12 @@ class MKIDDashboard(QMainWindow):
         """
         Executes when we release the mouse button. Adds the selected pixels to self.selectedPixels
         Tells everything that needs the current selected pixels to update
-        
+
         It sets the following semi-important flags and variables:
             self.clicking --> False                     See mousePressed()
             self.movingBox --> None                     Removes the temporary box
             self.selectedPixels --> list of pixels      Used to draw selected pixel boxes
-        
+
         INPUTS:
             event - QGraphicsSceneMouseEvent
         """
@@ -842,7 +844,7 @@ class MKIDDashboard(QMainWindow):
         """
         This function draws a box around pixel1
         If pixel2 is given then it draws a box with pixel1 and pixel 2 at opposite corners
-        
+
         INPUTS:
             pixel1 - an [x, y] coordinate pair
             pixel2 - an [x, y] coordinate pair or None
@@ -886,9 +888,9 @@ class MKIDDashboard(QMainWindow):
     def getPixCountRate(self, pixelList, numImages2Sum=0, applyDark=False):
         """
         Get the count rate of a list of pixels.
-        Can be slow :( 
+        Can be slow :(
         Might want to move this to a new thread in future...
-        
+
         INPUTS:
             pixelList - a list or numpy array of pixels (not a set)
             numImages2Sum - average over this many of the last few images. If None, use the number specified on the GUI int Time box
@@ -906,7 +908,7 @@ class MKIDDashboard(QMainWindow):
     def updateSelectedPixelLabels(self):
         """
         This updates the labels showing the selected pixel total count rate. Can be slow ...
-        
+
         This function is called whenever the mouse releases and when new image data is processed
         """
         if len(self.selectedPixels) > 0:
@@ -922,7 +924,7 @@ class MKIDDashboard(QMainWindow):
         """
         This updates the labels showing the current pixel we're hovering over
         This is usually fast enough as long as we aren't averaging over too many images
-        
+
         This function is called when we hover to a new pixel or the image updates
         """
         if self.pixelCurrent is not None:
@@ -963,7 +965,7 @@ class MKIDDashboard(QMainWindow):
     def showContextMenu(self, point):
         """
         This function is called on a right click
-        
+
         We don't need to clear and add the action everytime but, eh
         """
         self.contextMenu.clear()
@@ -974,7 +976,7 @@ class MKIDDashboard(QMainWindow):
     def plotTimestream(self):
         """
         This function is called when the user clicks on the Plot Timestream action in the context menu
-        
+
         It pops up a window showing the selected pixel's timestream
         """
         if len(self.selectedPixels):
@@ -990,7 +992,7 @@ class MKIDDashboard(QMainWindow):
     def plotHistogram(self):
         """
         This function is called when the user clicks on the Plot Histogram action in the context menu
-        
+
         It pops up a window showing a histogram of count rates for the selected pixels
         """
         if len(self.selectedPixels):
@@ -1149,7 +1151,7 @@ class MKIDDashboard(QMainWindow):
                      instrument=self.config.instrument,
                      dither_home=tuple(self.config.dashboard.dither_home),
                      dither_ref=tuple(self.config.dashboard.dither_ref),
-                     dither_pos=self.dither_dialog.status['pos'] if self.dither_dialog is not None else None,
+                     dither_pos=self.dither_dialog.status['pos'] if self.dither_dialog is not None else (0,0),
                      platescale=self.config.dashboard.platescale,
                      device_orientation=self.config.dashboard.device_orientation,
                      utc_readable=now.strftime("%Y%m%d%H%M%S"), utc=now.strftime("%Y%m%d%H%M%S"), comment=cmt)
@@ -1314,12 +1316,12 @@ class MKIDDashboard(QMainWindow):
         self.checkbox_smooth.setChecked(False)
 
         # Checkbox for displaying compass rose
-        self.checkbox_compass = QCheckBox('Compass Rose')	
+        self.checkbox_compass = QCheckBox('Compass Rose')
         self.checkbox_compass.setChecked(False)
         self.checkbox_compass.stateChanged.connect(lambda state: self.compass.setVisible(state))
         # Checkbox for displaying scale bar
         self.checkbox_scalebar = QCheckBox('Scale Bar')
-        self.checkbox_scalebar.setChecked(False)   
+        self.checkbox_scalebar.setChecked(False)
         self.checkbox_scalebar.stateChanged.connect(lambda state: self.scalebar.setVisible(state))
 
         self.checkbox_usewave = QCheckBox('Apply wavecal')
@@ -1464,7 +1466,7 @@ class MKIDDashboard(QMainWindow):
     def create_image_widget(self):
         """
         Make image part of the GUI
-        
+
         Heirarchy is:
                   QMainWindow
                        |
@@ -1474,12 +1476,12 @@ class MKIDDashboard(QMainWindow):
                         \          /         |      \
                          \        /       QPixmap   QGraphicsBlurEffect
                        QGraphicsScene
-        
+
         To update image:
             - Replace the QPixmap in the QGraphicsPixmapItem
             - Call QGraphicsPixmapItem.graphicsEffect().setEnabled(True) to turn on blurring
             - Call update() on the QGraphicsPixmapItem to repaint the QGraphicsScene
-            
+
         """
         # self.imageFrame = QtGui.QFrame(parent=self)
         # self.imageFrame.setFrameShape(QtGui.QFrame.Box)
@@ -1547,10 +1549,10 @@ class MKIDDashboard(QMainWindow):
         if tip is not None:
             action.setToolTip(tip)
             action.setStatusTip(tip)
-        if slot is not None:     
+        if slot is not None:
             # self.connect(action, QtCore.SIGNAL(signal), slot)
             action.triggered.connect(slot)
-            
+
         if checkable:
             action.setCheckable(True)
         return action

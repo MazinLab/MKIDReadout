@@ -21,7 +21,7 @@ from glob import glob
 
 import matplotlib.pyplot as plt
 import numpy as np
-import mkidreadout.configuration.sweepdata as sd
+import mkidcore.sweepdata as sd
 
 
 def clipHist(data):
