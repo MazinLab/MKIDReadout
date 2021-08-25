@@ -92,8 +92,7 @@ if __name__ == '__main__':
         print('Usage:', sys.argv[0], 'roachNum')
     print(ip)
 
-    roach = Roach2Controls(ip, '/mnt/data0/MkidDigitalReadout/DataReadout/ChannelizerControls/DarknessFpga_V2.param',
-                           True, False)
+    roach = Roach2Controls(ip)
     roach.connect()
     roach.initializeV7UART()
     roach.sendUARTCommand(0x4)
