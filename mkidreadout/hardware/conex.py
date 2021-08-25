@@ -81,7 +81,7 @@ class Conex():
                 TS - the command
                 abcd - error code
                 ef - status
-        
+
         """
         status = self.query('TS')
         getLogger('conex').debug("Status: " + status[7:-2])
@@ -97,7 +97,7 @@ class Conex():
                    nn is the option input for the command
                    \r\n is the terminator character letting Conex know you've finished sending the command
 
-        This is a blocking function. It will try to write to the conex until it 
+        This is a blocking function. It will try to write to the conex until it
         succeeds or the write_timeout is reached
 
         INPUT:
@@ -115,7 +115,7 @@ class Conex():
 
         INPUT:
             bufferSize - size of return string in bytes
-                         If you don't know the exact size, leave as 1. 
+                         If you don't know the exact size, leave as 1.
                          It'll keep adding onto the buffer until it reaches the \r\n characters
         """
         with self._rlock:
@@ -332,7 +332,7 @@ class ConexManager():
         stops the current movement or dither
 
         if wait is False then it forcibly writes to the conex to tell it to stop motion
-        
+
         after that it waits for the movement thread to finish
         """
         getLogger('ConexManager').debug('stopping conex')
@@ -616,7 +616,7 @@ def status(address='http://localhost:50001', timeout=TIMEOUT):
         r = requests.post(address + '/conex', json={'command': 'status'}, timeout=timeout)
         return r.json()
     except requests.exceptions.ConnectionError:
-        return {'state': 'Offline: HTTPConnectionError', 'pos': None, 'conexstatus': None, 'limits': None}
+        return {'state': 'Offline: HTTPConnectionError', 'pos': (0, 0), 'conexstatus': None, 'limits': None}
 
 
 def queryDither(address='http://localhost:50001', timeout=TIMEOUT):
