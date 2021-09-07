@@ -1040,6 +1040,7 @@ def process_calculator(calculator):
     calculator.make_noise()
     calculator.make_template()
     calculator.make_filter()
+    calculator.clear_file_properties()  # release memory from the phase data
     return calculator
 
 
