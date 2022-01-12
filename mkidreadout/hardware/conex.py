@@ -364,10 +364,81 @@ class ConexManager():
             self._halt_dither = False
             self._startedMove = 0
         self._preDitherPos = self.cur_status['pos']
-        self._movement_thread = Thread(target=self.dither, args=(dither_dict,), name="Dithering thread")
+        self._movement_thread = Thread(target=self.dither_two_point, args=(dither_dict,), name="Dithering thread")
         self._movement_thread.daemon = True
         self._movement_thread.start()
         return True
+
+    def dither_two_point(self, dither_dict):
+        """
+        INPUTS:
+            dither_dict - dictionary with keys:
+                        startx: (float) start x loc in conex degrees
+                        endx: (float) end x loc
+                        starty: (float) start y loc
+                        endy: (float) end y loc
+                        n: (int) number of steps in square grid
+                        t: (float) dwell time in seconds
+                        subStep: (float) degrees to offset for subgrid pattern
+                        subT: (float) dwell time for subgrid
+
+                        subStep and subT are optional
+
+        appends a dictionary to the self._completed_dithers attribute
+            keys - same as dither_dict but additionally
+                   it has keys (xlocs, ylocs, startTimes, endTimes)
+
+        """
+        points = dither_two_point_positions(dither_dict['startx'], dither_dict['starty'], dither_dict['stopx'],
+                                            dither_dict['stopy'], dither_dict['n'])
+
+        subDither = 'subStep' in dither_dict.keys() and dither_dict['subStep'] > 0 and \
+                    'subT' in dither_dict.keys() and dither_dict['subT'] > 0
+
+        x_locs = []
+        y_locs = []
+        startTimes = []
+        endTimes = []
+        for p in points:
+            startTime, endTime = self._dither_move(p[0], p[1], dither_dict['t'])
+            if startTime is not None:
+                x_locs.append(self.cur_status['pos'][0])
+                y_locs.append(self.cur_status['pos'][1])
+                startTimes.append(startTime)
+                endTimes.append(endTime)
+            if self._halt_dither: break
+
+            # do sub dither if neccessary
+            if subDither:
+                x_sub = [-dither_dict['subStep'], 0, dither_dict['subStep'], 0]
+                y_sub = [0, dither_dict['subStep'], 0, -dither_dict['subStep']]
+                for i in range(len(x_sub)):
+                    if self.conex.inBounds((p[0] + x_sub[i], p[1] + y_sub[i])):
+                        startTime, endTime = self._dither_move(p[0] + x_sub[i], p[1] + y_sub[i], dither_dict['subT'])
+                        if startTime is not None:
+                            x_locs.append(self.cur_status['pos'][0])
+                            y_locs.append(self.cur_status['pos'][1])
+                            startTimes.append(startTime)
+                            endTimes.append(endTime)
+                    if self._halt_dither: break
+            if self._halt_dither: break
+
+        # Dither has completed (or was stopped prematurely)
+        if not self._halt_dither:  # no errors and not stopped
+            self.move(*self._preDitherPos)
+            with self._rlock:
+                if not self._halt_dither:  # still no errors nor stopped
+                    self._updateState("Idle")
+                self.cur_status = self.status()
+
+        dith = dither_dict.copy()
+        dith['xlocs'] = x_locs  # could be empty if errored out or stopped too soon
+        dith['ylocs'] = y_locs
+        dith['startTimes'] = startTimes
+        dith['endTimes'] = endTimes
+        with self._rlock:
+            self._completed_dithers.append(dith)
+
 
     def dither(self, dither_dict):
         """
@@ -645,6 +716,52 @@ def queryMove(address='http://localhost:50001', timeout=TIMEOUT):
     r = requests.post(address + '/conex', json={'command': 'queryMove'}, timeout=timeout)
     return r.json()
 
+
+def dither_two_point_positions(start_x, start_y, stop_x, stop_y, user_n_steps, single_pixel_move=0.015):
+    if user_n_steps == 1:
+        getLogger(__name__).error('Number of steps must be greater than one!')
+        return
+    if stop_y == start_y and stop_x == start_x:
+        getLogger(__name__).error('No movement specified in x or y')
+        return
+
+    n_steps = user_n_steps - 1
+    points = []
+    interval_x = ((stop_x - (0.5 * single_pixel_move)) - start_x) / (n_steps / 2)
+    interval_y = ((stop_y - (0.5 * single_pixel_move)) - start_y) / (n_steps / 2)
+
+    x_list = np.arange(start_x, stop_x, interval_x)
+    y_list = np.arange(start_y, stop_y, interval_y)
+    if start_x == stop_x:
+        x_list = np.zeros(n_steps)
+    if start_y == stop_y:
+        y_list = np.zeros(n_steps)
+
+    offset_x = np.round(x_list + (interval_x / 2 + 0.5 * single_pixel_move), 3)
+    offset_y = np.round(y_list + (interval_y / 2 + 0.5 * single_pixel_move), 3)
+    x_grid = np.round(np.sort(np.concatenate((x_list, offset_x[offset_x <= round(stop_x, 4)]))), 3)
+    y_grid = np.round(np.sort(np.concatenate((y_list, offset_y[offset_y <= round(stop_y, 4)]))), 3)
+    cycle = 1
+
+    if not (np.all(x_grid == 0) or np.all(y_grid == 0)):
+        points.append((start_x, start_y))
+
+    while cycle <= n_steps:
+        for i in range(cycle + 1):
+            rev = cycle - i
+            points.append((x_grid[i], y_grid[rev]))
+        cycle += 1
+    cycle = 1
+    second_points = []
+    while cycle <= (n_steps - 1):
+        for i in range(cycle + 1):
+            rev = cycle - i
+            second_points.insert(0, (x_grid[-1 - i], y_grid[-1 - rev]))
+        cycle += 1
+    points = points + second_points
+    if not (np.all(x_grid == 0) or np.all(y_grid == 0)):
+        points.append((x_grid[-1], y_grid[-1]))
+    return points
 
 if __name__ == '__main__':
     from flask import Flask
