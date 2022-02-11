@@ -1,7 +1,7 @@
 !configdict
 paths: !configdict
-  bin: /mnt/data0/ScienceData/Subaru/20191204/
-  beammapdirectory: /mnt/data0/MEC/20191211/  # The location of the intermediate and final beammap files
+  bin: /data/ScienceData/Subaru/20191204/
+  beammapdirectory: /data/MEC/20191211/  # The location of the intermediate and final beammap files
 
 beammap: !configdict
 
