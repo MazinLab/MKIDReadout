@@ -49,16 +49,16 @@ cdef extern from "mkidshm.h":
         int writing
         int nCycles
         int useWvl
-    
+
         char name[80]
         char eventBufferName[80]
         char newPhotonSemName[80]
         char wavecalID[150]
-    
+
     #PARTIAL DEFINITION, only exposing necessary attributes
     ctypedef struct MKID_EVENT_BUFFER:
         MKID_EVENT_BUFFER_METADATA *md
-    
+
     cdef int MKIDShmImage_open(MKID_IMAGE *imageStruct, char *imgName)
     cdef int MKIDShmImage_close(MKID_IMAGE *imageStruct)
     cdef int MKIDShmImage_create(MKID_IMAGE_METADATA *imageMetadata, char *imgName, MKID_IMAGE *outputImage)
@@ -83,9 +83,9 @@ cdef class ImageCube(object):
 
     def __init__(self, name, doneSemInd=0, **kwargs):
         """
-        Opens or creates a MKID_IMAGE shared memory buffer specified by name (should be located 
-        in /dev/shm/name). 
-        
+        Opens or creates a MKID_IMAGE shared memory buffer specified by name (should be located
+        in /dev/shm/name).
+
         Parameters
         ----------
             name: string
@@ -130,13 +130,13 @@ cdef class ImageCube(object):
                 self.set_wvlStop(kwargs.get('wvlStop'))
 
         else:
-            self._create(name, kwargs.get('nCols', 100), kwargs.get('nRows', 100), kwargs.get('useWvl', False), 
+            self._create(name, kwargs.get('nCols', 100), kwargs.get('nRows', 100), kwargs.get('useWvl', False),
                         kwargs.get('nWvlBins', 1), kwargs.get('useEdgeBins', False), kwargs.get('wvlStart', 0), kwargs.get('wvlStop', 0))
 
     def _create(self, name, nCols, nRows, useWvl, nWvlBins, useEdgeBins, wvlStart, wvlStop):
         cdef MKID_IMAGE_METADATA imagemd
         MKIDShmImage_populateMD(&imagemd, name.encode('UTF-8'), nCols, nRows, int(useWvl), nWvlBins, int(useEdgeBins), wvlStart, wvlStop)
-        rval = MKIDShmImage_create(&imagemd, name.encode('UTF-8'), &(self.image));
+        rval = MKIDShmImage_create(&imagemd, name.encode('UTF-8'), &(self.image))
         if rval != 0:
             raise Exception('Error opening shared memory file')
 
@@ -242,7 +242,7 @@ cdef class ImageCube(object):
     def useWvl(self):
         return self.image.md.useWvl
 
-    @property 
+    @property
     def useEdgeBins(self):
         return self.image.md.useEdgeBins
 
@@ -283,10 +283,10 @@ cdef class ImageCube(object):
     def set_wvlStart(self, wvl):
         self.wvlStart = float(wvl)
 
-    @property 
+    @property
     def valid(self):
         return bool(self.image.md.valid)
-    
+
 cdef class EventBuffer:
     cdef MKID_EVENT_BUFFER eventBuffer;
 
@@ -304,7 +304,7 @@ cdef class EventBuffer:
                 default: 200000
 
         """
-        
+
         if not name.startswith('/'):
             name = '/'+name
         if os.path.isfile(os.path.join('/dev/shm', name[1:])):
@@ -333,4 +333,3 @@ cdef class EventBuffer:
     @property
     def size(self):
         return self.eventBuffer.md.size
-

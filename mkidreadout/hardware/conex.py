@@ -529,7 +529,8 @@ class ConexManager():
         """
         polltime = 0.1  # wait for dwell time but have to check if stop was pressed periodically
         self.move(x, y)
-        if self._halt_dither: return None, None  # Stopped or error during move
+        if self._halt_dither:
+            return None, None  # Stopped or error during move
         self._updateState("Dither dwell for {:.1f} seconds".format(t))
         # dwell at position
         startTime = time.time()
@@ -537,7 +538,7 @@ class ConexManager():
         endTime = time.time()
         with self._rlock:
             self.cur_status = self.status()
-        while self._halt_dither == False and endTime < dwell_until:
+        while not self._halt_dither and endTime < dwell_until:
             sleep = min(polltime, dwell_until - endTime)
             time.sleep(max(sleep, 0))
             endTime = time.time()
@@ -568,7 +569,8 @@ class ConexManager():
         self._updateState('Moving to {:.2f}, {:.2f}'.format(x, y))
         try:
             self.conex.move((x, y), blocking=True)  # block until conex is done moving (or stopped)
-            if self._startedMove > 0: self._updateState('Idle')
+            if self._startedMove > 0:
+                self._updateState('Idle')
             getLogger('ConexManager').debug('moved to ({}, {})'.format(x, y))
         except (IOError, serial.SerialException) as e:  # on timeout it raise IOError
             self._updateState('Error: move to {:.2f}, {:.2f} failed'.format(x, y))

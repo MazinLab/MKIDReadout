@@ -43,7 +43,7 @@ cdef extern from "pmthreads.h":
         char ringBufResetSemName[80];
 
         int cpu; #if cpu=-1 then don't maximize priority
-    
+
     ctypedef struct BIN_WRITER_PARAMS:
         RINGBUFFER *packBuf;
 
@@ -53,8 +53,8 @@ cdef extern from "pmthreads.h":
         char quitSemName[80];
         char ringBufResetSemName[80];
 
-        int cpu; 
-    
+        int cpu;
+
     ctypedef struct SHM_IMAGE_WRITER_PARAMS:
         RINGBUFFER *packBuf;
         int nRoach;
@@ -66,13 +66,13 @@ cdef extern from "pmthreads.h":
         char ringBufResetSemName[80];
 
         int cpu; #if cpu=-1 then don't maximize priority
-    
+
     ctypedef struct EVENT_BUFF_WRITER_PARAMS:
         RINGBUFFER *packBuf;
         char bufferName[80];
         WAVECAL_BUFFER *wavecal; #if NULL don't use wavecal
 
-        char quitSemName[80]; 
+        char quitSemName[80];
         char ringBufResetSemName[80];
 
         int nRows;
@@ -85,19 +85,19 @@ cdef extern from "pmthreads.h":
         int writing;
         uint32_t nCols;
         uint32_t nRows;
-        # Each pixel has 3 coefficients, with address given by 
+        # Each pixel has 3 coefficients, with address given by
         # &a = 3*(nCols*y + x); &b = &a + 1; &c = &a + 2
         wvlcoeff_t *data;
 
     ctypedef struct READOUT_STREAM:
         uint64_t unread;
         char data[536870912];
-    
+
     ctypedef struct RINGBUFFER:
         uint8_t data[536870912];
         uint64_t writeInd;
         uint64_t nCycles;
-    
+
     ctypedef struct THREAD_PARAMS:
         pass
 
@@ -108,11 +108,8 @@ cdef extern from "pmthreads.h":
     cdef void resetSem(const char *semName);
     cdef void quitAllThreads(const char *quitSemName, int nThreads);
 
-cdef class Packetmaster(object): 
-    """
-    Receives and parses photon events for the MKID readout. This class is a python frontend for 
-    the code in packetmaster/packetmaster.c. 
-    """
+cdef class Packetmaster(object):
+    """ Receives and parses photon events for the MKID readout. """
     cdef BIN_WRITER_PARAMS writerParams
     cdef SHM_IMAGE_WRITER_PARAMS imageParams
     cdef EVENT_BUFF_WRITER_PARAMS eventBuffParams
@@ -130,10 +127,10 @@ cdef class Packetmaster(object):
 
     #TODO useWriter->savebinfiles, ramdiskPath->ramdisk ?use '' as default?
     def __init__(self, nRoaches, port, nRows=None, nCols=None, useWriter=True, wvlCoeffs=None,
-                 beammap=None, sharedImageCfg=None, eventBuffCfg=None, maximizePriority=False, 
+                 beammap=None, sharedImageCfg=None, eventBuffCfg=None, maximizePriority=False,
                  recreate_images=False, forwarding=None):
         """
-        Starts the reader (packet receiving) thread along with the appropriate number of parsing 
+        Starts the reader (packet receiving) thread along with the appropriate number of parsing
         threads according to the specified configuration.
 
         Parameters
@@ -151,14 +148,14 @@ cdef class Packetmaster(object):
             ramdiskPath: string
                 Path to "ramdisk", where writer looks for START and STOP files from dashboard. Required
                 if useWriter is True, otherwise not used.
-            wvlCoeffs: dict 
-                Contains cal coefficients and corresponding resIDs. Used to fill buffer containing 
+            wvlCoeffs: dict
+                Contains cal coefficients and corresponding resIDs. Used to fill buffer containing
                 wavecal solution LUT.
             beammap: Beammap object.
                 Required if wvlCoeffs is set, used for nRows and nCols if present
             sharedImageCfg: yaml config object.
                 Configuration object specifying shared memory objects for acquiring realtime images.
-                Typical usage would pass a configdict specified in dashboard.yml. Creates/opens 
+                Typical usage would pass a configdict specified in dashboard.yml. Creates/opens
                 ImageCube objects for each image.
                 Object must have keys corresponding to the names of the images, and values must have a get method for
                 valid for the attributes n_wave_bins, use_wave, wave_start, wave_stop (i.e. a ConfigThing or a dict)
@@ -202,7 +199,7 @@ cdef class Packetmaster(object):
             self.readerParams.cpu = -1
             self.writerParams.cpu = -1
             self.imageParams.cpu = -1
-        
+
         #INITIALIZE SHARED MEMORY IMAGES
         self.sharedImages = {}
         if sharedImageCfg is not None:
@@ -257,11 +254,11 @@ cdef class Packetmaster(object):
         if forwarding is not None:
             if port == forwarding['localport']:
                 raise Exception('forwarding["localport"] and "port" must be different!')
-            argstring = ['samplicate', '-p', str(port), LO_IP+'/'+str(forwarding['localport']), 
+            argstring = ['samplicate', '-p', str(port), LO_IP+'/'+str(forwarding['localport']),
                             forwarding['destIP']+'/'+str(forwarding['destport'])]
             self.samplicatorProcess = subprocess.Popen(argstring)
             port = forwarding['localport']
-            
+
         #INITIALIZE REMAINING PARAMS
         self.readerParams.port = port
         self.readerParams.packBuf = &self.packBuf
@@ -364,6 +361,3 @@ cdef class Packetmaster(object):
         free(self.imageParams.sharedImageNames)
         free(self.threads)
         free(self.wavecal.data)
-        
-
-

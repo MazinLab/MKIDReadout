@@ -67,7 +67,7 @@ class TelescopeWindow(QMainWindow):
             vbox.addLayout(hbox)
 
         label_telescopeStatus = QLabel('Telescope Status')
-        font = label_telescopeStatus.font() 
+        font = label_telescopeStatus.font()
         font.setPointSize(24)
         label_telescopeStatus.setFont(font)
         vbox.addWidget(label_telescopeStatus)
@@ -193,7 +193,6 @@ class DitherWindow(QMainWindow):
         main_frame.setLayout(vbox)
         self.setCentralWidget(main_frame)
 
-
     def do_dither(self):
         start = map(float, self.textbox_start.text().split(','))
         end = map(float, self.textbox_end.text().split(','))
@@ -220,7 +219,7 @@ class DitherWindow(QMainWindow):
             thread.start()
 
     def _wait4dither(self):
-        d= conex.queryDither(address=self.address)
+        d = conex.queryDither(address=self.address)
         with self._rlock:
             self.status = d['status']
         self.statusupdate.emit()
@@ -228,20 +227,19 @@ class DitherWindow(QMainWindow):
         while not d['completed']:
             time.sleep(0.0001)
             try:
-                d= conex.queryDither(address=self.address)
-                
+                d = conex.queryDither(address=self.address)
+
                 oldPos = self.status['pos']
                 newPos = d['status']['pos']
                 posNear = (np.abs(newPos[0] - oldPos[0]) <= pos_tolerance) and (np.abs(newPos[1] - oldPos[1]) <=pos_tolerance)
                 with self._rlock:
                     self.status = d['status']
-                if not posNear: #If the position changed
+                if not posNear:  #If the position changed
                     self.statusupdate.emit()
             except:
-                d={'completed':False}
+                d = {'completed': False}
         self.complete.emit(d)
         getLogger('Dashboard').info('Finished dither')
-
 
     def do_halt(self):
         getLogger('Dashboard').info('Conex Movement Stopped by user.')
@@ -460,7 +458,7 @@ class PixelHistogramWindow(QMainWindow):
     We use this for realtime plotting with MKIDDashboard
     """
     closeWindow = QtCore.pyqtSignal()
-    
+
     def __init__(self, pixelList, parent):
         super(QMainWindow, self).__init__(parent)
         self.setWindowTitle("Histogram")
@@ -506,16 +504,16 @@ class PixelHistogramWindow(QMainWindow):
             countRateHist, bin_edges = np.histogram(c, bins=50, range=(0, 2500))
             return countRateHist, bin_edges
         return []
-        
+
     def addData(self, imageList):
         #countRate = np.sum(np.asarray(image)[self.pixelList[:,1],self.pixelList[:,0]])
         #self.countTimestream = np.append(self.countTimestream,countRate)
         self.plotData()
-    
+
     def draw(self):
         self.canvas.draw()
         self.canvas.flush_events()
-    
+
     def setCheckboxText(self, currentPix=False):
         pixList = self.pixelList
         checkbox = self.checkbox_plotPix
@@ -524,18 +522,18 @@ class PixelHistogramWindow(QMainWindow):
             pixList = np.asarray([[p[0],p[1]] for p in self.parent.selectedPixels])
             checkbox=self.checkbox_plotCurrentPix
             label="Current Pixels: "
-        
+
         label = label+('{}, '*len(pixList)).format(*pixList)[:-2]
         checkbox.setText(label)
-    
+
     def create_main_frame(self):
         """
         Makes GUI elements on the window
-        
-        
+
+
         """
         self.main_frame = QWidget()
-        
+
         # Figure
         self.dpi = 100
         self.fig = Figure((9.0, 5.0), dpi=self.dpi)
@@ -546,10 +544,10 @@ class PixelHistogramWindow(QMainWindow):
         self.ax.set_ylabel('#')
         self.line, = self.ax.plot([],[],'g-')
         self.line2, = self.ax.plot([],[],'c-')
-        
+
         # Create the navigation toolbar, tied to the canvas
         self.mpl_toolbar = NavigationToolbar(self.canvas, self.main_frame)
-        
+
         # Controls
         self.checkbox_plotPix = QCheckBox()
         self.checkbox_plotPix.setMaximumWidth(700)
@@ -558,8 +556,8 @@ class PixelHistogramWindow(QMainWindow):
         self.checkbox_plotPix.setChecked(True)
         self.checkbox_plotPix.setStyleSheet('color: green')
         self.checkbox_plotPix.stateChanged.connect(lambda x: self.plotData())
-        
-        
+
+
         self.checkbox_plotCurrentPix = QCheckBox()
         self.checkbox_plotCurrentPix.setMaximumWidth(700)
         self.checkbox_plotCurrentPix.setMinimumWidth(100)
@@ -567,23 +565,23 @@ class PixelHistogramWindow(QMainWindow):
         self.checkbox_plotCurrentPix.setChecked(False)
         self.checkbox_plotCurrentPix.setStyleSheet('color: cyan')
         self.checkbox_plotCurrentPix.stateChanged.connect(lambda x: self.plotData())
-        
-        
+
+
         self.checkbox_normalize = QCheckBox('Normalize by number of pixels')
         self.checkbox_normalize.setChecked(False)
         self.checkbox_normalize.stateChanged.connect(lambda x: self.plotData())
-        
+
         vbox_plot = QVBoxLayout()
         vbox_plot.addWidget(self.canvas)
         vbox_plot.addWidget(self.mpl_toolbar)
-        
+
         vbox_plot.addWidget(self.checkbox_plotPix)
         vbox_plot.addWidget(self.checkbox_plotCurrentPix)
         vbox_plot.addWidget(self.checkbox_normalize)
-        
+
         self.main_frame.setLayout(vbox_plot)
         self.setCentralWidget(self.main_frame)
-    
+
     def closeEvent(self, event):
         self.parent.newImageProcessed.disconnect(self.plotData)
         self.closeWindow.emit()
