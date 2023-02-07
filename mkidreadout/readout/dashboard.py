@@ -389,17 +389,6 @@ class MKIDDashboard(QMainWindow):
             #Dither window
             self.dither_dialog = DitherWindow(self.config.dither.url, parent=self)
 
-            #TODO sort out the two dither logs
-            def logdither(status):
-                if status.offline or status.haserrors:
-                    msg = 'Dither completed with errors: "{}", Conex Status="{}"'.format(
-                        status.state, status.conexstatus)
-                    getLogger('Dashboard').error(msg)
-                else:
-                    dither_result = 'Dither Path: {}\n'.format(str(status.last_dither).replace('\n', '\n   '))
-                    getLogger('Dashboard').info(dither_result)
-                    getLogger('dither').info(dither_result)
-
             def logdither(d):
                 state = d['status']['state'][1]
                 if state == 'Stopped':
