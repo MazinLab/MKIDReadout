@@ -1,0 +1,4 @@
+[submodule "casperfpga"]
+	path = casperfpga
+	url = https://www.github.com/mazinlab/casperfpga.git
+	branch = master
