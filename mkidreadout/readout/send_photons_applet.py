@@ -3,51 +3,31 @@
 from __future__ import print_function
 
 import argparse
-import json
 import os
-import sys
 import time
 from datetime import datetime
-from functools import partial
-
-import numpy as np
-from PyQt4 import QtCore
-from PyQt4.QtCore import Qt
-from PyQt4.QtGui import *
-from astropy.io import fits
-from astropy.coordinates import SkyCoord
-from astropy import wcs
-import astropy.units as units
+import threading
 
 import mkidcore.corelog
 import mkidcore.instruments
-from mkidcore.instruments import compute_wcs_ref_pixel
 import mkidreadout.config
-import mkidcore.sweepdata as sweepdata
 import mkidreadout.hardware.hsfw
 from mkidcore.corelog import create_log, getLogger
-from mkidcore.fits import CalFactory, combineHDU, summarize
 from mkidcore.objects import Beammap
 from mkidreadout.channelizer.Roach2Controls import Roach2Controls
-from mkidreadout.hardware.lasercontrol import LaserControl
-from mkidreadout.hardware.telescope import Palomar, Subaru, NoScope
-from mkidreadout.readout.guiwindows import DitherWindow, PixelHistogramWindow, PixelTimestreamWindow, TelescopeWindow
-from mkidreadout.readout.packetmaster import Packetmaster
-from mkidreadout.utils.utils import interpolateImage
 
 SHAREDIMAGE_LATENCY = 0.55 #0.53 #latency fudge factor for sharedmem
 
 
-class MKIDDashboard(threading.Thread):
-    def __init__(self, roachNums, config='./dashboard.yml', observing=False,  offline=False):
+class MKIDSendPhotonsApplet(threading.Thread):
+    def __init__(self, roachNums, config='./dashboard.yml', offline=False):
         """
         INPUTS:
             roachNums - List of roach numbers to connect with
             config - the configuration file. See ConfigParser doc for making configuration file
-            observing - indicates if packetmaster is currently writing data to disk
             parent -
         """
-        super(threading.Thread, self).__init__(name='')
+        super(threading.Thread, self).__init__()
         self.config = mkidreadout.config.load(config)
         self.offline = offline
         self.sending = False
@@ -96,7 +76,7 @@ class MKIDDashboard(threading.Thread):
             ffile = roach.tagfile(self.config.roaches.get('r{}.freqfileroot'.format(roach.num)),
                                   dir=self.config.paths.setup)
             roach.setLOFreq(self.config.roaches.get('r{}.lo_freq'.format(roach.num)))
-            roach.loadBeammapCoords(self.beammap, freqListFile=ffile)
+            roach.loadBeammapCoords(beammap, freqListFile=ffile)
         getLogger('photon_send_control').info('Loaded beam map into roaches')
 
     def run(self):
@@ -179,5 +159,5 @@ if __name__ == "__main__":
     if not roaches:
         getLogger('Dashboard').error('No roaches specified')
         exit()
-    applet = MKIDDashboard(roaches, config=config)
+    applet = MKIDSendPhotonsApplet(roaches, config=config)
     applet.run()
