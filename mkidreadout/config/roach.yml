@@ -14,7 +14,6 @@ longsnaproot:  phasesnaps/{roach}/snap_{roach}.npz
 powersweeproot: ps_{roach}_FL{feedline}_{range}.h5
 save_sweepdata: False
 
-
 numsigs_thresh: 4.0
 numsnaps_thresh: 5
 ddssynclag: 76
@@ -24,6 +23,9 @@ longsnaptime: 2
 nLongsnapFftSamples: 65536
 sweeplospan: 0.5e6
 sweeplostep: 10.e3
+
+in_use: [112, 114, 115, 116, 117, 118, 119, 120, 121, 122]
+offline: False
 
 r115: !configdict
   ip: 10.0.0.115
