@@ -16,11 +16,9 @@ from mkidcore.corelog import create_log, getLogger
 from mkidcore.objects import Beammap
 from mkidreadout.channelizer.Roach2Controls import Roach2Controls
 
-SHAREDIMAGE_LATENCY = 0.55 #0.53 #latency fudge factor for sharedmem
-
 
 class MKIDSendPhotonsApplet(threading.Thread):
-    def __init__(self, roachNums, config='./dashboard.yml', offline=False):
+    def __init__(self, roachNums, config='./dashboard.yml'):
         """
         INPUTS:
             roachNums - List of roach numbers to connect with
@@ -29,26 +27,24 @@ class MKIDSendPhotonsApplet(threading.Thread):
         """
         super(threading.Thread, self).__init__()
         self.config = mkidreadout.config.load(config)
-        self.offline = offline
         self.sending = False
         self.roaches = []
         self.beammap = None
 
         # Connect to ROACHES and initialize network port in firmware
         getLogger('Dashboard').info('Connecting roaches and loading beammap...')
-        if not self.offline:
-            for roachNum in roachNums:
-                roach = Roach2Controls(self.config.roaches.get('r{}.ip'.format(roachNum)),
-                                       self.config.roaches.fpgaparamfile, num=roachNum,
-                                       feedline=self.config.roaches.get('r{}.feedline'.format(roachNum)),
-                                       range=self.config.roaches.get('r{}.range'.format(roachNum)),
-                                       verbose=False, debug=False)
-                if not roach.connect() and not roach.issetup:
-                    raise RuntimeError('Roach r{} has not been setup.'.format(roachNum))
-                roach.setPhotonCapturePort(self.config.packetmaster.captureport)
-                self.roaches.append(roach)
-            for roach in self.roaches:
-                roach.loadCurTimestamp()
+        for roachNum in roachNums:
+            roach = Roach2Controls(self.config.roaches.get('r{}.ip'.format(roachNum)),
+                                   self.config.roaches.fpgaparamfile, num=roachNum,
+                                   feedline=self.config.roaches.get('r{}.feedline'.format(roachNum)),
+                                   range=self.config.roaches.get('r{}.range'.format(roachNum)),
+                                   verbose=False, debug=False)
+            if not roach.connect() and not roach.issetup:
+                raise RuntimeError('Roach r{} has not been setup.'.format(roachNum))
+            roach.setPhotonCapturePort(self.config.packetmaster.captureport)
+            self.roaches.append(roach)
+        for roach in self.roaches:
+            roach.loadCurTimestamp()
 
     def stop_photon_send(self):
         """
@@ -120,7 +116,6 @@ if __name__ == "__main__":
     parser.add_argument('-r', nargs='+', type=int, help='Roach numbers', dest='roaches')
     parser.add_argument('-c', '--config', default=mkidreadout.config.DEFAULT_DASHBOARD_CFGFILE, dest='config',
                         type=str, help='The config file')
-    parser.add_argument('-o', '--offline', default=False, dest='offline', action='store_true', help='Run offline')
     parser.add_argument('--gencfg', default=False, dest='genconfig', action='store_true',
                         help='generate configs in CWD')
 
@@ -157,7 +152,10 @@ if __name__ == "__main__":
         roaches = args.roaches
 
     if not roaches:
-        getLogger('Dashboard').error('No roaches specified')
-        exit()
+        try:
+            roaches = config.roaches.in_use
+        except AttributeError:
+            getLogger('Dashboard').error('No roaches specified')
+            exit()
     applet = MKIDSendPhotonsApplet(roaches, config=config)
     applet.run()
