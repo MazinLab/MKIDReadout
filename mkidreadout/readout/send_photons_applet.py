@@ -87,7 +87,7 @@ class MKIDSendPhotonsApplet(threading.Thread):
                     try:
                         with open(self._send_photons_file) as f:
                             beammap_file = f.readline()
-                        beammap = Beammap(beammap_file)
+                        beammap = Beammap(beammap_file, xydim=(80, 125))  # TODO: Parsing for XKID vs. DARKNESS vs. MEC
                         getLogger('photon_send_control').info('Loaded beammap: %s', beammap_file)
                         self.start_photon_send(beammap)
                         self.sending = True
