@@ -27,6 +27,7 @@ class MKIDSendPhotonsApplet(threading.Thread):
         """
         super(threading.Thread, self).__init__()
         self.config = mkidreadout.config.load(config)
+        self._send_photons_file = self.config.paths.send_photons_file
         self.sending = False
         self.roaches = []
         self.beammap = None
@@ -78,13 +79,13 @@ class MKIDSendPhotonsApplet(threading.Thread):
     def run(self):
         try:
             while True:
-                if os.path.exists(self._send_phot_file):
+                if os.path.exists(self._send_photons_file):
                     if self.sending:
                         time.sleep(1)
                         continue
 
                     try:
-                        with open(self._send_phot_file) as f:
+                        with open(self._send_photons_file) as f:
                             beammap_file = f.readline()
                         beammap = Beammap(beammap_file)
                         getLogger('photon_send_control').info('Loaded beammap: %s', beammap_file)

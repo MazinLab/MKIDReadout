@@ -3,6 +3,7 @@ paths: !configdict
   logs: /home/data/ScienceData/Subaru/today/logs/
   data: /home/data/ScienceData/Subaru/today/
   setup: /home/data/MEC/today/
+  send_photons_file: /home/data/MEC/today/send_photons.txt
 
 packetmaster: !configdict
   ip: 10.0.0.52
