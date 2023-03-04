@@ -678,7 +678,7 @@ class RoachStateMachine(QtCore.QObject):  # Extends QObject for use with QThread
             data = self.roachController.takePhaseStreamDataOfFreqChannel(freqChan=channel, duration=duration,
                                                                          hostIP=hostip, fabric_port=port)
         except Exception:
-            getLogger(__name__).error('Exception taking phase stream data', exc_info=True)
+            getLogger(__name__).error('Exception taking phase stream data with {}:{}'.format(hostip,port), exc_info=True)
             self.finished.emit()
             return
 

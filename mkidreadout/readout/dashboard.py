@@ -342,6 +342,7 @@ class MKIDDashboard(QMainWindow):
         getLogger('Dashboard').info('Initializing packetmaster...')
         imgcfg = dict(self.config.dashboard)
         imgcfg['n_wave_bins'] = 1
+        print(imgcfg)
         if 'forwarding' in self.config.packetmaster:
             forwarding = dict(self.config.packetmaster.forwarding)
         else:

@@ -83,82 +83,76 @@ def setupRoach4FreqSweep(roachNum, freqFN='rfFreqs.txt', defineLUTs=False):
         Roach2Controls object
         returns None if there's an error
     """
-    try: 
-        ip = '10.0.0.'+str(roachNum)
-        roachController = Roach2Controls(ip)
+    ip = '10.0.0.'+str(roachNum)
+    roachController = Roach2Controls(ip)
 
-        #connect
-        roachController.connect()
-        if defineLUTs:
-            ddsShift = roachController.checkDdsShift()
-            roachController.loadDdsShift(ddsShift)
-            roachController.loadFullDelayCal()
+    #connect
+    roachController.connect()
+    if defineLUTs:
+        ddsShift = roachController.checkDdsShift()
+        roachController.loadDdsShift(ddsShift)
+        roachController.loadFullDelayCal()
 
-        #loadFreqs
-        freqFile = np.loadtxt(freqFN)
-        resIDs = np.atleast_1d(freqFile[:,0])
-        freqs = np.atleast_1d(freqFile[:,1])
-        attens = np.atleast_1d(freqFile[:,2])
-        phaseOffsList = np.zeros(len(freqs))
-        iqRatioList = np.ones(len(freqs))
-        try:
-            phaseOffsList = np.atleast_1d(freqFile[:,3])
-            iqRatioList = np.atleast_1d(freqFile[:,4])
-        except IndexError: pass
+    #loadFreqs
+    freqFile = np.loadtxt(freqFN)
+    resIDs = np.atleast_1d(freqFile[:,0])
+    freqs = np.atleast_1d(freqFile[:,1])
+    attens = np.atleast_1d(freqFile[:,2])
+    phaseOffsList = np.zeros(len(freqs))
+    iqRatioList = np.ones(len(freqs))
+    try:
+        phaseOffsList = np.atleast_1d(freqFile[:,3])
+        iqRatioList = np.atleast_1d(freqFile[:,4])
+    except IndexError: pass
 
-        #assert(len(resIDs) == len(np.unique(resIDs))), "Resonator IDs in "+fn+" need to be unique."
-        argsSorted = np.argsort(freqs)  # sort them by frequency (Should already be sorted but just in case)
-        freqs = freqs[argsSorted]
-        resIDs = resIDs[argsSorted]
-        attens = attens[argsSorted]
-        phaseOffsList = iqRatioList[argsSorted]
-        iqRatioList = iqRatioList[argsSorted]
+    #assert(len(resIDs) == len(np.unique(resIDs))), "Resonator IDs in "+fn+" need to be unique."
+    argsSorted = np.argsort(freqs)  # sort them by frequency (Should already be sorted but just in case)
+    freqs = freqs[argsSorted]
+    resIDs = resIDs[argsSorted]
+    attens = attens[argsSorted]
+    phaseOffsList = iqRatioList[argsSorted]
+    iqRatioList = iqRatioList[argsSorted]
 
-        roachController.generateResonatorChannels(freqs)
-        roachController.setAttenList(attens)
-        roachController.resIDs = resIDs
-        roachController.phaseOffsList = phaseOffsList
-        roachController.iqRatioList = iqRatioList
+    roachController.generateResonatorChannels(freqs)
+    roachController.setAttenList(attens)
+    roachController.resIDs = resIDs
+    roachController.phaseOffsList = phaseOffsList
+    roachController.iqRatioList = iqRatioList
 
-        #defineRoachLUTs
-        loFreq=0.
-        roachController.setLOFreq(loFreq)   #Doesn't load it into LO chip. Just sets it in software
-        roachController.generateFftChanSelection()
-        if defineLUTs:
-            roachController.generateDdsTones()
-            roachController.loadChanSelection()
-            roachController.loadDdsLUT()
-        else:
-            dacFreqList = roachController.freqList-loFreq
-            dacFreqList[np.where(dacFreqList<0.)] += roachController.params['dacSampleRate']
-            dacFreqResolution = roachController.params['dacSampleRate']/(roachController.params['nDacSamplesPerCycle']*roachController.params['nLutRowsToUse'])
-            dacQuantizedFreqList = np.round(dacFreqList/dacFreqResolution)*dacFreqResolution
-            roachController.dacQuantizedFreqList=dacQuantizedFreqList
-        
-        #defineDacLUTs
-        loFreq=random.random()*2.-1.+5000.+2000.*roachNum%2    #Around 5000MHz for even roaches, 7000MHz for odd roaches. Should really specify based on low or high band of feedline since roach numbers are arbitrary. Although, with MEC even/odd numbers are low/high band. 
-        if defineLUTs:
-            combDict = roachController.generateDacComb()
-            dacAtten=combDict['dacAtten']
-            writeDacAtten(roachNum, dacAtten)   #Need this for powersweeps
-            roachController.initializeV7UART()
-        else:
-            dacAtten=getDacAtten(roachNum)   #Need this for powersweeps
-        roachController.globalDacAtten=dacAtten   #Need this for powersweeps
-        roachController.loadLOFreq(loFreq)   
-        if defineLUTs:
-            roachController.loadDacLUT()
-            roachController.changeAtten(1,np.floor(dacAtten*2)/4.)
-            roachController.changeAtten(2,np.ceil(dacAtten*2)/4.)
-            roachController.getOptimalADCAtten(15.) #arbitrary initial guess
-        
-        return roachController
-    except:
-        exc_info=sys.exc_info()
-        print str(roachNum)+" ERROR"
-        traceback.print_exception(*exc_info)
-        del exc_info
-        return None
+    #defineRoachLUTs
+    loFreq=0.
+    roachController.setLOFreq(loFreq)   #Doesn't load it into LO chip. Just sets it in software
+    roachController.generateFftChanSelection()
+    #import pdb;pdb.set_trace()
+    if defineLUTs:
+        roachController.generateDdsTones()
+        roachController.loadChanSelection()
+        roachController.loadDdsLUT()
+    else:
+        dacFreqList = roachController.freqList-loFreq
+        dacFreqList[np.where(dacFreqList<0.)] += roachController.params['dacSampleRate']
+        dacFreqResolution = roachController.params['dacSampleRate']/(roachController.params['nDacSamplesPerCycle']*roachController.params['nLutRowsToUse'])
+        dacQuantizedFreqList = np.round(dacFreqList/dacFreqResolution)*dacFreqResolution
+        roachController.dacQuantizedFreqList=dacQuantizedFreqList
+    
+    #defineDacLUTs
+    loFreq=random.random()*2.-1.+5000.+2000.*roachNum%2    #Around 5000MHz for even roaches, 7000MHz for odd roaches. Should really specify based on low or high band of feedline since roach numbers are arbitrary. Although, with MEC even/odd numbers are low/high band. 
+    if defineLUTs:
+        combDict = roachController.generateDacComb()
+        dacAtten=combDict['dacAtten']
+        writeDacAtten(roachNum, dacAtten)   #Need this for powersweeps
+        roachController.initializeV7UART()
+    else:
+        dacAtten=getDacAtten(roachNum)   #Need this for powersweeps
+    roachController.globalDacAtten=dacAtten   #Need this for powersweeps
+    roachController.loadLOFreq(loFreq)   
+    if defineLUTs:
+        roachController.loadDacLUT()
+        roachController.changeAtten(1,np.floor(dacAtten*2)/4.)
+        roachController.changeAtten(2,np.ceil(dacAtten*2)/4.)
+        roachController.getOptimalADCAtten(15.) #arbitrary initial guess
+    
+    return roachController
 
 def generateWidesweepFreqList(FPGAparams, outputFN='rfFreqs.txt', resAtten=65, alias_BW=1600.E6, lo_hole=512.E3, tone_BW=512.0E3, minNominalFreqSpacing=800.0E3):
     """
