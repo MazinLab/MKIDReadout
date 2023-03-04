@@ -6,7 +6,7 @@ from mkidcore.corelog import getLogger, INFO, DEBUG
 import mkidreadout.config
 
 from mkidreadout.channelizer.Roach2Controls import Roach2Controls
-from mkidreadout.configuration.sweepdata import SweepMetadata
+from mkidcore.sweepdata import SweepMetadata
 from mkidreadout.channelizer.binTools import reinterpretBin
 from mkidreadout.channelizer.adcTools import streamSpectrum
 
@@ -30,7 +30,7 @@ def loadDACLUT(roach, metadata, lofreq):
     newADCAtten = roach.getOptimalADCAtten(15)
     getLogger(__name__).info("Auto Setting ADC Atten to " + str(newADCAtten))
 
-    
+
 def takeQdrSnap(fpga):
     assert 'trig_qdr' in fpga.listdev(), 'Must load qdrloop firmware!'
     fpga.write_int('trig_qdr',0)#release trigger
@@ -61,11 +61,11 @@ def takeQdrSnap(fpga):
     qdr0Bitshifts = np.append(qdr0Bitshifts, 0)
     qdr1Bitshifts = np.append(qdr1Bitshifts, 0)
     qdr2Bitshifts = np.append(qdr2Bitshifts, 0)
-    
+
     qdr0Bitshifts = np.array(qdr0Bitshifts, dtype=np.uint64)
     qdr1Bitshifts = np.array(qdr1Bitshifts, dtype=np.uint64)
     qdr2Bitshifts = np.array(qdr2Bitshifts, dtype=np.uint64)
-    
+
     # print 'qdr0Bitshifts', qdr0Bitshifts
     # print 'qdr1Bitshifts', qdr1Bitshifts
     # print 'qdr2Bitshifts', qdr2Bitshifts
@@ -73,7 +73,7 @@ def takeQdrSnap(fpga):
     qdr0Samples = ((qdr0Vals[:,np.newaxis]) >> qdr0Bitshifts)&bitmask
     qdr1Samples = ((qdr1Vals[:,np.newaxis]) >> qdr1Bitshifts)&bitmask
     qdr2Samples = ((qdr2Vals[:,np.newaxis]) >> qdr2Bitshifts)&bitmask
-    
+
     qdr0Samples[:,-1] = (((qdr0Samples[:,-1]&(2**(nBitsPerQdrSample%nBitsPerSample)-1)))<<8) + (qdr1Samples[:,0]&(2**(nBitsPerSample-nBitsPerQdrSample%nBitsPerSample)-1))
     qdr1Samples = np.delete(qdr1Samples, 0, axis=1)
     qdr1Samples[:,-1] = (((qdr1Samples[:,-1]&(2**(2*nBitsPerQdrSample%nBitsPerSample)-1)))<<4) + (qdr2Samples[:,0]&(2**(nBitsPerSample-2*nBitsPerQdrSample%nBitsPerSample)-1))
@@ -148,15 +148,15 @@ def plotSBSuppression(ifFreqList, fftFreqs, spectrumDB, freqLocs, sbLocs):
 
     plt.show()
 
-    
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Script for taking QDR longsnaps')
     parser.add_argument('roach', type=int, help='Roach number')
-    parser.add_argument('-c', '--config', default=None, dest='config', type=str, 
+    parser.add_argument('-c', '--config', default=None, dest='config', type=str,
                     help='The config file - will setup using list, lo, etc from this file.')
     parser.add_argument('-o', '--output', default=None, help='output npz file')
-    parser.add_argument('-l', '--load-lut', action='store_true', 
+    parser.add_argument('-l', '--load-lut', action='store_true',
                     help='loads a new DAC LUT (from config file) before taking snapshot')
     parser.add_argument('-b', '--sidebands', action='store_true',
                     help='measures, plots, and saves tone sideband power from provided freq list')
@@ -173,7 +173,7 @@ if __name__ == '__main__':
 
     if args.config is not None:
         config = mkidreadout.config.load(args.config)
-        roach = Roach2Controls(config.roaches.get('r{}.ip'.format(args.roach)), 
+        roach = Roach2Controls(config.roaches.get('r{}.ip'.format(args.roach)),
                     feedline=config.roaches.get('r{}.feedline'.format(args.roach)),
                     range=config.roaches.get('r{}.range'.format(args.roach)))
     else:
@@ -185,8 +185,8 @@ if __name__ == '__main__':
     if args.load_lut:
         getLogger(__name__).info("Loading new DAC LUT from config file")
         fn = str(config.roaches.get('r{}.freqfileroot'.format(args.roach)))
-        fn = os.path.join(config.paths.data, fn.format(roach=args.roach, 
-                    feedline=config.roaches.get('r{}.feedline'.format(args.roach)), 
+        fn = os.path.join(config.paths.data, fn.format(roach=args.roach,
+                    feedline=config.roaches.get('r{}.feedline'.format(args.roach)),
                     range=config.roaches.get('r{}.range'.format(args.roach))))
         metadata = SweepMetadata(file=fn)
         loadDACLUT(roach, metadata, config.roaches.get('r{}.lo_freq'.format(args.roach)))
@@ -200,15 +200,15 @@ if __name__ == '__main__':
 
     if args.sidebands:
         fn = str(config.roaches.get('r{}.freqfileroot'.format(args.roach)))
-        fn = os.path.join(config.paths.data, fn.format(roach=args.roach, 
-                    feedline=config.roaches.get('r{}.feedline'.format(args.roach)), 
+        fn = os.path.join(config.paths.data, fn.format(roach=args.roach,
+                    feedline=config.roaches.get('r{}.feedline'.format(args.roach)),
                     range=config.roaches.get('r{}.range'.format(args.roach))))
         metadata = SweepMetadata(file=fn)
         loFreq = config.roaches.get('r{}.lo_freq'.format(args.roach))
-        _, freqs, _, _, _ = metadata.templar_data(loFreq)        
+        _, freqs, _, _, _ = metadata.templar_data(loFreq)
         ifFreqs = freqs - loFreq
         nSamples = roach.params['nDacSamplesPerCycle'] * roach.params['nLutRowsToUse']
-        sbPowers, freqLocs, sbLocs = measureSidebands(ifFreqs, 1.e6*snapDict['freqsMHz'], 
+        sbPowers, freqLocs, sbLocs = measureSidebands(ifFreqs, 1.e6*snapDict['freqsMHz'],
                           snapDict['spectrumDb'], roach.params['dacSampleRate'], nSamples)
         snapDict.update({'sidebandPowers':sbPowers, 'freqLocs':freqLocs, 'sbLocs':sbLocs})
         plt.plot(ifFreqs, sbPowers)
@@ -226,8 +226,4 @@ if __name__ == '__main__':
         args.output = args.output.split('.')[0] + '_{}.npz'.format(timeLabel)
 
     getLogger(__name__).info('Saving data in {}'.format(args.output))
-    np.savez(args.output, **snapDict) 
-
-
-    
-
+    np.savez(args.output, **snapDict)

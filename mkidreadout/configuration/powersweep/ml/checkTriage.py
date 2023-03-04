@@ -3,7 +3,7 @@ import argparse
 import matplotlib.pyplot as plt
 import numpy as np
 
-from mkidreadout.configuration.sweepdata import SweepMetadata
+from mkidcore.sweepdata import SweepMetadata
 
 parser = argparse.ArgumentParser(description='Check score triage performance')
 parser.add_argument('mlFiles', nargs='+')

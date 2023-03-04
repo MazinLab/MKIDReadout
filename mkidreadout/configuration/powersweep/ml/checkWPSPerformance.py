@@ -2,7 +2,7 @@ import numpy as np
 import os
 import matplotlib.pyplot as plt
 import argparse
-from mkidreadout.configuration.sweepdata import SweepMetadata, ISGOOD
+from mkidcore.sweepdata import SweepMetadata, ISGOOD
 from wpsnn import COLLISION_FREQ_RANGE
 
 def matchResonators(manResIDs, mlResIDs, manFreqs, mlFreqs, maxdf=250.e3):
@@ -69,7 +69,7 @@ def matchAttens(manAttens, mlAttens, manToML):
     assert len(manAttens)==len(mlAttens)
     return manAttens, mlAttens
 
-    
+
 
 if __name__=='__main__':
     parser = argparse.ArgumentParser(description='Check score triage performance')
@@ -83,7 +83,7 @@ if __name__=='__main__':
     parser.add_argument('-p', '--plotConfusion', action='store_true')
     parser.add_argument('-v', '--verbose', action='store_true')
     args = parser.parse_args()
-    
+
     manualMD = SweepMetadata(file=args.manualFile)
     goodMaskManual = ~np.isnan(manualMD.atten)
     collMaskManual = np.append(np.diff(manualMD.freq) < COLLISION_FREQ_RANGE, True)
@@ -119,7 +119,7 @@ if __name__=='__main__':
 
     print 'ML found', np.sum(~np.isnan(manToML[:,0])), 'out of', len(manResIDs), \
             'resonators (', 100*float(np.sum(~np.isnan(manToML[:,0])))/len(manResIDs), '%).'
-    
+
     if args.verbose:
         print 'Not found ResIDs: ', manResIDs[np.isnan(manToML[:, 0])]
         print 'False positive ML ResIDs: ', falsePositives
@@ -147,7 +147,7 @@ if __name__=='__main__':
     print nUpperBadCut, '/', len(attenDiffCut), '(', 100*nUpperBadCut/float(len(attenDiffCut)), '% )', 'Cut resonators underpowered by', \
             args.upper, 'dB'
     print 'Atten Error stdev', np.std(attenDiff)
-    
+
 
     plt.hist(attenDiff, bins=10, range=(-5,5))
     plt.show()
@@ -162,7 +162,7 @@ if __name__=='__main__':
         confImage = np.zeros((max(manAttens) - min(manAttens) + 1, max(mlAttens) - min(mlAttens) + 1))
         for i in range(len(manAttens)):
             confImage[manAttens[i], mlAttens[i]] += 1
-    
+
         plt.imshow(np.transpose(confImage), vmax=30)
         plt.xlabel('True Atten')
         plt.ylabel('Guess Atten')

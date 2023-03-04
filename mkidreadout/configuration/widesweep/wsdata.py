@@ -1,6 +1,6 @@
 import numpy as np
 
-from mkidreadout.configuration import sweepdata
+from mkidcore import sweepdata
 
 
 class WSFitMLData(object):
@@ -43,7 +43,7 @@ class WSFitMLData(object):
         self.boundaryInds = self.boundaryInds[1:]
         self.mags = np.sqrt(self.iVals**2+self.qVals**2)
         self.magsdb = 20*np.log10(self.mags)
-    
+
     def loadPeaks(self, flag='good'):
         if flag=='good':
             self.peakLocs = np.empty(0)
@@ -58,7 +58,7 @@ class WSFitMLData(object):
                 self.peakLocs = np.append(self.peakLocs, peakLocs)
             else:
                 self.allPeakLocs = np.append(self.allPeakLocs, peakLocs)
-    
+
     def stitchDigitalData(self):
         deltas = np.diff(self.freqs)
         boundaryInds = np.where(deltas<0)[0]
@@ -74,7 +74,7 @@ class WSFitMLData(object):
             self.mags[boundaryInds[i] : boundaryInds[i] + nOverlapPoints[i]] = lfWeights*lfMags + hfWeights*hfMags #set mags to average the overlap regions
             self.mags[boundaryInds[i] - nOverlapPoints[i] : boundaryInds[i]] = np.nan #set one side of overlap to 0
             self.freqs[boundaryInds[i] - nOverlapPoints[i] : boundaryInds[i]] = np.nan
-        
+
         # stitching I/Q data not yet implemented so get rid of it for now
         self.iVals = None
         self.qVals = None
@@ -82,7 +82,7 @@ class WSFitMLData(object):
         self.mags = self.mags[~np.isnan(self.mags)]
         self.magsdb = 20*np.log10(self.mags)
         self.freqs = self.freqs[~np.isnan(self.freqs)]
-    
+
     def saveData(self, fn):
         iVals = self.iVals
         qVals = self.qVals
@@ -92,4 +92,3 @@ class WSFitMLData(object):
             qVals = np.zeros(len(iVals))
 
         np.savetxt(fn, np.transpose([self.freqs, iVals, qVals]), fmt='%0.9f %0.5f %0.5f')
-

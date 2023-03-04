@@ -16,7 +16,7 @@ import matplotlib.pyplot as plt
 import mkidcore.objects as mko
 from mkidcore.pixelflags import beammap
 
-from mkidreadout.configuration.sweepdata import SweepMetadata
+from mkidcore.sweepdata import SweepMetadata
 
 log = logging.getLogger(__name__)
 log.setLevel(logging.DEBUG)
