@@ -102,7 +102,7 @@ setuptools.setup(
     package_data={'mkidreadout': ('config/*.yml', 'resources/firmware/*', 'resources/firfilters/*')},
     scripts=['mkidreadout/channelizer/initgui.py',
              'mkidreadout/channelizer/hightemplar.py',
-             'mkidreadout/readout/dashboard.py'
+             'mkidreadout/readout/dashboard.py',
              'mkidreadout/readout/send_photon_applet.py',
              'mkidreadout/channelizer/reinitADCDAC.py',
              'mkidreadout/configuration/powersweep/clickthrough_hell.py',
