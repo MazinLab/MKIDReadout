@@ -103,7 +103,7 @@ setuptools.setup(
     scripts=['mkidreadout/channelizer/initgui.py',
              'mkidreadout/channelizer/hightemplar.py',
              'mkidreadout/readout/dashboard.py',
-             'mkidreadout/readout/send_photon_applet.py',
+             'mkidreadout/readout/send_photons_applet.py',
              'mkidreadout/channelizer/reinitADCDAC.py',
              'mkidreadout/configuration/powersweep/clickthrough_hell.py',
              'mkidreadout/configuration/powersweep/ml/findResonatorsWPS.py',
