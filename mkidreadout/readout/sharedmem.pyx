@@ -173,16 +173,14 @@ cdef class ImageCube(object):
         """
         with nogil:
             retval = MKIDShmImage_timedwait(&(self.image), self.doneSemInd, self.image.md.integrationTime, 1)
-        start_time = self.image.md.startTime
-        exp_time = self.image.md.integrationTime/2000
-        flat_image = self._readImageBuffer()
+        flatImage = self._readImageBuffer()
         if not self.valid:
             raise RuntimeError('Wavecal parameters changed during integration!')
         if self.useWvl:
-            im = np.reshape(flat_image, self._shape).squeeze()
+            return np.reshape(flatImage, self._shape).squeeze()
         else:
-            im = np.reshape(flat_image[:self._shape[1]*self._shape[2]], self._shape[1:])
-        return im, start_time, exp_time
+            return np.reshape(flatImage[:self._shape[1]*self._shape[2]],
+                              (self._shape[1], self._shape[2]))
 
     def _checkIfDone(self):
         """
