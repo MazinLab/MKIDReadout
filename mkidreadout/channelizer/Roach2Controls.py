@@ -104,7 +104,7 @@ from mkidcore.corelog import getLogger
 from mkidcore.readdict import ReadDict
 from mkidreadout.channelizer.adcTools import checkSpectrumForSpikes, streamSpectrum
 from mkidreadout.channelizer.binTools import castBin
-from mkidreadout.configuration import sweepdata
+from mkidcore import sweepdata
 
 
 

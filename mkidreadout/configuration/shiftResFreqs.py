@@ -2,7 +2,7 @@ import argparse
 import os
 import glob
 
-from mkidreadout.configuration.sweepdata import SweepMetadata
+from mkidcore.sweepdata import SweepMetadata
 
 
 if __name__=='__main__':

@@ -2,7 +2,7 @@ import numpy as np
 import os
 import matplotlib.pyplot as plt
 import argparse
-from mkidreadout.configuration.sweepdata import SweepMetadata, ISGOOD
+from mkidcore.sweepdata import SweepMetadata, ISGOOD
 #from wpsnn import COLLISION_FREQ_RANGE
 COLLISION_FREQ_RANGE = 0
 from checkWPSPerformance import matchResonators, matchAttens
@@ -48,7 +48,7 @@ if __name__=='__main__':
     parser.add_argument('-p', '--plotConfusion', action='store_true')
     parser.add_argument('-v', '--verbose', action='store_true')
     parser.add_argument('-m', '--match-res', action='store_true', help='If true, resIDs are assumed to not correspond')
-    parser.add_argument('-o', '--output-file', default=None, 
+    parser.add_argument('-o', '--output-file', default=None,
                     help='Outputs the average of the two provided files, named using provided flag')
     args = parser.parse_args()
 
@@ -60,7 +60,7 @@ if __name__=='__main__':
     resIDA, freqA, attenA, goodMaskA = retrieveManResList(mdA) #first file, assumed to be manual
 
     if len(args.manMDFiles) > 1:
-        mdB = SweepMetadata(file=args.manMDFiles[1]) 
+        mdB = SweepMetadata(file=args.manMDFiles[1])
         bFileName = os.path.basename(args.manMDFiles[1]).split('.')[0] + '_manual'
         saveDir = os.path.dirname(args.manMDFiles[1])
         resIDB, freqB, attenB, goodMaskB = retrieveManResList(mdB) #compare two manual files
@@ -75,7 +75,7 @@ if __name__=='__main__':
         usingML = True
         plotTitle = bFileName + ' vs manual'
         plotFn = bFileName
-    else: 
+    else:
         aFileName = 'manual'
         bFileName = 'ml'
         resIDB, freqB, attenB, goodMaskB = retrieveMLResList(mdA, args.threshold, np.sum(goodMaskA)) #use ML inference from provided ML file
@@ -104,7 +104,7 @@ if __name__=='__main__':
         resIDB = resIDB[sortedIndB]
         freqB = freqB[sortedIndB]
         attenB = attenB[sortedIndB]
-    
+
 
         atob = matchResonators(resIDA, resIDB, freqA, freqB, args.max_df)
         bNotInA = np.empty((0, 2))
@@ -157,8 +157,8 @@ if __name__=='__main__':
     print 'fraction within 1 dB', float(np.sum(np.abs(attenDiff) <= 1))/len(attenDiff)
     print 'median', np.median(attenDiff)
     print 'fraction within 1 dB of median', float(np.sum(np.abs(attenDiff - np.median(attenDiff)) <= 1))/len(attenDiff)
-        
-        
+
+
 
     plt.hist(attenDiff, bins=20, range=(-4.75, 5.25))
     #plt.hist(attenDiff, bins=10, range=(-4.5, 5.5))
@@ -180,7 +180,7 @@ if __name__=='__main__':
         confImage = np.zeros((max(attenAMatched) + 1, max(attenBMatched) + 1))
         for i in range(len(attenAMatched)):
             confImage[attenAMatched[i], attenBMatched[i]] += 1
-    
+
         plt.imshow(np.transpose(confImage), vmax=55)
         if usingML:
             plt.xlabel('True Atten')
@@ -197,8 +197,3 @@ if __name__=='__main__':
     if args.output_file:
         mdAvg = SweepMetadata(resid=resIDAMatched, flag=ISGOOD*np.ones(len(resIDAMatched)), mlatten=(attenAMatched + attenBMatched)/2., mlfreq=(freqAMatched + freqBMatched)/2., wsfreq=(freqAMatched + freqBMatched)/2.)
         mdAvg.save(file=args.output_file)
-
-
-
-
- 

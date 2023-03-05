@@ -4,7 +4,7 @@ import argparse
 from glob import glob
 import numpy as np
 from mkidcore.objects import Beammap
-from mkidreadout.configuration.sweepdata import SweepMetadata
+from mkidcore.sweepdata import SweepMetadata
 
 
 if __name__=='__main__':
@@ -21,8 +21,3 @@ if __name__=='__main__':
         md = SweepMetadata(file=fl)
         md.powerDownUnbeammappedRes(beammap)
         md.save(fl.split('.')[0] + '_pdubr.txt')
-
-
-
-
-    
