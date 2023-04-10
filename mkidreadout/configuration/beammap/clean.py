@@ -371,6 +371,54 @@ class BMCleaner(object):
         toPlaceYs = np.isnan(self.placedYs)
         self.placedXs[toPlaceXs] = self.nCols
         self.placedYs[toPlaceYs] = self.nRows
+        self.saveBeammap(self.beamMap.file[:-4]+'_quickmap.txt')
+
+    def resolveQuickFailedPixels(self):
+        quickmap = np.load(self.beamMap.file[:-4]+'_quickmap.txt')
+        grid = np.zeros(self.bmGrid.shape)
+
+        resmask = (quickmap[:, 1] == 0) & (quickmap[:, 2] < self.nCols) & (quickmap[:, 3] < self.nRows)
+
+        for i in quickmap[resmask]:
+            grid[int(i[3])][int(i[2])] += 1
+
+        dispaced = quickmap[~resmask]
+        opencoords = np.asarray(np.where(grid == 0)).T
+
+        replacements = []
+
+        for i in range(self.nFL):
+            placeMask = (dispaced / 10000).astype(int) == i
+            toPlaceFromFL = dispaced[placeMask]
+            if self.instrument.lower() in ('xkid', 'darkness'):
+                legalYVals = [(i - 1) * 25 + 0, (i - 1) * 25 + 24]
+                coordMask = (opencoords[:, 0] >= legalYVals[0]) & (opencoords[:, 0] <= legalYVals[1])
+            elif self.instrument.lower() in ('mec'):
+                legalXVals = [(i - 1) * 14 + 0, (i - 1) * 14 + 13]
+                coordMask = (opencoords[:, 1] >= legalXVals[0]) & (opencoords[:, 1] <= legalXVals[1])
+            legalCoords = opencoords[coordMask]
+            print(np.sum(placeMask), np.sum(coordMask))
+
+            for j in range(len(toPlaceFromFL)):
+                index = np.where(quickmap[:, 0] == toPlaceFromFL[j])
+                resID = quickmap[index]
+                newCoord = legalCoords[j]
+                replacements.append([resID[0][0], newCoord])
+
+        replacements = np.array(replacements)
+
+        for i in replacements:
+            m = quickmap[:, 0] == i[0]
+            temp = [quickmap[m][0][0], quickmap[m][0][1], i[1][1], i[1][0]]
+            quickmap[m] = temp
+
+        quickmap = np.array(quickmap)
+
+        self.beamMap.resIDs = quickmap[:, 0]
+        self.beamMap.flags = quickmap[:, 1]
+        self.placedXs = quickmap[:, 2]
+        self.placedYs = quickmap[:, 3]
+
 
     def saveBeammap(self, path):
         '''
@@ -421,12 +469,17 @@ def main(config):
 
     if useFreqs:
         cleaner.resolveOverlapWithFrequency()
-        cleaner.placeFailedPixels()
-        cleaner.saveBeammap(finalbeammap)
     else:
         cleaner.resolveOverlaps()
+
+    try:
         cleaner.placeFailedPixels()
-        cleaner.saveBeammap(finalbeammap)
+    except Exception as e:
+        log.debug("Could not place failed pixels: "+e)
+        cleaner.placeFailedPixelsQuick()
+        cleaner.resolveQuickFailedPixels()
+
+    cleaner.saveBeammap(finalbeammap)
 
     fig2 = plt.figure()
     ax2 = fig2.add_subplot(111)
