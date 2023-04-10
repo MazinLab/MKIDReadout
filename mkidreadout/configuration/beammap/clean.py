@@ -374,8 +374,8 @@ class BMCleaner(object):
         self.saveBeammap(self.beamMap.file[:-4]+'_quickmap.txt')
 
     def resolveQuickFailedPixels(self):
-        quickmap = np.load(self.beamMap.file[:-4]+'_quickmap.txt')
-        grid = np.zeros(self.bmGrid.shape)
+        quickmap = np.loadtxt(self.beamMap.file[:-4]+'_quickmap.txt')
+        grid = np.zeros((self.nRows, self.nCols))
 
         resmask = (quickmap[:, 1] == 0) & (quickmap[:, 2] < self.nCols) & (quickmap[:, 3] < self.nRows)
 
@@ -387,14 +387,20 @@ class BMCleaner(object):
 
         replacements = []
 
-        for i in range(self.nFL):
+        for i in np.array(range(self.nFL)) + 1:
             placeMask = (dispaced / 10000).astype(int) == i
             toPlaceFromFL = dispaced[placeMask]
             if self.instrument.lower() in ('xkid', 'darkness'):
-                legalYVals = [(i - 1) * 25 + 0, (i - 1) * 25 + 24]
+                if self.flip:
+                    legalYVals = [((self.nFL - 1) - i - 1) * 25 + 0, ((self.nFL - 1) - i - 1) * 25 + 24]
+                else:
+                    legalYVals = [(i - 1) * 25 + 0, (i - 1) * 25 + 24]
                 coordMask = (opencoords[:, 0] >= legalYVals[0]) & (opencoords[:, 0] <= legalYVals[1])
             elif self.instrument.lower() in ('mec'):
-                legalXVals = [(i - 1) * 14 + 0, (i - 1) * 14 + 13]
+                if self.flip:
+                    legalXVals = [((self.nFL - 1) - i - 1) * 14 + 0, ((self.nFL - 1) - i - 1) * 14 + 13]
+                else:
+                    legalXVals = [(i - 1) * 14 + 0, (i - 1) * 14 + 13]
                 coordMask = (opencoords[:, 1] >= legalXVals[0]) & (opencoords[:, 1] <= legalXVals[1])
             legalCoords = opencoords[coordMask]
             print(np.sum(placeMask), np.sum(coordMask))
@@ -411,8 +417,6 @@ class BMCleaner(object):
             m = quickmap[:, 0] == i[0]
             temp = [quickmap[m][0][0], quickmap[m][0][1], i[1][1], i[1][0]]
             quickmap[m] = temp
-
-        quickmap = np.array(quickmap)
 
         self.beamMap.resIDs = quickmap[:, 0]
         self.beamMap.flags = quickmap[:, 1]
@@ -460,10 +464,10 @@ def main(config):
     cleaner.placeOnGrid()
 
     #plt.ion()
-    fig1 = plt.figure()
-    ax1 = fig1.add_subplot(111)
-    ax1.imshow(cleaner.bmGrid.T)
-    ax1.set_title('Initial (floored) beammap (value = res per pix coordinate)')
+    # fig1 = plt.figure()
+    # ax1 = fig1.add_subplot(111)
+    # ax1.imshow(cleaner.bmGrid.T)
+    # ax1.set_title('Initial (floored) beammap (value = res per pix coordinate)')
 
     # resolve overlaps and place failed pixels
 
@@ -475,7 +479,7 @@ def main(config):
     try:
         cleaner.placeFailedPixels()
     except Exception as e:
-        log.debug("Could not place failed pixels: "+e)
+        # log.debug("Could not place failed pixels: "+e.)
         cleaner.placeFailedPixelsQuick()
         cleaner.resolveQuickFailedPixels()
 
